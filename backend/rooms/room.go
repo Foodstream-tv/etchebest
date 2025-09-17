@@ -2,7 +2,7 @@ package rooms
 
 import (
 	"foodstream/config"
-	"log"
+	"foodstream/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,33 +20,32 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 	userId, _ := c.Get("userId")
-	roomID := uuid.New().String()
+	host := "" // temporary until middleware with jwt
+	if userId != nil {
+		host = userId.(string)
+	}
 
-	_, _, err := config.FirestoreClient.Collection("rooms").Add(c, map[string]any{
-		"name":    req.Name,
-		"host":    userId,
-		"roomId":  roomID,
-		"viewers": 0,
-	})
+	room := models.Room{
+		ID:      uuid.New().String(),
+		Name:    req.Name,
+		Host:    host,
+		Viewers: 0,
+	}
 
-	if err != nil {
-		log.Printf("Firestore Add error: %v", err)
+	if err := config.DB.Create(&room).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"roomId": roomID, "message": "Room created"})
+	c.JSON(http.StatusOK, gin.H{"roomId": room.ID, "message": "Room created"})
 }
 
 func GetRooms(c *gin.Context) {
-	rooms := []map[string]any{}
-	iters, err := config.FirestoreClient.Collection("rooms").Documents(c).GetAll()
+	var rooms []models.Room
 
-	if err != nil {
+	if err := config.DB.Find(&rooms).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rooms"})
 		return
 	}
-	for _, iter := range iters {
-		rooms = append(rooms, iter.Data())
-	}
+
 	c.JSON(http.StatusOK, gin.H{"rooms": rooms})
 }

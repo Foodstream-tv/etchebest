@@ -5,12 +5,14 @@ import (
 	"foodstream/config"
 	"foodstream/pkg"
 	"foodstream/routes"
+	"foodstream/models"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	config.InitFirebase()
+	config.InitDB()
+	config.DB.AutoMigrate(&models.Room{})
 
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
