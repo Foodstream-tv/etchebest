@@ -1,96 +1,137 @@
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Image, ImageBackground, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, ImageBackground, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import ToastManager, { Toast } from 'toastify-react-native';
 
 
-export default function LoginScreen({ onLoginSuccess }: Readonly<{ onLoginSuccess?: () => void }>)
-{
+export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
 
     const emailPattern = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
 
+    const router = useRouter();
+
     const handleLogin = () => {
         if (!emailPattern.test(email)) {
-            Alert.alert('Erreur', 'Veuillez entrer une adresse e-mail valide');
+            Toast.show({
+                text1: 'Adresse e-mail invalide',
+                position: 'bottom',
+                icon: <Ionicons name="close-circle" size={24} color="red" />,
+                iconColor: 'red',
+                progressBarColor: 'red',
+                visibilityTime: 2000,
+            });
             return;
         }
 
         if (password.length < 8) {
-            Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 8 caractères');
+            Toast.show({
+                text1: 'Le mot de passe doit contenir au moins 8 caractères',
+                position: 'bottom',
+                icon: <Ionicons name="close-circle" size={24} color="red" />,
+                iconColor: 'red',
+                progressBarColor: 'red',
+                visibilityTime: 2000,
+            });
             return;
         }
 
-        if (onLoginSuccess) {
-            onLoginSuccess();
-        }
+        Toast.show({ text1: 'Connexion réussie !', position: 'bottom' });
+        router.replace('/');
     };
 
     return (
-        <ImageBackground
-            source={require('@/assets/images/food-iphone.jpg')}
-            style={styles.background}
-            blurRadius={8}
-        >
-            <View style={styles.container}>
-                <Text style={styles.title}>Bienvenue</Text>
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Adresse e-mail"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={email}
-                        onChangeText={setEmail}
-                        placeholderTextColor="#888"
-                    />
-                    <Ionicons name="mail" size={20} color="#888" style={styles.icon} />
-                </View>
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Mot de passe"
-                        secureTextEntry={obscurePassword}
-                        value={password}
-                        onChangeText={setPassword}
-                        placeholderTextColor="#888"
-                    />
-                    <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
-                        <Ionicons name={obscurePassword ? 'eye-off' : 'eye'} size={20} color="#888" style={styles.icon} />
-                    </TouchableOpacity>
-                </View>
-                <TouchableOpacity onPress={() => Alert.alert('Mot de passe oublié')}>
-                    <Text style={styles.forgotText}>Mot de passe oublié?</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                    <Text style={styles.loginButtonText}>Se connecter</Text>
-                </TouchableOpacity>
-                <View style={styles.dividerContainer}>
-                    <View style={styles.divider} />
-                    <Text style={styles.dividerText}>Ou</Text>
-                    <View style={styles.divider} />
-                </View>
-                <View style={styles.socialRow}>
-                    <TouchableOpacity style={styles.googleButton} onPress={() => Alert.alert('Google', 'Connexion avec Google')}>
-                        <Image
-                            source={require('@/assets/images/google_logo.png')}
-                            style={styles.googleIcon}
-                            resizeMode="contain"
+        <>
+            <ImageBackground
+                source={require('@/assets/images/food-iphone.jpg')}
+                style={styles.background}
+                blurRadius={8}
+            >
+                <View style={styles.container}>
+                    <Text style={styles.title}>Bienvenue</Text>
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Adresse e-mail"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholderTextColor="#888"
                         />
+                        <Ionicons name="mail" size={20} color="#888" style={styles.icon} />
+                    </View>
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Mot de passe"
+                            secureTextEntry={obscurePassword}
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholderTextColor="#888"
+                        />
+                        <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
+                            <Ionicons name={obscurePassword ? 'eye-off' : 'eye'} size={20} color="#888" style={styles.icon} />
+                        </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity onPress={() => {
+                        router.push('/forgot-password');
+                    }}>
+                        <Text style={styles.forgotText}>Mot de passe oublié?</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.facebookButton} onPress={() => Alert.alert('Facebook', 'Connexion avec Facebook')}>
-                        <FontAwesome name="facebook" size={28} color="#fff" />
+                    <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+                        <Text style={styles.loginButtonText}>Se connecter</Text>
                     </TouchableOpacity>
+                    <View style={styles.dividerContainer}>
+                        <View style={styles.divider} />
+                        <Text style={styles.dividerText}>Ou</Text>
+                        <View style={styles.divider} />
+                    </View>
+                    <View style={styles.socialRow}>
+                        <TouchableOpacity
+                            style={styles.googleButton}
+                            onPress={() => {
+                                Toast.show({
+                                    text1: 'Tentative de connexion avec Google',
+                                    position: 'bottom',
+                                    icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
+                                    iconColor: '#4285F4',
+                                });
+                            }}
+                        >
+                            <Image
+                                source={require('@/assets/images/google_logo.png')}
+                                style={styles.googleIcon}
+                                resizeMode="contain"
+                            />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.facebookButton}
+                            onPress={() => {
+                                Toast.show({
+                                    text1: 'Tentative de connexion avec Facebook',
+                                    position: 'bottom',
+                                    icon: <Ionicons name="logo-facebook" size={24} color="#1877F3" />,
+                                    iconColor: '#1877F3',
+                                });
+                            }}
+                        >
+                            <FontAwesome name="facebook" size={28} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.signupContainer}>
+                        <Text style={styles.signupText}>Vous n'avez pas de compte? </Text>
+                        <TouchableOpacity onPress={() => Toast.info('Rediriger vers inscription')}>
+                            <Text style={styles.signupLink}>Inscrivez-vous</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-                <View style={styles.signupContainer}>
-                    <Text style={styles.signupText}>Vous n'avez pas de compte? </Text>
-                    <TouchableOpacity onPress={() => Alert.alert('Inscription', 'Rediriger vers inscription')}>
-                        <Text style={styles.signupLink}>Inscrivez-vous</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </ImageBackground>
+            </ImageBackground>
+            <ToastManager />
+        </>
     );
 }
 
