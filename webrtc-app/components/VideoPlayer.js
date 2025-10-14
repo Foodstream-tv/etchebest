@@ -17,7 +17,7 @@ export default function VideoPlayer() {
     if (!roomName) return alert("Please enter a room name");
 
     try {
-      const response = await fetch("https://e418-163-5-3-68.ngrok-free.app/createRoom", {
+      const response = await fetch("https://supereloquently-idiophonic-millie.ngrok-free.dev/createRoom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: roomName }),
@@ -42,7 +42,7 @@ export default function VideoPlayer() {
 
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        fetch(`https://e418-163-5-3-68.ngrok-free.app/ice?roomId=${roomId}`, {
+        fetch(`https://supereloquently-idiophonic-millie.ngrok-free.dev/ice?roomId=${roomId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(event.candidate),
@@ -82,7 +82,7 @@ export default function VideoPlayer() {
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      const response = await fetch(`https://e418-163-5-3-68.ngrok-free.app/webrtc?roomId=${roomId}`, {
+      const response = await fetch(`https://supereloquently-idiophonic-millie.ngrok-free.dev/webrtc?roomId=${roomId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sdp: offer.sdp, type: offer.type }),
@@ -133,4 +133,4 @@ export default function VideoPlayer() {
   );
 }
 
-// https://e418-163-5-3-68.ngrok-free.app
+// https://supereloquently-idiophonic-millie.ngrok-free.dev

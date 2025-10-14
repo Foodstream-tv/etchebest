@@ -19,6 +19,7 @@ type TrackInfo struct {
 type Room struct {
 	Connections []*webrtc.PeerConnection
 	Tracks      []*TrackInfo
+	PendingICE  []webrtc.ICECandidateInit
 }
 
 var (

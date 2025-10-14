@@ -28,8 +28,20 @@ func HandleICECandidate(c *gin.Context) {
 
 	room, ok := rooms[roomID]
 	if !ok {
-		log.Printf("Room %s not found or empty\n", roomID)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Room not found"})
+		room = &Room{
+			Connections: []*webrtc.PeerConnection{},
+			Tracks:      []*TrackInfo{},
+			PendingICE:  []webrtc.ICECandidateInit{},
+    	}
+		rooms[roomID] = room
+		log.Printf("Room %s not found yet, candidate buffered\n", roomID)
+		c.JSON(http.StatusOK, gin.H{"status": "Candidate buffered"})
+		return
+	}
+
+	if len(room.Connections) == 0 {
+		room.PendingICE = append(room.PendingICE, candidate)
+		c.JSON(http.StatusOK, gin.H{"status": "Candidate buffered"})
 		return
 	}
 
@@ -40,6 +52,7 @@ func HandleICECandidate(c *gin.Context) {
 			return
 		}
 	}
+	room.PendingICE = nil
 
 	c.JSON(http.StatusOK, gin.H{"status": "Candidate added"})
 }

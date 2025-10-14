@@ -19,6 +19,11 @@ func CreateRoom(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Room name is required"})
 		return
 	}
+	var existingRoom models.Room
+    if err := config.DB.Where("name = ?", req.Name).First(&existingRoom).Error; err == nil {
+        c.JSON(http.StatusOK, gin.H{"roomId": existingRoom.ID, "message": "Room joined"})
+        return
+    }
 	userId, _ := c.Get("userId")
 	host := "" // temporary until middleware with jwt
 	if userId != nil {
