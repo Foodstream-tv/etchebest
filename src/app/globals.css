@@ -7,6 +7,18 @@
 
 html, body { height: 100%; }
 
+body {
+  background-color: #fafafa;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease-out;
+}
 
 .field {
   @apply flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 shadow-sm focus-within:border-gray-900;
@@ -29,4 +41,12 @@ html, body { height: 100%; }
 }
 .divider > span {
   @apply h-px w-16 bg-gray-300;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; scrollbar-width: none;
 }
