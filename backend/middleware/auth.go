@@ -1,28 +1,37 @@
 package middleware
 
 import (
-	"context"
-	"foodstream/config"
+	"foodstream/auth"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := c.GetHeader("Authorization")
-		if token == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing or invalid token"})
 			c.Abort()
 			return
 		}
-		decodedToken, err := config.AuthClient.VerifyIDToken(context.Background(), token)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+
+		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &auth.Claims{}
+
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte("super-secret-key"), nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()
 			return
 		}
-		c.Set("userId", decodedToken.UID)
+
+		c.Set("userId", claims.UserID)
 		c.Next()
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 func main() {
 	config.InitDB()
-	config.DB.AutoMigrate(&models.Room{})
+	config.DB.AutoMigrate(&models.User{}, &models.Room{})
 
 	r := gin.Default()
 	r.SetTrustedProxies(nil)

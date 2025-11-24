@@ -4,6 +4,7 @@ import (
 	"foodstream/middleware"
 	"foodstream/rooms"
 	"foodstream/webrtc"
+	"foodstream/auth"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,8 @@ func routeNotFound(c *gin.Context) {
 
 func Handler(r *gin.Engine) {
 	r.Use(middleware.CorsHandler())
+	r.POST("/register", auth.Register)
+	r.POST("/login", auth.Login)
 	r.POST("/createRoom", rooms.CreateRoom)
 	r.GET("/rooms", rooms.GetRooms)
 	r.POST("/webrtc", webrtc.HandleWebRTC)
