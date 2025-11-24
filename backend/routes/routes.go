@@ -1,10 +1,10 @@
 package routes
 
 import (
+	"foodstream/auth"
 	"foodstream/middleware"
 	"foodstream/rooms"
 	"foodstream/webrtc"
-	"foodstream/auth"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +20,7 @@ func Handler(r *gin.Engine) {
 	r.Use(middleware.CorsHandler())
 	r.POST("/register", auth.Register)
 	r.POST("/login", auth.Login)
-	r.POST("/createRoom", rooms.CreateRoom)
+	r.POST("/createRoom", middleware.AuthMiddleware(), rooms.CreateRoom)
 	r.GET("/rooms", rooms.GetRooms)
 	r.POST("/webrtc", webrtc.HandleWebRTC)
 	r.POST("/ice", webrtc.HandleICECandidate)

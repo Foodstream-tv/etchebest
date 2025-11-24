@@ -3,6 +3,7 @@ package middleware
 import (
 	"foodstream/auth"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +23,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		claims := &auth.Claims{}
 
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte("super-secret-key"), nil
+			return []byte(os.Getenv("JWT_SECRET")), nil
 		})
 
 		if err != nil || !token.Valid {
