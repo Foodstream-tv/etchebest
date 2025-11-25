@@ -2,23 +2,73 @@ package main
 
 import (
 	"fmt"
-	"foodstream/config"
-	"foodstream/models"
-	"foodstream/pkg"
-	"foodstream/routes"
+	"github.com/Foodstream-io/etchebest/config"
+	_ "github.com/Foodstream-io/etchebest/docs"
+	"github.com/Foodstream-io/etchebest/models"
+	"github.com/Foodstream-io/etchebest/routes"
+	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+/*
+@title           Etchebest API
+@version         1.0
+@description     API for Etchebest video streaming platform
+@termsOfService  http://swagger.io/terms/
+
+@contact.name   API Support
+@contact.url    http://www.swagger.io/support
+@contact.email  support@swagger.io
+
+@license.name  Apache 2.0
+@license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+@host      localhost:8080
+@BasePath  /
+
+@securityDefinitions.apikey BearerAuth
+@in header
+@name Authorization
+@description Type "Bearer" followed by a space and JWT token.
+*/
 func main() {
-	config.InitDB()
-	config.DB.AutoMigrate(&models.User{}, &models.Room{})
+	db, err := config.InitDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := db.AutoMigrate(&models.User{}, &models.Room{}); err != nil {
+		log.Fatal(err)
+	}
 
 	r := gin.Default()
-	r.SetTrustedProxies(nil)
-	fmt.Println("Listening on port 8081")
-	{
-		routes.Handler(r)
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Fatal(err)
 	}
-	pkg.CheckError(r.Run(":8081"))
+
+	port := os.Getenv("BACKEND_PORT")
+	if port == "" {
+		log.Fatal("BACKEND_PORT is not set in the environment")
+	}
+
+	fmt.Printf("Listening on port %s\n", port)
+	jwtKey := os.Getenv("JWT_SECRET")
+	if jwtKey == "" {
+		log.Fatal("JWT_SECRET is not set in the environment")
+	}
+
+	routes.Handler(r, db, jwtKey)
+
+	// Swagger endpoint# github.com/Foodstream-io/etchebest/routes
+	//routes/routes.go:23:34: cannot use jwtToken (variable of type string) as []byte value in argument to auth.Login
+	//routes/routes.go:24:50: cannot use jwtToken (variable of type string) as []byte value in argument to middleware.AuthMiddleware
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }

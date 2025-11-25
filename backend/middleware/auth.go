@@ -1,16 +1,15 @@
 package middleware
 
 import (
-	"foodstream/auth"
+	"github.com/Foodstream-io/etchebest/auth"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(jwtKey []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
@@ -23,7 +22,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		claims := &auth.Claims{}
 
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(os.Getenv("JWT_SECRET")), nil
+			return jwtKey, nil
 		})
 
 		if err != nil || !token.Valid {

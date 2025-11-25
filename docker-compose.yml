@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: db-foodstream
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
+    networks:
+      - back-network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  backend:
+    container_name: backend-foodstream
+    build: ./backend
+    env_file: ./.env
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    networks:
+      - back-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  back-network:
+    driver: bridge
