@@ -1,12 +1,13 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/Foodstream-io/etchebest/auth"
 	"github.com/Foodstream-io/etchebest/middleware"
 	"github.com/Foodstream-io/etchebest/rooms"
 	"github.com/Foodstream-io/etchebest/webrtc"
 	"gorm.io/gorm"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +27,8 @@ func Handler(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	r.POST("/webrtc", webrtc.HandleWebRTC)
 	r.POST("/ice", webrtc.HandleICECandidate)
 	r.POST("/disconnect", webrtc.HandleDisconnect)
+	r.POST("/reserve", middleware.AuthMiddleware([]byte(jwtToken)), rooms.ReserveRoom)
+	r.POST("/addParticipant", middleware.AuthMiddleware([]byte(jwtToken)), rooms.AddParticipant)
 	// r.GET("/ws", signaling.HandleWebSocket)
 	r.NoRoute(routeNotFound)
 }

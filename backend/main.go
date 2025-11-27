@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/Foodstream-io/etchebest/config"
 	_ "github.com/Foodstream-io/etchebest/docs"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/Foodstream-io/etchebest/routes"
-	"log"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"

@@ -1,8 +1,11 @@
 package rooms
 
 import (
-	"github.com/Foodstream-io/etchebest/models"
 	"net/http"
+
+	"github.com/Foodstream-io/etchebest/config"
+	"github.com/Foodstream-io/etchebest/models"
+	"github.com/lib/pq"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,24 +39,27 @@ func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		var existingRoom models.Room
-		if err := db.Where("name = ?", req.Name).First(&existingRoom).Error; err == nil {
+		if err := config.DB.Where("name = ?", req.Name).First(&existingRoom).Error; err == nil {
 			c.JSON(http.StatusOK, gin.H{"roomId": existingRoom.ID, "message": "Room joined"})
 			return
 		}
-		userId, _ := c.Get("userId")
-		host := "" // temporary until middleware with jwt
-		if userId != nil {
-			host = userId.(string)
+		userId, exists := c.Get("userId")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
 		}
+		host := userId.(string)
 
 		room := models.Room{
-			ID:      uuid.New().String(),
-			Name:    req.Name,
-			Host:    host,
-			Viewers: 0,
+			ID:              uuid.New().String(),
+			Name:            req.Name,
+			Host:            host,
+			Participants:    pq.StringArray{host},
+			Viewers:         0,
+			MaxParticipants: 5,
 		}
 
-		if err := db.Create(&room).Error; err != nil {
+		if err := config.DB.Create(&room).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room"})
 			return
 		}

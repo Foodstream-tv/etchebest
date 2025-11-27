@@ -2,13 +2,25 @@ package config
 
 import (
 	"fmt"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+	"time"
+
+	"github.com/joho/godotenv"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+var DB *gorm.DB
+
+func init() {
+	var err error
+	DB, err = InitDB()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+}
 
 func InitDB() (*gorm.DB, error) {
 	// Only for development
@@ -41,9 +53,25 @@ func InitDB() (*gorm.DB, error) {
 		env["POSTGRES_PORT"],
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %v", err)
+	var db *gorm.DB
+	var err error
+
+	for i := range 10 {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err == nil {
+			sqlDB, pingErr := db.DB()
+			if pingErr == nil {
+				pingErr = sqlDB.Ping()
+			}
+			if pingErr == nil {
+				log.Println("Database connected")
+				return db, nil
+			}
+			err = pingErr
+		}
+
+		log.Printf("Waiting for database... (%d/10): %v", i+1, err)
+		time.Sleep(2 * time.Second)
 	}
 
 	log.Println("Database connected")

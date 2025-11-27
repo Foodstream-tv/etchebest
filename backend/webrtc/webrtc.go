@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/Foodstream-io/etchebest/config"
+	"github.com/Foodstream-io/etchebest/models"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
@@ -31,6 +34,31 @@ func HandleWebRTC(c *gin.Context) {
 	roomID := c.Query("roomId")
 	if roomID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Room ID is required"})
+		return
+	}
+
+	var dbRoom models.Room
+	if err := config.DB.First(&dbRoom, "id = ?", roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+		return
+	}
+	userId, _ := c.Get("userId")
+	if userId == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userIdStr := userId.(string)
+
+	isParticipant := false
+	for _, p := range dbRoom.Participants {
+		if p == userIdStr {
+			isParticipant = true
+			break
+		}
+	}
+
+	if !isParticipant {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You are a viewer, WebRTC not allowed"})
 		return
 	}
 
