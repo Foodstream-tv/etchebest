@@ -6,15 +6,18 @@ import CategorySection from "@/components/home/CategorySection";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-neutral-50">
+    <main className="min-h-screen bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-50">
       <Header />
 
       {/* POPULAIRE */}
       <section className="mx-auto max-w-7xl px-6 pt-8">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">Populaire</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
+          Populaire
+        </h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Les lives et recettes plébiscités par la communauté
         </p>
+
         <div className="mt-5">
           <HeroCarousel
             items={[
@@ -51,14 +54,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FOOTER (simple placeholder) */}
-      <footer className="border-t bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 text-sm text-gray-500">
+      {/* FOOTER */}
+      <footer className="border-t bg-white text-gray-600 dark:border-white/10 dark:bg-neutral-900 dark:text-gray-400">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 text-sm">
           <span>© {new Date().getFullYear()} FoodStream</span>
           <nav className="flex gap-5">
-            <a href="#" className="hover:text-gray-900">À propos</a>
-            <a href="#" className="hover:text-gray-900">Contact</a>
-            <a href="#" className="hover:text-gray-900">CGU</a>
+            <a
+              href="#"
+              className="hover:text-gray-900 dark:hover:text-gray-100"
+            >
+              À propos
+            </a>
+            <a
+              href="#"
+              className="hover:text-gray-900 dark:hover:text-gray-100"
+            >
+              Contact
+            </a>
+            <a
+              href="#"
+              className="hover:text-gray-900 dark:hover:text-gray-100"
+            >
+              CGU
+            </a>
           </nav>
         </div>
       </footer>

@@ -19,20 +19,19 @@ export default function ProfilePage() {
   const { user, setUser, ready } = useAuth();
   const router = useRouter();
 
-  // ✅ Rediriger seulement quand le hook est prêt
   useEffect(() => {
     if (ready && !user) router.replace("/signin");
   }, [ready, user, router]);
 
   if (!ready) {
     return (
-      <main className="grid min-h-[60vh] place-items-center">
-        <p className="text-sm text-gray-500">Chargement…</p>
+      <main className="grid min-h-[60vh] place-items-center bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-50">
+        <p className="text-sm text-gray-500 dark:text-gray-300">Chargement…</p>
       </main>
     );
   }
 
-  if (!user) return null; // l'effet au-dessus va rediriger
+  if (!user) return null;
 
   const signOut = () => {
     setUser(null);
@@ -40,8 +39,8 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="bg-neutral-50">
-      <header className="bg-gradient-to-r from-amber-50 to-rose-50">
+    <main className="bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-50">
+      <header className="bg-gradient-to-r from-amber-50 to-rose-50 dark:from-neutral-900 dark:to-neutral-900">
         <div className="mx-auto max-w-5xl px-6 py-10">
           <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="relative">
@@ -59,7 +58,7 @@ export default function ProfilePage() {
                 </div>
               )}
               <button
-                className="absolute -bottom-1 -right-1 rounded-full bg-white p-2 shadow ring-1 ring-black/5"
+                className="absolute -bottom-1 -right-1 rounded-full bg-white p-2 shadow ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10"
                 title="Changer la photo"
               >
                 <Camera className="h-4 w-4" />
@@ -67,15 +66,15 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900">{user.name || "Mon profil"}</h1>
-              <p className="mt-1 flex items-center gap-2 text-sm text-gray-600">
+              <h1 className="text-2xl font-bold">{user.name || "Mon profil"}</h1>
+              <p className="mt-1 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <Mail className="h-4 w-4" /> {user.email}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
                   Streamer
                 </span>
-                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">
+                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
                   Membre depuis 2024
                 </span>
               </div>
@@ -83,7 +82,7 @@ export default function ProfilePage() {
 
             <button
               onClick={signOut}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/15 dark:text-gray-100 dark:hover:bg-neutral-800"
             >
               <LogOut className="h-4 w-4" />
               Se déconnecter
@@ -93,7 +92,6 @@ export default function ProfilePage() {
       </header>
 
       <div className="mx-auto grid max-w-5xl gap-6 px-6 py-8 md:grid-cols-3">
-        {/* Colonne gauche : navigation profil */}
         <aside className="space-y-2">
           <ProfileLink href="/profile" active>
             <UserIcon className="h-4 w-4" />
@@ -104,11 +102,10 @@ export default function ProfilePage() {
           <ProfileLink href="/settings">⚙️ Paramètres</ProfileLink>
         </aside>
 
-        {/* Contenu principal */}
         <section className="md:col-span-2">
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
             <h2 className="text-lg font-semibold">Informations personnelles</h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Modifie ton nom et ton e-mail (démo frontend).
             </p>
 
@@ -116,8 +113,7 @@ export default function ProfilePage() {
               className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                const form = e.currentTarget as HTMLFormElement;
-                const fd = new FormData(form);
+                const fd = new FormData(e.currentTarget);
                 const name = String(fd.get("name") || user.name);
                 const email = String(fd.get("email") || user.email);
                 const updated = { ...user, name, email };
@@ -126,33 +122,37 @@ export default function ProfilePage() {
               }}
             >
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Nom</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Nom
+                </label>
                 <input
                   name="name"
                   defaultValue={user.name || ""}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 dark:border-white/15 dark:bg-neutral-900 dark:text-gray-100 dark:focus:border-white"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Email
+                </label>
                 <input
                   type="email"
                   name="email"
                   defaultValue={user.email}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 dark:border-white/15 dark:bg-neutral-900 dark:text-gray-100 dark:focus:border-white"
                 />
               </div>
               <div className="sm:col-span-2">
-                <button className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">
+                <button className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">
                   Enregistrer
                 </button>
               </div>
             </form>
           </div>
 
-          <div className="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+          <div className="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
             <h2 className="text-lg font-semibold">Activité récente</h2>
-            <ul className="mt-3 space-y-2 text-sm text-gray-600">
+            <ul className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
               <li>• A suivi “Ramen Tonkotsu maison”</li>
               <li>• A ajouté “Curry asiatique” en favori</li>
               <li>• A commenté un live de “ChefCarlos”</li>
@@ -177,7 +177,9 @@ function ProfileLink({
     <Link
       href={href}
       className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-        active ? "bg-gray-900 text-white" : "text-gray-800 hover:bg-gray-100"
+        active
+          ? "bg-gray-900 text-white dark:bg-white dark:text-neutral-900"
+          : "text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-neutral-800"
       }`}
     >
       {children}
