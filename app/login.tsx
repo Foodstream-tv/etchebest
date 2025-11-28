@@ -1,7 +1,7 @@
-import { FontAwesome, Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ImageBackground, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ToastManager, { Toast } from 'toastify-react-native';
 
 
@@ -45,91 +45,103 @@ export default function LoginScreen() {
 
     return (
         <>
-            <ImageBackground
-                source={require('@/assets/images/food-iphone.jpg')}
-                style={styles.background}
-                blurRadius={8}
-            >
-                <View style={styles.container}>
-                    <Text style={styles.title}>Bienvenue</Text>
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Adresse e-mail"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            value={email}
-                            onChangeText={setEmail}
-                            placeholderTextColor="#888"
-                        />
-                        <Ionicons name="mail" size={20} color="#888" style={styles.icon} />
+            <View style={styles.background}>
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.card}>
+                        <Text style={styles.heading}>Connexion</Text>
+                        <View style={styles.formSection}>
+                            <Text style={styles.subHeading}>Bonjour</Text>
+                            <View style={styles.inputGroup}>
+                                <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Adresse e-mail"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    placeholderTextColor="#7a7a7a"
+                                />
+                            </View>
+                            <View style={styles.inputGroup}>
+                                <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Mot de passe"
+                                    secureTextEntry={obscurePassword}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholderTextColor="#7a7a7a"
+                                />
+                                <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
+                                    <Ionicons
+                                        name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                                        size={20}
+                                        color="#000"
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
+                                <Text style={styles.primaryButtonText}>Se connecter</Text>
+                            </TouchableOpacity>
+                            <View style={styles.dividerRow}>
+                                <View style={styles.line} />
+                                <Text style={styles.dividerLabel}>Ou</Text>
+                                <View style={styles.line} />
+                            </View>
+                            <TouchableOpacity
+                                style={styles.socialButton}
+                                onPress={() => {
+                                    Toast.show({
+                                        text1: 'Tentative de connexion avec Google',
+                                        position: 'bottom',
+                                        icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
+                                        iconColor: '#4285F4',
+                                    });
+                                }}
+                            >
+                                <View style={styles.socialButtonContent}>
+                                    <View style={styles.socialIconBadge}>
+                                        <Image
+                                            source={require('@/assets/images/google_logo.png')}
+                                            style={styles.googleIcon}
+                                            resizeMode="contain"
+                                        />
+                                    </View>
+                                    <Text style={styles.socialText}>Continuer avec Google</Text>
+                                </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.socialButton}
+                                onPress={() => {
+                                    Toast.show({
+                                        text1: 'Tentative de connexion avec Apple',
+                                        position: 'bottom',
+                                        icon: <Ionicons name="logo-apple" size={24} color="#000" />,
+                                        iconColor: '#000',
+                                    });
+                                }}
+                            >
+                                <View style={styles.socialButtonContent}>
+                                    <View style={styles.socialIconBadge}>
+                                        <Ionicons name="logo-apple" size={22} color="#000" />
+                                    </View>
+                                    <Text style={styles.socialText}>Continuer avec Apple</Text>
+                                </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => router.push('/forgot-password')}>
+                                <Text style={styles.linkText}>Mot de passe oublié ?</Text>
+                            </TouchableOpacity>
+                            <View style={styles.footerLinks}>
+                                <Text style={styles.footerText}>Vous n&apos;avez pas de compte ? </Text>
+                                <TouchableOpacity onPress={() => router.push('/register')}>
+                                    <Text style={styles.linkHighlight}>Inscrivez-vous</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                     </View>
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Mot de passe"
-                            secureTextEntry={obscurePassword}
-                            value={password}
-                            onChangeText={setPassword}
-                            placeholderTextColor="#888"
-                        />
-                        <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
-                            <Ionicons name={obscurePassword ? 'eye-off' : 'eye'} size={20} color="#888" style={styles.icon} />
-                        </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity onPress={() => {
-                        router.push('/forgot-password');
-                    }}>
-                        <Text style={styles.forgotText}>Mot de passe oublié?</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                        <Text style={styles.loginButtonText}>Se connecter</Text>
-                    </TouchableOpacity>
-                    <View style={styles.dividerContainer}>
-                        <View style={styles.divider} />
-                        <Text style={styles.dividerText}>Ou</Text>
-                        <View style={styles.divider} />
-                    </View>
-                    <View style={styles.socialRow}>
-                        <TouchableOpacity
-                            style={styles.googleButton}
-                            onPress={() => {
-                                Toast.show({
-                                    text1: 'Tentative de connexion avec Google',
-                                    position: 'bottom',
-                                    icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
-                                    iconColor: '#4285F4',
-                                });
-                            }}
-                        >
-                            <Image
-                                source={require('@/assets/images/google_logo.png')}
-                                style={styles.googleIcon}
-                                resizeMode="contain"
-                            />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.facebookButton}
-                            onPress={() => {
-                                Toast.show({
-                                    text1: 'Tentative de connexion avec Facebook',
-                                    position: 'bottom',
-                                    icon: <Ionicons name="logo-facebook" size={24} color="#1877F3" />,
-                                    iconColor: '#1877F3',
-                                });
-                            }}
-                        >
-                            <FontAwesome name="facebook" size={28} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={styles.signupContainer}>
-                        <Text style={styles.signupText}>Vous n'avez pas de compte? </Text>
-                        <TouchableOpacity onPress={() => Toast.info('Rediriger vers inscription')}>
-                            <Text style={styles.signupLink}>Inscrivez-vous</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </ImageBackground>
+                </ScrollView>
+            </View>
             <ToastManager />
         </>
     );
@@ -138,147 +150,137 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     background: {
         flex: 1,
-        resizeMode: 'cover',
+        backgroundColor: '#fdfdfc',
+    },
+    scrollContent: {
+        flexGrow: 1,
+        padding: 16,
         justifyContent: 'center',
     },
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        padding: 24,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+    card: {
+        borderRadius: 32,
+        paddingVertical: 48,
+        paddingHorizontal: 16,
+        backgroundColor: '#fff',
     },
-    title: {
-        fontWeight: 'bold',
+    heading: {
         fontSize: 28,
-        color: '#000',
+        fontWeight: '700',
         textAlign: 'center',
-        marginBottom: 24,
+        color: '#111',
     },
-    inputContainer: {
+    formSection: {
+        marginTop: 80,
+    },
+    subHeading: {
+        fontSize: 26,
+        fontWeight: '700',
+        color: '#111',
+        marginBottom: 28,
+        textAlign: 'center',
+    },
+    inputGroup: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.8)',
-        borderRadius: 8,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#bcbcbc',
+        paddingHorizontal: 16,
         marginBottom: 16,
-        paddingHorizontal: 12,
+        height: 56,
+        backgroundColor: '#fff',
+        width: '100%',
+    },
+    leadingIcon: {
+        marginRight: 12,
     },
     input: {
         flex: 1,
-        height: 48,
+        fontSize: 16,
         color: '#000',
     },
-    icon: {
-        marginLeft: 8,
-    },
-    loginButton: {
-        backgroundColor: 'orange',
-        borderRadius: 8,
-        paddingVertical: 14,
-        marginBottom: 16,
-    },
-    loginButtonText: {
+    linkText: {
+        textDecorationLine: 'underline',
+        textAlign: 'center',
         color: '#000',
-        fontWeight: 'bold',
+        fontWeight: '600',
+        marginTop: 4,
+        marginBottom: 28,
+    },
+    primaryButton: {
+        backgroundColor: '#FF8A00',
+        borderRadius: 16,
+        paddingVertical: 16,
+        width: '100%',
+    },
+    primaryButtonText: {
         textAlign: 'center',
         fontSize: 16,
-    },
-    socialRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    googleButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        backgroundColor: '#fff',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginHorizontal: 8,
-        borderWidth: 1,
-        borderColor: '#eee',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    googleIcon: {
-        width: 28,
-        height: 28,
-    },
-    googleButtonText: {
-        color: '#000',
-        fontWeight: 'bold',
-        fontSize: 15,
-    },
-    facebookButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        backgroundColor: '#1877F3',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginHorizontal: 8,
-        borderWidth: 1,
-        borderColor: '#eee',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    dividerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginVertical: 12,
-    },
-    divider: {
-        flex: 1,
-        height: 1,
-        backgroundColor: '#ccc',
-    },
-    dividerText: {
-        marginHorizontal: 8,
-        color: '#888',
-    },
-    socialButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        paddingVertical: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#eee',
-    },
-    socialIcon: {
-        marginLeft: 16,
-        marginRight: 8,
-    },
-    socialButtonText: {
-        color: '#000',
-        fontWeight: 'bold',
-        fontSize: 15,
-    },
-    forgotText: {
-        color: '#000',
-        textAlign: 'center',
-        textDecorationLine: 'underline',
-        marginBottom: 16,
-    },
-    signupContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    signupText: {
+        fontWeight: '700',
         color: '#fff',
     },
-    signupLink: {
-        color: 'orange',
-        fontWeight: 'bold',
+    dividerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 32,
+    },
+    line: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#121212',
+    },
+    dividerLabel: {
+        marginHorizontal: 12,
+        color: '#000',
+        fontWeight: '600',
+    },
+    socialButton: {
+        borderRadius: 18,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
+        marginBottom: 16,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#e8e8e8',
+        width: '100%',
+    },
+    socialButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    socialIconBadge: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: '#f4f4f4',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    googleIcon: {
+        width: 22,
+        height: 22,
+    },
+    socialText: {
+        flex: 1,
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#000',
+        marginLeft: 18,
+    },
+    footerLinks: {
+        marginTop: 32,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    footerText: {
+        color: '#000',
+        fontSize: 14,
+    },
+    linkHighlight: {
+        color: '#D06000',
+        fontWeight: '700',
+        fontSize: 14,
     },
 });

@@ -36,7 +36,7 @@ export default function StreamScreen() {
                             onPress={() => {
                                 setModalVisible(false);
                                 router.push({ pathname: '/live-streaming', params: { isHost: "true" } });
-                            }}
+                            }}  
                         >
                             <Ionicons name="videocam" size={28} color="#fff" style={styles.optionIcon} />
                             <View style={{ flex: 1 }}>
