@@ -9,6 +9,8 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
+    const [emailFocused, setEmailFocused] = useState(false);
+    const [passwordFocused, setPasswordFocused] = useState(false);
 
     const emailPattern = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
 
@@ -50,36 +52,50 @@ export default function LoginScreen() {
                     <View style={styles.card}>
                         <Text style={styles.heading}>Connexion</Text>
                         <View style={styles.formSection}>
-                            <Text style={styles.subHeading}>Bonjour</Text>
-                            <View style={styles.inputGroup}>
-                                <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Adresse e-mail"
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    placeholderTextColor="#7a7a7a"
-                                />
-                            </View>
-                            <View style={styles.inputGroup}>
-                                <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Mot de passe"
-                                    secureTextEntry={obscurePassword}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    placeholderTextColor="#7a7a7a"
-                                />
-                                <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
-                                    <Ionicons
-                                        name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                        size={20}
-                                        color="#000"
+                            <Text style={styles.subHeading}>Bonjour,</Text>
+                            <View style={styles.inputWrapper}>
+                                {Boolean(emailFocused || email) && (
+                                    <Text style={styles.floatingLabel}>Adresse e-mail</Text>
+                                )}
+                                <View style={[styles.inputGroup, (emailFocused || email) && styles.inputGroupFocused]}>
+                                    <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={emailFocused || email ? '' : 'Adresse e-mail'}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        onFocus={() => setEmailFocused(true)}
+                                        onBlur={() => setEmailFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
                                     />
-                                </TouchableOpacity>
+                                </View>
+                            </View>
+                            <View style={styles.inputWrapper}>
+                                {Boolean(passwordFocused || password) && (
+                                    <Text style={styles.floatingLabel}>Mot de passe</Text>
+                                )}
+                                <View style={[styles.inputGroup, (passwordFocused || password) && styles.inputGroupFocused]}>
+                                    <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={passwordFocused || password ? '' : 'Mot de passe'}
+                                        secureTextEntry={obscurePassword}
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        onFocus={() => setPasswordFocused(true)}
+                                        onBlur={() => setPasswordFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
+                                    />
+                                    <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
+                                        <Ionicons
+                                            name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                                            size={20}
+                                            color="#000"
+                                        />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
                                 <Text style={styles.primaryButtonText}>Se connecter</Text>
@@ -179,6 +195,21 @@ const styles = StyleSheet.create({
         marginBottom: 28,
         textAlign: 'center',
     },
+    inputWrapper: {
+        marginBottom: 16,
+        position: 'relative',
+    },
+    floatingLabel: {
+        position: 'absolute',
+        top: -8,
+        left: 16,
+        backgroundColor: '#fff',
+        paddingHorizontal: 4,
+        fontSize: 12,
+        color: '#FF8A00',
+        fontWeight: '600',
+        zIndex: 1,
+    },
     inputGroup: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -186,10 +217,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#bcbcbc',
         paddingHorizontal: 16,
-        marginBottom: 16,
         height: 56,
         backgroundColor: '#fff',
         width: '100%',
+    },
+    inputGroupFocused: {
+        borderColor: '#FF8A00',
     },
     leadingIcon: {
         marginRight: 12,

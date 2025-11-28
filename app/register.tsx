@@ -12,6 +12,9 @@ export default function RegisterScreen() {
     const [day, setDay] = useState('');
     const [month, setMonth] = useState('');
     const [year, setYear] = useState('');
+    const [emailFocused, setEmailFocused] = useState(false);
+    const [usernameFocused, setUsernameFocused] = useState(false);
+    const [passwordFocused, setPasswordFocused] = useState(false);
 
     const emailPattern = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
     const router = useRouter();
@@ -78,48 +81,69 @@ export default function RegisterScreen() {
                         <View style={styles.formSection}>
                             <Text style={styles.subHeading}>Bienvenue</Text>
 
-                            <View style={styles.inputGroup}>
-                                <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Adresse e-mail"
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    placeholderTextColor="#7a7a7a"
-                                />
-                            </View>
-
-                            <View style={styles.inputGroup}>
-                                <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Identifiant"
-                                    autoCapitalize="none"
-                                    value={username}
-                                    onChangeText={setUsername}
-                                    placeholderTextColor="#7a7a7a"
-                                />
-                            </View>
-
-                            <View style={styles.inputGroup}>
-                                <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Mot de passe"
-                                    secureTextEntry={obscurePassword}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    placeholderTextColor="#7a7a7a"
-                                />
-                                <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
-                                    <Ionicons
-                                        name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                        size={20}
-                                        color="#000"
+                            <View style={styles.inputWrapper}>
+                                {Boolean(emailFocused || email) && (
+                                    <Text style={styles.floatingLabel}>Adresse e-mail</Text>
+                                )}
+                                <View style={[styles.inputGroup, (emailFocused || email) && styles.inputGroupFocused]}>
+                                    <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={emailFocused || email ? '' : 'Adresse e-mail'}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        onFocus={() => setEmailFocused(true)}
+                                        onBlur={() => setEmailFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
                                     />
-                                </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <View style={styles.inputWrapper}>
+                                {Boolean(usernameFocused || username) && (
+                                    <Text style={styles.floatingLabel}>Identifiant</Text>
+                                )}
+                                <View style={[styles.inputGroup, (usernameFocused || username) && styles.inputGroupFocused]}>
+                                    <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={usernameFocused || username ? '' : 'Identifiant'}
+                                        autoCapitalize="none"
+                                        value={username}
+                                        onChangeText={setUsername}
+                                        onFocus={() => setUsernameFocused(true)}
+                                        onBlur={() => setUsernameFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.inputWrapper}>
+                                {Boolean(passwordFocused || password) && (
+                                    <Text style={styles.floatingLabel}>Mot de passe</Text>
+                                )}
+                                <View style={[styles.inputGroup, (passwordFocused || password) && styles.inputGroupFocused]}>
+                                    <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={passwordFocused || password ? '' : 'Mot de passe'}
+                                        secureTextEntry={obscurePassword}
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        onFocus={() => setPasswordFocused(true)}
+                                        onBlur={() => setPasswordFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
+                                    />
+                                    <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
+                                        <Ionicons
+                                            name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                                            size={20}
+                                            color="#000"
+                                        />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             <View style={styles.dateRow}>
@@ -171,47 +195,38 @@ export default function RegisterScreen() {
                                 <View style={styles.line} />
                             </View>
 
-                            <TouchableOpacity
-                                style={styles.socialButton}
-                                onPress={() => {
-                                    Toast.show({
-                                        text1: 'Tentative d\'inscription avec Google',
-                                        position: 'bottom',
-                                        icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
-                                        iconColor: '#4285F4',
-                                    });
-                                }}
-                            >
-                                <View style={styles.socialButtonContent}>
-                                    <View style={styles.socialIconBadge}>
-                                        <Image
-                                            source={require('@/assets/images/google_logo.png')}
-                                            style={styles.googleIcon}
-                                            resizeMode="contain"
-                                        />
-                                    </View>
-                                    <Text style={styles.socialText}>S&apos;inscrire avec Google</Text>
-                                </View>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.socialButton}
-                                onPress={() => {
-                                    Toast.show({
-                                        text1: 'Tentative d\'inscription avec Apple',
-                                        position: 'bottom',
-                                        icon: <Ionicons name="logo-apple" size={24} color="#000" />,
-                                        iconColor: '#000',
-                                    });
-                                }}
-                            >
-                                <View style={styles.socialButtonContent}>
-                                    <View style={styles.socialIconBadge}>
-                                        <Ionicons name="logo-apple" size={22} color="#000" />
-                                    </View>
-                                    <Text style={styles.socialText}>S&apos;inscrire avec Apple</Text>
-                                </View>
-                            </TouchableOpacity>
+                            <View style={styles.socialIconsRow}>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={() => {
+                                        Toast.show({
+                                            text1: 'Tentative d\'inscription avec Google',
+                                            position: 'bottom',
+                                            icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
+                                            iconColor: '#4285F4',
+                                        });
+                                    }}
+                                >
+                                    <Image
+                                        source={require('@/assets/images/google_logo.png')}
+                                        style={styles.socialIcon}
+                                        resizeMode="contain"
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={() => {
+                                        Toast.show({
+                                            text1: 'Tentative d\'inscription avec Apple',
+                                            position: 'bottom',
+                                            icon: <Ionicons name="logo-apple" size={24} color="#000" />,
+                                            iconColor: '#000',
+                                        });
+                                    }}
+                                >
+                                    <Ionicons name="logo-apple" size={26} color="#000" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
                 </ScrollView>
@@ -253,6 +268,21 @@ const styles = StyleSheet.create({
         marginBottom: 28,
         textAlign: 'center',
     },
+    inputWrapper: {
+        marginBottom: 16,
+        position: 'relative',
+    },
+    floatingLabel: {
+        position: 'absolute',
+        top: -8,
+        left: 16,
+        backgroundColor: '#fff',
+        paddingHorizontal: 4,
+        fontSize: 12,
+        color: '#FF8A00',
+        fontWeight: '600',
+        zIndex: 1,
+    },
     inputGroup: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -260,10 +290,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#bcbcbc',
         paddingHorizontal: 16,
-        marginBottom: 16,
         height: 56,
         backgroundColor: '#fff',
         width: '100%',
+    },
+    inputGroupFocused: {
+        borderColor: '#FF8A00',
     },
     leadingIcon: {
         marginRight: 12,
@@ -321,38 +353,24 @@ const styles = StyleSheet.create({
         color: '#000',
         fontWeight: '600',
     },
-    socialButton: {
-        borderRadius: 18,
-        paddingVertical: 14,
-        paddingHorizontal: 18,
-        marginBottom: 16,
+    socialIconsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 16,
+        marginBottom: 24,
+    },
+    socialIconButton: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
         backgroundColor: '#fff',
         borderWidth: 1,
         borderColor: '#e8e8e8',
-        width: '100%',
-    },
-    socialButtonContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    socialIconBadge: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: '#f4f4f4',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    googleIcon: {
-        width: 22,
-        height: 22,
-    },
-    socialText: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-        marginLeft: 18,
+    socialIcon: {
+        width: 24,
+        height: 24,
     },
 });

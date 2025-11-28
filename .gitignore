@@ -44,3 +44,6 @@ app-example
 #package
 package.json
 package-lock.json
+
+#test
+coverage/
