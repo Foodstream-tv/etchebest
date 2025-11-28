@@ -1,11 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-export default function HelpScreen()
-{
+export default function AddScreen() {
     return (
         <View style={styles.container}>
-            <Text style={styles.text}>Help Page</Text>
+            <Text style={styles.text}>Add</Text>
         </View>
     );
 }
@@ -15,11 +14,11 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff'
+        backgroundColor: '#fff',
     },
     text: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#000'
+        color: '#000',
     },
 });
