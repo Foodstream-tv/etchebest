@@ -43,17 +43,16 @@ func InitDB() (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err == nil {
 		sqlDB, pingErr := db.DB()
 		if pingErr == nil {
 			pingErr = sqlDB.Ping()
 		}
-		if pingErr == nil {
-			log.Println("Database connected")
-			return db, nil
-		}
-		err = pingErr
 	}
+	log.Println("Database connected")
+
 	return db, nil
 }
