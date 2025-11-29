@@ -1,9 +1,10 @@
 package auth
 
 import (
-	"github.com/Foodstream-io/etchebest/models"
 	"net/http"
 	"time"
+
+	"github.com/Foodstream-io/etchebest/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

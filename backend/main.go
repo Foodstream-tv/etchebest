@@ -62,11 +62,9 @@ func main() {
 		log.Fatal("JWT_SECRET is not set in the environment")
 	}
 
-	routes.Handler(r, db, jwtKey)
+	routes.SetupRoutes(r, db, jwtKey)
 
-	// Swagger endpoint# github.com/Foodstream-io/etchebest/routes
-	//routes/routes.go:23:34: cannot use jwtToken (variable of type string) as []byte value in argument to auth.Login
-	//routes/routes.go:24:50: cannot use jwtToken (variable of type string) as []byte value in argument to middleware.AuthMiddleware
+	// Swagger endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	if err := r.Run(":" + port); err != nil {

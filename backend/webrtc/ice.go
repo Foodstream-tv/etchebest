@@ -8,6 +8,20 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
+/*
+HandleICECandidate godoc
+@Summary      Handle ICE candidates
+@Description  Add ICE candidates for WebRTC connection establishment
+@Tags         webrtc
+@Accept       json
+@Produce      json
+@Param        roomId query string true "Room ID"
+@Param        candidate body object true "ICE Candidate"
+@Success      200  {object}  map[string]string "status: Candidate added or Candidate buffered"
+@Failure      400  {object}  map[string]string "error: Room ID is required or Invalid ICE candidate format"
+@Failure      500  {object}  map[string]string "error: Failed to add ICE candidate"
+@Router       /ice [post]
+*/
 func HandleICECandidate(c *gin.Context) {
 	roomID := c.Query("roomId")
 	if roomID == "" {
@@ -32,7 +46,7 @@ func HandleICECandidate(c *gin.Context) {
 			Connections: []*webrtc.PeerConnection{},
 			Tracks:      []*TrackInfo{},
 			PendingICE:  []webrtc.ICECandidateInit{},
-    	}
+		}
 		rooms[roomID] = room
 		log.Printf("Room %s not found yet, candidate buffered\n", roomID)
 		c.JSON(http.StatusOK, gin.H{"status": "Candidate buffered"})

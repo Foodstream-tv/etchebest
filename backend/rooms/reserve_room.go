@@ -9,6 +9,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+/*
+ReserveRoom godoc
+@Summary      Reserve a spot in a room
+@Description  Reserve a participant slot in a room in advance
+@Tags         rooms
+@Accept       json
+@Produce      json
+@Security     BearerAuth
+@Param        request body object{roomId=string} true "Room ID to reserve"
+@Success      200  {object}  map[string]string "message: Reserved successfully or Already reserved"
+@Failure      400  {object}  map[string]string "error: RoomID is required"
+@Failure      401  {object}  map[string]string "error: Unauthorized"
+@Failure      403  {object}  map[string]string "error: Room full, cannot reserve"
+@Failure      404  {object}  map[string]string "error: Room not found"
+@Failure      500  {object}  map[string]string "error: Failed to save reservation"
+@Router       /reserve [post]
+*/
 func ReserveRoom(c *gin.Context) {
 	var req struct {
 		RoomID string `json:"roomId" binding:"required"`

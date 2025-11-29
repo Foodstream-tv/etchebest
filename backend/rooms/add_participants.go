@@ -11,10 +11,25 @@ import (
 )
 
 type AddParticipantReq struct {
-	RoomId string `json:"roomId"`
-	UserId string `json:"userId"`
+	RoomId string `json:"roomId" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	UserId string `json:"userId" binding:"required" example:"550e8400-e29b-41d4-a716-446655440001"`
 }
 
+/*
+AddParticipant godoc
+@Summary      Add participant to room
+@Description  Add a user as a participant to a specific room
+@Tags         rooms
+@Accept       json
+@Produce      json
+@Security     BearerAuth
+@Param        request body AddParticipantReq true "Room and user IDs"
+@Success      200  {object}  map[string]string "status: Participant added or Already participant"
+@Failure      400  {object}  map[string]string "error: Invalid body"
+@Failure      401  {object}  map[string]string "error: Unauthorized"
+@Failure      404  {object}  map[string]string "error: Room not found"
+@Router       /addParticipant [post]
+*/
 func AddParticipant(c *gin.Context) {
 	var req AddParticipantReq
 	if err := c.ShouldBindJSON(&req); err != nil {

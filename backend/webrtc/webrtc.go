@@ -30,6 +30,23 @@ var (
 	mu    sync.Mutex
 )
 
+/*
+HandleWebRTC godoc
+@Summary      Establish WebRTC connection
+@Description  Create WebRTC peer connection for video streaming (participants only)
+@Tags         webrtc
+@Accept       json
+@Produce      json
+@Param        roomId query string true "Room ID"
+@Param        offer body object true "WebRTC Session Description (SDP offer)"
+@Success      200  {object}  map[string]string "sdp: SDP answer"
+@Failure      400  {object}  map[string]string "error: Room ID is required or Invalid offer"
+@Failure      401  {object}  map[string]string "error: Unauthorized"
+@Failure      403  {object}  map[string]string "error: You are a viewer, WebRTC not allowed"
+@Failure      404  {object}  map[string]string "error: Room not found"
+@Failure      500  {object}  map[string]string "error: Internal server error"
+@Router       /webrtc [post]
+*/
 func HandleWebRTC(c *gin.Context) {
 	roomID := c.Query("roomId")
 	if roomID == "" {

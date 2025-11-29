@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"github.com/Foodstream-io/etchebest/auth"
 	"net/http"
 	"strings"
+
+	"github.com/Foodstream-io/etchebest/auth"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

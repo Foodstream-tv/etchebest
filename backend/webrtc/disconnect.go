@@ -7,6 +7,18 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
+/*
+HandleDisconnect godoc
+@Summary      Disconnect from room
+@Description  Close all WebRTC connections and clean up room resources
+@Tags         webrtc
+@Accept       json
+@Produce      json
+@Param        roomId query string true "Room ID"
+@Success      200  {object}  map[string]string "message: Disconnected successfully"
+@Failure      400  {object}  map[string]string "error: Room ID is required or Room not found or already empty"
+@Router       /disconnect [post]
+*/
 func HandleDisconnect(c *gin.Context) {
 	roomID := c.Query("roomId")
 	if roomID == "" {
