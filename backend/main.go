@@ -62,9 +62,8 @@ func main() {
 		log.Fatal("JWT_SECRET is not set in the environment")
 	}
 
-	routes.SetupRoutes(r, db, jwtKey)
+	routes.Routes(r, db, jwtKey)
 
-	// Swagger endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	if err := r.Run(":" + port); err != nil {

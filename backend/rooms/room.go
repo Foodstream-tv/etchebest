@@ -3,7 +3,6 @@ package rooms
 import (
 	"net/http"
 
-	"github.com/Foodstream-io/etchebest/config"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/lib/pq"
 
@@ -29,7 +28,7 @@ CreateRoom godoc
 @Failure      400  {object}  map[string]string "error: Room name is required"
 @Failure      401  {object}  map[string]string "error: Unauthorized"
 @Failure      500  {object}  map[string]string "error: Failed to create room"
-@Router       /createRoom [post]
+@Router       /room [post]
 */
 func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -39,7 +38,7 @@ func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		var existingRoom models.Room
-		if err := config.DB.Where("name = ?", req.Name).First(&existingRoom).Error; err == nil {
+		if err := db.Where("name = ?", req.Name).First(&existingRoom).Error; err == nil {
 			c.JSON(http.StatusOK, gin.H{"roomId": existingRoom.ID, "message": "Room joined"})
 			return
 		}
@@ -59,7 +58,7 @@ func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 			MaxParticipants: 5,
 		}
 
-		if err := config.DB.Create(&room).Error; err != nil {
+		if err := db.Create(&room).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room"})
 			return
 		}

@@ -1,10 +1,10 @@
 package rooms
 
 import (
+	"gorm.io/gorm"
 	"net/http"
 	"slices"
 
-	"github.com/Foodstream-io/etchebest/config"
 	"github.com/Foodstream-io/etchebest/models"
 
 	"github.com/gin-gonic/gin"
@@ -30,26 +30,28 @@ AddParticipant godoc
 @Failure      404  {object}  map[string]string "error: Room not found"
 @Router       /addParticipant [post]
 */
-func AddParticipant(c *gin.Context) {
-	var req AddParticipantReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid body"})
-		return
+func AddParticipant(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req AddParticipantReq
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid body"})
+			return
+		}
+
+		var room models.Room
+		if err := db.First(&room, "id = ?", req.RoomId).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+			return
+		}
+
+		if slices.Contains(room.Participants, req.UserId) {
+			c.JSON(http.StatusOK, gin.H{"status": "Already participant"})
+			return
+		}
+
+		room.Participants = append(room.Participants, req.UserId)
+		db.Save(&room)
+
+		c.JSON(http.StatusOK, gin.H{"status": "Participant added"})
 	}
-
-	var room models.Room
-	if err := config.DB.First(&room, "id = ?", req.RoomId).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
-		return
-	}
-
-	if slices.Contains(room.Participants, req.UserId) {
-		c.JSON(http.StatusOK, gin.H{"status": "Already participant"})
-		return
-	}
-
-	room.Participants = append(room.Participants, req.UserId)
-	config.DB.Save(&room)
-
-	c.JSON(http.StatusOK, gin.H{"status": "Participant added"})
 }

@@ -18,9 +18,9 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-type RegisterRequest struct {
-	Email    string `json:"email" binding:"required" example:"user@example.com"`
-	Password string `json:"password" binding:"required" example:"password123"`
+type Request struct {
+	Email    string `json:"email" binding:"required,email" example:"user@example.com"`
+	Password string `json:"password" binding:"required,min=8" example:"Password123@"`
 }
 
 /*
@@ -38,10 +38,10 @@ Register godoc
 */
 func Register(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req RegisterRequest
+		var req Request
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 			return
 		}
 
@@ -58,17 +58,12 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if err := db.Create(&user).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "User already exists"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "this email is already being used"})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "User registered"})
+		c.JSON(http.StatusOK, gin.H{"message": "user registered successfully"})
 	}
-}
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required" example:"user@example.com"`
-	Password string `json:"password" binding:"required" example:"password123"`
 }
 
 /*
@@ -87,25 +82,27 @@ Login godoc
 */
 func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req LoginRequest
+		var req Request
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
 		}
 
 		var user models.User
+
 		if err := db.Where("email = ?", req.Email).First(&user).Error; err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return
 		}
 
-		expiration := time.Now().Add(24 * time.Hour)
+		// 7 Days expiration token
+		expiration := time.Now().Add(7 * 24 * time.Hour)
 		claims := &Claims{
 			UserID: user.ID,
 			RegisteredClaims: jwt.RegisteredClaims{
