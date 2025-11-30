@@ -1,4 +1,4 @@
-package routes
+package main
 
 import (
 	"net/http"
@@ -6,7 +6,6 @@ import (
 	"github.com/Foodstream-io/etchebest/auth"
 	"github.com/Foodstream-io/etchebest/middleware"
 	"github.com/Foodstream-io/etchebest/rooms"
-	"github.com/Foodstream-io/etchebest/webrtc"
 	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"
@@ -30,11 +29,11 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	r.POST("/rooms", middleware.AuthMiddleware([]byte(jwtToken)), rooms.CreateRoom(db))
 	r.POST("/rooms/reserve", middleware.AuthMiddleware([]byte(jwtToken)), rooms.ReserveRoom(db))
 	r.POST("/rooms/participant", middleware.AuthMiddleware([]byte(jwtToken)), rooms.AddParticipant(db))
+	r.POST("/rooms/disconnect", middleware.AuthMiddleware([]byte(jwtToken)), rooms.HandleDisconnect)
 
 	// WebRTC routes
-	r.POST("/webrtc", middleware.AuthMiddleware([]byte(jwtToken)), webrtc.HandleWebRTC(db))
-	r.POST("/ice", middleware.AuthMiddleware([]byte(jwtToken)), webrtc.HandleICECandidate)
-	r.POST("/disconnect", middleware.AuthMiddleware([]byte(jwtToken)), webrtc.HandleDisconnect)
+	r.POST("/webrtc", middleware.AuthMiddleware([]byte(jwtToken)), rooms.HandleWebRTC(db))
+	r.POST("/ice", middleware.AuthMiddleware([]byte(jwtToken)), rooms.HandleICECandidate)
 
 	r.NoRoute(routeNotFound)
 }
