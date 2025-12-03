@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { ComponentProps } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -153,12 +154,14 @@ const ActivityRow = ({ text }: Activity) => (
 );
 
 export default function ProfileScreen(): JSX.Element {
+	const router = useRouter();
+
 	return (
 		<SafeAreaView edges={['top']} style={styles.safeArea}>
 			<ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				<View style={styles.titleRow}>
 					<Text style={styles.title}>Profil</Text>
-					<TouchableOpacity style={styles.settingsButton} activeOpacity={0.85}>
+					<TouchableOpacity style={styles.settingsButton} activeOpacity={0.85} onPress={() => router.push('/settings')}>
 						<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.settingsGradient}>
 							<Ionicons name="settings-outline" size={18} color={CARD} />
 						</LinearGradient>
