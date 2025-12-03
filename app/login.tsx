@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -98,7 +99,14 @@ export default function LoginScreen() {
                                 </View>
                             </View>
                             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-                                <Text style={styles.primaryButtonText}>Se connecter</Text>
+                                <LinearGradient
+                                    colors={['#FFA92E', '#FF5D1E']}
+                                    start={{ x: 0, y: 0.5 }}
+                                    end={{ x: 1, y: 0.5 }}
+                                    style={styles.primaryGradient}
+                                >
+                                    <Text style={styles.primaryButtonText}>Se connecter</Text>
+                                </LinearGradient>
                             </TouchableOpacity>
                             <View style={styles.dividerRow}>
                                 <View style={styles.line} />
@@ -241,10 +249,15 @@ const styles = StyleSheet.create({
         marginBottom: 28,
     },
     primaryButton: {
-        backgroundColor: '#FF8A00',
         borderRadius: 16,
-        paddingVertical: 16,
+        overflow: 'hidden',
         width: '100%',
+    },
+    primaryGradient: {
+        paddingVertical: 16,
+        borderRadius: 16,
+        width: '100%',
+        alignItems: 'center',
     },
     primaryButtonText: {
         textAlign: 'center',
