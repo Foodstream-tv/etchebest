@@ -2,30 +2,19 @@ package config
 
 import (
 	"fmt"
+	"github.com/joho/godotenv"
 	"log"
 	"os"
-	"time"
-
-	"github.com/joho/godotenv"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
-
-func init() {
-	var err error
-	DB, err = InitDB()
-	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
-}
-
 func InitDB() (*gorm.DB, error) {
-	// Only for development
+	// Only for development, no need to handle the error that Load function returns
 	godotenv.Load("../.env")
 
+	env := make(map[string]string)
 	required := []string{
 		"POSTGRES_HOST",
 		"POSTGRES_USER",
@@ -33,8 +22,6 @@ func InitDB() (*gorm.DB, error) {
 		"POSTGRES_DB",
 		"POSTGRES_PORT",
 	}
-
-	env := make(map[string]string)
 
 	for _, key := range required {
 		val := os.Getenv(key)
@@ -56,24 +43,16 @@ func InitDB() (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	for i := range 10 {
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err == nil {
-			sqlDB, pingErr := db.DB()
-			if pingErr == nil {
-				pingErr = sqlDB.Ping()
-			}
-			if pingErr == nil {
-				log.Println("Database connected")
-				return db, nil
-			}
-			err = pingErr
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err == nil {
+		sqlDB, pingErr := db.DB()
+		if pingErr == nil {
+			pingErr = sqlDB.Ping()
 		}
-
-		log.Printf("Waiting for database... (%d/10): %v", i+1, err)
-		time.Sleep(2 * time.Second)
 	}
-
 	log.Println("Database connected")
+
 	return db, nil
 }
