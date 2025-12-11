@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Foodstream-io/etchebest/users"
 	"net/http"
 
 	"github.com/Foodstream-io/etchebest/auth"
@@ -19,21 +20,40 @@ func routeNotFound(c *gin.Context) {
 
 func Routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	r.Use(middleware.CorsHandler())
+	bJwtToken := []byte(jwtToken)
+
+	adminGroup := r.Group("/api/admin")
+	adminGroup.Use(
+		middleware.AuthMiddleware(bJwtToken),
+		middleware.RequireRole("ADMIN"),
+	)
+
+	userGroup := r.Group("/api")
+	userGroup.Use(
+		middleware.AuthMiddleware(bJwtToken),
+	)
 
 	// Auth routes
-	r.POST("/register", auth.Register(db))
-	r.POST("/login", auth.Login(db, []byte(jwtToken)))
+	r.POST("/api/register", auth.Register(db))
+	r.POST("/api/login", auth.Login(db, bJwtToken))
+
+	// User routes
+	adminGroup.GET("/users", users.GetUsers(db))
+	userGroup.GET("/users/me", users.GetMe(db))
+	userGroup.POST("/users/follow", users.FollowUser(db))
+	userGroup.POST("/users/unfollow", users.UnfollowUser(db))
+	userGroup.PATCH("/users", users.UpdateUser(db))
 
 	// Room routes
-	r.GET("/rooms", middleware.AuthMiddleware([]byte(jwtToken)), rooms.GetRooms(db))
-	r.POST("/rooms", middleware.AuthMiddleware([]byte(jwtToken)), rooms.CreateRoom(db))
-	r.POST("/rooms/reserve", middleware.AuthMiddleware([]byte(jwtToken)), rooms.ReserveRoom(db))
-	r.POST("/rooms/participant", middleware.AuthMiddleware([]byte(jwtToken)), rooms.AddParticipant(db))
-	r.POST("/rooms/disconnect", middleware.AuthMiddleware([]byte(jwtToken)), rooms.HandleDisconnect)
+	userGroup.GET("/rooms", rooms.GetRooms(db))
+	userGroup.POST("/rooms", rooms.CreateRoom(db))
+	userGroup.POST("/rooms/reserve", rooms.ReserveRoom(db))
+	userGroup.POST("/rooms/participant", rooms.AddParticipant(db))
+	userGroup.POST("/rooms/disconnect", rooms.HandleDisconnect)
 
 	// WebRTC routes
-	r.POST("/webrtc", middleware.AuthMiddleware([]byte(jwtToken)), rooms.HandleWebRTC(db))
-	r.POST("/ice", middleware.AuthMiddleware([]byte(jwtToken)), rooms.HandleICECandidate)
+	r.POST("/api/webrtc", middleware.AuthMiddleware(bJwtToken), rooms.HandleWebRTC(db))
+	r.POST("/api/ice", middleware.AuthMiddleware(bJwtToken), rooms.HandleICECandidate)
 
 	r.NoRoute(routeNotFound)
 }
