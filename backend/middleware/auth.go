@@ -33,6 +33,20 @@ func AuthMiddleware(jwtKey []byte) gin.HandlerFunc {
 		}
 
 		c.Set("userId", claims.UserID)
+		c.Set("role", claims.Role)
+		c.Next()
+	}
+}
+
+func RequireRole(required string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, ok := c.Get("role")
+		if !ok || role != required {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "You don't have permission to access this resource",
+			})
+			return
+		}
 		c.Next()
 	}
 }

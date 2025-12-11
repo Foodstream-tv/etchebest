@@ -15,12 +15,25 @@ import (
 
 type Claims struct {
 	UserID string `json:"userId"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-type Request struct {
+type RequestLogin struct {
 	Email    string `json:"email" binding:"required,email" example:"user@example.com"`
 	Password string `json:"password" binding:"required,min=8" example:"Password123@"`
+}
+
+type RequestRegister struct {
+	Email              string `json:"email" binding:"required,email" example:"user@example.com"`
+	Password           string `json:"password" binding:"required,min=8" example:"Password123@"`
+	FirstName          string `json:"firstName" binding:"required,min=2" example:"John"`
+	LastName           string `json:"lastName" binding:"required,min=2" example:"Doe"`
+	Username           string `json:"username" binding:"required,min=2" example:"JohnDoe23"`
+	ProfileImage       []byte `json:"profileImage" binding:"required"`
+	Description        string `json:"description" binding:"required,min=10" example:"I like eating sushi"`
+	CountryNumberPhone int    `json:"countryNumberPhone" binding:"required,min=1" example:"33"`
+	NumberPhone        string `json:"numberPhone" binding:"required,min=1" example:"123456"`
 }
 
 /*
@@ -38,7 +51,7 @@ Register godoc
 */
 func Register(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req Request
+		var req RequestRegister
 
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -52,16 +65,22 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		user := models.User{
-			ID:       uuid.New().String(),
-			Email:    req.Email,
-			Password: string(hashedPassword),
+			ID:                 uuid.New().String(),
+			Email:              req.Email,
+			Password:           string(hashedPassword),
+			FirstName:          req.FirstName,
+			LastName:           req.LastName,
+			Username:           req.Username,
+			ProfileImageURL:    "",
+			Description:        req.Description,
+			CountryNumberPhone: req.CountryNumberPhone,
+			NumberPhone:        req.NumberPhone,
 		}
 
 		if err := db.Create(&user).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "this email is already being used"})
 			return
 		}
-
 		c.JSON(http.StatusOK, gin.H{"message": "user registered successfully"})
 	}
 }
@@ -82,7 +101,7 @@ Login godoc
 */
 func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req Request
+		var req RequestLogin
 
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
@@ -105,6 +124,7 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		expiration := time.Now().Add(7 * 24 * time.Hour)
 		claims := &Claims{
 			UserID: user.ID,
+			Role:   user.Role,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(expiration),
 			},

@@ -5,10 +5,10 @@ import (
 )
 
 type Room struct {
-	ID              string `gorm:"primaryKey"`
-	Name            string
-	Host            string
-	Participants    pq.StringArray `gorm:"type:text[]"`
-	Viewers         int
-	MaxParticipants int `gorm:"default:5"`
+	ID              string         `json:"id" gorm:"primaryKey"`
+	Name            string         `json:"name"`
+	Host            string         `json:"host"`
+	Participants    pq.StringArray `json:"participants" gorm:"type:text[]"`
+	Viewers         int            `json:"viewers"`
+	MaxParticipants int            `json:"maxParticipants" gorm:"default:5"`
 }
