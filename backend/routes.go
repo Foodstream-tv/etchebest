@@ -12,48 +12,42 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func routeNotFound(c *gin.Context) {
-	c.JSON(http.StatusNotFound, gin.H{
-		"message": "The endpoint that you are trying to reach doesn't exist",
-	})
-}
-
-func Routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
+func routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	r.Use(middleware.CorsHandler())
 	bJwtToken := []byte(jwtToken)
 
-	adminGroup := r.Group("/api/admin")
-	adminGroup.Use(
-		middleware.AuthMiddleware(bJwtToken),
-		middleware.RequireRole("ADMIN"),
-	)
+	api := r.Group("/api")
+	api.Use(middleware.AuthMiddleware(bJwtToken))
 
-	userGroup := r.Group("/api")
-	userGroup.Use(
-		middleware.AuthMiddleware(bJwtToken),
-	)
+	admin := api.Group("/admin")
+	admin.Use(middleware.RequireRole("ADMIN"))
 
-	// Auth routes
+	// Authentication
 	r.POST("/api/register", auth.Register(db))
 	r.POST("/api/login", auth.Login(db, bJwtToken))
 
-	// User routes
-	adminGroup.GET("/users", users.GetUsers(db))
-	userGroup.GET("/users/me", users.GetMe(db))
-	userGroup.POST("/users/follow", users.FollowUser(db))
-	userGroup.POST("/users/unfollow", users.UnfollowUser(db))
-	userGroup.PATCH("/users", users.UpdateUser(db))
+	// User
+	admin.GET("/users", users.GetUsers(db))
+	api.GET("/users/me", users.GetMe(db))
+	api.POST("/users/follow", users.FollowUser(db))
+	api.POST("/users/unfollow", users.UnfollowUser(db))
+	api.PATCH("/users", users.UpdateUser(db))
 
-	// Room routes
-	userGroup.GET("/rooms", rooms.GetRooms(db))
-	userGroup.POST("/rooms", rooms.CreateRoom(db))
-	userGroup.POST("/rooms/reserve", rooms.ReserveRoom(db))
-	userGroup.POST("/rooms/participant", rooms.AddParticipant(db))
-	userGroup.POST("/rooms/disconnect", rooms.HandleDisconnect)
+	// Rooms
+	api.GET("/rooms", rooms.GetRooms(db))
+	api.POST("/rooms", rooms.CreateRoom(db))
+	api.POST("/rooms/reserve", rooms.ReserveRoom(db))
+	api.POST("/rooms/participant", rooms.AddParticipant(db))
+	api.POST("/rooms/disconnect", rooms.HandleDisconnect)
 
-	// WebRTC routes
-	r.POST("/api/webrtc", middleware.AuthMiddleware(bJwtToken), rooms.HandleWebRTC(db))
-	r.POST("/api/ice", middleware.AuthMiddleware(bJwtToken), rooms.HandleICECandidate)
+	// WebRTC
+	api.POST("/api/webrtc", rooms.HandleWebRTC(db))
+	api.POST("/api/ice", rooms.HandleICECandidate)
 
-	r.NoRoute(routeNotFound)
+	// Not found
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"message": "The endpoint that you are trying to reach doesn't exist",
+		})
+	})
 }
