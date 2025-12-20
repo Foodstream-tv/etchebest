@@ -65,7 +65,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	Routes(r, db, jwtKey)
+	routes(r, db, jwtKey)
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
