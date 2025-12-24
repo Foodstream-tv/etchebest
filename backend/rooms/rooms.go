@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"github.com/Foodstream-io/etchebest/models"
+	"github.com/Foodstream-io/etchebest/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -90,18 +91,18 @@ func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusOK, gin.H{"roomId": existingRoom.ID, "message": "Room joined"})
 			return
 		}
-		userId, exists := c.Get("userId")
-		if !exists {
+
+		user, exists := utils.GetCurrentUser(db, c)
+		if exists != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			return
 		}
-		host := userId.(string)
 
 		room := models.Room{
 			ID:              uuid.New().String(),
 			Name:            req.Name,
-			Host:            host,
-			Participants:    pq.StringArray{host},
+			Host:            user.ID,
+			Participants:    pq.StringArray{user.ID},
 			Viewers:         0,
 			MaxParticipants: 5,
 		}
@@ -123,7 +124,7 @@ ReserveRoom godoc
 @Produce      json
 @Security     BearerAuth
 @Param        request body object{roomId=string} true "Room ID to reserve"
-@Success      200  {object}  map[string]string "message: Reserved successfully or Already reserved"
+@Success      200  {object}  map[string]string "message: reserved successfully or you already reserved this room"
 @Failure      400  {object}  map[string]string "error: RoomID is required"
 @Failure      401  {object}  map[string]string "error: Unauthorized"
 @Failure      403  {object}  map[string]string "error: Room full, cannot reserve"
@@ -138,25 +139,25 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			RoomID string `json:"roomId" binding:"required"`
 		}
 		if err := c.BindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "RoomID is required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "roomID is required"})
 			return
 		}
 
-		userID, _ := c.Get("userId")
-		if userID == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		user, err := utils.GetCurrentUser(db, c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 
 		var room models.Room
 		if err := db.First(&room, "id = ?", req.RoomID).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + req.RoomID + " not found"})
 			return
 		}
 
 		for _, p := range room.Participants {
-			if p == userID.(string) {
-				c.JSON(http.StatusOK, gin.H{"message": "Already reserved"})
+			if p == user.ID {
+				c.JSON(http.StatusOK, gin.H{"message": "you already reserved this room"})
 				return
 			}
 		}
@@ -166,7 +167,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		room.Participants = append(room.Participants, userID.(string))
+		room.Participants = append(room.Participants, user.ID)
 		if err := db.Save(&room).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reservation"})
 			return
@@ -279,15 +280,15 @@ HandleICECandidate godoc
 func HandleICECandidate(c *gin.Context) {
 	roomID := c.Query("roomId")
 	if roomID == "" {
-		log.Println("Room ID missing")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Room ID is required"})
+		log.Println("room ID missing")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
 		return
 	}
 
 	var candidate webrtc.ICECandidateInit
 	if err := c.ShouldBindJSON(&candidate); err != nil {
-		log.Printf("Failed to bind ICE candidate: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ICE candidate format"})
+		log.Printf("failed to bind ICE candidate: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ICE candidate format"})
 		return
 	}
 
@@ -302,27 +303,27 @@ func HandleICECandidate(c *gin.Context) {
 			PendingICE:  []webrtc.ICECandidateInit{},
 		}
 		rooms[roomID] = room
-		log.Printf("Room %s not found yet, candidate buffered\n", roomID)
-		c.JSON(http.StatusOK, gin.H{"status": "Candidate buffered"})
+		log.Printf("room %s not found yet, candidate buffered\n", roomID)
+		c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
 		return
 	}
 
 	if len(room.Connections) == 0 {
 		room.PendingICE = append(room.PendingICE, candidate)
-		c.JSON(http.StatusOK, gin.H{"status": "Candidate buffered"})
+		c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
 		return
 	}
 
 	for _, pc := range room.Connections {
 		if err := pc.AddICECandidate(candidate); err != nil {
-			log.Printf("Failed to add ICE candidate: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add ICE candidate"})
+			log.Printf("failed to add ICE candidate: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add ICE candidate"})
 			return
 		}
 	}
 	room.PendingICE = nil
 
-	c.JSON(http.StatusOK, gin.H{"status": "Candidate added"})
+	c.JSON(http.StatusOK, gin.H{"status": "candidate added"})
 }
 
 /*
@@ -356,23 +357,23 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
 			return
 		}
-		userId, _ := c.Get("userId")
-		if userId == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+
+		user, err := utils.GetCurrentUser(db, c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		userIdStr := userId.(string)
 
 		isParticipant := false
 		for _, p := range dbRoom.Participants {
-			if p == userIdStr {
+			if p == user.ID {
 				isParticipant = true
 				break
 			}
 		}
 
 		if !isParticipant {
-			c.JSON(http.StatusForbidden, gin.H{"error": "You are a viewer, WebRTC not allowed"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "you are a viewer, WebRTC not allowed"})
 			return
 		}
 
