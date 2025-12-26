@@ -9,8 +9,6 @@ import (
 	_ "github.com/Foodstream-io/etchebest/docs"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 /*
@@ -60,14 +58,11 @@ func main() {
 		log.Fatal("JWT_SECRET is not set in the environment")
 	}
 
-	// Migrations
 	if err := db.AutoMigrate(&models.User{}, &models.Room{}); err != nil {
 		log.Fatal(err)
 	}
 
 	routes(r, db, jwtKey)
-
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
