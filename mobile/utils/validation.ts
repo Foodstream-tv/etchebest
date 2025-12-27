@@ -66,6 +66,28 @@ export function validateMinLength(
 }
 
 /**
+ * Validate length range for text fields
+ */
+export function validateLengthRange(
+  value: string,
+  minLength: number,
+  maxLength: number,
+  fieldName: string
+): ValidationResult {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { isValid: false, error: `${fieldName} requis` };
+  }
+  if (trimmed.length < minLength) {
+    return { isValid: false, error: `${fieldName} doit contenir au moins ${minLength} caractères` };
+  }
+  if (trimmed.length > maxLength) {
+    return { isValid: false, error: `${fieldName} ne peut pas dépasser ${maxLength} caractères` };
+  }
+  return { isValid: true };
+}
+
+/**
  * Validate phone number
  */
 export function validatePhone(phone: string): ValidationResult {
