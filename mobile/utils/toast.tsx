@@ -29,6 +29,9 @@ export function showToast(
     case 'warning':
       Toast.warn(message, { position });
       break;
+    default:
+      Toast.info(message, { position });
+      break;
   }
 }
 
