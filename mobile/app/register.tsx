@@ -41,7 +41,7 @@ export default function RegisterScreen() {
 
         for (const validation of validations) {
             if (!validation.isValid) {
-                toast.error(validation.error!);
+                toast.error(validation.error ?? 'Erreur de validation');
                 return;
             }
         }
