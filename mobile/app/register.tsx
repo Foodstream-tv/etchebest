@@ -8,10 +8,16 @@ import apiService from '../services/api';
 import toast from '../utils/toast';
 import { validateEmail, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
 
-// Common country codes
+// Common country codes for phone registration
+// Each entry has:
+// - code: The international dialing prefix (string with +)
+// - country: Localized country name in French
+// - flag: Emoji flag for visual identification
+// - value: Numeric country code for API (matches API's countryNumberPhone field)
 const COUNTRY_CODES = [
     { code: '+33', country: 'France', flag: '🇫🇷', value: 33 },
-    { code: '+1', country: 'États-Unis / Canada', flag: '🇺🇸', value: 1 },
+    { code: '+1', country: 'États-Unis', flag: '🇺🇸', value: 1 },
+    { code: '+1', country: 'Canada', flag: '🇨🇦', value: 1 },
     { code: '+44', country: 'Royaume-Uni', flag: '🇬🇧', value: 44 },
     { code: '+49', country: 'Allemagne', flag: '🇩🇪', value: 49 },
     { code: '+34', country: 'Espagne', flag: '🇪🇸', value: 34 },
