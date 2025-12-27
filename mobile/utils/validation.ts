@@ -57,11 +57,11 @@ export function validateMinLength(
  * Validate phone number
  */
 export function validatePhone(phone: string): ValidationResult {
-  const trimmed = phone.trim().replace(/\s/g, '');
+  const trimmed = phone.trim();
   if (!trimmed) {
     return { isValid: false, error: 'Numéro de téléphone requis' };
   }
-  if (trimmed.length < 6) {
+  if (!patterns.phone.test(trimmed)) {
     return { isValid: false, error: 'Numéro de téléphone invalide' };
   }
   return { isValid: true };
