@@ -6,7 +6,7 @@ import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, Touc
 import ToastManager, { Toast } from 'toastify-react-native';
 import apiService from '../services/api';
 import toast from '../utils/toast';
-import { validateEmail, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
+import { validateEmail, validateLengthRange, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
 
 export default function RegisterScreen() {
     const [email, setEmail] = useState('');
@@ -35,7 +35,7 @@ export default function RegisterScreen() {
             validateMinLength(lastName, 2, 'Le nom'),
             validateMinLength(username, 3, 'L\'identifiant'),
             validatePassword(password),
-            validateMinLength(description, 10, 'La description'),
+            validateLengthRange(description, 10, 500, 'La description'),
             validatePhone(phoneNumber),
         ];
 
