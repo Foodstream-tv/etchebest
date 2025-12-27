@@ -33,7 +33,7 @@ export default function RegisterScreen() {
             validateEmail(email),
             validateMinLength(firstName, 2, 'Le prénom'),
             validateMinLength(lastName, 2, 'Le nom'),
-            validateMinLength(username, 2, 'L\'identifiant'),
+            validateMinLength(username, 3, 'L\'identifiant'),
             validatePassword(password),
             validateMinLength(description, 10, 'La description'),
             validatePhone(phoneNumber),
