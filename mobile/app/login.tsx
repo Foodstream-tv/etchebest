@@ -23,13 +23,13 @@ export default function LoginScreen() {
     const handleLogin = async () => {
         const emailValidation = validateEmail(email);
         if (!emailValidation.isValid) {
-            toast.error(emailValidation.error!);
+            toast.error(emailValidation.error ?? 'Erreur de validation de l\'email');
             return;
         }
 
         const passwordValidation = validatePassword(password);
         if (!passwordValidation.isValid) {
-            toast.error(passwordValidation.error!);
+            toast.error(passwordValidation.error ?? 'Erreur de validation du mot de passe');
             return;
         }
 
