@@ -2,75 +2,71 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ToastManager, { Toast } from 'toastify-react-native';
+import apiService from '../services/api';
+import toast from '../utils/toast';
+import { validateEmail, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
 
 export default function RegisterScreen() {
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [description, setDescription] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
-    const [day, setDay] = useState('');
-    const [month, setMonth] = useState('');
-    const [year, setYear] = useState('');
+    const [loading, setLoading] = useState(false);
     const [emailFocused, setEmailFocused] = useState(false);
     const [usernameFocused, setUsernameFocused] = useState(false);
     const [passwordFocused, setPasswordFocused] = useState(false);
+    const [firstNameFocused, setFirstNameFocused] = useState(false);
+    const [lastNameFocused, setLastNameFocused] = useState(false);
+    const [descriptionFocused, setDescriptionFocused] = useState(false);
+    const [phoneFocused, setPhoneFocused] = useState(false);
 
-    const emailPattern = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
     const router = useRouter();
 
-    const handleRegister = () => {
-        if (!emailPattern.test(email)) {
-            Toast.show({
-                text1: 'Adresse e-mail invalide',
-                position: 'bottom',
-                icon: <Ionicons name="close-circle" size={24} color="red" />,
-                iconColor: 'red',
-                progressBarColor: 'red',
-                visibilityTime: 2000,
-            });
-            return;
+    const handleRegister = async () => {
+        const validations = [
+            validateEmail(email),
+            validateMinLength(firstName, 2, 'Le prénom'),
+            validateMinLength(lastName, 2, 'Le nom'),
+            validateMinLength(username, 2, 'L\'identifiant'),
+            validatePassword(password),
+            validateMinLength(description, 10, 'La description'),
+            validatePhone(phoneNumber),
+        ];
+
+        for (const validation of validations) {
+            if (!validation.isValid) {
+                toast.error(validation.error!);
+                return;
+            }
         }
 
-        if (username.length < 3) {
-            Toast.show({
-                text1: 'L\'identifiant doit contenir au moins 3 caractères',
-                position: 'bottom',
-                icon: <Ionicons name="close-circle" size={24} color="red" />,
-                iconColor: 'red',
-                progressBarColor: 'red',
-                visibilityTime: 2000,
+        setLoading(true);
+        try {
+            await apiService.register({
+                email,
+                password,
+                username,
+                firstName,
+                lastName,
+                description,
+                countryNumberPhone: 33,
+                numberPhone: phoneNumber,
+                profileImage: '',
             });
-            return;
+            toast.success('Inscription réussie !');
+            router.replace('/login');
+        } catch (error) {
+            console.error('Registration error:', error);
+            toast.error(error instanceof Error ? error.message : 'Erreur d\'inscription');
+        } finally {
+            setLoading(false);
         }
-
-        if (password.length < 8) {
-            Toast.show({
-                text1: 'Le mot de passe doit contenir au moins 8 caractères',
-                position: 'bottom',
-                icon: <Ionicons name="close-circle" size={24} color="red" />,
-                iconColor: 'red',
-                progressBarColor: 'red',
-                visibilityTime: 2000,
-            });
-            return;
-        }
-
-        if (!day || !month || !year) {
-            Toast.show({
-                text1: 'Veuillez entrer votre date de naissance',
-                position: 'bottom',
-                icon: <Ionicons name="close-circle" size={24} color="red" />,
-                iconColor: 'red',
-                progressBarColor: 'red',
-                visibilityTime: 2000,
-            });
-            return;
-        }
-
-        Toast.show({ text1: 'Inscription réussie !', position: 'bottom' });
-        router.replace('/');
     };
 
     return (
@@ -103,11 +99,49 @@ export default function RegisterScreen() {
                             </View>
 
                             <View style={styles.inputWrapper}>
+                                {Boolean(firstNameFocused || firstName) && (
+                                    <Text style={styles.floatingLabel}>Prénom</Text>
+                                )}
+                                <View style={[styles.inputGroup, (firstNameFocused || firstName) && styles.inputGroupFocused]}>
+                                    <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={firstNameFocused || firstName ? '' : 'Prénom'}
+                                        autoCapitalize="words"
+                                        value={firstName}
+                                        onChangeText={setFirstName}
+                                        onFocus={() => setFirstNameFocused(true)}
+                                        onBlur={() => setFirstNameFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.inputWrapper}>
+                                {Boolean(lastNameFocused || lastName) && (
+                                    <Text style={styles.floatingLabel}>Nom</Text>
+                                )}
+                                <View style={[styles.inputGroup, (lastNameFocused || lastName) && styles.inputGroupFocused]}>
+                                    <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={lastNameFocused || lastName ? '' : 'Nom'}
+                                        autoCapitalize="words"
+                                        value={lastName}
+                                        onChangeText={setLastName}
+                                        onFocus={() => setLastNameFocused(true)}
+                                        onBlur={() => setLastNameFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.inputWrapper}>
                                 {Boolean(usernameFocused || username) && (
                                     <Text style={styles.floatingLabel}>Identifiant</Text>
                                 )}
                                 <View style={[styles.inputGroup, (usernameFocused || username) && styles.inputGroupFocused]}>
-                                    <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <Ionicons name="at-outline" size={20} color="#000" style={styles.leadingIcon} />
                                     <TextInput
                                         style={styles.input}
                                         placeholder={usernameFocused || username ? '' : 'Identifiant'}
@@ -147,53 +181,56 @@ export default function RegisterScreen() {
                                 </View>
                             </View>
 
-                            <View style={styles.dateRow}>
-                                <View style={[styles.dateInput, { flex: 1 }]}>
+                            <View style={styles.inputWrapper}>
+                                {Boolean(phoneFocused || phoneNumber) && (
+                                    <Text style={styles.floatingLabel}>Numéro de téléphone</Text>
+                                )}
+                                <View style={[styles.inputGroup, (phoneFocused || phoneNumber) && styles.inputGroupFocused]}>
+                                    <Ionicons name="call-outline" size={20} color="#000" style={styles.leadingIcon} />
                                     <TextInput
-                                        style={styles.dateText}
-                                        placeholder="Jour"
-                                        keyboardType="number-pad"
-                                        maxLength={2}
-                                        value={day}
-                                        onChangeText={setDay}
+                                        style={styles.input}
+                                        placeholder={phoneFocused || phoneNumber ? '' : 'Numéro de téléphone'}
+                                        keyboardType="phone-pad"
+                                        value={phoneNumber}
+                                        onChangeText={setPhoneNumber}
+                                        onFocus={() => setPhoneFocused(true)}
+                                        onBlur={() => setPhoneFocused(false)}
                                         placeholderTextColor="#7a7a7a"
                                     />
-                                    <Ionicons name="chevron-down" size={18} color="#000" />
-                                </View>
-                                <View style={[styles.dateInput, { flex: 1 }]}>
-                                    <TextInput
-                                        style={styles.dateText}
-                                        placeholder="Mois"
-                                        keyboardType="number-pad"
-                                        maxLength={2}
-                                        value={month}
-                                        onChangeText={setMonth}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                    <Ionicons name="chevron-down" size={18} color="#000" />
-                                </View>
-                                <View style={[styles.dateInput, { flex: 1 }]}>
-                                    <TextInput
-                                        style={styles.dateText}
-                                        placeholder="Année"
-                                        keyboardType="number-pad"
-                                        maxLength={4}
-                                        value={year}
-                                        onChangeText={setYear}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                    <Ionicons name="chevron-down" size={18} color="#000" />
                                 </View>
                             </View>
 
-                            <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}>
+                            <View style={styles.inputWrapper}>
+                                {Boolean(descriptionFocused || description) && (
+                                    <Text style={styles.floatingLabel}>Description</Text>
+                                )}
+                                <View style={[styles.inputGroup, (descriptionFocused || description) && styles.inputGroupFocused]}>
+                                    <Ionicons name="chatbubble-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={descriptionFocused || description ? '' : 'Parlez-nous de vous...'}
+                                        multiline
+                                        value={description}
+                                        onChangeText={setDescription}
+                                        onFocus={() => setDescriptionFocused(true)}
+                                        onBlur={() => setDescriptionFocused(false)}
+                                        placeholderTextColor="#7a7a7a"
+                                    />
+                                </View>
+                            </View>
+
+                            <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
                                 <LinearGradient
                                     colors={['#FFA92E', '#FF5D1E']}
                                     start={{ x: 0, y: 0.5 }}
                                     end={{ x: 1, y: 0.5 }}
                                     style={styles.primaryGradient}
                                 >
-                                    <Text style={styles.primaryButtonText}>Inscription</Text>
+                                    {loading ? (
+                                        <ActivityIndicator color="#fff" />
+                                    ) : (
+                                        <Text style={styles.primaryButtonText}>Inscription</Text>
+                                    )}
                                 </LinearGradient>
                             </TouchableOpacity>
 
