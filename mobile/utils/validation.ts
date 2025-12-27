@@ -32,6 +32,18 @@ export function validatePassword(password: string, minLength = 8): ValidationRes
   if (password.length < minLength) {
     return { isValid: false, error: `Le mot de passe doit contenir au moins ${minLength} caractères` };
   }
+  const hasLowercase = /[a-z]/.test(password);
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
+
+  if (!hasLowercase || !hasUppercase || !hasDigit || !hasSpecialChar) {
+    return {
+      isValid: false,
+      error:
+        'Le mot de passe doit contenir au moins une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial',
+    };
+  }
   return { isValid: true };
 }
 
