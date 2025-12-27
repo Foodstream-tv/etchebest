@@ -2,11 +2,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ToastManager, { Toast } from 'toastify-react-native';
 import apiService from '../services/api';
 import toast from '../utils/toast';
 import { validateEmail, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
+
+// Common country codes for phone registration
+// Each entry has:
+// - code: The international dialing prefix (string with +)
+// - country: Localized country name in French
+// - flag: Emoji flag for visual identification
+// - value: Numeric country code for API (matches API's countryNumberPhone field)
+const COUNTRY_CODES = [
+    { code: '+33', country: 'France', flag: '🇫🇷', value: 33 },
+    { code: '+1', country: 'États-Unis', flag: '🇺🇸', value: 1 },
+    { code: '+1', country: 'Canada', flag: '🇨🇦', value: 1 },
+    { code: '+44', country: 'Royaume-Uni', flag: '🇬🇧', value: 44 },
+    { code: '+49', country: 'Allemagne', flag: '🇩🇪', value: 49 },
+    { code: '+34', country: 'Espagne', flag: '🇪🇸', value: 34 },
+    { code: '+39', country: 'Italie', flag: '🇮🇹', value: 39 },
+    { code: '+32', country: 'Belgique', flag: '🇧🇪', value: 32 },
+    { code: '+41', country: 'Suisse', flag: '🇨🇭', value: 41 },
+    { code: '+352', country: 'Luxembourg', flag: '🇱🇺', value: 352 },
+    { code: '+212', country: 'Maroc', flag: '🇲🇦', value: 212 },
+    { code: '+213', country: 'Algérie', flag: '🇩🇿', value: 213 },
+    { code: '+216', country: 'Tunisie', flag: '🇹🇳', value: 216 },
+];
 
 export default function RegisterScreen() {
     const [email, setEmail] = useState('');
@@ -16,6 +38,8 @@ export default function RegisterScreen() {
     const [lastName, setLastName] = useState('');
     const [description, setDescription] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]); // Default to France
+    const [showCountryPicker, setShowCountryPicker] = useState(false);
     const [obscurePassword, setObscurePassword] = useState(true);
     const [loading, setLoading] = useState(false);
     const [emailFocused, setEmailFocused] = useState(false);
@@ -55,7 +79,7 @@ export default function RegisterScreen() {
                 firstName,
                 lastName,
                 description,
-                countryNumberPhone: 33,
+                countryNumberPhone: countryCode.value,
                 numberPhone: phoneNumber,
                 profileImage: '',
             });
@@ -187,6 +211,13 @@ export default function RegisterScreen() {
                                 )}
                                 <View style={[styles.inputGroup, (phoneFocused || phoneNumber) && styles.inputGroupFocused]}>
                                     <Ionicons name="call-outline" size={20} color="#000" style={styles.leadingIcon} />
+                                    <TouchableOpacity 
+                                        style={styles.countryCodeButton}
+                                        onPress={() => setShowCountryPicker(true)}
+                                    >
+                                        <Text style={styles.countryCodeText}>{countryCode.flag} {countryCode.code}</Text>
+                                        <Ionicons name="chevron-down-outline" size={16} color="#000" />
+                                    </TouchableOpacity>
                                     <TextInput
                                         style={styles.input}
                                         placeholder={phoneFocused || phoneNumber ? '' : 'Numéro de téléphone'}
@@ -276,6 +307,50 @@ export default function RegisterScreen() {
                     </View>
                 </ScrollView>
             </View>
+
+            {/* Country Code Picker Modal */}
+            <Modal
+                visible={showCountryPicker}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowCountryPicker(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Sélectionner un indicatif</Text>
+                            <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
+                                <Ionicons name="close-outline" size={28} color="#000" />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.countryList}>
+                            {COUNTRY_CODES.map((country) => (
+                                <TouchableOpacity
+                                    key={country.code}
+                                    style={[
+                                        styles.countryItem,
+                                        countryCode.code === country.code && styles.countryItemSelected
+                                    ]}
+                                    onPress={() => {
+                                        setCountryCode(country);
+                                        setShowCountryPicker(false);
+                                    }}
+                                >
+                                    <Text style={styles.countryFlag}>{country.flag}</Text>
+                                    <View style={styles.countryInfo}>
+                                        <Text style={styles.countryName}>{country.country}</Text>
+                                        <Text style={styles.countryCodeLabel}>{country.code}</Text>
+                                    </View>
+                                    {countryCode.code === country.code && (
+                                        <Ionicons name="checkmark-outline" size={24} color="#FF8A00" />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
             <ToastManager />
         </>
     );
@@ -422,5 +497,73 @@ const styles = StyleSheet.create({
     socialIcon: {
         width: 24,
         height: 24,
+    },
+    countryCodeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingRight: 8,
+        borderRightWidth: 1,
+        borderRightColor: '#e8e8e8',
+        marginRight: 8,
+    },
+    countryCodeText: {
+        fontSize: 16,
+        color: '#000',
+        marginRight: 4,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        maxHeight: '80%',
+        paddingBottom: 20,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e8e8e8',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#111',
+    },
+    countryList: {
+        flex: 1,
+    },
+    countryItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f5f5f5',
+    },
+    countryItemSelected: {
+        backgroundColor: '#FFF5E6',
+    },
+    countryFlag: {
+        fontSize: 28,
+        marginRight: 12,
+    },
+    countryInfo: {
+        flex: 1,
+    },
+    countryName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111',
+        marginBottom: 2,
+    },
+    countryCodeLabel: {
+        fontSize: 14,
+        color: '#7a7a7a',
     },
 });
