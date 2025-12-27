@@ -2,8 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ToastManager, { Toast } from 'toastify-react-native';
+import apiService from '../services/api';
+import authService from '../services/auth';
+import toast from '../utils/toast';
+import { validateEmail, validatePassword } from '../utils/validation';
 
 
 export default function LoginScreen() {
@@ -12,38 +16,36 @@ export default function LoginScreen() {
     const [obscurePassword, setObscurePassword] = useState(true);
     const [emailFocused, setEmailFocused] = useState(false);
     const [passwordFocused, setPasswordFocused] = useState(false);
-
-    const emailPattern = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+    const [loading, setLoading] = useState(false);
 
     const router = useRouter();
 
-    const handleLogin = () => {
-        if (!emailPattern.test(email)) {
-            Toast.show({
-                text1: 'Adresse e-mail invalide',
-                position: 'bottom',
-                icon: <Ionicons name="close-circle" size={24} color="red" />,
-                iconColor: 'red',
-                progressBarColor: 'red',
-                visibilityTime: 2000,
-            });
+    const handleLogin = async () => {
+        const emailValidation = validateEmail(email);
+        if (!emailValidation.isValid) {
+            toast.error(emailValidation.error ?? 'Erreur de validation de l\'email');
             return;
         }
 
-        if (password.length < 8) {
-            Toast.show({
-                text1: 'Le mot de passe doit contenir au moins 8 caractères',
-                position: 'bottom',
-                icon: <Ionicons name="close-circle" size={24} color="red" />,
-                iconColor: 'red',
-                progressBarColor: 'red',
-                visibilityTime: 2000,
-            });
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.isValid) {
+            toast.error(passwordValidation.error ?? 'Erreur de validation du mot de passe');
             return;
         }
 
-        Toast.show({ text1: 'Connexion réussie !', position: 'bottom' });
-        router.replace('/');
+        setLoading(true);
+        try {
+            const response = await apiService.login({ email, password });
+            await authService.saveAuth(response.token, response.user);
+
+            toast.success('Connexion réussie !');
+            router.replace('/');
+        } catch (error) {
+            console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
+            toast.error(error instanceof Error ? error.message : 'Erreur de connexion');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -98,14 +100,18 @@ export default function LoginScreen() {
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
+                            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
                                 <LinearGradient
                                     colors={['#FFA92E', '#FF5D1E']}
                                     start={{ x: 0, y: 0.5 }}
                                     end={{ x: 1, y: 0.5 }}
                                     style={styles.primaryGradient}
                                 >
-                                    <Text style={styles.primaryButtonText}>Se connecter</Text>
+                                    {loading ? (
+                                        <ActivityIndicator color="#fff" />
+                                    ) : (
+                                        <Text style={styles.primaryButtonText}>Se connecter</Text>
+                                    )}
                                 </LinearGradient>
                             </TouchableOpacity>
                             <View style={styles.dividerRow}>
