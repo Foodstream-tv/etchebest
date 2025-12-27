@@ -2,6 +2,8 @@ package main
 
 import (
 	"github.com/Foodstream-io/etchebest/users"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"net/http"
 
 	"github.com/Foodstream-io/etchebest/auth"
@@ -41,13 +43,16 @@ func routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	api.POST("/rooms/disconnect", rooms.HandleDisconnect)
 
 	// WebRTC
-	api.POST("/api/webrtc", rooms.HandleWebRTC(db))
-	api.POST("/api/ice", rooms.HandleICECandidate)
+	api.POST("/webrtc", rooms.HandleWebRTC(db))
+	api.POST("/ice", rooms.HandleICECandidate)
+
+	// Swagger
+	api.GET("swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
-			"message": "The endpoint that you are trying to reach doesn't exist",
+			"message": "the endpoint that you are trying to reach doesn't exist",
 		})
 	})
 }
