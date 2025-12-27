@@ -62,7 +62,7 @@ export default function RegisterScreen() {
             toast.success('Inscription réussie !');
             router.replace('/login');
         } catch (error) {
-            console.error('Registration error:', error);
+            console.error('Registration error:', error instanceof Error ? error.message : 'Unknown error');
             toast.error(error instanceof Error ? error.message : 'Erreur d\'inscription');
         } finally {
             setLoading(false);
