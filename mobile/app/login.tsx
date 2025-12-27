@@ -41,7 +41,7 @@ export default function LoginScreen() {
             toast.success('Connexion réussie !');
             router.replace('/');
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
             toast.error(error instanceof Error ? error.message : 'Erreur de connexion');
         } finally {
             setLoading(false);
