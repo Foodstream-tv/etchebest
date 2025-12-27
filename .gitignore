@@ -43,3 +43,7 @@ app-example
 
 #test
 coverage/
+.env
+.idea
+commands.txt
+etchebest
