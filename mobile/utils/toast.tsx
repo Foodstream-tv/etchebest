@@ -18,16 +18,16 @@ export function showToast(
 
   switch (type) {
     case 'success':
-      Toast.success(message, position);
+      Toast.success(message, { position });
       break;
     case 'error':
-      Toast.error(message, position);
+      Toast.error(message, { position });
       break;
     case 'info':
-      Toast.info(message, position);
+      Toast.info(message, { position });
       break;
     case 'warning':
-      Toast.warn(message, position);
+      Toast.warn(message, { position });
       break;
   }
 }
