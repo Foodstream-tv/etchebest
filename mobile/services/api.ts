@@ -32,6 +32,32 @@ export interface ApiError {
   error?: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  profileImageUrl: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  countryNumberPhone: number;
+  numberPhone: string;
+  role: string;
+  followingIds: string[];
+  followersIds: string[];
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  host: string;
+  participants: string[];
+  viewers: number;
+  maxParticipants: number;
+}
+
 class ApiService {
   private baseUrl: string;
   private timeout: number;
@@ -123,7 +149,7 @@ class ApiService {
     return this.handleResponse<AuthResponse>(response);
   }
 
-  async getProfile(token: string): Promise<any> {
+  async getProfile(token: string): Promise<UserProfile> {
     const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me`, {
       method: 'GET',
       headers: {
@@ -131,10 +157,10 @@ class ApiService {
         'Authorization': `Bearer ${token}`,
       },
     });
-    return this.handleResponse(response);
+    return this.handleResponse<UserProfile>(response);
   }
 
-  async getRooms(token: string): Promise<any> {
+  async getRooms(token: string): Promise<Room[]> {
     const response = await this.fetchWithTimeout(`${this.baseUrl}/rooms`, {
       method: 'GET',
       headers: {
@@ -142,7 +168,7 @@ class ApiService {
         'Authorization': `Bearer ${token}`,
       },
     });
-    return this.handleResponse(response);
+    return this.handleResponse<Room[]>(response);
   }
 }
 
