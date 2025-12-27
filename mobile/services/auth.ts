@@ -69,7 +69,13 @@ class AuthService {
 
     const userData = await storage.getItem(USER_KEY);
     if (userData) {
-      this.user = JSON.parse(userData);
+      try {
+        this.user = JSON.parse(userData);
+      } catch (error) {
+        console.error('Failed to parse stored user data, clearing corrupted value.', error);
+        this.user = null;
+        await storage.removeItem(USER_KEY);
+      }
     }
     return this.user;
   }

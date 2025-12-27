@@ -1,5 +1,5 @@
 export const patterns = {
-  email: /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/,
+  email: /^(?!.*\.\.)[A-Za-z0-9](?:[A-Za-z0-9._%+-]*[A-Za-z0-9])?@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/,
   phone: /^[+]?[\d\s-]{6,}$/,
 };
 
@@ -32,6 +32,18 @@ export function validatePassword(password: string, minLength = 8): ValidationRes
   if (password.length < minLength) {
     return { isValid: false, error: `Le mot de passe doit contenir au moins ${minLength} caractères` };
   }
+  const hasLowercase = /[a-z]/.test(password);
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
+
+  if (!hasLowercase || !hasUppercase || !hasDigit || !hasSpecialChar) {
+    return {
+      isValid: false,
+      error:
+        'Le mot de passe doit contenir au moins une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial',
+    };
+  }
   return { isValid: true };
 }
 
@@ -57,11 +69,11 @@ export function validateMinLength(
  * Validate phone number
  */
 export function validatePhone(phone: string): ValidationResult {
-  const trimmed = phone.trim().replace(/\s/g, '');
+  const trimmed = phone.trim();
   if (!trimmed) {
     return { isValid: false, error: 'Numéro de téléphone requis' };
   }
-  if (trimmed.length < 6) {
+  if (!patterns.phone.test(trimmed)) {
     return { isValid: false, error: 'Numéro de téléphone invalide' };
   }
   return { isValid: true };

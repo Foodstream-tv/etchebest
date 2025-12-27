@@ -62,7 +62,19 @@ class ApiService {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('La requête a expiré. Vérifiez votre connexion.');
       }
-      throw new Error('Erreur réseau. Vérifiez votre connexion.');
+      if (error instanceof TypeError) {
+        // Typical network failures (DNS, connexion refusée, hors ligne, etc.)
+        const details = error.message ? ` (${error.message})` : '';
+        throw new Error(`Erreur réseau lors de la requête${details}. Vérifiez votre connexion ou réessayez plus tard.`);
+      }
+      const details =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+          ? error
+          : '';
+      const suffix = details ? ` Détails : ${details}` : '';
+      throw new Error(`Erreur réseau inattendue.${suffix}`);
     } finally {
       clearTimeout(timeoutId);
     }
