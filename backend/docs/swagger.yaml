@@ -1,66 +1,4 @@
 basePath: /
-definitions:
-  auth.LoginRequest:
-    properties:
-      email:
-        example: user@example.com
-        type: string
-      password:
-        example: password123
-        type: string
-    required:
-    - email
-    - password
-    type: object
-  auth.RegisterRequest:
-    properties:
-      email:
-        example: user@example.com
-        type: string
-      password:
-        example: password123
-        type: string
-    required:
-    - email
-    - password
-    type: object
-  models.Room:
-    properties:
-      host:
-        type: string
-      id:
-        type: string
-      maxParticipants:
-        type: integer
-      name:
-        type: string
-      participants:
-        items:
-          type: string
-        type: array
-      viewers:
-        type: integer
-    type: object
-  rooms.AddParticipantReq:
-    properties:
-      roomId:
-        example: 550e8400-e29b-41d4-a716-446655440000
-        type: string
-      userId:
-        example: 550e8400-e29b-41d4-a716-446655440001
-        type: string
-    required:
-    - roomId
-    - userId
-    type: object
-  rooms.RoomRequest:
-    properties:
-      name:
-        example: My Cooking Stream
-        type: string
-    required:
-    - name
-    type: object
 host: localhost:8080
 info:
   contact:
@@ -75,62 +13,83 @@ info:
   title: Etchebest API
   version: "1.0"
 paths:
-  /addParticipant:
-    post:
-      consumes:
-      - application/json
-      description: Add a user as a participant to a specific room
-      parameters:
-      - description: Room and user IDs
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/rooms.AddParticipantReq'
+  /api/discover:
+    get:
+      description: Returns trending country, top dishes and categories
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
+            additionalProperties: true
             type: object
-        "400":
-          description: Bad Request
+        "500":
+          description: Internal Server Error
           schema:
             additionalProperties:
               type: string
             type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Add participant to room
+      summary: Discover home
       tags:
-      - rooms
-  /createRoom:
-    post:
-      consumes:
+      - Discover
+  /api/discover/categories:
+    get:
+      description: Returns all active countries with live count
+      produces:
       - application/json
-      description: Create a new streaming room or join existing one by name
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List discover categories
+      tags:
+      - Discover
+  /api/discover/categories/{id}/lives:
+    get:
+      description: Returns paginated lives for a specific country with filters
       parameters:
-      - description: Room details
-        in: body
-        name: request
+      - description: Category ID
+        in: path
+        name: id
         required: true
-        schema:
-          $ref: '#/definitions/rooms.RoomRequest'
+        type: integer
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Sort by (views, viewers, recent)
+        in: query
+        name: sort
+        type: string
+      - description: Live status
+        in: query
+        name: filters[status]
+        type: string
+      - description: Dish ID
+        in: query
+        name: filters[dish_id]
+        type: integer
+      - description: Minimum viewers
+        in: query
+        name: filters[min_viewers]
+        type: integer
+      - description: Lives started in last N hours
+        in: query
+        name: filters[hours_ago]
+        type: integer
       produces:
       - application/json
       responses:
@@ -145,213 +104,6 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Create or join a room
-      tags:
-      - rooms
-  /disconnect:
-    post:
-      consumes:
-      - application/json
-      description: Close all WebRTC connections and clean up room resources
-      parameters:
-      - description: Room ID
-        in: query
-        name: roomId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Disconnect from room
-      tags:
-      - webrtc
-  /ice:
-    post:
-      consumes:
-      - application/json
-      description: Add ICE candidates for WebRTC connection establishment
-      parameters:
-      - description: Room ID
-        in: query
-        name: roomId
-        required: true
-        type: string
-      - description: ICE Candidate
-        in: body
-        name: candidate
-        required: true
-        schema:
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Handle ICE candidates
-      tags:
-      - webrtc
-  /login:
-    post:
-      consumes:
-      - application/json
-      description: Authenticate user and return JWT token
-      parameters:
-      - description: Login credentials
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/auth.LoginRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Login user
-      tags:
-      - auth
-  /register:
-    post:
-      consumes:
-      - application/json
-      description: Create a new user account with email and password
-      parameters:
-      - description: Registration details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/auth.RegisterRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Register a new user
-      tags:
-      - auth
-  /reserve:
-    post:
-      consumes:
-      - application/json
-      description: Reserve a participant slot in a room in advance
-      parameters:
-      - description: Room ID to reserve
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            roomId:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "403":
-          description: Forbidden
-          schema:
-            additionalProperties:
-              type: string
-            type: object
         "404":
           description: Not Found
           schema:
@@ -364,96 +116,9 @@ paths:
             additionalProperties:
               type: string
             type: object
-      security:
-      - BearerAuth: []
-      summary: Reserve a spot in a room
+      summary: Get lives by category
       tags:
-      - rooms
-  /rooms:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve list of all streaming rooms
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              items:
-                $ref: '#/definitions/models.Room'
-              type: array
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Get all rooms
-      tags:
-      - rooms
-  /webrtc:
-    post:
-      consumes:
-      - application/json
-      description: Create WebRTC peer connection for video streaming (participants
-        only)
-      parameters:
-      - description: Room ID
-        in: query
-        name: roomId
-        required: true
-        type: string
-      - description: WebRTC Session Description
-        in: body
-        name: offer
-        required: true
-        schema:
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "403":
-          description: Forbidden
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Establish WebRTC connection
-      tags:
-      - webrtc
+      - Discover
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.
