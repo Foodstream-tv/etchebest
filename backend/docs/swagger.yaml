@@ -1,4 +1,185 @@
 basePath: /
+definitions:
+  home.ChefHighlight:
+    properties:
+      active_lives_count:
+        type: integer
+      description:
+        type: string
+      firstName:
+        type: string
+      followerCount:
+        type: integer
+      followersIds:
+        items:
+          type: string
+        type: array
+      followingIds:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      isFeaturedChef:
+        type: boolean
+      isVerified:
+        type: boolean
+      lastName:
+        type: string
+      profileImageUrl:
+        type: string
+      recent_live_title:
+        type: string
+      username:
+        type: string
+    type: object
+  home.ChefsResponse:
+    properties:
+      chefs:
+        items:
+          $ref: '#/definitions/home.ChefHighlight'
+        type: array
+    type: object
+  home.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  home.HomePageResponse:
+    properties:
+      featured_chefs:
+        items:
+          $ref: '#/definitions/home.ChefHighlight'
+        type: array
+      featured_live:
+        $ref: '#/definitions/home.LiveDTO'
+      tags:
+        items:
+          $ref: '#/definitions/home.TagDTO'
+        type: array
+      upcoming_lives:
+        items:
+          $ref: '#/definitions/home.LiveDTO'
+        type: array
+    type: object
+  home.LiveDTO:
+    properties:
+      country:
+        type: string
+      currentViewers:
+        type: integer
+      dishName:
+        type: string
+      id:
+        type: integer
+      status:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/home.TagDTO'
+        type: array
+      title:
+        type: string
+      user:
+        $ref: '#/definitions/home.UserDTO'
+      viewCount:
+        type: integer
+    type: object
+  home.LivesFilteredResponse:
+    properties:
+      filters_applied:
+        additionalProperties:
+          type: string
+        type: object
+      lives:
+        items:
+          $ref: '#/definitions/home.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/home.Pagination'
+    type: object
+  home.LivesTabResponse:
+    properties:
+      lives:
+        items:
+          $ref: '#/definitions/home.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/home.Pagination'
+    type: object
+  home.Pagination:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  home.SearchResponse:
+    properties:
+      lives:
+        items:
+          $ref: '#/definitions/home.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/home.Pagination'
+      query:
+        type: string
+    type: object
+  home.TagDTO:
+    properties:
+      color:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      live_count:
+        type: integer
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  home.TagsResponse:
+    properties:
+      tags:
+        items:
+          $ref: '#/definitions/home.TagDTO'
+        type: array
+    type: object
+  home.UserDTO:
+    properties:
+      description:
+        type: string
+      firstName:
+        type: string
+      followerCount:
+        type: integer
+      followersIds:
+        items:
+          type: string
+        type: array
+      followingIds:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      isFeaturedChef:
+        type: boolean
+      isVerified:
+        type: boolean
+      lastName:
+        type: string
+      profileImageUrl:
+        type: string
+      username:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -119,6 +300,207 @@ paths:
       summary: Get lives by category
       tags:
       - Discover
+  /api/home:
+    get:
+      description: Return the featured live, tabs, chefs, and tags
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.HomePageResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: Complete home page
+      tags:
+      - home
+  /api/home/chefs:
+    get:
+      description: Return popular or featured creators
+      parameters:
+      - default: 6
+        description: Number of chefs to return
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.ChefsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: List of featured chefs
+      tags:
+      - home
+  /api/home/lives:
+    get:
+      description: 'Return the lives according to the tab: live, popular, replay,
+        scheduled'
+      parameters:
+      - description: Tab name
+        enum:
+        - live
+        - popular
+        - replay
+        - scheduled
+        in: query
+        name: tab
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.LivesTabResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: GetLivesByTab
+      tags:
+      - home
+  /api/home/lives/filtered:
+    get:
+      description: Allow to filter lives by tag, status, user, etc.
+      parameters:
+      - description: Filter by tag ID
+        in: query
+        name: filters[tag_id]
+        type: string
+      - description: Filter by tag slug
+        in: query
+        name: filters[tag_slug]
+        type: string
+      - description: Filter by status
+        enum:
+        - live
+        - scheduled
+        - ended
+        in: query
+        name: filters[status]
+        type: string
+      - description: Filter by user ID
+        in: query
+        name: filters[user_id]
+        type: string
+      - description: Minimum current viewers
+        in: query
+        name: filters[min_viewers]
+        type: integer
+      - description: Has replay available
+        in: query
+        name: filters[has_replay]
+        type: boolean
+      - description: Sort order
+        enum:
+        - views
+        - viewers
+        - recent
+        in: query
+        name: sort
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.LivesFilteredResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: GetLivesWithFilters
+      tags:
+      - home
+  /api/home/search:
+    get:
+      description: Research by title, dish name, chef name
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: Global search for lives
+      tags:
+      - home
+  /api/home/tags:
+    get:
+      description: Return all active culinary tags with the number of lives
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.TagsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: List all tags
+      tags:
+      - home
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

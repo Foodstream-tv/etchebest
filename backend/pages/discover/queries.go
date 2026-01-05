@@ -1,4 +1,3 @@
-// discover/queries.go
 package discover
 
 import (
@@ -43,7 +42,7 @@ func getTrendingCountry(db *gorm.DB) (*models.Country, error) {
              SUM(CASE WHEN created_at > ? THEN view_count ELSE 0 END) * 2 + 
              SUM(CASE WHEN created_at > ? THEN search_count ELSE 0 END)) as score
         `, oneDayAgo, oneDayAgo).
-		Where("status = ?", "live").
+		Where("status = ?", models.LiveStatusLive).
 		Group("country_id").
 		Order("score DESC").
 		Limit(1).
@@ -68,7 +67,7 @@ func getTopDishes(db *gorm.DB, limit int) ([]DishWithStats, error) {
 		Select(`
             dishes.*,
             COALESCE(SUM(lives.view_count), 0) as total_views,
-            COUNT(CASE WHEN lives.status = 'live' THEN 1 END) as live_count
+            COUNT(CASE WHEN lives.status = '`+models.LiveStatusLive+`' THEN 1 END) as live_count
         `).
 		Joins("LEFT JOIN lives ON lives.dish_id = dishes.id").
 		Where("dishes.is_active = ?", true).
@@ -94,7 +93,7 @@ func applyFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
 	// Format: ?filters[status]=live&filters[dish_id]=5
 
 	if status := c.Query("filters[status]"); status != "" {
-		validStatuses := map[string]bool{"scheduled": true, "live": true, "ended": true}
+		validStatuses := map[string]bool{models.LiveStatusScheduled: true, models.LiveStatusLive: true, models.LiveStatusEnded: true}
 		if validStatuses[status] {
 			query = query.Where("status = ?", status)
 		}
@@ -121,13 +120,13 @@ func applyFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
 
 func applySorting(query *gorm.DB, sortParam string) *gorm.DB {
 	switch strings.ToLower(sortParam) {
-	case "views":
+	case models.SortViews:
 		return query.Order("view_count DESC")
-	case "viewers":
+	case models.SortViewers:
 		return query.Order("current_viewers DESC")
-	case "recent", "recency":
+	case models.SortRecent:
 		return query.Order("created_at DESC")
-	case "oldest":
+	case models.SortOldest:
 		return query.Order("created_at ASC")
 	default:
 		return query.Order("CASE WHEN status = 'live' THEN 0 ELSE 1 END, current_viewers DESC")

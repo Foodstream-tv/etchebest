@@ -3,7 +3,8 @@ package main
 import (
 	"net/http"
 
-	"github.com/Foodstream-io/etchebest/discover"
+	"github.com/Foodstream-io/etchebest/pages/discover"
+	"github.com/Foodstream-io/etchebest/pages/home"
 	"github.com/Foodstream-io/etchebest/users"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -64,6 +65,14 @@ func routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	api.GET("/discover", discover.GetDiscoverHome(db))
 	api.GET("/discover/categories", discover.GetCategories(db))
 	api.GET("/discover/categories/:id/lives", discover.GetCategoryLives(db))
+
+	// Home
+	api.GET("/home", home.GetHomePage(db))
+	api.GET("/home/lives", home.GetLivesByTab(db))
+	api.GET("/home/lives/filtered", home.GetLivesWithFilters(db))
+	api.GET("/home/search", home.SearchLives(db))
+	api.GET("/home/tags", home.GetTags(db))
+	api.GET("/home/chefs", home.GetFeaturedChefs(db))
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {

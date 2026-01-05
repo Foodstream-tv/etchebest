@@ -182,6 +182,581 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/home": {
+            "get": {
+                "description": "Return the featured live, tabs, chefs, and tags",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "Complete home page",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/home.HomePageResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/home/chefs": {
+            "get": {
+                "description": "Return popular or featured creators",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "List of featured chefs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 6,
+                        "description": "Number of chefs to return",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/home.ChefsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/home/lives": {
+            "get": {
+                "description": "Return the lives according to the tab: live, popular, replay, scheduled",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "GetLivesByTab",
+                "parameters": [
+                    {
+                        "enum": [
+                            "live",
+                            "popular",
+                            "replay",
+                            "scheduled"
+                        ],
+                        "type": "string",
+                        "description": "Tab name",
+                        "name": "tab",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/home.LivesTabResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/home/lives/filtered": {
+            "get": {
+                "description": "Allow to filter lives by tag, status, user, etc.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "GetLivesWithFilters",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by tag ID",
+                        "name": "filters[tag_id]",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by tag slug",
+                        "name": "filters[tag_slug]",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "live",
+                            "scheduled",
+                            "ended"
+                        ],
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "filters[status]",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by user ID",
+                        "name": "filters[user_id]",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Minimum current viewers",
+                        "name": "filters[min_viewers]",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Has replay available",
+                        "name": "filters[has_replay]",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "views",
+                            "viewers",
+                            "recent"
+                        ],
+                        "type": "string",
+                        "description": "Sort order",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/home.LivesFilteredResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/home/search": {
+            "get": {
+                "description": "Research by title, dish name, chef name",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "Global search for lives",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/home.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/home/tags": {
+            "get": {
+                "description": "Return all active culinary tags with the number of lives",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "List all tags",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/home.TagsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/home.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "home.ChefHighlight": {
+            "type": "object",
+            "properties": {
+                "active_lives_count": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "followerCount": {
+                    "type": "integer"
+                },
+                "followersIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "followingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isFeaturedChef": {
+                    "type": "boolean"
+                },
+                "isVerified": {
+                    "type": "boolean"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "profileImageUrl": {
+                    "type": "string"
+                },
+                "recent_live_title": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "home.ChefsResponse": {
+            "type": "object",
+            "properties": {
+                "chefs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.ChefHighlight"
+                    }
+                }
+            }
+        },
+        "home.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "home.HomePageResponse": {
+            "type": "object",
+            "properties": {
+                "featured_chefs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.ChefHighlight"
+                    }
+                },
+                "featured_live": {
+                    "$ref": "#/definitions/home.LiveDTO"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.TagDTO"
+                    }
+                },
+                "upcoming_lives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.LiveDTO"
+                    }
+                }
+            }
+        },
+        "home.LiveDTO": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "type": "string"
+                },
+                "currentViewers": {
+                    "type": "integer"
+                },
+                "dishName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.TagDTO"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/home.UserDTO"
+                },
+                "viewCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "home.LivesFilteredResponse": {
+            "type": "object",
+            "properties": {
+                "filters_applied": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "lives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.LiveDTO"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/home.Pagination"
+                }
+            }
+        },
+        "home.LivesTabResponse": {
+            "type": "object",
+            "properties": {
+                "lives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.LiveDTO"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/home.Pagination"
+                }
+            }
+        },
+        "home.Pagination": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "home.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "lives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.LiveDTO"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/home.Pagination"
+                },
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "home.TagDTO": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "home.TagsResponse": {
+            "type": "object",
+            "properties": {
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/home.TagDTO"
+                    }
+                }
+            }
+        },
+        "home.UserDTO": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "followerCount": {
+                    "type": "integer"
+                },
+                "followersIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "followingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isFeaturedChef": {
+                    "type": "boolean"
+                },
+                "isVerified": {
+                    "type": "boolean"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "profileImageUrl": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {

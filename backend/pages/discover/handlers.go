@@ -66,7 +66,7 @@ func GetCategories(db *gorm.DB) gin.HandlerFunc {
 		// Get countries with live count
 		err := db.Model(&models.Country{}).
 			Select("countries.*, COUNT(lives.id) as live_count").
-			Joins("LEFT JOIN lives ON lives.country_id = countries.id AND lives.status = ?", "live").
+			Joins("LEFT JOIN lives ON lives.country_id = countries.id AND lives.status = ?", models.LiveStatusLive).
 			Where("countries.is_active = ?", true).
 			Group("countries.id").
 			Order("countries.name ASC").
