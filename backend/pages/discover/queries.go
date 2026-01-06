@@ -5,23 +5,36 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Foodstream-io/etchebest/dto"
+	"github.com/Foodstream-io/etchebest/mappers"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-type DishWithStats struct {
+type dishWithStatsRow struct {
 	models.Dish
+	TotalViews int
+	LiveCount  int
+}
+
+type DishWithStats struct {
+	dto.DishDTO
 	TotalViews int `json:"total_views"`
 	LiveCount  int `json:"live_count"`
 }
 
-type CategoryWithCount struct {
+type CategoryWithCountRow struct {
 	models.Country
+	LiveCount int
+}
+
+type CategoryWithCount struct {
+	dto.CountryDTO
 	LiveCount int `json:"live_count"`
 }
 
-func getTrendingCountry(db *gorm.DB) (*models.Country, error) {
+func getTrendingCountry(db *gorm.DB) (*dto.CountryDTO, error) {
 	type CountryScore struct {
 		CountryID uint
 		Score     float64
@@ -57,11 +70,13 @@ func getTrendingCountry(db *gorm.DB) (*models.Country, error) {
 		return nil, err
 	}
 
-	return &country, nil
+	dtoCountry := mappers.CountryToDTO(country)
+
+	return &dtoCountry, nil
 }
 
 func getTopDishes(db *gorm.DB, limit int) ([]DishWithStats, error) {
-	var dishes []DishWithStats
+	var rows []dishWithStatsRow
 
 	err := db.Model(&models.Dish{}).
 		Select(`
@@ -74,15 +89,24 @@ func getTopDishes(db *gorm.DB, limit int) ([]DishWithStats, error) {
 		Group("dishes.id").
 		Order("total_views DESC").
 		Limit(limit).
-		Scan(&dishes).Error
+		Scan(&rows).Error
 
 	if err != nil {
 		return nil, err
 	}
 
 	// Preload country for each dish
-	for i := range dishes {
-		db.Model(&dishes[i]).Association("Country").Find(&dishes[i].Country)
+	for i := range rows {
+		db.Model(&rows[i]).Association("Country").Find(&rows[i].Country)
+	}
+
+	dishes := make([]DishWithStats, 0, len(rows))
+	for _, r := range rows {
+		dishes = append(dishes, DishWithStats{
+			DishDTO:    mappers.DishToDTO(r.Dish),
+			TotalViews: r.TotalViews,
+			LiveCount:  r.LiveCount,
+		})
 	}
 
 	return dishes, nil

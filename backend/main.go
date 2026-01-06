@@ -58,12 +58,16 @@ func main() {
 		log.Fatal("JWT_SECRET is not set in the environment")
 	}
 
-	if err := db.AutoMigrate(
+	var migrateModels = []any{
 		&models.User{},
 		&models.Room{},
 		&models.Country{},
 		&models.Dish{},
-		&models.Live{}); err != nil {
+		&models.Live{},
+		&models.Tag{},
+	}
+
+	if err := db.AutoMigrate(migrateModels...); err != nil {
 		log.Fatal(err)
 	}
 

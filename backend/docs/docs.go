@@ -38,8 +38,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/discover.DiscoverHomeResponse"
                         }
                     },
                     "500": {
@@ -69,7 +68,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/discover.CategoryWithCount"
+                                }
+                            }
                         }
                     },
                     "500": {
@@ -482,6 +486,241 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "discover.CategoryWithCount": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "discover.DiscoverHomeResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CountryDTO"
+                    }
+                },
+                "top_dishes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/discover.DishWithStats"
+                    }
+                },
+                "trending_country": {
+                    "$ref": "#/definitions/dto.CountryDTO"
+                }
+            }
+        },
+        "discover.DishWithStats": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "$ref": "#/definitions/dto.CountryDTO"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "total_views": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.CountryDTO": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.DishDTO": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "$ref": "#/definitions/dto.CountryDTO"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.LiveDTO": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "$ref": "#/definitions/dto.CountryDTO"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_viewers": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "dish": {
+                    "$ref": "#/definitions/dto.DishDTO"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "has_replay": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "like_count": {
+                    "type": "integer"
+                },
+                "preview_gif": {
+                    "type": "string"
+                },
+                "replay_url": {
+                    "type": "string"
+                },
+                "replay_views": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TagDTO"
+                    }
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/dto.UserDTO"
+                },
+                "view_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.TagDTO": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UserDTO": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "followerCount": {
+                    "type": "integer"
+                },
+                "followersIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "followingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isFeaturedChef": {
+                    "type": "boolean"
+                },
+                "isVerified": {
+                    "type": "boolean"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "profileImageUrl": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "home.ChefHighlight": {
             "type": "object",
             "properties": {
@@ -561,54 +800,19 @@ const docTemplate = `{
                     }
                 },
                 "featured_live": {
-                    "$ref": "#/definitions/home.LiveDTO"
+                    "$ref": "#/definitions/dto.LiveDTO"
                 },
                 "tags": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/home.TagDTO"
+                        "$ref": "#/definitions/dto.TagDTO"
                     }
                 },
                 "upcoming_lives": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/home.LiveDTO"
+                        "$ref": "#/definitions/dto.LiveDTO"
                     }
-                }
-            }
-        },
-        "home.LiveDTO": {
-            "type": "object",
-            "properties": {
-                "country": {
-                    "type": "string"
-                },
-                "currentViewers": {
-                    "type": "integer"
-                },
-                "dishName": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/home.TagDTO"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/home.UserDTO"
-                },
-                "viewCount": {
-                    "type": "integer"
                 }
             }
         },
@@ -624,7 +828,7 @@ const docTemplate = `{
                 "lives": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/home.LiveDTO"
+                        "$ref": "#/definitions/dto.LiveDTO"
                     }
                 },
                 "pagination": {
@@ -638,7 +842,7 @@ const docTemplate = `{
                 "lives": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/home.LiveDTO"
+                        "$ref": "#/definitions/dto.LiveDTO"
                     }
                 },
                 "pagination": {
@@ -669,7 +873,7 @@ const docTemplate = `{
                 "lives": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/home.LiveDTO"
+                        "$ref": "#/definitions/dto.LiveDTO"
                     }
                 },
                 "pagination": {
@@ -680,81 +884,14 @@ const docTemplate = `{
                 }
             }
         },
-        "home.TagDTO": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "live_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "slug": {
-                    "type": "string"
-                }
-            }
-        },
         "home.TagsResponse": {
             "type": "object",
             "properties": {
                 "tags": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/home.TagDTO"
+                        "$ref": "#/definitions/dto.TagDTO"
                     }
-                }
-            }
-        },
-        "home.UserDTO": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "firstName": {
-                    "type": "string"
-                },
-                "followerCount": {
-                    "type": "integer"
-                },
-                "followersIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "followingIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "isFeaturedChef": {
-                    "type": "boolean"
-                },
-                "isVerified": {
-                    "type": "boolean"
-                },
-                "lastName": {
-                    "type": "string"
-                },
-                "profileImageUrl": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
                 }
             }
         }

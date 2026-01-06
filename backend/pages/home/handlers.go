@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Foodstream-io/etchebest/dto"
+	"github.com/Foodstream-io/etchebest/internal/httpx"
+	"github.com/Foodstream-io/etchebest/mappers"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -24,28 +27,28 @@ func GetHomePage(db *gorm.DB) gin.HandlerFunc {
 
 		featuredLive, err := getFeaturedLive(db)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch featured live"})
+			httpx.InternalError(c, "failed to fetch featured live")
 			return
 		}
 		response.FeaturedLive = featuredLive
 
 		upcomingLives, err := getUpcomingLives(db, 3)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch upcoming lives"})
+			httpx.InternalError(c, "failed to fetch upcoming lives")
 			return
 		}
 		response.UpcomingLives = upcomingLives
 
 		featuredChefs, err := getFeaturedChefs(db, 6)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch featured chefs"})
+			httpx.InternalError(c, "failed to fetch featured chefs")
 			return
 		}
 		response.FeaturedChefs = featuredChefs
 
 		tags, err := getTags(db)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tags"})
+			httpx.InternalError(c, "failed to fetch tags")
 			return
 		}
 		response.Tags = tags
@@ -75,7 +78,7 @@ func GetLivesByTab(db *gorm.DB) gin.HandlerFunc {
 
 		lives, total, err := getLivesByTab(db, tab, page, limit)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch lives"})
+			httpx.InternalError(c, "failed to fetch lives")
 			return
 		}
 
@@ -152,14 +155,19 @@ func GetLivesWithFilters(db *gorm.DB) gin.HandlerFunc {
 
 		var total int64
 		if err := query.Count(&total).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count lives"})
+			httpx.InternalError(c, "failed to count lives")
 			return
 		}
 
-		var lives []LiveDTO
-		if err := query.Offset(offset).Limit(limit).Find(&lives).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch lives"})
+		var rows []models.Live
+		if err := query.Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+			httpx.InternalError(c, "failed to fetch lives")
 			return
+		}
+
+		lives := make([]dto.LiveDTO, 0, len(rows))
+		for _, r := range rows {
+			lives = append(lives, mappers.LiveToDTO(r))
 		}
 
 		response := LivesFilteredResponse{
@@ -194,7 +202,7 @@ func SearchLives(db *gorm.DB) gin.HandlerFunc {
 
 		query := c.Query("q")
 		if query == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'q' is required"})
+			httpx.BadRequest(c, "query parameter 'q' is required")
 			return
 		}
 
@@ -203,7 +211,7 @@ func SearchLives(db *gorm.DB) gin.HandlerFunc {
 
 		lives, total, err := searchLives(db, query, page, limit)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Search failed"})
+			httpx.InternalError(c, "failed to search lives")
 			return
 		}
 
@@ -235,7 +243,7 @@ func GetTags(db *gorm.DB) gin.HandlerFunc {
 
 		tags, err := getTags(db)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tags"})
+			httpx.InternalError(c, "failed to fetch tags")
 			return
 		}
 
@@ -254,15 +262,11 @@ func GetTags(db *gorm.DB) gin.HandlerFunc {
 // @Router /api/home/chefs [get]
 func GetFeaturedChefs(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type ChefsResponse struct {
-			Chefs []ChefHighlight `json:"chefs"`
-		}
-
 		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "6"))
 
 		chefs, err := getFeaturedChefs(db, limit)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch chefs"})
+			httpx.InternalError(c, "failed to fetch featured chefs")
 			return
 		}
 

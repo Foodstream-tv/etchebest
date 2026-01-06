@@ -5,19 +5,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Foodstream-io/etchebest/dto"
+	"github.com/Foodstream-io/etchebest/mappers"
 	"github.com/Foodstream-io/etchebest/models"
 	"gorm.io/gorm"
 )
 
+type ChefHighlightRow struct {
+	models.User
+	ActiveLivesCount int
+	RecentLiveTitle  string
+}
+
 type ChefHighlight struct {
-	UserDTO
+	dto.UserDTO
 	ActiveLivesCount int    `json:"active_lives_count"`
 	RecentLiveTitle  string `json:"recent_live_title,omitempty"`
 }
 
 // Criteria: status=live, high viewers, featured score
-func getFeaturedLive(db *gorm.DB) (*LiveDTO, error) {
-	var live LiveDTO
+func getFeaturedLive(db *gorm.DB) (*dto.LiveDTO, error) {
+	var live models.Live
 
 	// Score calculation: (current_viewers * 2) + (view_count / 100) + (like_count * 0.5)
 	err := db.Preload("User").
@@ -34,10 +42,12 @@ func getFeaturedLive(db *gorm.DB) (*LiveDTO, error) {
 		return nil, err
 	}
 
-	return &live, nil
+	dtoLive := mappers.LiveToDTO(live)
+
+	return &dtoLive, nil
 }
 
-func getLivesByTab(db *gorm.DB, tab string, page, limit int) ([]LiveDTO, int64, error) {
+func getLivesByTab(db *gorm.DB, tab string, page, limit int) ([]dto.LiveDTO, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -46,7 +56,7 @@ func getLivesByTab(db *gorm.DB, tab string, page, limit int) ([]LiveDTO, int64, 
 	}
 	offset := (page - 1) * limit
 
-	query := db.Model(&LiveDTO{}).
+	query := db.Model(&models.Live{}).
 		Preload("User").
 		Preload("Tags")
 
@@ -80,30 +90,43 @@ func getLivesByTab(db *gorm.DB, tab string, page, limit int) ([]LiveDTO, int64, 
 		return nil, 0, err
 	}
 
-	var lives []LiveDTO
-	if err := query.Offset(offset).Limit(limit).Find(&lives).Error; err != nil {
+	var rows []models.Live
+	if err := query.
+		Offset(offset).
+		Limit(limit).
+		Find(&rows).Error; err != nil {
 		return nil, 0, err
+	}
+
+	lives := make([]dto.LiveDTO, 0, len(rows))
+	for _, r := range rows {
+		lives = append(lives, mappers.LiveToDTO(r))
 	}
 
 	return lives, total, nil
 }
 
-func getUpcomingLives(db *gorm.DB, limit int) ([]LiveDTO, error) {
+func getUpcomingLives(db *gorm.DB, limit int) ([]dto.LiveDTO, error) {
 	if limit < 1 || limit > 10 {
 		limit = 3
 	}
 
-	var lives []LiveDTO
+	var rows []models.Live
 	err := db.Preload("User").
 		Preload("Tags").
 		Where("status = ?", models.LiveStatusScheduled).
 		Where("started_at > ?", time.Now()).
 		Order("started_at ASC").
 		Limit(limit).
-		Find(&lives).Error
+		Find(&rows).Error
 
 	if err != nil {
 		return nil, err
+	}
+
+	lives := make([]dto.LiveDTO, 0, len(rows))
+	for _, r := range rows {
+		lives = append(lives, mappers.LiveToDTO(r))
 	}
 
 	return lives, nil
@@ -115,7 +138,7 @@ func getFeaturedChefs(db *gorm.DB, limit int) ([]ChefHighlight, error) {
 		limit = 6
 	}
 
-	var chefs []ChefHighlight
+	var rows []ChefHighlightRow
 
 	err := db.Model(&models.User{}).
 		Select(`
@@ -135,35 +158,46 @@ func getFeaturedChefs(db *gorm.DB, limit int) ([]ChefHighlight, error) {
 			COUNT(CASE WHEN lives.status = 'live' THEN 1 END) * 100 DESC
 		`).
 		Limit(limit).
-		Scan(&chefs).Error
+		Scan(&rows).Error
 
 	if err != nil {
 		return nil, err
 	}
 
+	chefs := make([]ChefHighlight, 0, len(rows))
+	for _, r := range rows {
+		chefs = append(chefs, ChefHighlight{
+			UserDTO:          mappers.UserToDTO(r.User),
+			ActiveLivesCount: r.ActiveLivesCount,
+			RecentLiveTitle:  r.RecentLiveTitle,
+		})
+	}
+
 	return chefs, nil
 }
 
-func getTags(db *gorm.DB) ([]TagDTO, error) {
-	var tags []TagDTO
+func getTags(db *gorm.DB) ([]dto.TagDTO, error) {
+	var rows []models.Tag
 
-	err := db.Model(&TagDTO{}).
+	err := db.Model(&models.Tag{}).
 		Select("tags.*, COUNT(live_tags.live_id) as live_count").
 		Joins("LEFT JOIN live_tags ON live_tags.tag_id = tags.id").
 		Joins("LEFT JOIN lives ON lives.id = live_tags.live_id AND lives.status IN ('live', 'scheduled')").
 		Where("tags.is_active = ?", true).
 		Group("tags.id").
 		Order("live_count DESC, tags.name ASC").
-		Find(&tags).Error
+		Find(&rows).Error
 
 	if err != nil {
 		return nil, err
 	}
 
+	tags := mappers.TagsToDTO(rows)
+
 	return tags, nil
 }
 
-func searchLives(db *gorm.DB, query string, page, limit int) ([]LiveDTO, int64, error) {
+func searchLives(db *gorm.DB, query string, page, limit int) ([]dto.LiveDTO, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -174,12 +208,12 @@ func searchLives(db *gorm.DB, query string, page, limit int) ([]LiveDTO, int64, 
 
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return []LiveDTO{}, 0, nil
+		return []dto.LiveDTO{}, 0, nil
 	}
 
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
-	dbQuery := db.Model(&LiveDTO{}).
+	dbQuery := db.Model(&models.Live{}).
 		Preload("User").
 		Preload("Tags").
 		Joins("JOIN users ON users.id = lives.user_id").
@@ -187,7 +221,7 @@ func searchLives(db *gorm.DB, query string, page, limit int) ([]LiveDTO, int64, 
 			LOWER(lives.title) LIKE ? OR 
 			LOWER(lives.dish_name) LIKE ? OR 
 			LOWER(users.username) LIKE ? OR
-			LOWER(users.full_name) LIKE ?
+			LOWER(CONCAT(users.first_name, ' ', users.last_name)) LIKE ?
 		`, searchPattern, searchPattern, searchPattern, searchPattern).
 		Where("lives.status IN ?", []string{models.LiveStatusLive, models.LiveStatusScheduled, models.LiveStatusEnded})
 
@@ -196,7 +230,7 @@ func searchLives(db *gorm.DB, query string, page, limit int) ([]LiveDTO, int64, 
 		return nil, 0, err
 	}
 
-	var lives []LiveDTO
+	var rows []models.Live
 	err := dbQuery.
 		Order(`
 			CASE 
@@ -208,10 +242,15 @@ func searchLives(db *gorm.DB, query string, page, limit int) ([]LiveDTO, int64, 
 		`).
 		Offset(offset).
 		Limit(limit).
-		Find(&lives).Error
+		Find(&rows).Error
 
 	if err != nil {
 		return nil, 0, err
+	}
+
+	lives := make([]dto.LiveDTO, 0, len(rows))
+	for _, r := range rows {
+		lives = append(lives, mappers.LiveToDTO(r))
 	}
 
 	return lives, total, nil

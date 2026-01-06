@@ -1,4 +1,4 @@
-package home
+package dto
 
 type TagDTO struct {
 	ID        uint   `json:"id"`

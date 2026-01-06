@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Foodstream-io/etchebest/internal/httpx"
+	"github.com/Foodstream-io/etchebest/mappers"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -14,27 +16,23 @@ import (
 // @Description Returns trending country, top dishes and categories
 // @Tags Discover
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} DiscoverHomeResponse
 // @Failure 500 {object} map[string]string
 // @Router /api/discover [get]
 func GetDiscoverHome(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var response struct {
-			TrendingCountry *models.Country  `json:"trending_country"`
-			TopDishes       []DishWithStats  `json:"top_dishes"`
-			Categories      []models.Country `json:"categories"`
-		}
+		var response DiscoverHomeResponse
 
 		trendingCountry, err := getTrendingCountry(db)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch trending country"})
+			httpx.InternalError(c, "failed to fetch trending country")
 			return
 		}
 		response.TrendingCountry = trendingCountry
 
 		topDishes, err := getTopDishes(db, 3)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch top dishes"})
+			httpx.InternalError(c, "failed to fetch top dishes")
 			return
 		}
 		response.TopDishes = topDishes
@@ -42,10 +40,10 @@ func GetDiscoverHome(db *gorm.DB) gin.HandlerFunc {
 		// Get all active categories
 		var categories []models.Country
 		if err := db.Where("is_active = ?", true).Order("name ASC").Find(&categories).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch categories"})
+			httpx.InternalError(c, "failed to fetch categories")
 			return
 		}
-		response.Categories = categories
+		response.Categories = mappers.CountriesToDTO(categories)
 
 		c.JSON(http.StatusOK, response)
 	}
@@ -56,12 +54,12 @@ func GetDiscoverHome(db *gorm.DB) gin.HandlerFunc {
 // @Description Returns all active countries with live count
 // @Tags Discover
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} map[string][]CategoryWithCount
 // @Failure 500 {object} map[string]string
 // @Router /api/discover/categories [get]
 func GetCategories(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var categories []CategoryWithCount
+		var rows []CategoryWithCountRow
 
 		// Get countries with live count
 		err := db.Model(&models.Country{}).
@@ -70,11 +68,19 @@ func GetCategories(db *gorm.DB) gin.HandlerFunc {
 			Where("countries.is_active = ?", true).
 			Group("countries.id").
 			Order("countries.name ASC").
-			Scan(&categories).Error
+			Scan(&rows).Error
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch categories"})
+			httpx.InternalError(c, "failed to fetch categories")
 			return
+		}
+
+		categories := make([]CategoryWithCount, 0, len(rows))
+		for _, r := range rows {
+			categories = append(categories, CategoryWithCount{
+				CountryDTO: mappers.CountryToDTO(r.Country),
+				LiveCount:  r.LiveCount,
+			})
 		}
 
 		c.JSON(http.StatusOK, gin.H{"categories": categories})
@@ -103,13 +109,13 @@ func GetCategoryLives(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		categoryID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category ID"})
+			httpx.BadRequest(c, "invalid category ID")
 			return
 		}
 
 		var country models.Country
 		if err := db.First(&country, categoryID).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "category not found"})
+			httpx.NotFound(c, "category not found")
 			return
 		}
 
@@ -138,7 +144,7 @@ func GetCategoryLives(db *gorm.DB) gin.HandlerFunc {
 		// Get lives with pagination
 		var lives []models.Live
 		if err := query.Offset(offset).Limit(limit).Find(&lives).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch lives"})
+			httpx.InternalError(c, "failed to fetch lives")
 			return
 		}
 
@@ -149,7 +155,7 @@ func GetCategoryLives(db *gorm.DB) gin.HandlerFunc {
 				"limit": limit,
 				"total": total,
 			},
-			"category": country,
+			"category": mappers.CountryToDTO(country),
 		})
 	}
 }
