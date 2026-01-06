@@ -1,9 +1,10 @@
 package models
 
 import (
+	"time"
+
 	"github.com/lib/pq"
 	"gorm.io/gorm"
-	"time"
 )
 
 const (
@@ -27,18 +28,24 @@ type User struct {
 	Role               string         `json:"role" gorm:"not null"`
 	FollowingIDS       pq.StringArray `json:"followingIds" gorm:"type:text[]"`
 	FollowersIDS       pq.StringArray `json:"followersIds " gorm:"type:text[]"`
+	FollowerCount      int            `json:"followerCount" gorm:"default:0;index:idx_user_followers"`
+	TotalLives         int            `json:"totalLives" gorm:"default:0"`
+	TotalViews         int            `json:"totalViews" gorm:"default:0"`
+	IsVerified         bool           `json:"isVerified" gorm:"default:false"`
+	IsFeaturedChef     bool           `json:"isFeaturedChef" gorm:"default:false;index:idx_user_featured"`
+	LastLiveAt         *time.Time     `json:"lastLiveAt" gorm:"index:idx_user_last_live"`
 }
 
 type UserPatch struct {
-	Email              *string    `json:"email"`
-	Password           *string    `json:"-"`
-	FirstName          *string    `json:"firstName"`
-	LastName           *string    `json:"lastName"`
-	Username           *string    `json:"username"`
-	ProfileImageURL    *string    `json:"profileImageUrl"`
-	Description        *string    `json:"description"`
-	CountryNumberPhone *int       `json:"countryNumberPhone"`
-	NumberPhone        *string    `json:"numberPhone"`
+	Email              *string `json:"email"`
+	Password           *string `json:"-"`
+	FirstName          *string `json:"firstName"`
+	LastName           *string `json:"lastName"`
+	Username           *string `json:"username"`
+	ProfileImageURL    *string `json:"profileImageUrl"`
+	Description        *string `json:"description"`
+	CountryNumberPhone *int    `json:"countryNumberPhone"`
+	NumberPhone        *string `json:"numberPhone"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {

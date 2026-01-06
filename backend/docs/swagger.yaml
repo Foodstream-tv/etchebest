@@ -1,65 +1,271 @@
 basePath: /
 definitions:
-  auth.LoginRequest:
+  discover.CategoryWithCount:
     properties:
-      email:
-        example: user@example.com
-        type: string
-      password:
-        example: password123
-        type: string
-    required:
-    - email
-    - password
-    type: object
-  auth.RegisterRequest:
-    properties:
-      email:
-        example: user@example.com
-        type: string
-      password:
-        example: password123
-        type: string
-    required:
-    - email
-    - password
-    type: object
-  models.Room:
-    properties:
-      host:
+      code:
         type: string
       id:
+        type: integer
+      image_url:
         type: string
-      maxParticipants:
+      live_count:
         type: integer
       name:
         type: string
-      participants:
+    type: object
+  discover.DiscoverHomeResponse:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/dto.CountryDTO'
+        type: array
+      top_dishes:
+        items:
+          $ref: '#/definitions/discover.DishWithStats'
+        type: array
+      trending_country:
+        $ref: '#/definitions/dto.CountryDTO'
+    type: object
+  discover.DishWithStats:
+    properties:
+      country:
+        $ref: '#/definitions/dto.CountryDTO'
+      description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      live_count:
+        type: integer
+      name:
+        type: string
+      total_views:
+        type: integer
+    type: object
+  dto.CountryDTO:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      name:
+        type: string
+    type: object
+  dto.DishDTO:
+    properties:
+      country:
+        $ref: '#/definitions/dto.CountryDTO'
+      description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      name:
+        type: string
+    type: object
+  dto.LiveDTO:
+    properties:
+      country:
+        $ref: '#/definitions/dto.CountryDTO'
+      created_at:
+        type: string
+      current_viewers:
+        type: integer
+      description:
+        type: string
+      dish:
+        $ref: '#/definitions/dto.DishDTO'
+      ended_at:
+        type: string
+      has_replay:
+        type: boolean
+      id:
+        type: integer
+      like_count:
+        type: integer
+      preview_gif:
+        type: string
+      replay_url:
+        type: string
+      replay_views:
+        type: integer
+      started_at:
+        type: string
+      status:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/dto.TagDTO'
+        type: array
+      thumbnail_url:
+        type: string
+      title:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserDTO'
+      view_count:
+        type: integer
+    type: object
+  dto.TagDTO:
+    properties:
+      color:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      live_count:
+        type: integer
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  dto.UserDTO:
+    properties:
+      description:
+        type: string
+      firstName:
+        type: string
+      followerCount:
+        type: integer
+      followersIds:
         items:
           type: string
         type: array
-      viewers:
+      followingIds:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      isFeaturedChef:
+        type: boolean
+      isVerified:
+        type: boolean
+      lastName:
+        type: string
+      profileImageUrl:
+        type: string
+      username:
+        type: string
+    type: object
+  home.ChefHighlight:
+    properties:
+      active_lives_count:
+        type: integer
+      description:
+        type: string
+      firstName:
+        type: string
+      followerCount:
+        type: integer
+      followersIds:
+        items:
+          type: string
+        type: array
+      followingIds:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      isFeaturedChef:
+        type: boolean
+      isVerified:
+        type: boolean
+      lastName:
+        type: string
+      profileImageUrl:
+        type: string
+      recent_live_title:
+        type: string
+      username:
+        type: string
+    type: object
+  home.ChefsResponse:
+    properties:
+      chefs:
+        items:
+          $ref: '#/definitions/home.ChefHighlight'
+        type: array
+    type: object
+  home.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  home.HomePageResponse:
+    properties:
+      featured_chefs:
+        items:
+          $ref: '#/definitions/home.ChefHighlight'
+        type: array
+      featured_live:
+        $ref: '#/definitions/dto.LiveDTO'
+      tags:
+        items:
+          $ref: '#/definitions/dto.TagDTO'
+        type: array
+      upcoming_lives:
+        items:
+          $ref: '#/definitions/dto.LiveDTO'
+        type: array
+    type: object
+  home.LivesFilteredResponse:
+    properties:
+      filters_applied:
+        additionalProperties:
+          type: string
+        type: object
+      lives:
+        items:
+          $ref: '#/definitions/dto.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/home.Pagination'
+    type: object
+  home.LivesTabResponse:
+    properties:
+      lives:
+        items:
+          $ref: '#/definitions/dto.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/home.Pagination'
+    type: object
+  home.Pagination:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
         type: integer
     type: object
-  rooms.AddParticipantReq:
+  home.SearchResponse:
     properties:
-      roomId:
-        example: 550e8400-e29b-41d4-a716-446655440000
+      lives:
+        items:
+          $ref: '#/definitions/dto.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/home.Pagination'
+      query:
         type: string
-      userId:
-        example: 550e8400-e29b-41d4-a716-446655440001
-        type: string
-    required:
-    - roomId
-    - userId
     type: object
-  rooms.RoomRequest:
+  home.TagsResponse:
     properties:
-      name:
-        example: My Cooking Stream
-        type: string
-    required:
-    - name
+      tags:
+        items:
+          $ref: '#/definitions/dto.TagDTO'
+        type: array
     type: object
 host: localhost:8080
 info:
@@ -75,18 +281,28 @@ info:
   title: Etchebest API
   version: "1.0"
 paths:
-  /addParticipant:
-    post:
-      consumes:
+  /api/discover:
+    get:
+      description: Returns trending country, top dishes and categories
+      produces:
       - application/json
-      description: Add a user as a participant to a specific room
-      parameters:
-      - description: Room and user IDs
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/rooms.AddParticipantReq'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/discover.DiscoverHomeResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Discover home
+      tags:
+      - Discover
+  /api/discover/categories:
+    get:
+      description: Returns all active countries with live count
       produces:
       - application/json
       responses:
@@ -94,43 +310,56 @@ paths:
           description: OK
           schema:
             additionalProperties:
-              type: string
+              items:
+                $ref: '#/definitions/discover.CategoryWithCount'
+              type: array
             type: object
-        "400":
-          description: Bad Request
+        "500":
+          description: Internal Server Error
           schema:
             additionalProperties:
               type: string
             type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Add participant to room
+      summary: List discover categories
       tags:
-      - rooms
-  /createRoom:
-    post:
-      consumes:
-      - application/json
-      description: Create a new streaming room or join existing one by name
+      - Discover
+  /api/discover/categories/{id}/lives:
+    get:
+      description: Returns paginated lives for a specific country with filters
       parameters:
-      - description: Room details
-        in: body
-        name: request
+      - description: Category ID
+        in: path
+        name: id
         required: true
-        schema:
-          $ref: '#/definitions/rooms.RoomRequest'
+        type: integer
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Sort by (views, viewers, recent)
+        in: query
+        name: sort
+        type: string
+      - description: Live status
+        in: query
+        name: filters[status]
+        type: string
+      - description: Dish ID
+        in: query
+        name: filters[dish_id]
+        type: integer
+      - description: Minimum viewers
+        in: query
+        name: filters[min_viewers]
+        type: integer
+      - description: Lives started in last N hours
+        in: query
+        name: filters[hours_ago]
+        type: integer
       produces:
       - application/json
       responses:
@@ -145,213 +374,6 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Create or join a room
-      tags:
-      - rooms
-  /disconnect:
-    post:
-      consumes:
-      - application/json
-      description: Close all WebRTC connections and clean up room resources
-      parameters:
-      - description: Room ID
-        in: query
-        name: roomId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Disconnect from room
-      tags:
-      - webrtc
-  /ice:
-    post:
-      consumes:
-      - application/json
-      description: Add ICE candidates for WebRTC connection establishment
-      parameters:
-      - description: Room ID
-        in: query
-        name: roomId
-        required: true
-        type: string
-      - description: ICE Candidate
-        in: body
-        name: candidate
-        required: true
-        schema:
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Handle ICE candidates
-      tags:
-      - webrtc
-  /login:
-    post:
-      consumes:
-      - application/json
-      description: Authenticate user and return JWT token
-      parameters:
-      - description: Login credentials
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/auth.LoginRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Login user
-      tags:
-      - auth
-  /register:
-    post:
-      consumes:
-      - application/json
-      description: Create a new user account with email and password
-      parameters:
-      - description: Registration details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/auth.RegisterRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Register a new user
-      tags:
-      - auth
-  /reserve:
-    post:
-      consumes:
-      - application/json
-      description: Reserve a participant slot in a room in advance
-      parameters:
-      - description: Room ID to reserve
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            roomId:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "403":
-          description: Forbidden
-          schema:
-            additionalProperties:
-              type: string
-            type: object
         "404":
           description: Not Found
           schema:
@@ -364,96 +386,210 @@ paths:
             additionalProperties:
               type: string
             type: object
-      security:
-      - BearerAuth: []
-      summary: Reserve a spot in a room
+      summary: Get lives by category
       tags:
-      - rooms
-  /rooms:
+      - Discover
+  /api/home:
     get:
-      consumes:
-      - application/json
-      description: Retrieve list of all streaming rooms
+      description: Return the featured live, tabs, chefs, and tags
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              items:
-                $ref: '#/definitions/models.Room'
-              type: array
-            type: object
+            $ref: '#/definitions/home.HomePageResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Get all rooms
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: Complete home page
       tags:
-      - rooms
-  /webrtc:
-    post:
-      consumes:
-      - application/json
-      description: Create WebRTC peer connection for video streaming (participants
-        only)
+      - home
+  /api/home/chefs:
+    get:
+      description: Return popular or featured creators
       parameters:
-      - description: Room ID
+      - default: 6
+        description: Number of chefs to return
         in: query
-        name: roomId
-        required: true
-        type: string
-      - description: WebRTC Session Description
-        in: body
-        name: offer
-        required: true
-        schema:
-          type: object
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/home.ChefsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: List of featured chefs
+      tags:
+      - home
+  /api/home/lives:
+    get:
+      description: 'Return the lives according to the tab: live, popular, replay,
+        scheduled'
+      parameters:
+      - description: Tab name
+        enum:
+        - live
+        - popular
+        - replay
+        - scheduled
+        in: query
+        name: tab
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.LivesTabResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "403":
-          description: Forbidden
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/home.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Establish WebRTC connection
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: GetLivesByTab
       tags:
-      - webrtc
+      - home
+  /api/home/lives/filtered:
+    get:
+      description: Allow to filter lives by tag, status, user, etc.
+      parameters:
+      - description: Filter by tag ID
+        in: query
+        name: filters[tag_id]
+        type: string
+      - description: Filter by tag slug
+        in: query
+        name: filters[tag_slug]
+        type: string
+      - description: Filter by status
+        enum:
+        - live
+        - scheduled
+        - ended
+        in: query
+        name: filters[status]
+        type: string
+      - description: Filter by user ID
+        in: query
+        name: filters[user_id]
+        type: string
+      - description: Minimum current viewers
+        in: query
+        name: filters[min_viewers]
+        type: integer
+      - description: Has replay available
+        in: query
+        name: filters[has_replay]
+        type: boolean
+      - description: Sort order
+        enum:
+        - views
+        - viewers
+        - recent
+        in: query
+        name: sort
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.LivesFilteredResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: GetLivesWithFilters
+      tags:
+      - home
+  /api/home/search:
+    get:
+      description: Research by title, dish name, chef name
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: Global search for lives
+      tags:
+      - home
+  /api/home/tags:
+    get:
+      description: Return all active culinary tags with the number of lives
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/home.TagsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/home.ErrorResponse'
+      summary: List all tags
+      tags:
+      - home
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

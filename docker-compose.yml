@@ -12,6 +12,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
   backend:
     container_name: backend-foodstream
+    depends_on:
+      - postgres
     build: ./backend
     env_file: ./.env
     ports:
