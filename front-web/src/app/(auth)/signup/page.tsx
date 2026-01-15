@@ -1,161 +1,189 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
-import AuthBackground from "@/components/AuthBackground";
+import { useMemo, useState } from "react";
+import { Mail, User } from "lucide-react";
 import { useRouter } from "next/navigation";
+import AuthCard from "@/components/auth/AuthCard";
+import PasswordField from "@/components/auth/PasswordField";
+import PhoneField, { COUNTRY_CODES, type CountryCode } from "@/components/auth/PhoneField";
 import { useAuth } from "@/lib/useAuth";
+import { useAuthSubmit } from "@/lib/useAuthSubmit";
+
+type AuthResponse = {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    username: string;
+  };
+};
+
+function isValidEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+
+function minLen(v: string, n: number) {
+  return v.trim().length >= n;
+}
+
+function inRange(v: string, min: number, max: number) {
+  const len = v.trim().length;
+  return len >= min && len <= max;
+}
+
+function isValidPhone(v: string) {
+  const digits = v.replace(/[^\d]/g, "");
+  return digits.length >= 6 && digits.length <= 15;
+}
 
 export default function SignUpPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const router = useRouter();
-  const { setUser } = useAuth();
+  const { setAuth } = useAuth();
+  const { submit, loading, error, setError } = useAuthSubmit<AuthResponse>();
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [description, setDescription] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [countryCode, setCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]);
+
+  const canSubmit = useMemo(() => {
+    return (
+      isValidEmail(email) &&
+      minLen(firstName, 2) &&
+      minLen(lastName, 2) &&
+      minLen(username, 3) &&
+      password.length >= 6 &&
+      inRange(description, 10, 500) &&
+      isValidPhone(phoneNumber)
+    );
+  }, [email, firstName, lastName, username, password, description, phoneNumber]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const api = process.env.NEXT_PUBLIC_API_BASE_URL;
-      if (!api) throw new Error("NEXT_PUBLIC_API_BASE_URL non défini");
 
-      const res = await fetch(`${api}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
+    if (!isValidEmail(email)) return setError("Email invalide");
+    if (!minLen(firstName, 2)) return setError("Le prénom doit faire au moins 2 caractères");
+    if (!minLen(lastName, 2)) return setError("Le nom doit faire au moins 2 caractères");
+    if (!minLen(username, 3)) return setError("L'identifiant doit faire au moins 3 caractères");
+    if (password.length < 6) return setError("Le mot de passe doit faire au moins 6 caractères");
+    if (!inRange(description, 10, 500)) return setError("La description doit faire entre 10 et 500 caractères");
+    if (!isValidPhone(phoneNumber)) return setError("Numéro de téléphone invalide");
 
-      const text = await res.text();
-      let data: any = null;
-      try { data = JSON.parse(text); } catch {}
+    const payload = {
+      email: email.trim().toLowerCase(),
+      password,
+      username: username.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      description: description.trim(),
+      countryNumberPhone: countryCode.value,
+      numberPhone: phoneNumber.trim(),
+      profileImage: "",
+    };
 
-      if (!res.ok) {
-        const msg = data?.message || data?.error || text || `Erreur ${res.status} lors de l'inscription`;
-        throw new Error(msg);
-      }
-
-      // Succès – si l’API renvoie un user
-      const user = data?.user ?? { id: "dev-" + Date.now(), name, email };
-      setUser(user);
-      router.replace("/profile");
-    } catch (err: any) {
-      setError(err.message || "Inscription impossible");
-    } finally {
-      setLoading(false);
-    }
+    const data = await submit("/register", payload);
+    router.replace("/signin");
   }
 
-  const canSubmit = name.trim() && email.trim() && password.length >= 6;
-
   return (
-    <AuthBackground>
-      <section className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[440px] flex-col items-center justify-center px-4">
-        {/* Bloc blanc */}
-        <div className="w-full rounded-2xl bg-white/90 p-6 shadow-2xl ring-1 ring-black/5 backdrop-blur-md">
-          <h1 className="mb-1 text-center text-sm font-medium text-gray-600">Inscription</h1>
-          <h2 className="mb-5 text-center text-2xl font-semibold text-gray-900">Bienvenue</h2>
-
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-              <User className="h-5 w-5 text-gray-600" />
-              <input
-                className="input"
-                placeholder="Nom"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="name"
-                required
-              />
-            </div>
-
-            <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-              <Mail className="h-5 w-5 text-gray-600" />
-              <input
-                className="input"
-                type="email"
-                placeholder="Adresse e-mail"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-              />
-            </div>
-
-            <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-              <Lock className="h-5 w-5 text-gray-600" />
-              <input
-                className="input"
-                type={showPassword ? "text" : "password"}
-                placeholder="Mot de passe (min. 6 caractères)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                className="rounded p-1 text-gray-600 hover:bg-gray-100"
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              >
-                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-
-            {error && <p className="text-sm text-red-600">{error}</p>}
-
-            <button type="submit" disabled={loading || !canSubmit} className="btn-primary">
-              {loading ? "Création…" : "Créer le compte"}
-            </button>
-
-            {/* Bouton démo pour tester sans backend */}
-            <button
-              type="button"
-              onClick={() => {
-                setUser({
-                  id: "demo",
-                  name: name || "Demo User",
-                  email: email || "demo@foodstream.test",
-                  // avatar: "https://i.pravatar.cc/96?u=demo", // optionnel
-                });
-                router.replace("/profile");
-              }}
-              className="w-full rounded-xl border border-gray-300 bg-white py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
-            >
-              Continuer en démo (sans backend)
-            </button>
-          </form>
-
-          <div className="my-5 flex items-center gap-3 text-xs text-gray-500">
-            <span className="h-px w-full bg-gray-200" />
-            <span>Ou</span>
-            <span className="h-px w-full bg-gray-200" />
-          </div>
-
-          <div className="space-y-3">
-            <a href="#" className="btn-google">Inscription avec Google</a>
-            <a href="#" className="btn-facebook">Inscription avec Facebook</a>
-          </div>
+    <AuthCard
+      label="Inscription"
+      title="Bienvenue"
+      bottomText="Vous avez déjà un compte ?"
+      bottomLinkHref="/signin"
+      bottomLinkLabel="CONNECTEZ-VOUS"
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
+        {/* Email */}
+        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
+          <Mail className="h-5 w-5 text-gray-600" />
+          <input
+            className="input"
+            type="email"
+            placeholder="Adresse e-mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+          />
         </div>
 
-        {/* Phrase directement sous le bloc */}
-        <p className="mt-3 text-center text-sm text-gray-800">
-          Vous avez déjà un compte ?{" "}
-          <Link
-            href="/signin"
-            className="font-semibold text-amber-600 underline underline-offset-2 hover:text-amber-500"
-          >
-            CONNECTEZ-VOUS
-          </Link>
-        </p>
-      </section>
-    </AuthBackground>
+        {/* Prénom */}
+        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
+          <User className="h-5 w-5 text-gray-600" />
+          <input
+            className="input"
+            placeholder="Prénom"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            autoComplete="given-name"
+            required
+          />
+        </div>
+
+        {/* Nom */}
+        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
+          <User className="h-5 w-5 text-gray-600" />
+          <input
+            className="input"
+            placeholder="Nom"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            autoComplete="family-name"
+            required
+          />
+        </div>
+
+        {/* Username */}
+        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
+          <User className="h-5 w-5 text-gray-600" />
+          <input
+            className="input"
+            placeholder="Identifiant"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="nickname"
+            required
+          />
+        </div>
+
+        {/* Password */}
+        <PasswordField
+          value={password}
+          onChange={setPassword}
+          placeholder="Mot de passe"
+          autoComplete="new-password"
+        />
+
+        {/* Phone with country code */}
+        <PhoneField
+          country={countryCode}
+          onCountryChange={setCountryCode}
+          phone={phoneNumber}
+          onPhoneChange={setPhoneNumber}
+        />
+
+        {/* Description */}
+        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
+          <User className="h-5 w-5 text-gray-600" />
+          <textarea
+            className="input min-h-[96px] resize-y py-2"
+            placeholder="Parlez-nous de vous… (10 à 500 caractères)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <button type="submit" disabled={loading || !canSubmit} className="btn-primary">
+          {loading ? "Création…" : "Inscription"}
+        </button>
+      </form>
+    </AuthCard>
   );
 }
