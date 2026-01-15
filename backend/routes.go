@@ -3,8 +3,10 @@ package main
 import (
 	"net/http"
 
+	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/pages/discover"
 	"github.com/Foodstream-io/etchebest/pages/home"
+	"github.com/Foodstream-io/etchebest/pages/streams"
 	"github.com/Foodstream-io/etchebest/users"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -60,6 +62,12 @@ func routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	// WebRTC
 	api.POST("/webrtc", rooms.HandleWebRTC(db))
 	api.POST("/ice", rooms.HandleICECandidate)
+
+	// Hls
+	api.GET("/streams/:roomId/token", streams.GetStreamToken()) // ask a token first -> const res = await fetch(`/api/streams/${roomId}/token`);
+	hlsGroup := r.Group("/hls")
+	hlsGroup.Use(hls.HLSAuthMiddleware())
+	hlsGroup.Static("/:room", "./hls") // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
 
 	// Discover
 	api.GET("/discover", discover.GetDiscoverHome(db))

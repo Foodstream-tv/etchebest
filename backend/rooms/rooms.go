@@ -1,6 +1,13 @@
 package rooms
 
 import (
+	"log"
+	"net/http"
+	"os"
+	"slices"
+	"sync"
+
+	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/Foodstream-io/etchebest/utils"
 	"github.com/gin-gonic/gin"
@@ -8,10 +15,6 @@ import (
 	"github.com/lib/pq"
 	"github.com/pion/webrtc/v3"
 	"gorm.io/gorm"
-	"log"
-	"net/http"
-	"slices"
-	"sync"
 )
 
 type RoomRequest struct {
@@ -409,28 +412,7 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 				log.Printf("Error adding track to peer: %v", err)
 				continue
 			}
-
 			trackInfo.Senders = append(trackInfo.Senders, sender)
-
-			go func(track *webrtc.TrackRemote, localTrack *webrtc.TrackLocalStaticRTP) {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("Recovered from panic: %v", r)
-					}
-				}()
-				buf := make([]byte, 1500)
-				for {
-					n, _, readErr := track.Read(buf)
-					if readErr != nil {
-						log.Printf("Track ended: %v", readErr)
-						break
-					}
-					if _, writeErr := localTrack.Write(buf[:n]); writeErr != nil {
-						log.Printf("Failed to write to local track: %v", writeErr)
-						break
-					}
-				}
-			}(trackInfo.Track, trackInfo.LocalTrack)
 		}
 
 		room.Connections = append(room.Connections, peerConnection)
@@ -438,6 +420,19 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 			log.Printf("Track received: %s (StreamID: %s)", track.Kind().String(), track.StreamID())
+
+			var hlsStdin *os.File
+
+			if track.Kind() == webrtc.RTPCodecTypeVideo && !hls.IsRunning(roomID) {
+				log.Println("Starting HLS stream for room", roomID)
+
+				stdin, _, err := hls.Start(roomID)
+				if err != nil {
+					log.Printf("Failed to start HLS: %v", err)
+				} else {
+					hlsStdin = stdin
+				}
+			}
 
 			localTrack, err := webrtc.NewTrackLocalStaticRTP(
 				track.Codec().RTPCodecCapability,
@@ -465,31 +460,32 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 						log.Printf("Error adding track to peer: %v", err)
 						continue
 					}
-
 					trackInfo.Senders = append(trackInfo.Senders, sender)
-
-					go func() {
-						defer func() {
-							if r := recover(); r != nil {
-								log.Printf("Recovered from panic: %v", r)
-							}
-						}()
-						buf := make([]byte, 1500)
-						for {
-							n, _, readErr := track.Read(buf)
-							if readErr != nil {
-								log.Printf("Track ended: %v", readErr)
-								break
-							}
-							if _, writeErr := localTrack.Write(buf[:n]); writeErr != nil {
-								log.Printf("Failed to write to local track: %v", writeErr)
-								break
-							}
-						}
-					}()
 				}
 			}
 			mu.Unlock()
+
+			go func() {
+				buf := make([]byte, 1500)
+				for {
+					n, _, err := track.Read(buf)
+					if err != nil {
+						log.Println("Track ended:", err)
+						break
+					}
+
+					// → WebRTC
+					if _, err := localTrack.Write(buf[:n]); err != nil {
+						log.Printf("Failed to write to local track: %v", err)
+						break
+					}
+
+					// → HLS
+					if hlsStdin != nil {
+						_, _ = hlsStdin.Write(buf[:n])
+					}
+				}
+			}()
 		})
 
 		peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
@@ -537,6 +533,7 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 				room.Tracks = updatedTracks
 
 				if len(room.Connections) == 0 {
+					hls.StopStream(roomID)
 					delete(rooms, roomID)
 				}
 				mu.Unlock()
