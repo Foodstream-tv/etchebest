@@ -46,7 +46,7 @@ export default function SignInPage() {
               setError("Réponse invalide du serveur (token manquant).");
               return;
             }
-            const user = await apiFetch<any>("/api/users/me", {
+            const user = await apiFetch<any>("/users/me", {
               method: "GET",
               headers: {
                 Authorization: `Bearer ${login.token}`,
