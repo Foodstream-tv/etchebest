@@ -16,7 +16,7 @@ function initialsOf(name?: string, email?: string) {
 }
 
 export default function ProfilePage() {
-  const { user, setUser, ready } = useAuth();
+  const { user, token, setAuth, signOut, ready } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -33,28 +33,23 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  const signOut = () => {
-    setUser(null);
-    router.replace("/signin");
-  };
-
   return (
     <main className="bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-50">
       <header className="bg-gradient-to-r from-amber-50 to-rose-50 dark:from-neutral-900 dark:to-neutral-900">
         <div className="mx-auto max-w-5xl px-6 py-10">
           <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="relative">
-              {user.avatar ? (
+              {user.profileImageUrl ? (
                 <Image
-                  src={user.avatar}
-                  alt={user.name}
+                  src={user.profileImageUrl}
+                  alt={user.username || "Profil"}
                   width={96}
                   height={96}
                   className="rounded-full ring-2 ring-white"
                 />
               ) : (
                 <div className="flex h-24 w-24 items-center justify-center rounded-full bg-amber-500 text-2xl font-bold text-white ring-2 ring-white">
-                  {initialsOf(user.name, user.email)}
+                  {initialsOf(user.username, user.email)}
                 </div>
               )}
               <button
@@ -66,22 +61,22 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex-1">
-              <h1 className="text-2xl font-bold">{user.name || "Mon profil"}</h1>
+              <h1 className="text-2xl font-bold">{user.username || "Mon profil"}</h1>
               <p className="mt-1 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <Mail className="h-4 w-4" /> {user.email}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
-                  Streamer
-                </span>
-                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
-                  Membre depuis 2024
+                  {user.role || "Utilisateur"}
                 </span>
               </div>
             </div>
 
             <button
-              onClick={signOut}
+              onClick={() => {
+                signOut();
+                router.replace("/signin");
+              }}
               className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/15 dark:text-gray-100 dark:hover:bg-neutral-800"
             >
               <LogOut className="h-4 w-4" />
@@ -106,7 +101,7 @@ export default function ProfilePage() {
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
             <h2 className="text-lg font-semibold">Informations personnelles</h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Modifie ton nom et ton e-mail (démo frontend).
+              Modifie ton username et ton e-mail (démo frontend).
             </p>
 
             <form
@@ -114,20 +109,22 @@ export default function ProfilePage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                const name = String(fd.get("name") || user.name);
-                const email = String(fd.get("email") || user.email);
-                const updated = { ...user, name, email };
-                setUser(updated);
+                const username = String(fd.get("username") || user.username || "");
+                const email = String(fd.get("email") || user.email || "");
+                const updatedUser = { ...user, username, email };
+
+                if (token) setAuth({ token, user: updatedUser });
+
                 alert("Profil mis à jour (demo front).");
               }}
             >
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Nom
+                  Identifiant
                 </label>
                 <input
-                  name="name"
-                  defaultValue={user.name || ""}
+                  name="username"
+                  defaultValue={user.username || ""}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 dark:border-white/15 dark:bg-neutral-900 dark:text-gray-100 dark:focus:border-white"
                 />
               </div>
@@ -138,7 +135,7 @@ export default function ProfilePage() {
                 <input
                   type="email"
                   name="email"
-                  defaultValue={user.email}
+                  defaultValue={user.email || ""}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 dark:border-white/15 dark:bg-neutral-900 dark:text-gray-100 dark:focus:border-white"
                 />
               </div>
@@ -148,15 +145,6 @@ export default function ProfilePage() {
                 </button>
               </div>
             </form>
-          </div>
-
-          <div className="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
-            <h2 className="text-lg font-semibold">Activité récente</h2>
-            <ul className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-              <li>• A suivi “Ramen Tonkotsu maison”</li>
-              <li>• A ajouté “Curry asiatique” en favori</li>
-              <li>• A commenté un live de “ChefCarlos”</li>
-            </ul>
           </div>
         </section>
       </div>
