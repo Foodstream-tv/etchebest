@@ -4,17 +4,32 @@ import { useEffect, useState } from "react";
 
 export type User = {
   id: string;
-  name: string;
   email: string;
-  avatar?: string; // URL absolue ou /images/...
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
+  description?: string;
+  role?: string;
+  countryNumberPhone?: number;
+  numberPhone?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
+export type AuthState = {
+  token: string;
+  user: User;
+};
+
+const STORAGE_KEY = "fs_auth";
+
 export function useAuth() {
-  const [user, setUserState] = useState<User | null>(() => {
+  const [auth, setAuthState] = useState<AuthState | null>(() => {
     if (typeof window === "undefined") return null;
     try {
-      const raw = localStorage.getItem("fs_user");
-      return raw ? JSON.parse(raw) : null;
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as AuthState) : null;
     } catch {
       return null;
     }
@@ -26,23 +41,33 @@ export function useAuth() {
     setReady(true);
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "fs_user") {
+      if (e.key === STORAGE_KEY) {
         try {
-          setUserState(e.newValue ? JSON.parse(e.newValue) : null);
+          setAuthState(e.newValue ? (JSON.parse(e.newValue) as AuthState) : null);
         } catch {
-          setUserState(null);
+          setAuthState(null);
         }
       }
     };
+
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const setUser = (u: User | null) => {
-    if (u) localStorage.setItem("fs_user", JSON.stringify(u));
-    else localStorage.removeItem("fs_user");
-    setUserState(u);
+  const setAuth = (a: AuthState | null) => {
+    if (a) localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
+    else localStorage.removeItem(STORAGE_KEY);
+    setAuthState(a);
   };
 
-  return { user, setUser, ready };
+  const signOut = () => setAuth(null);
+
+  return {
+    auth,
+    token: auth?.token ?? null,
+    user: auth?.user ?? null,
+    setAuth,
+    signOut,
+    ready,
+  };
 }
