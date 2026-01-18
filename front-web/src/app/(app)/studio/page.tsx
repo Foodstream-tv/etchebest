@@ -345,64 +345,6 @@ export default function StudioPage() {
               de ton formulaire.
             </p>
           </div>
-
-          {/* Quick settings */}
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-gray-900 shadow-lg dark:border-white/10 dark:bg-neutral-900 dark:text-gray-100">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/80">
-              <Settings2 className="h-4 w-4" />
-              Réglages rapides
-            </h3>
-
-            <QuickRow
-              label="Latence"
-              value={latency}
-              onClick={() =>
-                setLatency(latency === "Normale" ? "Faible" : "Normale")
-              }
-            />
-            <QuickRow
-              label="Qualité"
-              value={quality}
-              onClick={() =>
-                setQuality(
-                  quality === "Auto (1080p)"
-                    ? "720p"
-                    : quality === "720p"
-                      ? "480p"
-                      : "Auto (1080p)",
-                )
-              }
-            />
-            <QuickRow
-              label="Enregistrement"
-              value={replays ? "Replays activés" : "Replays off"}
-              onClick={() => setReplays((v) => !v)}
-            />
-
-            <div className="mt-4 rounded-xl border border-neutral-200 p-3 text-xs text-gray-600 dark:border-white/10 dark:text-white/60">
-              <div className="mb-1 flex items-center gap-2 font-medium text-gray-800 dark:text-white/80">
-                <Shield className="h-4 w-4" />
-                Contrôles de modération
-              </div>
-              <p>
-                Le slow-mode, le chat abonnés et la visibilité influencent la
-                découverte de ton live.
-              </p>
-            </div>
-          </div>
-
-          {/* Tiny info */}
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-gray-600 shadow-lg dark:border-white/10 dark:bg-neutral-900 dark:text-white/60">
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              <p>
-                Aujourd’hui :{" "}
-                <span className="font-semibold text-gray-800 dark:text-white/80">
-                  {prettyToday}
-                </span>
-              </p>
-            </div>
-          </div>
         </aside>
       </div>
     </main>
