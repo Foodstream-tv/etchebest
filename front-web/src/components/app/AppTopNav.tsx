@@ -14,7 +14,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Accueil", href: "/home" },
   { label: "Lives", href: "/stream" },
   { label: "Studio", href: "/studio" },
-  { label: "Profil", href: "/profile" },
 ];
 
 function cx(...classes: Array<string | false | undefined>) {
@@ -62,9 +61,9 @@ export default function AppTopNav() {
           })}
         </nav>
 
-        {/* SEARCH */}
+        {/* SEARCH — maintenant collée à Studio */}
         <form
-          className="ml-auto flex w-full max-w-xl items-center gap-2 rounded-xl border bg-white px-3 py-2 shadow-sm dark:border-white/10 dark:bg-neutral-900 md:w-auto md:flex-1"
+          className="flex w-full max-w-md items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm dark:bg-neutral-900 md:flex-1"
           onSubmit={(e) => e.preventDefault()}
         >
           <Search className="h-4 w-4 text-gray-500 dark:text-gray-400" />
@@ -75,10 +74,13 @@ export default function AppTopNav() {
           />
         </form>
 
+        {/* Spacer → pousse les actions à droite */}
+        <div className="flex-1" />
+
         {/* FILTERS */}
         <button
           type="button"
-          className="hidden items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:bg-neutral-800 md:flex"
+          className="hidden items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50 dark:bg-neutral-900 dark:hover:bg-neutral-800 md:flex"
         >
           <SlidersHorizontal className="h-4 w-4" />
           Filtres
@@ -86,15 +88,28 @@ export default function AppTopNav() {
 
         {/* ACTIONS */}
         <div className="hidden items-center gap-2 md:flex">
-          <button className="rounded-xl border bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:bg-neutral-800">
+          <button className="rounded-xl bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50 dark:bg-neutral-900 dark:hover:bg-neutral-800">
             Sombre
           </button>
 
-          <button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600">
-            Go live
-          </button>
+          <Link
+            href="/profile"
+            className="group relative grid h-9 w-9 place-items-center overflow-hidden rounded-full"
+            title="Profil"
+          >
+            {/* Gradient hover */}
+            <span
+              className="absolute inset-0 opacity-0 transition group-hover:opacity-100"
+              style={{
+                background: "linear-gradient(90deg, #FFA92E 0%, #FF5D1E 100%)",
+              }}
+            />
 
-          <div className="h-9 w-9 rounded-full bg-gray-200 dark:bg-white/10" />
+            {/* Avatar */}
+            <span className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
+              <span className="h-full w-full" />
+            </span>
+          </Link>
         </div>
       </div>
     </header>

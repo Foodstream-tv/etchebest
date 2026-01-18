@@ -12,6 +12,14 @@ export default function PageContainer({
   className?: string;
 }) {
   return (
-    <div className={cx("mx-auto max-w-7xl px-6", className)}>{children}</div>
+    <div
+      className={cx(
+        "mx-auto w-full px-4 sm:px-6",
+        "lg:max-w-[1400px] xl:max-w-[1600px]",
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 }
