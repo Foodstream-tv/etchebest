@@ -12,22 +12,12 @@ import {
   View,
 } from 'react-native';
 import ToastManager from 'toastify-react-native';
-import apiService, { Category, Live } from '../../services/api';
+import apiService, { Category, CategoryLivesResponse, Live } from '../../services/api';
 import toast from '../../utils/toast';
-
-interface CategoryLivesData {
-  lives: Live[];
-  category: Category;
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-  };
-}
 
 export default function CategoryLivesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [data, setData] = useState<CategoryLivesData | null>(null);
+  const [data, setData] = useState<CategoryLivesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 

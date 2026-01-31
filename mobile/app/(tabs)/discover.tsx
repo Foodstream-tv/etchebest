@@ -138,26 +138,6 @@ export default function DiscoverScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Plats Populaires 🍲</Text>
         <View style={styles.dishesGrid}>
-          {/* STATIC TEST ELEMENT */}
-          <TouchableOpacity style={styles.dishCard}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c' }} // Example food image
-              style={styles.dishImage}
-            />
-            <View style={styles.dishInfo}>
-              <Text style={styles.dishName} numberOfLines={1}>
-                Test Element
-              </Text>
-              <Text style={styles.dishCountry} numberOfLines={1}>
-                Debug Mode
-              </Text>
-              <View style={styles.dishStats}>
-                <Ionicons name="eye-outline" size={14} color="#666" />
-                <Text style={styles.dishStatText}>99k</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
           {data?.top_dishes.map((dish) => (
             <TouchableOpacity key={dish.id} style={styles.dishCard}>
               <Image

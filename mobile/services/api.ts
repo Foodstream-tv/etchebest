@@ -112,6 +112,16 @@ export interface DiscoverFilters {
   'filters[hours_ago]'?: number;
 }
 
+export interface CategoryLivesResponse {
+  lives: Live[];
+  category: Category;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
 class ApiService {
   private readonly baseUrl: string;
   private readonly timeout: number; 
@@ -239,7 +249,7 @@ class ApiService {
     return this.handleResponse<Category[]>(response);
   }
 
-  async getCategoryLives(id: number, filters: DiscoverFilters = {}): Promise<any> {
+  async getCategoryLives(id: number, filters: DiscoverFilters = {}): Promise<CategoryLivesResponse> {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -253,7 +263,7 @@ class ApiService {
         method: 'GET',
       }
     );
-    return this.handleResponse<any>(response);
+    return this.handleResponse<CategoryLivesResponse>(response);
   }
 }
 
