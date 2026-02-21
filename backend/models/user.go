@@ -30,15 +30,15 @@ type User struct {
 }
 
 type UserPatch struct {
-	Email              *string    `json:"email"`
-	Password           *string    `json:"-"`
-	FirstName          *string    `json:"firstName"`
-	LastName           *string    `json:"lastName"`
-	Username           *string    `json:"username"`
-	ProfileImageURL    *string    `json:"profileImageUrl"`
-	Description        *string    `json:"description"`
-	CountryNumberPhone *int       `json:"countryNumberPhone"`
-	NumberPhone        *string    `json:"numberPhone"`
+	Email              *string `json:"email"`
+	Password           *string `json:"-"`
+	FirstName          *string `json:"firstName"`
+	LastName           *string `json:"lastName"`
+	Username           *string `json:"username"`
+	ProfileImageURL    *string `json:"profileImageUrl"`
+	Description        *string `json:"description"`
+	CountryNumberPhone *int    `json:"countryNumberPhone"`
+	NumberPhone        *string `json:"numberPhone"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {

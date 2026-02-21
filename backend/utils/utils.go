@@ -2,16 +2,21 @@ package utils
 
 import (
 	"errors"
+
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func GetCurrentUser(db *gorm.DB, c *gin.Context) (*models.User, error) {
+func GetUserByID(db *gorm.DB, userID string) (*models.User, error) {
 	var user models.User
-
-	if err := db.First(&user, c.Param("userId")).Error; err != nil {
-		return nil, errors.New("user not found")
+	if err := db.First(&user, userID).Error; err != nil {
+		return nil, errors.New("authenticated user not found in database")
 	}
 	return &user, nil
+}
+
+func GetContextString(c *gin.Context, key string) string {
+	res, _ := c.Get(key)
+	return res.(string)
 }

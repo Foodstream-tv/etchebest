@@ -1,6 +1,11 @@
 package rooms
 
 import (
+	"log"
+	"net/http"
+	"slices"
+	"sync"
+
 	"github.com/Foodstream-io/etchebest/models"
 	"github.com/Foodstream-io/etchebest/utils"
 	"github.com/gin-gonic/gin"
@@ -8,10 +13,6 @@ import (
 	"github.com/lib/pq"
 	"github.com/pion/webrtc/v3"
 	"gorm.io/gorm"
-	"log"
-	"net/http"
-	"slices"
-	"sync"
 )
 
 type RoomRequest struct {
@@ -23,21 +24,9 @@ type AddParticipantReq struct {
 	UserId string `json:"userId" binding:"required" example:"550e8400-e29b-41d4-a716-446655440001"`
 }
 
-type TrackInfo struct {
-	LocalTrack *webrtc.TrackLocalStaticRTP
-	Senders    []*webrtc.RTPSender
-	Track      *webrtc.TrackRemote
-}
-
-type Room struct {
-	Connections []*webrtc.PeerConnection
-	Tracks      []*TrackInfo
-	PendingICE  []webrtc.ICECandidateInit
-}
-
 var (
-	rooms = make(map[string]*Room)
-	mu    sync.Mutex
+	// rooms = make(map[string]*Room)
+	mu sync.Mutex
 )
 
 /*
@@ -56,10 +45,9 @@ func GetRooms(db *gorm.DB) gin.HandlerFunc {
 		var rooms []models.Room
 
 		if err := db.Find(&rooms).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rooms"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch rooms"})
 			return
 		}
-
 		c.JSON(http.StatusOK, rooms)
 	}
 }
@@ -83,35 +71,25 @@ func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req RoomRequest
 		if err := c.BindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Room name is required"})
-			return
-		}
-		var existingRoom models.Room
-		if err := db.Where("name = ?", req.Name).First(&existingRoom).Error; err == nil {
-			c.JSON(http.StatusOK, gin.H{"roomId": existingRoom.ID, "message": "Room joined"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "room name is required"})
 			return
 		}
 
-		user, exists := utils.GetCurrentUser(db, c)
-		if exists != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			return
-		}
-
+		currentUserId := utils.GetContextString(c, "userId")
 		room := models.Room{
 			ID:              uuid.New().String(),
 			Name:            req.Name,
-			Host:            user.ID,
-			Participants:    pq.StringArray{user.ID},
+			Host:            currentUserId,
+			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
 			MaxParticipants: 5,
 		}
 
 		if err := db.Create(&room).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"roomId": room.ID, "message": "Room created"})
+		c.JSON(http.StatusOK, gin.H{"roomId": room.ID, "message": "room created"})
 	}
 }
 
@@ -143,20 +121,15 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		user, err := utils.GetCurrentUser(db, c)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-
 		var room models.Room
 		if err := db.First(&room, "id = ?", req.RoomID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + req.RoomID + " not found"})
 			return
 		}
 
+		currentUserId := utils.GetContextString(c, "userId")
 		for _, p := range room.Participants {
-			if p == user.ID {
+			if p == currentUserId {
 				c.JSON(http.StatusOK, gin.H{"message": "you already reserved this room"})
 				return
 			}
@@ -167,7 +140,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		room.Participants = append(room.Participants, user.ID)
+		room.Participants = append(room.Participants, currentUserId)
 		if err := db.Save(&room).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reservation"})
 			return
@@ -230,37 +203,41 @@ HandleDisconnect godoc
 @Failure      400  {object}  map[string]string "error: Room ID is required or Room not found or already empty"
 @Router       /disconnect [post]
 */
-func HandleDisconnect(c *gin.Context) {
-	roomID := c.Query("roomId")
-	if roomID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Room ID is required"})
-		return
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	room, ok := rooms[roomID]
-	if !ok || len(room.Connections) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Room not found or already empty"})
-		return
-	}
-
-	for _, pc := range room.Connections {
-		if pc.ConnectionState() == webrtc.PeerConnectionStateClosed {
-			continue
+func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomID := c.Query("roomId")
+		if roomID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Room ID is required"})
+			return
 		}
-		for _, sender := range pc.GetSenders() {
-			if sender.Track() != nil {
-				_ = pc.RemoveTrack(sender)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		var room models.Room
+		if err := db.First(&room, "id = ?", roomID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomID + " not found"})
+			return
+		}
+
+		if len(room.Connections) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "room not found or already empty"})
+			return
+		}
+
+		for _, pc := range room.Connections {
+			if pc.PeerCon.ConnectionState() == webrtc.PeerConnectionStateClosed {
+				continue
 			}
+			for _, sender := range pc.PeerCon.GetSenders() {
+				if sender.Track() != nil {
+					_ = pc.PeerCon.RemoveTrack(sender)
+				}
+			}
+			pc.PeerCon.Close()
 		}
-		pc.Close()
+		c.JSON(http.StatusOK, gin.H{"message": "disconnected successfully"})
 	}
-
-	delete(rooms, roomID)
-
-	c.JSON(http.StatusOK, gin.H{"message": "Disconnected successfully"})
 }
 
 /*
@@ -277,53 +254,49 @@ HandleICECandidate godoc
 @Failure      500  {object}  map[string]string "error: Failed to add ICE candidate"
 @Router       /ice [post]
 */
-func HandleICECandidate(c *gin.Context) {
-	roomID := c.Query("roomId")
-	if roomID == "" {
-		log.Println("room ID missing")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
-		return
-	}
 
-	var candidate webrtc.ICECandidateInit
-	if err := c.ShouldBindJSON(&candidate); err != nil {
-		log.Printf("failed to bind ICE candidate: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ICE candidate format"})
-		return
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	room, ok := rooms[roomID]
-	if !ok {
-		room = &Room{
-			Connections: []*webrtc.PeerConnection{},
-			Tracks:      []*TrackInfo{},
-			PendingICE:  []webrtc.ICECandidateInit{},
-		}
-		rooms[roomID] = room
-		log.Printf("room %s not found yet, candidate buffered\n", roomID)
-		c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
-		return
-	}
-
-	if len(room.Connections) == 0 {
-		room.PendingICE = append(room.PendingICE, candidate)
-		c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
-		return
-	}
-
-	for _, pc := range room.Connections {
-		if err := pc.AddICECandidate(candidate); err != nil {
-			log.Printf("failed to add ICE candidate: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add ICE candidate"})
+func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomID := c.Query("roomId")
+		if roomID == "" {
+			log.Println("room ID missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
 			return
 		}
-	}
-	room.PendingICE = nil
 
-	c.JSON(http.StatusOK, gin.H{"status": "candidate added"})
+		var candidate models.ICECandidateInit
+		if err := c.ShouldBindJSON(&candidate); err != nil {
+			log.Printf("failed to bind ICE candidate: %v\n", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ICE candidate format"})
+			return
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		var room models.Room
+		if err := db.First(&room, "id = ?", roomID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+			return
+		}
+
+		if len(room.Connections) == 0 {
+			room.PendingICE = append(room.PendingICE, candidate)
+			c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
+			return
+		}
+
+		for _, pc := range room.Connections {
+			if err := pc.PeerCon.AddICECandidate(candidate.Candidate); err != nil {
+				log.Printf("failed to add ICE candidate: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add ICE candidate"})
+				return
+			}
+		}
+		room.PendingICE = nil
+
+		c.JSON(http.StatusOK, gin.H{"status": "candidate added"})
+	}
 }
 
 /*
@@ -345,28 +318,22 @@ HandleWebRTC godoc
 */
 func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		roomID := c.Query("roomId")
 		if roomID == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Room ID is required"})
 			return
 		}
 
-		var dbRoom models.Room
-		if err := db.First(&dbRoom, "id = ?", roomID).Error; err != nil {
+		var room models.Room
+		if err := db.First(&room, "id = ?", roomID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
 			return
 		}
 
-		user, err := utils.GetCurrentUser(db, c)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-
+		currentUserId := utils.GetContextString(c, "userId")
 		isParticipant := false
-		for _, p := range dbRoom.Participants {
-			if p == user.ID {
+		for _, p := range room.Participants {
+			if p == currentUserId {
 				isParticipant = true
 				break
 			}
@@ -394,19 +361,11 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		mu.Lock()
-		room, ok := rooms[roomID]
-		if !ok {
-			room = &Room{
-				Connections: []*webrtc.PeerConnection{},
-				Tracks:      []*TrackInfo{},
-			}
-			rooms[roomID] = room
-		}
 
 		for _, trackInfo := range room.Tracks {
 			sender, err := peerConnection.AddTrack(trackInfo.LocalTrack)
 			if err != nil {
-				log.Printf("Error adding track to peer: %v", err)
+				log.Printf("error adding track to peer: %v", err)
 				continue
 			}
 
@@ -415,52 +374,51 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 			go func(track *webrtc.TrackRemote, localTrack *webrtc.TrackLocalStaticRTP) {
 				defer func() {
 					if r := recover(); r != nil {
-						log.Printf("Recovered from panic: %v", r)
+						log.Printf("recovered from panic: %v", r)
 					}
 				}()
 				buf := make([]byte, 1500)
 				for {
 					n, _, readErr := track.Read(buf)
 					if readErr != nil {
-						log.Printf("Track ended: %v", readErr)
+						log.Printf("track ended: %v", readErr)
 						break
 					}
 					if _, writeErr := localTrack.Write(buf[:n]); writeErr != nil {
-						log.Printf("Failed to write to local track: %v", writeErr)
+						log.Printf("failed to write to local track: %v", writeErr)
 						break
 					}
 				}
 			}(trackInfo.Track, trackInfo.LocalTrack)
 		}
 
-		room.Connections = append(room.Connections, peerConnection)
+		room.Connections = append(room.Connections, models.PeerConnection{PeerCon: peerConnection})
 		mu.Unlock()
 
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-			log.Printf("Track received: %s (StreamID: %s)", track.Kind().String(), track.StreamID())
+			log.Printf("track received: %s (StreamID: %s)", track.Kind().String(), track.StreamID())
 
 			localTrack, err := webrtc.NewTrackLocalStaticRTP(
 				track.Codec().RTPCodecCapability,
 				track.ID()+"-"+uuid.New().String(),
 				track.StreamID())
 			if err != nil {
-				log.Printf("Error creating local track: %v", err)
+				log.Printf("error creating local track: %v", err)
 				return
 			}
 
-			trackInfo := &TrackInfo{
+			trackInfo := &models.TrackInfo{
 				LocalTrack: localTrack,
 				Senders:    []*webrtc.RTPSender{},
 				Track:      track,
 			}
 
 			mu.Lock()
-			room := rooms[roomID]
 			room.Tracks = append(room.Tracks, trackInfo)
 
 			for _, otherPC := range room.Connections {
-				if otherPC != peerConnection {
-					sender, err := otherPC.AddTrack(localTrack)
+				if otherPC.PeerCon != peerConnection {
+					sender, err := otherPC.PeerCon.AddTrack(localTrack)
 					if err != nil {
 						log.Printf("Error adding track to peer: %v", err)
 						continue
@@ -493,30 +451,31 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 		})
 
 		peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-			log.Printf("Connection state has changed: %s", state.String())
+			log.Printf("connection state has changed: %s", state.String())
 
 			if state == webrtc.PeerConnectionStateDisconnected ||
 				state == webrtc.PeerConnectionStateFailed ||
 				state == webrtc.PeerConnectionStateClosed {
 
-				log.Printf("Peer disconnected from room %s", roomID)
+				log.Printf("peer disconnected from room %s", roomID)
 
 				mu.Lock()
-				room, exists := rooms[roomID]
-				if !exists || room == nil {
-					log.Printf("Room %s does not exist or has already been deleted", roomID)
-					mu.Unlock()
-					return
-				}
-				var updatedConnections []*webrtc.PeerConnection
+				// TODO: to check
+				/*
+					if !exists {
+						log.Printf("room %s does not exist or has already been deleted", roomID)
+						mu.Unlock()
+						return
+					}*/
+				var updatedConnections []models.PeerConnection
 				for _, pc := range room.Connections {
-					if pc != peerConnection {
+					if pc.PeerCon != peerConnection {
 						updatedConnections = append(updatedConnections, pc)
 					}
 				}
 				room.Connections = updatedConnections
 
-				var updatedTracks []*TrackInfo
+				var updatedTracks []*models.TrackInfo
 				for _, trackInfo := range room.Tracks {
 					isTrackFromDisconnectedClient := false
 					for _, sender := range trackInfo.Senders {
@@ -536,9 +495,6 @@ func HandleWebRTC(db *gorm.DB) gin.HandlerFunc {
 				}
 				room.Tracks = updatedTracks
 
-				if len(room.Connections) == 0 {
-					delete(rooms, roomID)
-				}
 				mu.Unlock()
 
 				for _, sender := range peerConnection.GetSenders() {
