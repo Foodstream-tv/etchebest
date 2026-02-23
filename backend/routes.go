@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
+	"github.com/Foodstream-io/etchebest/models"
 	"github.com/Foodstream-io/etchebest/pages/discover"
 	"github.com/Foodstream-io/etchebest/pages/home"
 	"github.com/Foodstream-io/etchebest/pages/streams"
@@ -39,7 +40,7 @@ func routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 	api.Use(middleware.AuthMiddleware(bJwtToken))
 
 	admin := api.Group("/admin")
-	admin.Use(middleware.RequireRole("ADMIN"))
+	admin.Use(middleware.RequireRole(models.ADMIN))
 
 	// Authentication
 	r.POST("/api/register", auth.Register(db))
@@ -47,21 +48,22 @@ func routes(r *gin.Engine, db *gorm.DB, jwtToken string) {
 
 	// User
 	admin.GET("/users", users.GetUsers(db))
+	admin.PATCH("/users/:userId", users.UpdateUser(db))
 	api.GET("/users/me", users.GetMe(db))
-	api.POST("/users/follow", users.FollowUser(db))
-	api.POST("/users/unfollow", users.UnfollowUser(db))
-	api.PATCH("/users", users.UpdateUser(db))
+	api.PATCH("/users/me", users.UpdateCurrentUser(db))
+	api.POST("/users/follow/:userId", users.FollowUser(db))
+	api.POST("/users/unfollow/:userId", users.UnfollowUser(db))
 
 	// Rooms
 	api.GET("/rooms", rooms.GetRooms(db))
 	api.POST("/rooms", rooms.CreateRoom(db))
 	api.POST("/rooms/reserve", rooms.ReserveRoom(db))
 	api.POST("/rooms/participant", rooms.AddParticipant(db))
-	api.POST("/rooms/disconnect", rooms.HandleDisconnect)
+	api.POST("/rooms/disconnect", rooms.HandleDisconnect(db))
 
 	// WebRTC
 	api.POST("/webrtc", rooms.HandleWebRTC(db))
-	api.POST("/ice", rooms.HandleICECandidate)
+	api.POST("/ice", rooms.HandleICECandidate(db))
 
 	// Hls
 	api.GET("/streams/:roomId/token", streams.GetStreamToken()) // ask a token first -> const res = await fetch(`/api/streams/${roomId}/token`);

@@ -27,7 +27,7 @@ func AuthMiddleware(jwtKey []byte) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			c.Abort()
 			return
 		}
@@ -43,7 +43,7 @@ func RequireRole(required string) gin.HandlerFunc {
 		role, ok := c.Get("role")
 		if !ok || role != required {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error": "You don't have permission to access this resource",
+				"error": "you don't have permission to access this resource",
 			})
 			return
 		}

@@ -58,9 +58,73 @@ export interface Room {
   maxParticipants: number;
 }
 
+export interface Live {
+  id: number;
+  title: string;
+  description: string;
+  dish_name: string;
+  user_id: number;
+  country_id: number;
+  dish_id: number;
+  view_count: number;
+  current_viewers: number;
+  status: 'scheduled' | 'live' | 'ended';
+  started_at?: string;
+  thumbnail_url: string;
+  user?: {
+    id: number;
+    username: string;
+    profile_image_url?: string;
+  };
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  code: string;
+  image_url: string;
+  live_count?: number;
+}
+
+export interface Dish {
+  id: number;
+  name: string;
+  description: string;
+  image_url: string;
+  country: Category;
+  live_count: number;
+  total_views: number;
+}
+
+export interface DiscoverData {
+  trending_country: Category;
+  categories: Category[];
+  top_dishes: Dish[];
+}
+
+export interface DiscoverFilters {
+  page?: number;
+  limit?: number;
+  sort?: 'views' | 'viewers' | 'recent';
+  'filters[status]'?: string;
+  'filters[dish_id]'?: number;
+  'filters[min_viewers]'?: number;
+  'filters[hours_ago]'?: number;
+}
+
+export interface CategoryLivesResponse {
+  lives: Live[];
+  category: Category;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
 class ApiService {
-  private baseUrl: string;
-  private timeout: number;
+  private readonly baseUrl: string;
+  private readonly timeout: number; 
 
   constructor(baseUrl: string = config.apiBaseUrl, timeout: number = config.apiTimeout) {
     this.baseUrl = baseUrl;
@@ -93,12 +157,12 @@ class ApiService {
         const details = error.message ? ` (${error.message})` : '';
         throw new Error(`Erreur réseau lors de la requête${details}. Vérifiez votre connexion ou réessayez plus tard.`);
       }
-      const details =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'string'
-          ? error
-          : '';
+      let details = '';
+      if (error instanceof Error) {
+        details = error.message;
+      } else if (typeof error === 'string') {
+        details = error;
+      }
       const suffix = details ? ` Détails : ${details}` : '';
       throw new Error(`Erreur réseau inattendue.${suffix}`);
     } finally {
@@ -169,6 +233,37 @@ class ApiService {
       },
     });
     return this.handleResponse<Room[]>(response);
+  }
+
+  async getDiscover(): Promise<DiscoverData> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/discover`, {
+      method: 'GET',
+    });
+    return this.handleResponse<DiscoverData>(response);
+  }
+
+  async getCategories(): Promise<Category[]> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/discover/categories`, {
+      method: 'GET',
+    });
+    return this.handleResponse<Category[]>(response);
+  }
+
+  async getCategoryLives(id: number, filters: DiscoverFilters = {}): Promise<CategoryLivesResponse> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined) {
+        params.append(key, String(value));
+      }
+    });
+
+    const response = await this.fetchWithTimeout(
+      `${this.baseUrl}/discover/categories/${id}/lives?${params.toString()}`,
+      {
+        method: 'GET',
+      }
+    );
+    return this.handleResponse<CategoryLivesResponse>(response);
   }
 }
 
