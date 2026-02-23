@@ -1,0 +1,92 @@
+package routes
+
+import (
+	"github.com/Foodstream-io/etchebest/internal/hls"
+	"github.com/Foodstream-io/etchebest/internal/models"
+	"github.com/Foodstream-io/etchebest/internal/pages/discover"
+	"github.com/Foodstream-io/etchebest/internal/pages/home"
+	"github.com/Foodstream-io/etchebest/internal/pages/streams"
+	"github.com/Foodstream-io/etchebest/internal/users"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"net/http"
+
+	"github.com/Foodstream-io/etchebest/internal/auth"
+	"github.com/Foodstream-io/etchebest/internal/middleware"
+	"github.com/Foodstream-io/etchebest/internal/rooms"
+	"gorm.io/gorm"
+
+	"github.com/gin-gonic/gin"
+)
+
+func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
+	r.Use(middleware.CorsHandler())
+	bJwtToken := []byte(jwtToken)
+
+	// Health check / root endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"message": "Etchebest API is running",
+			"version": "1.0",
+		})
+	})
+
+	// Swagger documentation (public access)
+	r.GET("/api/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	api := r.Group("/api")
+	api.Use(middleware.AuthMiddleware(bJwtToken))
+
+	admin := api.Group("/admin")
+	admin.Use(middleware.RequireRole(models.ADMIN))
+
+	// Authentication
+	r.POST("/api/register", auth.Register(db))
+	r.POST("/api/login", auth.Login(db, bJwtToken))
+
+	// User
+	admin.GET("/users", users.GetUsers(db))
+	admin.PATCH("/users/:userId", users.UpdateUser(db))
+	api.GET("/users/me", users.GetMe(db))
+	api.PATCH("/users/me", users.UpdateCurrentUser(db))
+	api.POST("/users/follow/:userId", users.FollowUser(db))
+	api.POST("/users/unfollow/:userId", users.UnfollowUser(db))
+
+	// Rooms
+	api.GET("/rooms", rooms.GetRooms(db))
+	api.POST("/rooms", rooms.CreateRoom(db))
+	api.POST("/rooms/reserve", rooms.ReserveRoom(db))
+	api.POST("/rooms/participant", rooms.AddParticipant(db))
+	api.POST("/rooms/disconnect", rooms.HandleDisconnect(db))
+
+	// WebRTC
+	api.POST("/webrtc", rooms.HandleWebRTC(db, stunServerURL))
+	api.POST("/ice", rooms.HandleICECandidate(db))
+
+	// Hls
+	api.GET("/streams/:roomId/token", streams.GetStreamToken()) // ask a token first -> const res = await fetch(`/api/streams/${roomId}/token`);
+	hlsGroup := r.Group("/hls")
+	hlsGroup.Use(hls.HLSAuthMiddleware())
+	hlsGroup.Static("/:room", "./hls") // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
+
+	// Discover
+	api.GET("/discover", discover.GetDiscoverHome(db))
+	api.GET("/discover/categories", discover.GetCategories(db))
+	api.GET("/discover/categories/:id/lives", discover.GetCategoryLives(db))
+
+	// Home
+	api.GET("/home", home.GetHomePage(db))
+	api.GET("/home/lives", home.GetLivesByTab(db))
+	api.GET("/home/lives/filtered", home.GetLivesWithFilters(db))
+	api.GET("/home/search", home.SearchLives(db))
+	api.GET("/home/tags", home.GetTags(db))
+	api.GET("/home/chefs", home.GetFeaturedChefs(db))
+
+	// Not found
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"message": "the endpoint that you are trying to reach doesn't exist",
+		})
+	})
+}
