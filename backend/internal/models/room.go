@@ -29,7 +29,7 @@ type Room struct {
 	Participants    pq.StringArray     `json:"participants" gorm:"type:text[]"`
 	Viewers         int                `json:"viewers"`
 	MaxParticipants int                `json:"maxParticipants" gorm:"default:5"`
-	Connections     []PeerConnection   `json:"connections" gorm:"foreignKey:PeerID"`
-	Tracks          []*TrackInfo       `json:"tracks" gorm:"foreignKey:TrackID"`
-	PendingICE      []ICECandidateInit `json:"pendingICE" gorm:"foreignKey:CandidateID"`
+	Connections []PeerConnection   `json:"-" gorm:"-"`
+	Tracks      []*TrackInfo       `json:"-" gorm:"-"`
+	PendingICE  []ICECandidateInit `json:"-" gorm:"-"`
 }

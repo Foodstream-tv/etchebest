@@ -68,7 +68,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	api.GET("/streams/:roomId/token", streams.GetStreamToken()) // ask a token first -> const res = await fetch(`/api/streams/${roomId}/token`);
 	hlsGroup := r.Group("/hls")
 	hlsGroup.Use(hls.HLSAuthMiddleware())
-	hlsGroup.Static("/:room", "./hls") // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
+	hlsGroup.Static("/", "./hls") // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
 
 	// Discover
 	api.GET("/discover", discover.GetDiscoverHome(db))
