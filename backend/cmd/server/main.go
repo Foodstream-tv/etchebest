@@ -1,0 +1,76 @@
+package main
+
+import (
+	"fmt"
+	"github.com/Foodstream-io/etchebest/internal/db"
+	"log"
+	"os"
+
+	_ "github.com/Foodstream-io/etchebest/docs"
+	"github.com/Foodstream-io/etchebest/internal/models"
+	"github.com/Foodstream-io/etchebest/internal/routes"
+	"github.com/gin-gonic/gin"
+)
+
+// @title           Etchebest API
+// @version         1.0
+// @description     API for Etchebest video streaming platform
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.email  mohamme@molaryy.fr
+
+// @host      https://api.foodstream.tv
+// @BasePath  /
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+func main() {
+	db, err := db.InitDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	r := gin.Default()
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Fatal(err)
+	}
+
+	port := os.Getenv("BACKEND_PORT")
+	if port == "" {
+		log.Fatal("BACKEND_PORT is not set in the environment")
+	}
+
+	fmt.Printf("Listening on port %s\n", port)
+	jwtKey := os.Getenv("JWT_SECRET")
+	if jwtKey == "" {
+		log.Fatal("JWT_SECRET is not set in the environment")
+	}
+
+	stunServerURL := os.Getenv("STUN_SERVER_URL")
+	if stunServerURL == "" {
+		log.Fatal("STUN_SERVER_URL env variable not set")
+	}
+
+	var migrateModels = []any{
+		&models.User{},
+		&models.Room{},
+		&models.Country{},
+		&models.Dish{},
+		&models.Live{},
+		&models.LiveTag{},
+		&models.Tag{},
+	}
+
+	if err := db.AutoMigrate(migrateModels...); err != nil {
+		log.Fatal(err)
+	}
+
+	routes.Routes(r, db, jwtKey, stunServerURL)
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
+}
