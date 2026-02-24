@@ -3,11 +3,16 @@ package main
 import (
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
+	"github.com/Foodstream-io/etchebest/internal/modules/country"
+	"github.com/Foodstream-io/etchebest/internal/modules/dish"
+	"github.com/Foodstream-io/etchebest/internal/modules/live"
+	"github.com/Foodstream-io/etchebest/internal/modules/room"
+	"github.com/Foodstream-io/etchebest/internal/modules/tag"
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"log"
 	"os"
 
 	_ "github.com/Foodstream-io/etchebest/docs"
-	"github.com/Foodstream-io/etchebest/internal/models"
 	"github.com/Foodstream-io/etchebest/internal/routes"
 	"github.com/gin-gonic/gin"
 )
@@ -55,13 +60,12 @@ func main() {
 	}
 
 	var migrateModels = []any{
-		&models.User{},
-		&models.Room{},
-		&models.Country{},
-		&models.Dish{},
-		&models.Live{},
-		&models.LiveTag{},
-		&models.Tag{},
+		&user.User{},
+		&room.Room{},
+		&country.Country{},
+		&dish.Dish{},
+		&live.Live{},
+		&tag.Tag{},
 	}
 
 	if err := db.AutoMigrate(migrateModels...); err != nil {

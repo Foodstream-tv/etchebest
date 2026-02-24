@@ -1,6 +1,12 @@
-package models
+package live
 
-import "time"
+import (
+	"github.com/Foodstream-io/etchebest/internal/modules/country"
+	"github.com/Foodstream-io/etchebest/internal/modules/dish"
+	"github.com/Foodstream-io/etchebest/internal/modules/tag"
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
+	"time"
+)
 
 type Live struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
@@ -14,10 +20,10 @@ type Live struct {
 	DishID    uint `gorm:"not null;index" json:"dish_id"`
 
 	// Relationships
-	User    User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Country Country `gorm:"foreignKey:CountryID" json:"country,omitempty"`
-	Dish    Dish    `gorm:"foreignKey:DishID" json:"dish,omitempty"`
-	Tags    []Tag   `gorm:"many2many:live_tags;" json:"tags,omitempty"`
+	User    user.User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Country country.Country `gorm:"foreignKey:CountryID" json:"country,omitempty"`
+	Dish    dish.Dish       `gorm:"foreignKey:DishID" json:"dish,omitempty"`
+	Tags    []tag.Tag       `gorm:"many2many:live_tags;" json:"tags,omitempty"`
 
 	// Metrics (denormalized for performance)
 	ViewCount      int `gorm:"default:0;index:idx_live_views" json:"view_count"`

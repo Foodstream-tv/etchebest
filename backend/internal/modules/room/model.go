@@ -1,4 +1,4 @@
-package models
+package room
 
 import (
 	"github.com/lib/pq"
@@ -29,7 +29,7 @@ type Room struct {
 	Participants    pq.StringArray     `json:"participants" gorm:"type:text[]"`
 	Viewers         int                `json:"viewers"`
 	MaxParticipants int                `json:"maxParticipants" gorm:"default:5"`
-	Connections []PeerConnection   `json:"-" gorm:"-"`
-	Tracks      []*TrackInfo       `json:"-" gorm:"-"`
-	PendingICE  []ICECandidateInit `json:"-" gorm:"-"`
+	Connections     []PeerConnection   `json:"-" gorm:"-"`
+	Tracks          []*TrackInfo       `json:"-" gorm:"-"`
+	PendingICE      []ICECandidateInit `json:"-" gorm:"-"`
 }

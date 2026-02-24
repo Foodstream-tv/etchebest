@@ -1,7 +1,6 @@
-package users
+package user
 
 import (
-	"github.com/Foodstream-io/etchebest/internal/models"
 	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -11,7 +10,7 @@ import (
 
 func GetUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var users []models.User
+		var users []User
 
 		if err := db.Find(&users).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
@@ -24,7 +23,7 @@ func GetUsers(db *gorm.DB) gin.HandlerFunc {
 
 func GetMe(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var user models.User
+		var user User
 
 		currentUserId := utils.GetContextString(c, "userId")
 
@@ -50,13 +49,13 @@ func UpdateCurrentUser(db *gorm.DB) gin.HandlerFunc {
 }
 
 func updateUser(db *gorm.DB, c *gin.Context, userId string) {
-	var existingUser models.User
+	var existingUser User
 	if err := db.Where("id = ?", userId).First(&existingUser).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
-	var userPatch models.UserPatch
+	var userPatch UserPatch
 	if err := c.ShouldBindJSON(&userPatch); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
@@ -72,7 +71,7 @@ func updateUser(db *gorm.DB, c *gin.Context, userId string) {
 
 func FollowUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var userToFollow models.User
+		var userToFollow User
 
 		userToFollowId := c.Param("userId")
 		if err := db.Where("id = ?", userToFollowId).First(&userToFollow).Error; err != nil {
@@ -81,7 +80,7 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
-		currentUser, err := utils.GetUserByID(db, currentUserId)
+		currentUser, err := GetUserByID(db, currentUserId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "failed to get current user"})
 			return
@@ -109,7 +108,7 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 
 func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var userToUnfollow models.User
+		var userToUnfollow User
 
 		userToUnfollowId := c.Param("userId")
 		if err := db.Where("id = ?", userToUnfollowId).First(&userToUnfollow).Error; err != nil {
@@ -118,7 +117,7 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
-		currentUser, err := utils.GetUserByID(db, currentUserId)
+		currentUser, err := GetUserByID(db, currentUserId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user " + "currentUserId" + " not found"})
 			return

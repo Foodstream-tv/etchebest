@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetStreamToken() gin.HandlerFunc {
+func GetLiveToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Param("roomId")
 

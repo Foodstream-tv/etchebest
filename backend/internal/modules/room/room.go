@@ -1,7 +1,6 @@
-package rooms
+package room
 
 import (
-	"github.com/Foodstream-io/etchebest/internal/repository"
 	"github.com/lib/pq"
 	"log"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
-	"github.com/Foodstream-io/etchebest/internal/models"
 	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type RoomRequest struct {
+type Request struct {
 	Name string `json:"name" binding:"required" example:"My Cooking Stream"`
 }
 
@@ -31,7 +29,7 @@ var (
 	mu sync.Mutex
 )
 
-// GetRooms godoc
+// GetAllRooms godoc
 // @Summary      Get all rooms
 // @Description  Retrieve list of all streaming rooms
 // @Tags         rooms
@@ -40,9 +38,9 @@ var (
 // @Success      200  {object}  map[string][]models.Room "rooms: list of rooms"
 // @Failure      500  {object}  map[string]string "error: Failed to fetch rooms"
 // @Router       /rooms [get]
-func GetRooms(db *gorm.DB) gin.HandlerFunc {
+func GetAllRooms(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rooms, err := repository.GetRooms(db)
+		rooms, err := GetRooms(db)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch rooms"})
@@ -59,23 +57,23 @@ func GetRooms(db *gorm.DB) gin.HandlerFunc {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        request body RoomRequest true "Room details"
+// @Param        request body Request true "Room details"
 // @Success      200  {object}  map[string]interface{} "roomId and message (Room created or Room joined)"
 // @Failure      400  {object}  map[string]string "error: Room name is required"
 // @Failure      401  {object}  map[string]string "error: Unauthorized"
 // @Failure      500  {object}  map[string]string "error: Failed to create room"
 // @Router       /room [post]
 
-func CreateRoom(db *gorm.DB) gin.HandlerFunc {
+func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req RoomRequest
+		var req Request
 		if err := c.BindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "room name is required"})
 			return
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
-		room := models.Room{
+		room := Room{
 			ID:              uuid.New().String(),
 			Name:            req.Name,
 			Host:            currentUserId,
@@ -84,7 +82,7 @@ func CreateRoom(db *gorm.DB) gin.HandlerFunc {
 			MaxParticipants: 5,
 		}
 
-		err := repository.CreateRoom(db, &room)
+		err := CreateRoom(db, &room)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
 			return
@@ -119,7 +117,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		room, err := repository.GetRoomById(db, req.RoomID)
+		room, err := GetRoomById(db, req.RoomID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + req.RoomID + " not found"})
 			return
@@ -139,7 +137,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		room.Participants = append(room.Participants, currentUserId)
-		err = repository.SaveRoom(db, room)
+		err = SaveRoom(db, room)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
 			return
@@ -170,7 +168,7 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		room, err := repository.GetRoomById(db, req.RoomId)
+		room, err := GetRoomById(db, req.RoomId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
@@ -182,7 +180,7 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		room.Participants = append(room.Participants, req.UserId)
-		err = repository.SaveRoom(db, room)
+		err = SaveRoom(db, room)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
 			return
@@ -213,7 +211,7 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		mu.Lock()
 		defer mu.Unlock()
 
-		room, err := repository.GetRoomById(db, roomID)
+		room, err := GetRoomById(db, roomID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomID + " not found"})
 			return
@@ -263,7 +261,7 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var candidate models.ICECandidateInit
+		var candidate ICECandidateInit
 		if err := c.ShouldBindJSON(&candidate); err != nil {
 			log.Printf("failed to bind ICE candidate: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ICE candidate format"})
@@ -273,7 +271,7 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 		mu.Lock()
 		defer mu.Unlock()
 
-		room, err := repository.GetRoomById(db, roomID)
+		room, err := GetRoomById(db, roomID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
 			return
@@ -321,7 +319,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 			return
 		}
 
-		room, err := repository.GetRoomById(db, roomID)
+		room, err := GetRoomById(db, roomID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
@@ -368,7 +366,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 			trackInfo.Senders = append(trackInfo.Senders, sender)
 		}
 
-		room.Connections = append(room.Connections, models.PeerConnection{PeerCon: peerConnection})
+		room.Connections = append(room.Connections, PeerConnection{PeerCon: peerConnection})
 		mu.Unlock()
 
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
@@ -396,7 +394,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 				return
 			}
 
-			trackInfo := &models.TrackInfo{
+			trackInfo := &TrackInfo{
 				LocalTrack: localTrack,
 				Senders:    []*webrtc.RTPSender{},
 				Track:      track,
@@ -457,7 +455,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 						mu.Unlock()
 						return
 					}*/
-				var updatedConnections []models.PeerConnection
+				var updatedConnections []PeerConnection
 				for _, pc := range room.Connections {
 					if pc.PeerCon != peerConnection {
 						updatedConnections = append(updatedConnections, pc)
@@ -465,7 +463,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 				}
 				room.Connections = updatedConnections
 
-				var updatedTracks []*models.TrackInfo
+				var updatedTracks []*TrackInfo
 				for _, trackInfo := range room.Tracks {
 					isTrackFromDisconnectedClient := false
 					for _, sender := range trackInfo.Senders {
@@ -487,7 +485,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 
 				if len(room.Connections) == 0 {
 					hls.StopStream(roomID)
-					err := repository.DeleteRoomById(db, roomID)
+					err := DeleteRoomById(db, roomID)
 					if err != nil {
 						log.Printf("failed to delete room: %v", err)
 					}

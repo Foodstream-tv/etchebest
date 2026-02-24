@@ -1,12 +1,14 @@
-package mappers
+package live
 
 import (
-	"github.com/Foodstream-io/etchebest/internal/dto"
-	"github.com/Foodstream-io/etchebest/internal/models"
+	"github.com/Foodstream-io/etchebest/internal/modules/country"
+	"github.com/Foodstream-io/etchebest/internal/modules/dish"
+	"github.com/Foodstream-io/etchebest/internal/modules/tag"
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 )
 
-func LiveToDTO(live models.Live) dto.LiveDTO {
-	dtoLive := dto.LiveDTO{
+func LiveToDTO(live Live) LiveDTO {
+	dtoLive := LiveDTO{
 		ID:             live.ID,
 		Title:          live.Title,
 		Description:    live.Description,
@@ -26,25 +28,25 @@ func LiveToDTO(live models.Live) dto.LiveDTO {
 
 	// User
 	if live.User.ID != "" {
-		u := UserToDTO(live.User)
+		u := user.UserToDTO(live.User)
 		dtoLive.User = &u
 	}
 
 	// Dish
 	if live.Dish.ID != 0 {
-		d := DishToDTO(live.Dish)
+		d := dish.DishToDTO(live.Dish)
 		dtoLive.Dish = &d
 	}
 
 	// Country
 	if live.Country.ID != 0 {
-		c := CountryToDTO(live.Country)
+		c := country.CountryToDTO(live.Country)
 		dtoLive.Country = &c
 	}
 
 	// Tags
 	if len(live.Tags) > 0 {
-		dtoLive.Tags = TagsToDTO(live.Tags)
+		dtoLive.Tags = tag.TagsToDTO(live.Tags)
 	}
 
 	return dtoLive

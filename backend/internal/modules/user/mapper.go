@@ -1,9 +1,4 @@
-package mappers
-
-import (
-	"github.com/Foodstream-io/etchebest/internal/dto"
-	"github.com/Foodstream-io/etchebest/internal/models"
-)
+package user
 
 func stringArrayToSlice(arr []string) []string {
 	if arr == nil {
@@ -12,8 +7,8 @@ func stringArrayToSlice(arr []string) []string {
 	return arr
 }
 
-func UserToDTO(user models.User) dto.UserDTO {
-	return dto.UserDTO{
+func UserToDTO(user User) UserDTO {
+	return UserDTO{
 		ID:              user.ID,
 		FirstName:       user.FirstName,
 		LastName:        user.LastName,

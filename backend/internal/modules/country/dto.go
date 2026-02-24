@@ -1,4 +1,4 @@
-package dto
+package country
 
 type CountryDTO struct {
 	ID       uint   `json:"id"`
