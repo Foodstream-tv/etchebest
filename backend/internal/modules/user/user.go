@@ -8,11 +8,11 @@ import (
 	"slices"
 )
 
-func GetUsers(db *gorm.DB) gin.HandlerFunc {
+func GetAllUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var users []User
+		users, err := GetUsers(db)
 
-		if err := db.Find(&users).Error; err != nil {
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 			return
 		}
@@ -23,18 +23,29 @@ func GetUsers(db *gorm.DB) gin.HandlerFunc {
 
 func GetMe(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var user User
-
 		currentUserId := utils.GetContextString(c, "userId")
 
-		if err := db.First(&user, currentUserId).Error; err != nil {
+		user, err := GetUserByID(db, currentUserId)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
 			return
 		}
 		c.JSON(http.StatusOK, user)
 	}
 }
-func UpdateUser(db *gorm.DB) gin.HandlerFunc {
+
+func DeleteUserById(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		currentUserId := utils.GetContextString(c, "userId")
+
+		if err := DeleteUserByID(db, currentUserId); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+		}
+		c.Status(http.StatusNoContent)
+	}
+}
+
+func UpdateUserById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.Param("userId")
 		updateUser(db, c, userId)
@@ -49,19 +60,19 @@ func UpdateCurrentUser(db *gorm.DB) gin.HandlerFunc {
 }
 
 func updateUser(db *gorm.DB, c *gin.Context, userId string) {
-	var existingUser User
-	if err := db.Where("id = ?", userId).First(&existingUser).Error; err != nil {
+	existingUser, err := GetUserByID(db, userId)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
-	var userPatch UserPatch
-	if err := c.ShouldBindJSON(&userPatch); err != nil {
+	var patchedUser UserPatch
+	if err := c.ShouldBindJSON(&patchedUser); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
 	}
 
-	if err := db.Model(&existingUser).Updates(&userPatch).Error; err != nil {
+	if err := UpdateUser(db, existingUser, patchedUser); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
 		return
 	}
@@ -71,10 +82,10 @@ func updateUser(db *gorm.DB, c *gin.Context, userId string) {
 
 func FollowUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var userToFollow User
-
 		userToFollowId := c.Param("userId")
-		if err := db.Where("id = ?", userToFollowId).First(&userToFollow).Error; err != nil {
+
+		userToFollow, err := GetUserByID(db, userToFollowId)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "couldn't find the user you are trying to follow"})
 			return
 		}
@@ -94,11 +105,12 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 		currentUser.FollowingIDS = append(currentUser.FollowingIDS, userToFollowId)
 		userToFollow.FollowersIDS = append(userToFollow.FollowersIDS, currentUser.ID)
 
-		if err := db.Save(&userToFollow).Error; err != nil {
+		if err := SaveUser(db, userToFollow); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save user to db"})
 			return
 		}
-		if err := db.Save(&currentUser).Error; err != nil {
+
+		if err := SaveUser(db, currentUser).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}
@@ -108,10 +120,10 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 
 func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var userToUnfollow User
-
 		userToUnfollowId := c.Param("userId")
-		if err := db.Where("id = ?", userToUnfollowId).First(&userToUnfollow).Error; err != nil {
+
+		userToUnfollow, err := GetUserByID(db, userToUnfollowId)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "couldn't find the user you are trying to unfollow"})
 			return
 		}
@@ -122,6 +134,7 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user " + "currentUserId" + " not found"})
 			return
 		}
+
 		if !slices.Contains(currentUser.FollowingIDS, userToUnfollowId) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "you are not following this user, this action is not possible"})
 			return
@@ -133,11 +146,11 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 		indexFollowerToRemove := slices.Index(userToUnfollow.FollowersIDS, currentUser.ID)
 		userToUnfollow.FollowersIDS = append(userToUnfollow.FollowersIDS[:indexFollowerToRemove], userToUnfollow.FollowersIDS[indexFollowerToRemove+1:]...)
 
-		if err := db.Save(&userToUnfollow).Error; err != nil {
+		if err := SaveUser(db, userToUnfollow).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save user to db"})
 			return
 		}
-		if err := db.Save(&currentUser).Error; err != nil {
+		if err := SaveUser(db, currentUser).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}

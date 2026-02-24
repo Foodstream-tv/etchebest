@@ -108,18 +108,11 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 // @Router       /reserve [post]
 func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
 
-		var req struct {
-			RoomID string `json:"roomId" binding:"required"`
-		}
-		if err := c.BindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "roomID is required"})
-			return
-		}
-
-		room, err := GetRoomById(db, req.RoomID)
+		room, err := GetRoomById(db, roomId)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + req.RoomID + " not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
 			return
 		}
 
@@ -202,18 +195,14 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 // @Router       /disconnect [post]
 func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		roomID := c.Query("roomId")
-		if roomID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Room ID is required"})
-			return
-		}
+		roomId := c.Param("roomId")
 
 		mu.Lock()
 		defer mu.Unlock()
 
-		room, err := GetRoomById(db, roomID)
+		room, err := GetRoomById(db, roomId)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomID + " not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
 			return
 		}
 

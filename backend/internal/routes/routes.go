@@ -42,8 +42,9 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	r.POST("/api/login", auth.Login(db, bJwtToken))
 
 	// User
-	admin.GET("/users", user.GetUsers(db))
-	admin.PATCH("/users/:userId", user.UpdateUser(db))
+	admin.GET("/users", user.GetAllUsers(db))
+	admin.PATCH("/users/:userId", user.UpdateUserById(db))
+	admin.DELETE("/users/:userId", user.DeleteUserById(db))
 	api.GET("/users/me", user.GetMe(db))
 	api.PATCH("/users/me", user.UpdateCurrentUser(db))
 	api.POST("/users/follow/:userId", user.FollowUser(db))
@@ -52,9 +53,9 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))
 	api.POST("/rooms", room.CreateNewRoom(db))
-	api.POST("/rooms/reserve", room.ReserveRoom(db))
+	api.POST("/rooms/:roomId/reserve", room.ReserveRoom(db))
 	api.POST("/rooms/participant", room.AddParticipant(db))
-	api.POST("/rooms/disconnect", room.HandleDisconnect(db))
+	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
 
 	// WebRTC
 	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL))
