@@ -1,10 +1,9 @@
 package auth
 
 import (
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"net/http"
 	"time"
-
-	"github.com/Foodstream-io/etchebest/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -64,7 +63,7 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		user := models.User{
+		user := user.User{
 			ID:                 uuid.New().String(),
 			Email:              req.Email,
 			Password:           string(hashedPassword),
@@ -108,7 +107,7 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
-		var user models.User
+		var user user.User
 
 		if err := db.Where("email = ?", req.Email).First(&user).Error; err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
