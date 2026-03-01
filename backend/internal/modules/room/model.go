@@ -26,7 +26,7 @@ type Room struct {
 	ID              string             `json:"id" gorm:"primaryKey"`
 	Name            string             `json:"name"`
 	Host            string             `json:"host"`
-	Participants    pq.StringArray     `json:"participants" gorm:"type:text[]"`
+	Participants    pq.StringArray     `json:"participants" gorm:"type:text[]" swaggertype:"array,string"`
 	Viewers         int                `json:"viewers"`
 	MaxParticipants int                `json:"maxParticipants" gorm:"default:5"`
 	Connections     []PeerConnection   `json:"-" gorm:"-"`

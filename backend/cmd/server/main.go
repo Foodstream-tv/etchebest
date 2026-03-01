@@ -25,7 +25,7 @@ import (
 // @contact.name   API Support
 // @contact.email  mohamme@molaryy.fr
 
-// @host      https://api.foodstream.tv
+// @host      localhost:8081
 // @BasePath  /
 
 // @securityDefinitions.apikey BearerAuth
