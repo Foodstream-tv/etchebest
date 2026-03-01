@@ -35,7 +35,7 @@ var (
 // @Tags         rooms
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string][]room.Room "rooms: list of rooms"
+// @Success      200  {array}   Room "rooms: list of rooms"
 // @Failure      500  {object}  map[string]string "error: Failed to fetch rooms"
 // @Security     BearerAuth
 // @Router       /api/rooms [get]
