@@ -35,9 +35,10 @@ var (
 // @Tags         rooms
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string][]models.Room "rooms: list of rooms"
+// @Success      200  {object}  map[string][]room.Room "rooms: list of rooms"
 // @Failure      500  {object}  map[string]string "error: Failed to fetch rooms"
-// @Router       /rooms [get]
+// @Security     BearerAuth
+// @Router       /api/rooms [get]
 func GetAllRooms(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rooms, err := GetRooms(db)
@@ -62,7 +63,7 @@ func GetAllRooms(db *gorm.DB) gin.HandlerFunc {
 // @Failure      400  {object}  map[string]string "error: Room name is required"
 // @Failure      401  {object}  map[string]string "error: Unauthorized"
 // @Failure      500  {object}  map[string]string "error: Failed to create room"
-// @Router       /room [post]
+// @Router       /api/rooms [post]
 
 func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -98,14 +99,14 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        request body object{roomId=string} true "Room ID to reserve"
+// @Param        roomId path string true "Room ID"
 // @Success      200  {object}  map[string]string "message: reserved successfully, or you already reserved this room"
 // @Failure      400  {object}  map[string]string "error: RoomID is required"
 // @Failure      401  {object}  map[string]string "error: Unauthorized"
 // @Failure      403  {object}  map[string]string "error: Room full, cannot reserve"
 // @Failure      404  {object}  map[string]string "error: Room not found"
 // @Failure      500  {object}  map[string]string "error: Failed to save reservation"
-// @Router       /reserve [post]
+// @Router       /api/rooms/{roomId}/reserve [post]
 func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
@@ -152,7 +153,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 // @Failure      400  {object}  map[string]string "error: Invalid body"
 // @Failure      401  {object}  map[string]string "error: Unauthorized"
 // @Failure      404  {object}  map[string]string "error: Room not found"
-// @Router       /addParticipant [post]
+// @Router       /api/rooms/participant [post]
 func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req AddParticipantReq
@@ -189,10 +190,12 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 // @Tags         webrtc
 // @Accept       json
 // @Produce      json
-// @Param        roomId query string true "Room ID"
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
 // @Success      200  {object}  map[string]string "message: Disconnected successfully"
-// @Failure      400  {object}  map[string]string "error: Room ID is required or Room not found or already empty"
-// @Router       /disconnect [post]
+// @Failure      400  {object}  map[string]string "error: Room not found or already empty"
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Router       /api/rooms/{roomId}/disconnect [post]
 func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
@@ -240,7 +243,8 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 // @Success      200  {object}  map[string]string "status: Candidate added or Candidate buffered"
 // @Failure      400  {object}  map[string]string "error: Room ID is required or Invalid ICE candidate format"
 // @Failure      500  {object}  map[string]string "error: Failed to add ICE candidate"
-// @Router       /ice [post]
+// @Security     BearerAuth
+// @Router       /api/ice [post]
 func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
@@ -299,7 +303,7 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 // @Failure      403  {object}  map[string]string "error: You are a viewer, WebRTC not allowed"
 // @Failure      404  {object}  map[string]string "error: Room not found"
 // @Failure      500  {object}  map[string]string "error: Internal server error"
-// @Router       /webrtc [post]
+// @Router       /api/webrtc [post]
 func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")

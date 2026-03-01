@@ -3,7 +3,6 @@ package routes
 import (
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
-	"github.com/Foodstream-io/etchebest/internal/pages/streams"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"net/http"
@@ -62,8 +61,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	api.POST("/ice", room.HandleICECandidate(db))
 
 	// Hls
-	api.GET("/streams/:roomId/token", streams.GetLiveToken()) // ask a token first -> const res = await fetch(`/api/streams/${roomId}/token`);
-	api.Static("/hls", "./hls")                               // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
+	api.Static("/hls", "./hls") // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {
