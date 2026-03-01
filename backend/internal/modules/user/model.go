@@ -27,7 +27,7 @@ type User struct {
 	NumberPhone        string         `json:"numberPhone"`
 	Role               string         `json:"role" gorm:"not null"`
 	FollowingIDS       pq.StringArray `json:"followingIds" gorm:"type:text[]" swaggertype:"array,string"`
-	FollowersIDS       pq.StringArray `json:"followersIds " gorm:"type:text[]" swaggertype:"array,string"`
+	FollowersIDS       pq.StringArray `json:"followersIds" gorm:"type:text[]" swaggertype:"array,string"`
 	FollowerCount      int            `json:"followerCount" gorm:"default:0;index:idx_user_followers"`
 	TotalLives         int            `json:"totalLives" gorm:"default:0"`
 	TotalViews         int            `json:"totalViews" gorm:"default:0"`
