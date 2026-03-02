@@ -10,6 +10,8 @@ COPY . .
 
 RUN go build -o etchebest
 
+RUN apk add --no-cache ffmpeg
+
 EXPOSE 8080
 
 CMD ["./etchebest"]
