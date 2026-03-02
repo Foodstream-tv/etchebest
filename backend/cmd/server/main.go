@@ -59,6 +59,12 @@ func main() {
 		log.Fatal("STUN_SERVER_URL env variable not set")
 	}
 
+	webrtcIP := os.Getenv("WEBRTC_IP")
+	if webrtcIP == "" {
+		webrtcIP = "127.0.0.1" // default for local development
+		log.Printf("WEBRTC_IP not set, defaulting to %s", webrtcIP)
+	}
+
 	var migrateModels = []any{
 		&user.User{},
 		&room.Room{},
@@ -72,7 +78,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	routes.Routes(r, db, jwtKey, stunServerURL)
+	routes.Routes(r, db, jwtKey, stunServerURL, webrtcIP)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)

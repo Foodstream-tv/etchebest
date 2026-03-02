@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o etchebest
+RUN go build -o etchebest ./cmd/server
 
 EXPOSE 8080
 

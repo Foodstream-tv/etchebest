@@ -304,7 +304,7 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 // @Failure      404  {object}  map[string]string "error: Room not found"
 // @Failure      500  {object}  map[string]string "error: Internal server error"
 // @Router       /api/webrtc [post]
-func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
+func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
 		if roomID == "" {
@@ -342,7 +342,15 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 			ICEServers: []webrtc.ICEServer{{URLs: []string{STUNServerURL}}},
 		}
 
-		peerConnection, err := webrtc.NewPeerConnection(config)
+		// Configure ICE for Docker NAT traversal
+		settingEngine := webrtc.SettingEngine{}
+		if webrtcIP != "" {
+			settingEngine.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
+		}
+		settingEngine.SetEphemeralUDPPortRange(50000, 50100)
+
+		api := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
+		peerConnection, err := api.NewPeerConnection(config)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -360,6 +368,12 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 		}
 
 		room.Connections = append(room.Connections, PeerConnection{PeerCon: peerConnection})
+
+		// Save pending ICE candidates to flush after SetRemoteDescription
+		pendingCandidates := make([]ICECandidateInit, len(room.PendingICE))
+		copy(pendingCandidates, room.PendingICE)
+		room.PendingICE = nil
+
 		mu.Unlock()
 
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
@@ -501,10 +515,27 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 			}
 		})
 
+		// Log ICE candidates for debugging
+		peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+			if candidate != nil {
+				log.Printf("ICE candidate gathered: %s", candidate.String())
+			}
+		})
+
 		if err = peerConnection.SetRemoteDescription(offer); err != nil {
 			log.Printf("Failed to set remote description: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set remote description"})
 			return
+		}
+
+		// Now that remote description is set, flush buffered ICE candidates
+		if len(pendingCandidates) > 0 {
+			log.Printf("flushing %d pending ICE candidates", len(pendingCandidates))
+			for _, pending := range pendingCandidates {
+				if err := peerConnection.AddICECandidate(pending.Candidate); err != nil {
+					log.Printf("failed to add pending ICE candidate: %v", err)
+				}
+			}
 		}
 
 		answer, err := peerConnection.CreateAnswer(nil)
@@ -514,12 +545,21 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string) gin.HandlerFunc {
 			return
 		}
 
+		// Create a channel that signals when ICE gathering is complete
+		gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
+
 		if err = peerConnection.SetLocalDescription(answer); err != nil {
 			log.Printf("Failed to set local description: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set local description"})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"sdp": answer.SDP})
+		// Wait for ICE gathering to finish so candidates are embedded in the SDP
+		<-gatherComplete
+		log.Printf("ICE gathering complete")
+
+		// Return the full local description (with ICE candidates embedded)
+		finalDesc := peerConnection.LocalDescription()
+		c.JSON(http.StatusOK, gin.H{"sdp": finalDesc.SDP})
 	}
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
+func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, webrtcIP string) {
 	r.Use(middleware.CorsHandler())
 	bJwtToken := []byte(jwtToken)
 
@@ -57,11 +57,11 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
 
 	// WebRTC
-	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL))
+	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
 	api.POST("/ice", room.HandleICECandidate(db))
 
-	// Hls
-	api.Static("/hls", "./hls") // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
+	// HLS - public access (video players can't send Authorization headers)
+	r.Static("/api/hls", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/index.m3u8`;
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {
