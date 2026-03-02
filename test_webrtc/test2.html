@@ -166,11 +166,9 @@
                                 method: 'POST',
                                 headers: authHeaders(),
                                 body: JSON.stringify({
-                                    candidate: {
-                                        candidate: event.candidate.candidate,
-                                        sdpMLineIndex: event.candidate.sdpMLineIndex,
-                                        sdpMid: event.candidate.sdpMid,
-                                    }
+                                    candidate: event.candidate.candidate,
+                                    sdpMLineIndex: event.candidate.sdpMLineIndex,
+                                    sdpMid: event.candidate.sdpMid,
                                 }),
                             });
                             const txt = await res.text();

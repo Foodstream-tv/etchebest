@@ -1,15 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ResizeMode, Video } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
-    ActivityIndicator,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import HLSPlayer from '../components/HLSPlayer';
 import { getHLSUrl } from '../services/streaming';
 
 export default function LiveViewerScreen() {
@@ -18,8 +17,6 @@ export default function LiveViewerScreen() {
         roomId: string;
         roomName?: string;
     }>();
-    const videoRef = useRef<Video>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
 
     const hlsUrl = roomId ? getHLSUrl(roomId) : '';
@@ -44,7 +41,6 @@ export default function LiveViewerScreen() {
                         style={styles.retryButton}
                         onPress={() => {
                             setHasError(false);
-                            setIsLoading(true);
                         }}
                     >
                         <Ionicons name="refresh-outline" size={18} color="#FF7A00" />
@@ -54,29 +50,11 @@ export default function LiveViewerScreen() {
             );
         }
         return (
-            <>
-                <Video
-                    ref={videoRef}
-                    source={{ uri: hlsUrl }}
-                    style={styles.video}
-                    resizeMode={ResizeMode.CONTAIN}
-                    shouldPlay
-                    isLooping={false}
-                    useNativeControls
-                    onLoad={() => setIsLoading(false)}
-                    onError={(err) => {
-                        console.warn('HLS error:', err);
-                        setHasError(true);
-                        setIsLoading(false);
-                    }}
-                />
-                {isLoading && (
-                    <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="large" color="#FF7A00" />
-                        <Text style={styles.loadingText}>Chargement du stream…</Text>
-                    </View>
-                )}
-            </>
+            <HLSPlayer
+                uri={hlsUrl}
+                style={styles.video}
+                onError={() => setHasError(true)}
+            />
         );
     };
 
@@ -166,17 +144,6 @@ const styles = StyleSheet.create({
     },
     video: {
         flex: 1,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        gap: 12,
-    },
-    loadingText: {
-        color: '#ccc',
-        fontSize: 14,
     },
     errorContainer: {
         flex: 1,

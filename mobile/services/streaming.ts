@@ -96,7 +96,7 @@ export async function sendICECandidate(
     const res = await fetch(`${BASE_URL}/ice?roomId=${roomId}`, {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ candidate }),
+        body: JSON.stringify(candidate),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));

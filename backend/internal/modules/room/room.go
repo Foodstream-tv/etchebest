@@ -4,7 +4,6 @@ import (
 	"github.com/lib/pq"
 	"log"
 	"net/http"
-	"os"
 	"slices"
 	"sync"
 
@@ -26,8 +25,27 @@ type AddParticipantReq struct {
 }
 
 var (
-	mu sync.Mutex
+	mu        sync.Mutex
+	liveRooms = make(map[string]*Room)
 )
+
+// getLiveRoom returns the shared in-memory Room pointer.
+// If not yet tracked, it loads from the DB and registers it.
+func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
+	if r, ok := liveRooms[id]; ok {
+		return r, nil
+	}
+	r, err := GetRoomById(db, id)
+	if err != nil {
+		return nil, err
+	}
+	liveRooms[id] = r
+	return r, nil
+}
+
+func removeLiveRoom(id string) {
+	delete(liveRooms, id)
+}
 
 // GetAllRooms godoc
 // @Summary      Get all rooms
@@ -88,6 +106,11 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
 			return
 		}
+
+		mu.Lock()
+		liveRooms[room.ID] = &room
+		mu.Unlock()
+
 		c.JSON(http.StatusOK, gin.H{"roomId": room.ID, "message": "room created"})
 	}
 }
@@ -203,7 +226,7 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		mu.Lock()
 		defer mu.Unlock()
 
-		room, err := GetRoomById(db, roomId)
+		room, err := getLiveRoom(db, roomId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
 			return
@@ -254,17 +277,19 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var candidate ICECandidateInit
+		var candidate webrtc.ICECandidateInit
 		if err := c.ShouldBindJSON(&candidate); err != nil {
 			log.Printf("failed to bind ICE candidate: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ICE candidate format"})
 			return
 		}
 
+		log.Printf("received ICE candidate for room %s: %s", roomID, candidate.Candidate)
+
 		mu.Lock()
 		defer mu.Unlock()
 
-		room, err := GetRoomById(db, roomID)
+		room, err := getLiveRoom(db, roomID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
 			return
@@ -272,12 +297,13 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 
 		if len(room.Connections) == 0 {
 			room.PendingICE = append(room.PendingICE, candidate)
+			log.Printf("no connections yet, buffered candidate (total pending: %d)", len(room.PendingICE))
 			c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
 			return
 		}
 
 		for _, pc := range room.Connections {
-			if err := pc.PeerCon.AddICECandidate(candidate.Candidate); err != nil {
+			if err := pc.PeerCon.AddICECandidate(candidate); err != nil {
 				log.Printf("failed to add ICE candidate: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add ICE candidate"})
 				return
@@ -312,7 +338,9 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
-		room, err := GetRoomById(db, roomID)
+		mu.Lock()
+		room, err := getLiveRoom(db, roomID)
+		mu.Unlock()
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
@@ -349,7 +377,18 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		}
 		settingEngine.SetEphemeralUDPPortRange(50000, 50100)
 
-		api := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
+		// Register default codecs so Pion can accept audio/video media sections
+		mediaEngine := &webrtc.MediaEngine{}
+		if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
+			log.Printf("failed to register default codecs: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register codecs"})
+			return
+		}
+
+		api := webrtc.NewAPI(
+			webrtc.WithSettingEngine(settingEngine),
+			webrtc.WithMediaEngine(mediaEngine),
+		)
 		peerConnection, err := api.NewPeerConnection(config)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -370,27 +409,65 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		room.Connections = append(room.Connections, PeerConnection{PeerCon: peerConnection})
 
 		// Save pending ICE candidates to flush after SetRemoteDescription
-		pendingCandidates := make([]ICECandidateInit, len(room.PendingICE))
+		pendingCandidates := make([]webrtc.ICECandidateInit, len(room.PendingICE))
 		copy(pendingCandidates, room.PendingICE)
 		room.PendingICE = nil
 
 		mu.Unlock()
 
+		// Collect codec info from both tracks before starting HLS.
+		var (
+			audioCodec *hls.CodecInfo
+			videoCodec *hls.CodecInfo
+			trackCount int
+		)
+
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-			log.Printf("track received: %s (StreamID: %s)", track.Kind().String(), track.StreamID())
+			log.Printf("track received: %s codec=%s PT=%d (StreamID: %s)",
+				track.Kind().String(),
+				track.Codec().MimeType,
+				track.Codec().PayloadType,
+				track.StreamID())
 
-			var hlsStdin *os.File
+			codec := track.Codec()
+			ci := &hls.CodecInfo{
+				PayloadType: uint8(codec.PayloadType),
+				ClockRate:   codec.ClockRate,
+				Channels:    codec.Channels,
+				FmtpLine:    codec.SDPFmtpLine,
+			}
+			// Extract short codec name from MimeType (e.g. "video/VP8" → "VP8")
+			if idx := len(codec.MimeType) - 1; idx >= 0 {
+				for i := idx; i >= 0; i-- {
+					if codec.MimeType[i] == '/' {
+						ci.CodecName = codec.MimeType[i+1:]
+						break
+					}
+				}
+				if ci.CodecName == "" {
+					ci.CodecName = codec.MimeType
+				}
+			}
 
-			if track.Kind() == webrtc.RTPCodecTypeVideo && !hls.IsRunning(roomID) {
+			mu.Lock()
+			if track.Kind() == webrtc.RTPCodecTypeAudio {
+				audioCodec = ci
+			} else if track.Kind() == webrtc.RTPCodecTypeVideo {
+				videoCodec = ci
+			}
+			trackCount++
+
+			// Start HLS once we have both tracks
+			if trackCount >= 2 && room.HLSWriter == nil && !hls.IsRunning(roomID) {
 				log.Println("starting HLS stream for room", roomID)
-
-				stdin, _, err := hls.Start(roomID)
+				writer, _, err := hls.Start(roomID, audioCodec, videoCodec)
 				if err != nil {
 					log.Printf("failed to start HLS: %v", err)
 				} else {
-					hlsStdin = stdin
+					room.HLSWriter = writer
 				}
 			}
+			mu.Unlock()
 
 			localTrack, err := webrtc.NewTrackLocalStaticRTP(
 				track.Codec().RTPCodecCapability,
@@ -424,6 +501,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 
 			go func() {
 				buf := make([]byte, 1500)
+				var cachedWriter *hls.HLSWriter
 				for {
 					n, _, err := track.Read(buf)
 					if err != nil {
@@ -431,15 +509,28 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 						break
 					}
 
-					// → WebRTC
+					// → relay to other WebRTC peers
 					if _, err := localTrack.Write(buf[:n]); err != nil {
 						log.Printf("failed to write to local track: %v", err)
 						break
 					}
 
-					// → HLS
-					if hlsStdin != nil {
-						_, _ = hlsStdin.Write(buf[:n])
+					// → relay to FFmpeg via UDP for HLS
+					// Cache the writer reference to avoid locking on every packet
+					if cachedWriter == nil {
+						mu.Lock()
+						cachedWriter = room.HLSWriter
+						mu.Unlock()
+						if cachedWriter == nil {
+							continue // HLS not started yet, skip
+						}
+					}
+					if cachedWriter != nil {
+						if track.Kind() == webrtc.RTPCodecTypeAudio && cachedWriter.AudioConn != nil {
+							_, _ = cachedWriter.AudioConn.Write(buf[:n])
+						} else if track.Kind() == webrtc.RTPCodecTypeVideo && cachedWriter.VideoConn != nil {
+							_, _ = cachedWriter.VideoConn.Write(buf[:n])
+						}
 					}
 				}
 			}()
@@ -492,6 +583,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 
 				if len(room.Connections) == 0 {
 					hls.StopStream(roomID)
+					removeLiveRoom(roomID)
 					err := DeleteRoomById(db, roomID)
 					if err != nil {
 						log.Printf("failed to delete room: %v", err)
@@ -532,7 +624,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		if len(pendingCandidates) > 0 {
 			log.Printf("flushing %d pending ICE candidates", len(pendingCandidates))
 			for _, pending := range pendingCandidates {
-				if err := peerConnection.AddICECandidate(pending.Candidate); err != nil {
+				if err := peerConnection.AddICECandidate(pending); err != nil {
 					log.Printf("failed to add pending ICE candidate: %v", err)
 				}
 			}
@@ -560,6 +652,8 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 
 		// Return the full local description (with ICE candidates embedded)
 		finalDesc := peerConnection.LocalDescription()
+		log.Printf("Answer SDP type=%s length=%d", finalDesc.Type.String(), len(finalDesc.SDP))
+		log.Printf("Answer SDP:\n%s", finalDesc.SDP)
 		c.JSON(http.StatusOK, gin.H{"sdp": finalDesc.SDP})
 	}
 }
