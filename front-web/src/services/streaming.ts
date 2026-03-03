@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
+// use the internal api helpers so that the base URL (/api suffix, headers)
+// is always consistent with the rest of the frontend code.
+import { API_BASE_URL, apiFetch } from "@/lib/api";
+
 
 async function authHeaders(token?: string): Promise<Record<string, string>> {
   return {
@@ -10,21 +13,16 @@ async function authHeaders(token?: string): Promise<Record<string, string>> {
 export interface RoomInfo {
   id: string;
   name: string;
-  host: string;
-  participants: string[];
-  viewers: number;
   maxParticipants: number;
+  participants: any[];
+  viewers: number;
 }
 
-// ---------- Rooms ----------
-
 export async function getRooms(token?: string): Promise<RoomInfo[]> {
-  const res = await fetch(`${API_BASE_URL}/rooms`, {
-    headers: await authHeaders(token),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`Failed to fetch rooms (${res.status})`);
-  return res.json();
+  // Use the internal api helpers so that the base URL (/api suffix, headers)
+  // is always consistent with the rest of the frontend code. token is optional
+  // so callers can pass it if they've got one.
+  return apiFetch<RoomInfo[]>("/rooms", { token, cache: "no-store" });
 }
 
 export async function createRoom(name: string, token?: string): Promise<{ roomId: string }> {

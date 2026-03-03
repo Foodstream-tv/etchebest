@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/lib/useAuth";
 import { getRooms, RoomInfo } from "@/services/streaming";
 
 export default function WatchListPage() {
@@ -9,13 +10,21 @@ export default function WatchListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { token, ready } = useAuth();
   const didInit = useRef(false);
 
   const refresh = async () => {
+    if (!token) {
+      setError("Utilisateur non authentifié");
+      setRooms([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setError(null);
       setLoading(true);
-      const data = await getRooms();
+      const data = await getRooms(token);
       setRooms(data ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Impossible de charger les lives");
@@ -26,6 +35,7 @@ export default function WatchListPage() {
   };
 
   useEffect(() => {
+    if (!ready) return;
     if (didInit.current) return;
     didInit.current = true;
 
@@ -33,7 +43,7 @@ export default function WatchListPage() {
 
     const t = setInterval(refresh, 10_000);
     return () => clearInterval(t);
-  }, []);
+  }, [ready, token]);
 
   const hasRooms = useMemo(() => rooms.length > 0, [rooms]);
 
