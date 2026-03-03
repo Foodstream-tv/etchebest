@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ToastManager, { Toast } from 'toastify-react-native';
+import FloatingLabelInput from '../components/FloatingLabelInput';
 import apiService from '../services/api';
-import toast from '../utils/toast';
+import { toast } from '../utils/toast';
 import { validateEmail, validateLengthRange, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
 
 // Common country codes for phone registration
@@ -30,6 +31,23 @@ const COUNTRY_CODES = [
     { code: '+216', country: 'Tunisie', flag: '🇹🇳', value: 216 },
 ];
 
+type FocusedField = 'email' | 'firstName' | 'lastName' | 'username' | 'password' | 'phone' | 'description' | null;
+
+type FieldErrors = {
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    username: string | null;
+    password: string | null;
+    phone: string | null;
+    description: string | null;
+};
+
+const NO_ERRORS: FieldErrors = {
+    email: null, firstName: null, lastName: null,
+    username: null, password: null, phone: null, description: null,
+};
+
 export default function RegisterScreen() {
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
@@ -38,37 +56,32 @@ export default function RegisterScreen() {
     const [lastName, setLastName] = useState('');
     const [description, setDescription] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
-    const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]); // Default to France
+    const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
     const [obscurePassword, setObscurePassword] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [emailFocused, setEmailFocused] = useState(false);
-    const [usernameFocused, setUsernameFocused] = useState(false);
-    const [passwordFocused, setPasswordFocused] = useState(false);
-    const [firstNameFocused, setFirstNameFocused] = useState(false);
-    const [lastNameFocused, setLastNameFocused] = useState(false);
-    const [descriptionFocused, setDescriptionFocused] = useState(false);
-    const [phoneFocused, setPhoneFocused] = useState(false);
+    const [focusedField, setFocusedField] = useState<FocusedField>(null);
+    const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
 
     const router = useRouter();
 
-    const handleRegister = async () => {
-        const validations = [
-            validateEmail(email),
-            validateMinLength(firstName, 2, 'Le prénom'),
-            validateMinLength(lastName, 2, 'Le nom'),
-            validateMinLength(username, 3, 'L\'identifiant'),
-            validatePassword(password),
-            validateLengthRange(description, 10, 500, 'La description'),
-            validatePhone(phoneNumber),
-        ];
+    const clearError = useCallback((field: keyof FieldErrors) =>
+        setErrors(prev => ({ ...prev, [field]: null })), []);
 
-        for (const validation of validations) {
-            if (!validation.isValid) {
-                toast.error(validation.error ?? 'Une erreur de validation est survenue');
-                return;
-            }
-        }
+    const handleRegister = useCallback(async () => {
+        const validations: FieldErrors = {
+            email: validateEmail(email).error ?? null,
+            firstName: validateMinLength(firstName, 2, 'Le prénom').error ?? null,
+            lastName: validateMinLength(lastName, 2, 'Le nom').error ?? null,
+            username: validateMinLength(username, 3, 'L\'identifiant').error ?? null,
+            password: validatePassword(password).error ?? null,
+            description: validateLengthRange(description, 10, 500, 'La description').error ?? null,
+            phone: validatePhone(phoneNumber).error ?? null,
+        };
+
+        const hasError = Object.values(validations).some(Boolean);
+        setErrors(validations);
+        if (hasError) return;
 
         setLoading(true);
         try {
@@ -91,7 +104,7 @@ export default function RegisterScreen() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [email, firstName, lastName, username, password, description, phoneNumber, countryCode, router]);
 
     return (
         <>
@@ -102,153 +115,108 @@ export default function RegisterScreen() {
                         <View style={styles.formSection}>
                             <Text style={styles.subHeading}>Bienvenue</Text>
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(emailFocused || email) && (
-                                    <Text style={styles.floatingLabel}>Adresse e-mail</Text>
-                                )}
-                                <View style={[styles.inputGroup, (emailFocused || email) && styles.inputGroupFocused]}>
-                                    <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={emailFocused || email ? '' : 'Adresse e-mail'}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        onFocus={() => setEmailFocused(true)}
-                                        onBlur={() => setEmailFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
+                            <FloatingLabelInput
+                                label="Adresse e-mail"
+                                iconName="mail-outline"
+                                focused={focusedField === 'email'}
+                                value={email}
+                                onChangeText={v => { setEmail(v); clearError('email'); }}
+                                onFocus={() => setFocusedField('email')}
+                                onBlur={() => setFocusedField(null)}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                error={errors.email}
+                            />
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(firstNameFocused || firstName) && (
-                                    <Text style={styles.floatingLabel}>Prénom</Text>
-                                )}
-                                <View style={[styles.inputGroup, (firstNameFocused || firstName) && styles.inputGroupFocused]}>
-                                    <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={firstNameFocused || firstName ? '' : 'Prénom'}
-                                        autoCapitalize="words"
-                                        value={firstName}
-                                        onChangeText={setFirstName}
-                                        onFocus={() => setFirstNameFocused(true)}
-                                        onBlur={() => setFirstNameFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
+                            <FloatingLabelInput
+                                label="Prénom"
+                                iconName="person-outline"
+                                focused={focusedField === 'firstName'}
+                                value={firstName}
+                                onChangeText={v => { setFirstName(v); clearError('firstName'); }}
+                                onFocus={() => setFocusedField('firstName')}
+                                onBlur={() => setFocusedField(null)}
+                                autoCapitalize="words"
+                                error={errors.firstName}
+                            />
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(lastNameFocused || lastName) && (
-                                    <Text style={styles.floatingLabel}>Nom</Text>
-                                )}
-                                <View style={[styles.inputGroup, (lastNameFocused || lastName) && styles.inputGroupFocused]}>
-                                    <Ionicons name="person-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={lastNameFocused || lastName ? '' : 'Nom'}
-                                        autoCapitalize="words"
-                                        value={lastName}
-                                        onChangeText={setLastName}
-                                        onFocus={() => setLastNameFocused(true)}
-                                        onBlur={() => setLastNameFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
+                            <FloatingLabelInput
+                                label="Nom"
+                                iconName="person-outline"
+                                focused={focusedField === 'lastName'}
+                                value={lastName}
+                                onChangeText={v => { setLastName(v); clearError('lastName'); }}
+                                onFocus={() => setFocusedField('lastName')}
+                                onBlur={() => setFocusedField(null)}
+                                autoCapitalize="words"
+                                error={errors.lastName}
+                            />
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(usernameFocused || username) && (
-                                    <Text style={styles.floatingLabel}>Identifiant</Text>
-                                )}
-                                <View style={[styles.inputGroup, (usernameFocused || username) && styles.inputGroupFocused]}>
-                                    <Ionicons name="at-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={usernameFocused || username ? '' : 'Identifiant'}
-                                        autoCapitalize="none"
-                                        value={username}
-                                        onChangeText={setUsername}
-                                        onFocus={() => setUsernameFocused(true)}
-                                        onBlur={() => setUsernameFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
+                            <FloatingLabelInput
+                                label="Identifiant"
+                                iconName="at-outline"
+                                focused={focusedField === 'username'}
+                                value={username}
+                                onChangeText={v => { setUsername(v); clearError('username'); }}
+                                onFocus={() => setFocusedField('username')}
+                                onBlur={() => setFocusedField(null)}
+                                autoCapitalize="none"
+                                error={errors.username}
+                            />
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(passwordFocused || password) && (
-                                    <Text style={styles.floatingLabel}>Mot de passe</Text>
-                                )}
-                                <View style={[styles.inputGroup, (passwordFocused || password) && styles.inputGroupFocused]}>
-                                    <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={passwordFocused || password ? '' : 'Mot de passe'}
-                                        secureTextEntry={obscurePassword}
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        onFocus={() => setPasswordFocused(true)}
-                                        onBlur={() => setPasswordFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                    <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
+                            <FloatingLabelInput
+                                label="Mot de passe"
+                                iconName="lock-closed-outline"
+                                focused={focusedField === 'password'}
+                                value={password}
+                                onChangeText={v => { setPassword(v); clearError('password'); }}
+                                onFocus={() => setFocusedField('password')}
+                                onBlur={() => setFocusedField(null)}
+                                secureTextEntry={obscurePassword}
+                                error={errors.password}
+                                trailingIcon={
+                                    <TouchableOpacity onPress={() => setObscurePassword(v => !v)}>
                                         <Ionicons
                                             name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
                                             size={20}
                                             color="#000"
                                         />
                                     </TouchableOpacity>
-                                </View>
-                            </View>
+                                }
+                            />
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(phoneFocused || phoneNumber) && (
-                                    <Text style={styles.floatingLabel}>Numéro de téléphone</Text>
-                                )}
-                                <View style={[styles.inputGroup, (phoneFocused || phoneNumber) && styles.inputGroupFocused]}>
-                                    <Ionicons name="call-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TouchableOpacity 
+                            <FloatingLabelInput
+                                label="Numéro de téléphone"
+                                iconName="call-outline"
+                                focused={focusedField === 'phone'}
+                                value={phoneNumber}
+                                onChangeText={v => { setPhoneNumber(v); clearError('phone'); }}
+                                onFocus={() => setFocusedField('phone')}
+                                onBlur={() => setFocusedField(null)}
+                                keyboardType="phone-pad"
+                                error={errors.phone}
+                                trailingIcon={
+                                    <TouchableOpacity
                                         style={styles.countryCodeButton}
                                         onPress={() => setShowCountryPicker(true)}
                                     >
                                         <Text style={styles.countryCodeText}>{countryCode.flag} {countryCode.code}</Text>
                                         <Ionicons name="chevron-down-outline" size={16} color="#000" />
                                     </TouchableOpacity>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={phoneFocused || phoneNumber ? '' : 'Numéro de téléphone'}
-                                        keyboardType="phone-pad"
-                                        value={phoneNumber}
-                                        onChangeText={setPhoneNumber}
-                                        onFocus={() => setPhoneFocused(true)}
-                                        onBlur={() => setPhoneFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
+                                }
+                            />
 
-                            <View style={styles.inputWrapper}>
-                                {Boolean(descriptionFocused || description) && (
-                                    <Text style={styles.floatingLabel}>Description</Text>
-                                )}
-                                <View style={[styles.inputGroup, (descriptionFocused || description) && styles.inputGroupFocused]}>
-                                    <Ionicons name="chatbubble-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={descriptionFocused || description ? '' : 'Parlez-nous de vous...'}
-                                        multiline
-                                        value={description}
-                                        onChangeText={setDescription}
-                                        onFocus={() => setDescriptionFocused(true)}
-                                        onBlur={() => setDescriptionFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
+                            <FloatingLabelInput
+                                label="Description"
+                                iconName="chatbubble-outline"
+                                focused={focusedField === 'description'}
+                                value={description}
+                                onChangeText={v => { setDescription(v); clearError('description'); }}
+                                onFocus={() => setFocusedField('description')}
+                                onBlur={() => setFocusedField(null)}
+                                multiline
+                                error={errors.description}
+                            />
 
                             <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
                                 <LinearGradient
@@ -387,43 +355,6 @@ const styles = StyleSheet.create({
         color: '#111',
         marginBottom: 28,
         textAlign: 'center',
-    },
-    inputWrapper: {
-        marginBottom: 16,
-        position: 'relative',
-    },
-    floatingLabel: {
-        position: 'absolute',
-        top: -8,
-        left: 16,
-        backgroundColor: '#fff',
-        paddingHorizontal: 4,
-        fontSize: 12,
-        color: '#FF8A00',
-        fontWeight: '600',
-        zIndex: 1,
-    },
-    inputGroup: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#bcbcbc',
-        paddingHorizontal: 16,
-        height: 56,
-        backgroundColor: '#fff',
-        width: '100%',
-    },
-    inputGroupFocused: {
-        borderColor: '#FF8A00',
-    },
-    leadingIcon: {
-        marginRight: 12,
-    },
-    input: {
-        flex: 1,
-        fontSize: 16,
-        color: '#000',
     },
     dateRow: {
         flexDirection: 'row',

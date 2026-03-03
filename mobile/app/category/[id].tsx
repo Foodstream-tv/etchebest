@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,8 +12,8 @@ import {
   View,
 } from 'react-native';
 import ToastManager from 'toastify-react-native';
-import apiService, { Category, CategoryLivesResponse, Live } from '../../services/api';
-import toast from '../../utils/toast';
+import apiService, { CategoryLivesResponse, Live } from '../../services/api';
+import { toast } from '../../utils/toast';
 
 export default function CategoryLivesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,7 +22,7 @@ export default function CategoryLivesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
 
-  const fetchLives = async () => {
+  const fetchLives = useCallback(async () => {
     if (!id) return;
     try {
       const result = await apiService.getCategoryLives(Number(id));
@@ -34,11 +34,11 @@ export default function CategoryLivesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchLives();
-  }, [id]);
+  }, [fetchLives]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -94,7 +94,7 @@ export default function CategoryLivesScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: data?.category?.name || 'Category' }} />
-      
+
       <FlatList
         data={data?.lives || []}
         renderItem={renderLiveItem}

@@ -16,7 +16,7 @@ import { getRooms, RoomInfo } from '../services/streaming';
 
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 
-function RoomCard({ room, onWatch, onJoin }: { room: RoomInfo; onWatch: () => void; onJoin: () => void }) {
+function RoomCard({ room, onWatch, onJoin }: Readonly<{ room: RoomInfo; onWatch: () => void; onJoin: () => void }>) {
     const spotsLeft = room.maxParticipants - room.participants.length;
 
     return (
@@ -78,13 +78,13 @@ function RoomListContent({
     onWatch,
     onJoin,
 }: {
-    error: string | null;
-    rooms: RoomInfo[];
-    refreshing: boolean;
-    onRefresh: () => void;
-    onRetry: () => void;
-    onWatch: (room: RoomInfo) => void;
-    onJoin: (room: RoomInfo) => void;
+    readonly error: string | null;
+    readonly rooms: RoomInfo[];
+    readonly refreshing: boolean;
+    readonly onRefresh: () => void;
+    readonly onRetry: () => void;
+    readonly onWatch: (room: RoomInfo) => void;
+    readonly onJoin: (room: RoomInfo) => void;
 }) {
     if (error) {
         return (

@@ -1,35 +1,35 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ToastManager, { Toast } from 'toastify-react-native';
+import FloatingLabelInput from '../components/FloatingLabelInput';
+import SocialButton from '../components/SocialButton';
 import apiService from '../services/api';
-import authService from '../services/auth';
-import toast from '../utils/toast';
+import { authService } from '../services/auth';
+import { toast } from '../utils/toast';
 import { validateEmail, validatePassword } from '../utils/validation';
-
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
-    const [emailFocused, setEmailFocused] = useState(false);
-    const [passwordFocused, setPasswordFocused] = useState(false);
+    const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
     const [loading, setLoading] = useState(false);
+    const [emailError, setEmailError] = useState<string | null>(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
 
     const router = useRouter();
 
-    const handleLogin = async () => {
+    const handleLogin = useCallback(async () => {
         const emailValidation = validateEmail(email);
-        if (!emailValidation.isValid) {
-            toast.error(emailValidation.error ?? 'Erreur de validation de l\'email');
-            return;
-        }
-
         const passwordValidation = validatePassword(password);
-        if (!passwordValidation.isValid) {
-            toast.error(passwordValidation.error ?? 'Erreur de validation du mot de passe');
+
+        setEmailError(emailValidation.isValid ? null : (emailValidation.error ?? 'Email invalide'));
+        setPasswordError(passwordValidation.isValid ? null : (passwordValidation.error ?? 'Mot de passe invalide'));
+
+        if (!emailValidation.isValid || !passwordValidation.isValid) {
             return;
         }
 
@@ -37,6 +37,21 @@ export default function LoginScreen() {
         try {
             const response = await apiService.login({ email, password });
             await authService.saveAuth(response.token, response.user);
+
+            // Fetch full profile to enrich stored user with firstName, lastName, description
+            try {
+                const profile = await apiService.getProfile(response.token);
+                await authService.saveAuth(response.token, {
+                    id: profile.id,
+                    email: profile.email,
+                    username: profile.username,
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    description: profile.description,
+                });
+            } catch {
+                // Non-critical: basic auth data is already saved
+            }
 
             toast.success('Connexion réussie !');
             router.replace('/');
@@ -46,7 +61,39 @@ export default function LoginScreen() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [email, password, router]);
+
+    const handleGoogleLogin = useCallback(() => {
+        Toast.show({
+            text1: 'Tentative de connexion avec Google',
+            position: 'bottom',
+            icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
+            iconColor: '#4285F4',
+        });
+    }, []);
+
+    const handleAppleLogin = useCallback(() => {
+        Toast.show({
+            text1: 'Tentative de connexion avec Apple',
+            position: 'bottom',
+            icon: <Ionicons name="logo-apple" size={24} color="#000" />,
+            iconColor: '#000',
+        });
+    }, []);
+
+    const handleTogglePassword = useCallback(() => setObscurePassword(v => !v), []);
+    const handleForgotPassword = useCallback(() => router.push('/forgot-password'), [router]);
+    const handleRegister = useCallback(() => router.push('/register'), [router]);
+
+    const passwordTrailingIcon = useMemo(() => (
+        <TouchableOpacity onPress={handleTogglePassword}>
+            <Ionicons
+                name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#000"
+            />
+        </TouchableOpacity>
+    ), [obscurePassword, handleTogglePassword]);
 
     return (
         <>
@@ -56,50 +103,30 @@ export default function LoginScreen() {
                         <Text style={styles.heading}>Connexion</Text>
                         <View style={styles.formSection}>
                             <Text style={styles.subHeading}>Bonjour,</Text>
-                            <View style={styles.inputWrapper}>
-                                {Boolean(emailFocused || email) && (
-                                    <Text style={styles.floatingLabel}>Adresse e-mail</Text>
-                                )}
-                                <View style={[styles.inputGroup, (emailFocused || email) && styles.inputGroupFocused]}>
-                                    <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={emailFocused || email ? '' : 'Adresse e-mail'}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        onFocus={() => setEmailFocused(true)}
-                                        onBlur={() => setEmailFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                </View>
-                            </View>
-                            <View style={styles.inputWrapper}>
-                                {Boolean(passwordFocused || password) && (
-                                    <Text style={styles.floatingLabel}>Mot de passe</Text>
-                                )}
-                                <View style={[styles.inputGroup, (passwordFocused || password) && styles.inputGroupFocused]}>
-                                    <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={passwordFocused || password ? '' : 'Mot de passe'}
-                                        secureTextEntry={obscurePassword}
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        onFocus={() => setPasswordFocused(true)}
-                                        onBlur={() => setPasswordFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                    <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
-                                        <Ionicons
-                                            name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                            size={20}
-                                            color="#000"
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
+                            <FloatingLabelInput
+                                label="Adresse e-mail"
+                                iconName="mail-outline"
+                                focused={focusedField === 'email'}
+                                value={email}
+                                onChangeText={(v) => { setEmail(v); setEmailError(null); }}
+                                onFocus={() => setFocusedField('email')}
+                                onBlur={() => setFocusedField(null)}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                error={emailError}
+                            />
+                            <FloatingLabelInput
+                                label="Mot de passe"
+                                iconName="lock-closed-outline"
+                                focused={focusedField === 'password'}
+                                value={password}
+                                onChangeText={(v) => { setPassword(v); setPasswordError(null); }}
+                                onFocus={() => setFocusedField('password')}
+                                onBlur={() => setFocusedField(null)}
+                                secureTextEntry={obscurePassword}
+                                trailingIcon={passwordTrailingIcon}
+                                error={passwordError}
+                            />
                             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
                                 <LinearGradient
                                     colors={['#FFA92E', '#FF5D1E']}
@@ -119,52 +146,28 @@ export default function LoginScreen() {
                                 <Text style={styles.dividerLabel}>Ou</Text>
                                 <View style={styles.line} />
                             </View>
-                            <TouchableOpacity
-                                style={styles.socialButton}
-                                onPress={() => {
-                                    Toast.show({
-                                        text1: 'Tentative de connexion avec Google',
-                                        position: 'bottom',
-                                        icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
-                                        iconColor: '#4285F4',
-                                    });
-                                }}
-                            >
-                                <View style={styles.socialButtonContent}>
-                                    <View style={styles.socialIconBadge}>
-                                        <Image
-                                            source={require('@/assets/images/google_logo.png')}
-                                            style={styles.googleIcon}
-                                            resizeMode="contain"
-                                        />
-                                    </View>
-                                    <Text style={styles.socialText}>Continuer avec Google</Text>
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.socialButton}
-                                onPress={() => {
-                                    Toast.show({
-                                        text1: 'Tentative de connexion avec Apple',
-                                        position: 'bottom',
-                                        icon: <Ionicons name="logo-apple" size={24} color="#000" />,
-                                        iconColor: '#000',
-                                    });
-                                }}
-                            >
-                                <View style={styles.socialButtonContent}>
-                                    <View style={styles.socialIconBadge}>
-                                        <Ionicons name="logo-apple" size={22} color="#000" />
-                                    </View>
-                                    <Text style={styles.socialText}>Continuer avec Apple</Text>
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => router.push('/forgot-password')}>
+                            <SocialButton
+                                label="Continuer avec Google"
+                                onPress={handleGoogleLogin}
+                                icon={
+                                    <Image
+                                        source={require('@/assets/images/google_logo.png')}
+                                        style={styles.googleIcon}
+                                        resizeMode="contain"
+                                    />
+                                }
+                            />
+                            <SocialButton
+                                label="Continuer avec Apple"
+                                onPress={handleAppleLogin}
+                                icon={<Ionicons name="logo-apple" size={22} color="#000" />}
+                            />
+                            <TouchableOpacity onPress={handleForgotPassword}>
                                 <Text style={styles.linkText}>Mot de passe oublié ?</Text>
                             </TouchableOpacity>
                             <View style={styles.footerLinks}>
-                                <Text style={styles.footerText}>Vous n&apos;avez pas de compte ? </Text>
-                                <TouchableOpacity onPress={() => router.push('/register')}>
+                                <Text style={styles.footerText}>Vous n&apos;avez pas de compte ?&nbsp;</Text>
+                                <TouchableOpacity onPress={handleRegister}>
                                     <Text style={styles.linkHighlight}>Inscrivez-vous</Text>
                                 </TouchableOpacity>
                             </View>
@@ -209,43 +212,6 @@ const styles = StyleSheet.create({
         marginBottom: 28,
         textAlign: 'center',
     },
-    inputWrapper: {
-        marginBottom: 16,
-        position: 'relative',
-    },
-    floatingLabel: {
-        position: 'absolute',
-        top: -8,
-        left: 16,
-        backgroundColor: '#fff',
-        paddingHorizontal: 4,
-        fontSize: 12,
-        color: '#FF8A00',
-        fontWeight: '600',
-        zIndex: 1,
-    },
-    inputGroup: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#bcbcbc',
-        paddingHorizontal: 16,
-        height: 56,
-        backgroundColor: '#fff',
-        width: '100%',
-    },
-    inputGroupFocused: {
-        borderColor: '#FF8A00',
-    },
-    leadingIcon: {
-        marginRight: 12,
-    },
-    input: {
-        flex: 1,
-        fontSize: 16,
-        color: '#000',
-    },
     linkText: {
         textDecorationLine: 'underline',
         textAlign: 'center',
@@ -286,39 +252,9 @@ const styles = StyleSheet.create({
         color: '#000',
         fontWeight: '600',
     },
-    socialButton: {
-        borderRadius: 18,
-        paddingVertical: 14,
-        paddingHorizontal: 18,
-        marginBottom: 16,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#e8e8e8',
-        width: '100%',
-    },
-    socialButtonContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    socialIconBadge: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: '#f4f4f4',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     googleIcon: {
         width: 22,
         height: 22,
-    },
-    socialText: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-        marginLeft: 18,
     },
     footerLinks: {
         marginTop: 32,

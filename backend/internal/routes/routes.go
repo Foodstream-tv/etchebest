@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	swaggerFiles "github.com/swaggo/files"
@@ -62,6 +63,11 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// HLS - public access (video players can't send Authorization headers)
 	r.Static("/api/hls", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/index.m3u8`;
+
+	// Discover (public)
+	r.GET("/api/discover", discover.GetDiscover(db))
+	r.GET("/api/discover/categories", discover.GetCategories(db))
+	r.GET("/api/discover/categories/:id/lives", discover.GetCategoryLives(db))
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {

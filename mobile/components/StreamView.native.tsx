@@ -1,10 +1,10 @@
 /**
  * Native implementation of StreamView — renders RTCView from react-native-webrtc.
  * On native, MediaStream has .toURL() which RTCView needs as streamURL.
+ * Falls back gracefully when the native module is not available (e.g. Expo Go).
  */
 import React from 'react';
-import { type ViewStyle } from 'react-native';
-import { RTCView } from 'react-native-webrtc';
+import { Text, View, type ViewStyle } from 'react-native';
 
 interface StreamViewProps {
     readonly stream: MediaStream | null;
@@ -13,7 +13,29 @@ interface StreamViewProps {
     readonly mirror?: boolean;
 }
 
+let RTCView: React.ComponentType<{
+    streamURL: string;
+    style?: ViewStyle;
+    objectFit?: 'cover' | 'contain';
+    mirror?: boolean;
+}> | null = null;
+
+try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    RTCView = require('react-native-webrtc').RTCView;
+} catch {
+    RTCView = null;
+}
+
 export default function StreamView({ stream, style, objectFit = 'cover', mirror = false }: Readonly<StreamViewProps>) {
+    if (!RTCView) {
+        return (
+            <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }, style]}>
+                <Text style={{ color: '#fff', fontSize: 14 }}>WebRTC non disponible dans Expo Go</Text>
+            </View>
+        );
+    }
+
     if (!stream) {
         return null;
     }

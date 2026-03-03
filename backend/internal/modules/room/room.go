@@ -5,12 +5,14 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3"
 	"gorm.io/gorm"
 )
@@ -45,6 +47,33 @@ func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
 
 func removeLiveRoom(id string) {
 	delete(liveRooms, id)
+}
+
+// resolveCodec picks the best matching RTPCodecCapability for a peer connection.
+// Viewers are recvonly so their Sender has no codec params; we look at the
+// Receiver parameters instead. Returns the capability and the negotiated PT.
+// Falls back to a minimal capability with PT=0 so Pion can still create the track.
+func resolveCodec(pc *webrtc.PeerConnection, mimeType string, fallback webrtc.RTPCodecCapability) (webrtc.RTPCodecCapability, uint8) {
+	for _, transceiver := range pc.GetTransceivers() {
+		receiver := transceiver.Receiver()
+		if receiver == nil {
+			continue
+		}
+		params := receiver.GetParameters()
+		for _, codec := range params.Codecs {
+			if strings.EqualFold(codec.MimeType, mimeType) {
+				cap := webrtc.RTPCodecCapability{
+					MimeType:    codec.MimeType,
+					ClockRate:   codec.ClockRate,
+					Channels:    codec.Channels,
+					SDPFmtpLine: codec.SDPFmtpLine,
+				}
+				return cap, uint8(codec.PayloadType)
+			}
+		}
+	}
+	// Fallback: use just the MIME type; Pion will assign a fresh PT
+	return webrtc.RTPCodecCapability{MimeType: mimeType}, 0
 }
 
 // GetAllRooms godoc
@@ -98,7 +127,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: 5,
+			MaxParticipants: 10,
 		}
 
 		err := CreateRoom(db, &room)
@@ -356,8 +385,17 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		}
 
 		if !isParticipant {
-			c.JSON(http.StatusForbidden, gin.H{"error": "you are a viewer, WebRTC not allowed"})
-			return
+			// Auto-add the user as participant if there is room
+			if len(room.Participants) >= room.MaxParticipants {
+				c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
+				return
+			}
+			room.Participants = append(room.Participants, currentUserId)
+			if err := SaveRoom(db, room); err != nil {
+				log.Printf("failed to save participant: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join room"})
+				return
+			}
 		}
 
 		var offer webrtc.SessionDescription
@@ -398,12 +436,34 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		mu.Lock()
 
 		for _, trackInfo := range room.Tracks {
-			sender, err := peerConnection.AddTrack(trackInfo.LocalTrack)
+			if trackInfo.LocalTracks == nil {
+				trackInfo.LocalTracks = make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP)
+			}
+			if trackInfo.PeerPT == nil {
+				trackInfo.PeerPT = make(map[*webrtc.PeerConnection]uint8)
+			}
+			negotiatedCap, negotiatedPT := resolveCodec(peerConnection, trackInfo.Track.Codec().MimeType, trackInfo.Track.Codec().RTPCodecCapability)
+			lt, err := webrtc.NewTrackLocalStaticRTP(
+				negotiatedCap,
+				trackInfo.Track.ID()+"-"+uuid.New().String(),
+				trackInfo.Track.StreamID())
 			if err != nil {
-				log.Printf("error adding track to peer: %v", err)
+				log.Printf("error creating local track for new peer: %v", err)
 				continue
 			}
+			sender, err := peerConnection.AddTrack(lt)
+			if err != nil {
+				log.Printf("error adding track to new peer: %v", err)
+				continue
+			}
+			trackInfo.LocalTracks[peerConnection] = lt
+			trackInfo.PeerPT[peerConnection] = negotiatedPT
 			trackInfo.Senders = append(trackInfo.Senders, sender)
+		}
+
+		// First connection from the room host → mark as publisher
+		if room.HostPeerCon == nil && currentUserId == room.Host {
+			room.HostPeerCon = peerConnection
 		}
 
 		room.Connections = append(room.Connections, PeerConnection{PeerCon: peerConnection})
@@ -428,6 +488,16 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 				track.Codec().MimeType,
 				track.Codec().PayloadType,
 				track.StreamID())
+
+			// Only relay + feed HLS from the host/publisher peer.
+			// Viewer peers may send media (e.g. browser with camera on) but we ignore it.
+			mu.Lock()
+			isHostTrack := room.HostPeerCon == peerConnection
+			mu.Unlock()
+			if !isHostTrack {
+				log.Printf("ignoring track from non-host peer (viewer media)")
+				return
+			}
 
 			codec := track.Codec()
 			ci := &hls.CodecInfo{
@@ -469,33 +539,40 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			}
 			mu.Unlock()
 
-			localTrack, err := webrtc.NewTrackLocalStaticRTP(
-				track.Codec().RTPCodecCapability,
-				track.ID()+"-"+uuid.New().String(),
-				track.StreamID())
-			if err != nil {
-				log.Printf("error creating local track: %v", err)
-				return
-			}
-
+			// Create one LocalTrack per existing peer so the codec is negotiated per-peer.
+			// The map is populated below and stays in sync as new peers join.
 			trackInfo := &TrackInfo{
-				LocalTrack: localTrack,
-				Senders:    []*webrtc.RTPSender{},
-				Track:      track,
+				LocalTracks: make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP),
+				PeerPT:      make(map[*webrtc.PeerConnection]uint8),
+				Senders:     []*webrtc.RTPSender{},
+				Track:       track,
 			}
 
 			mu.Lock()
 			room.Tracks = append(room.Tracks, trackInfo)
 
 			for _, otherPC := range room.Connections {
-				if otherPC.PeerCon != peerConnection {
-					sender, err := otherPC.PeerCon.AddTrack(localTrack)
-					if err != nil {
-						log.Printf("error adding track to peer: %v", err)
-						continue
-					}
-					trackInfo.Senders = append(trackInfo.Senders, sender)
+				if otherPC.PeerCon == peerConnection {
+					continue
 				}
+				// Pick the first matching codec this peer supports
+				negotiatedCap, negotiatedPT := resolveCodec(otherPC.PeerCon, track.Codec().MimeType, track.Codec().RTPCodecCapability)
+				lt, err := webrtc.NewTrackLocalStaticRTP(
+					negotiatedCap,
+					track.ID()+"-"+uuid.New().String(),
+					track.StreamID())
+				if err != nil {
+					log.Printf("error creating local track for peer: %v", err)
+					continue
+				}
+				sender, err := otherPC.PeerCon.AddTrack(lt)
+				if err != nil {
+					log.Printf("error adding track to peer: %v", err)
+					continue
+				}
+				trackInfo.LocalTracks[otherPC.PeerCon] = lt
+				trackInfo.PeerPT[otherPC.PeerCon] = negotiatedPT
+				trackInfo.Senders = append(trackInfo.Senders, sender)
 			}
 			mu.Unlock()
 
@@ -509,20 +586,46 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 						break
 					}
 
-					// → relay to other WebRTC peers
-					if _, err := localTrack.Write(buf[:n]); err != nil {
-						log.Printf("failed to write to local track: %v", err)
-						break
+					// Parse the RTP packet so we can rewrite PT per destination peer
+					var pkt rtp.Packet
+					if err := pkt.Unmarshal(buf[:n]); err != nil {
+						log.Printf("failed to unmarshal RTP packet: %v", err)
+						continue
 					}
+					origPT := pkt.PayloadType
+
+					// → relay to each peer via its own LocalTrack with the correct PT
+					mu.Lock()
+					type peerTrack struct {
+						lt *webrtc.TrackLocalStaticRTP
+						pt uint8
+					}
+					peers := make([]peerTrack, 0, len(trackInfo.LocalTracks))
+					for pc, lt := range trackInfo.LocalTracks {
+						pt := trackInfo.PeerPT[pc]
+						if pt == 0 {
+							pt = origPT // fallback: keep source PT
+						}
+						peers = append(peers, peerTrack{lt, pt})
+					}
+					mu.Unlock()
+
+					for _, p := range peers {
+						pkt.PayloadType = p.pt
+						if err := p.lt.WriteRTP(&pkt); err != nil {
+							log.Printf("failed to write RTP to peer track: %v", err)
+						}
+					}
+					// Restore original PT for next iteration
+					pkt.PayloadType = origPT
 
 					// → relay to FFmpeg via UDP for HLS
-					// Cache the writer reference to avoid locking on every packet
 					if cachedWriter == nil {
 						mu.Lock()
 						cachedWriter = room.HLSWriter
 						mu.Unlock()
 						if cachedWriter == nil {
-							continue // HLS not started yet, skip
+							continue
 						}
 					}
 					if cachedWriter != nil {
@@ -563,21 +666,15 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 
 				var updatedTracks []*TrackInfo
 				for _, trackInfo := range room.Tracks {
-					isTrackFromDisconnectedClient := false
-					for _, sender := range trackInfo.Senders {
-						if sender == nil || sender.Track() == nil || trackInfo.Track == nil {
-							continue
-						}
-
-						if sender.Track().ID() == trackInfo.Track.ID() {
-							isTrackFromDisconnectedClient = true
-							break
-						}
+					// If this track was sourced from the disconnecting peer, drop it entirely
+					if trackInfo.Track != nil && trackInfo.Track.StreamID() == peerConnection.LocalDescription().SDP {
+						continue
 					}
-
-					if !isTrackFromDisconnectedClient {
-						updatedTracks = append(updatedTracks, trackInfo)
+					// Remove per-peer LocalTrack for the disconnecting peer
+					if trackInfo.LocalTracks != nil {
+						delete(trackInfo.LocalTracks, peerConnection)
 					}
+					updatedTracks = append(updatedTracks, trackInfo)
 				}
 				room.Tracks = updatedTracks
 

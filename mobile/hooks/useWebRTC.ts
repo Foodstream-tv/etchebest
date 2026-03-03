@@ -59,11 +59,11 @@ export function useWebRTC(): UseWebRTCReturn {
         // Resolve mediaDevices lazily — the imported binding may have been
         // evaluated during SSR where navigator is undefined.
         const devices = mediaDevices
-            ?? (typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined);
+            ?? (typeof navigator === 'undefined' ? undefined : navigator.mediaDevices);
 
         if (!devices?.getUserMedia) {
             throw new Error(
-                'getUserMedia is not available. Make sure the page is served over HTTPS (or localhost).'
+                'La caméra n\'est pas disponible. Le streaming nécessite un build natif (npx expo run:android). Expo Go ne supporte pas react-native-webrtc.'
             );
         }
 
@@ -82,11 +82,11 @@ export function useWebRTC(): UseWebRTCReturn {
 
     // Build peer connection, add local tracks, wire events
     const createPeerConnection = useCallback(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         (stream: any, currentRoomId: string) => {
             // Resolve lazily — imported binding may be undefined from SSR
             const PeerConnection = RTCPeerConnection
-                ?? (typeof globalThis !== 'undefined' ? (globalThis as any).RTCPeerConnection : undefined);
+                ?? (typeof globalThis === 'undefined' ? undefined : (globalThis as any).RTCPeerConnection);
             if (!PeerConnection) {
                 throw new Error('RTCPeerConnection is not available in this environment.');
             }
@@ -98,7 +98,7 @@ export function useWebRTC(): UseWebRTCReturn {
             });
 
             // ICE candidates → send to backend
-            (pc as any).onicecandidate = (event: any) => {
+            (pc).onicecandidate = (event: any) => {
                 if (event.candidate) {
                     sendICECandidate(currentRoomId, {
                         candidate: event.candidate.candidate,
@@ -109,7 +109,7 @@ export function useWebRTC(): UseWebRTCReturn {
             };
 
             // Remote tracks → add to remote streams
-            (pc as any).ontrack = (event: any) => {
+            (pc).ontrack = (event: any) => {
                 if (!event.streams?.[0]) return;
                 const newStream = event.streams[0];
                 const newUrl = newStream.toURL?.();
@@ -118,8 +118,8 @@ export function useWebRTC(): UseWebRTCReturn {
                     return exists ? prev : [...prev, newStream];
                 });
             };            // Connection state changes
-            (pc as any).onconnectionstatechange = () => {
-                const connState = (pc as any).connectionState;
+            pc.onconnectionstatechange = () => {
+                const connState = (pc).connectionState;
                 if (connState === 'connected') {
                     setState('live');
                 } else if (
@@ -152,7 +152,7 @@ export function useWebRTC(): UseWebRTCReturn {
             );
 
             const SessionDesc = RTCSessionDescription
-                ?? (typeof globalThis !== 'undefined' ? (globalThis as any).RTCSessionDescription : undefined);
+                ?? (typeof globalThis === 'undefined' ? undefined : (globalThis as any).RTCSessionDescription);
             const answer = SessionDesc
                 ? new SessionDesc({ type: 'answer', sdp: answerSdp })
                 : { type: 'answer', sdp: answerSdp };

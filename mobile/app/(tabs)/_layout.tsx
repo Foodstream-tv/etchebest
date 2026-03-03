@@ -7,7 +7,6 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 const HomeIcon = ({ color }: { color: string }) => <Ionicons name="home-outline" size={28} color={color} />;
-const PlatsIcon = ({ color }: { color: string }) => <Ionicons name="restaurant-outline" size={28} color={color} />;
 const DiscoverIcon = ({ color }: { color: string }) => <Ionicons name="compass-outline" size={28} color={color} />;
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 const AddIcon = ({ color }: { color: string }) => {

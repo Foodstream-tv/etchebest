@@ -1,15 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack } from 'expo-router';
-import React, { useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { authService } from '../services/auth';
 
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 const BORDER = '#E7E7EC';
 const CARD = '#FFFFFF';
 const MUTED = '#7B8294';
 const TEXT = '#1F2430';
+
 
 const FieldBox = ({ label, value, trailing }: { label: string; value: string; trailing?: React.ReactNode }) => (
   <View style={styles.fieldBox}>
@@ -149,9 +151,15 @@ const CollapsibleSection = ({
 };
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [themeMode, setThemeMode] = useState<'clair' | 'sombre' | 'systeme'>('clair');
   const language = 'Français';
   const timezone = '(GMT+1) Europe / Paris';
+
+  const handleLogout = useCallback(async () => {
+    await authService.logout();
+    router.replace('/login');
+  }, [router]);
 
   const [channels, setChannels] = useState<'site' | 'email' | 'mobile'>('site');
   const [twoFactor, setTwoFactor] = useState(true);
@@ -270,7 +278,7 @@ export default function SettingsScreen() {
                   </View>
                   <Text style={styles.settingDescription}>Déconnecte ton compte de tous les appareils.</Text>
                 </View>
-                <TouchableOpacity style={styles.ghostButton} activeOpacity={0.9}>
+                <TouchableOpacity style={styles.ghostButton} activeOpacity={0.9} onPress={handleLogout}>
                   <Text style={styles.ghostButtonText}>Déconnecter</Text>
                 </TouchableOpacity>
               </View>

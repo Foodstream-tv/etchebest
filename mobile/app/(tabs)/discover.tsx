@@ -15,9 +15,9 @@ import {
 } from 'react-native';
 import ToastManager from 'toastify-react-native';
 import apiService, { DiscoverData } from '../../services/api';
-import toast from '../../utils/toast';
+import { toast } from '../../utils/toast';
 
-export default function DiscoverScreen() {
+export default function DiscoverScreen(): React.JSX.Element {
   const [data, setData] = useState<DiscoverData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -248,7 +248,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: 'bold',
     color: '#fff',
-    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.3)',
   },
   liveBadge: {
     flexDirection: 'row',

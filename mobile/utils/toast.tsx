@@ -1,10 +1,6 @@
-import { Toast } from 'toastify-react-native';
+import { Toast, ToastPosition } from 'toastify-react-native';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
-
-interface ToastOptions {
-  position?: 'top' | 'bottom' | 'center';
-}
 
 /**
  * Show a toast notification
@@ -12,25 +8,23 @@ interface ToastOptions {
 export function showToast(
   message: string,
   type: ToastType = 'info',
-  options: ToastOptions = {}
+  position: ToastPosition = 'bottom'
 ): void {
-  const { position = 'bottom' } = options;
-
   switch (type) {
     case 'success':
-      Toast.success(message, { position });
+      Toast.success(message, position);
       break;
     case 'error':
-      Toast.error(message, { position });
+      Toast.error(message, position);
       break;
     case 'info':
-      Toast.info(message, { position });
+      Toast.info(message, position);
       break;
     case 'warning':
-      Toast.warn(message, { position });
+      Toast.warn(message, position);
       break;
     default:
-      Toast.info(message, { position });
+      Toast.info(message, position);
       break;
   }
 }
@@ -39,10 +33,10 @@ export function showToast(
  * Shorthand toast functions
  */
 export const toast = {
-  success: (message: string, options?: ToastOptions) => showToast(message, 'success', options),
-  error: (message: string, options?: ToastOptions) => showToast(message, 'error', options),
-  info: (message: string, options?: ToastOptions) => showToast(message, 'info', options),
-  warning: (message: string, options?: ToastOptions) => showToast(message, 'warning', options),
+  success: (message: string, position?: ToastPosition) => showToast(message, 'success', position),
+  error: (message: string, position?: ToastPosition) => showToast(message, 'error', position),
+  info: (message: string, position?: ToastPosition) => showToast(message, 'info', position),
+  warning: (message: string, position?: ToastPosition) => showToast(message, 'warning', position),
 };
 
 export default toast;

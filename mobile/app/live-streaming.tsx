@@ -15,7 +15,7 @@ import { StreamingState, useWebRTC } from '../hooks/useWebRTC';
 
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 
-function StatusBadge({ state }: { state: StreamingState }) {
+function StatusBadge({ state }: Readonly<{ state: StreamingState }>) {
     const labels: Record<StreamingState, string> = {
         idle: 'Prêt',
         creating: 'Création…',
@@ -45,7 +45,7 @@ function getPlaceholderText(state: StreamingState): string {
     return 'Caméra non active';
 }
 
-function PlaceholderVideo({ state }: { state: StreamingState }) {
+function PlaceholderVideo({ state }: Readonly<{ state: StreamingState }>) {
     const isLoading = state === 'creating' || state === 'connecting';
     return (
         <View style={styles.placeholderVideo}>
@@ -66,14 +66,14 @@ function StreamControls({
     onStart,
     onStop,
     onRetry,
-}: {
+}: Readonly<{
     hasStarted: boolean;
     isHost: boolean;
     state: StreamingState;
     onStart: () => void;
     onStop: () => void;
     onRetry: () => void;
-}) {
+}>) {
     if (!hasStarted && isHost) {
         return (
             <TouchableOpacity onPress={onStart} activeOpacity={0.85}>
@@ -151,7 +151,7 @@ function StreamControls({
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <StatusBadge state={state} />
-                {roomId && (
+                {!!roomId && (
                     <Text style={styles.roomIdText} numberOfLines={1}>
                         Room: {roomId.slice(0, 8)}…
                     </Text>
@@ -176,7 +176,7 @@ function StreamControls({
                     <View style={styles.remoteContainer}>
                         {remoteStreams.map((stream) => (
                             <StreamView
-                                key={(stream as any).id ?? String(stream)}
+                                key={(stream as any).id}
                                 stream={stream as unknown as MediaStream}
                                 style={styles.remoteVideo}
                                 objectFit="cover"
@@ -187,7 +187,7 @@ function StreamControls({
             </View>
 
             {/* Error display */}
-            {error && (
+            {!!error && (
                 <View style={styles.errorBox}>
                     <Ionicons name="warning-outline" size={18} color="#FF3B30" />
                     <Text style={styles.errorText}>{error}</Text>
