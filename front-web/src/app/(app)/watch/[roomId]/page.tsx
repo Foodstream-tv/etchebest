@@ -1,58 +1,177 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Hls from "hls.js";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { getHLSUrl } from "@/services/streaming";
 
-export default function WatchPage({ params }: { params: { roomId: string } }) {
+type PlayerMode = "native" | "hlsjs" | "unsupported";
+
+export default function WatchRoomPage() {
+  const routeParams = useParams<{ roomId: string }>();
+  const roomId = routeParams?.roomId;
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
-  const roomId = params.roomId;
-  const src = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/hls/${roomId}/index.m3u8`;
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [playerMode, setPlayerMode] = useState<PlayerMode>("hlsjs");
+
+  const hlsUrl = useMemo(() => (roomId ? getHLSUrl(roomId) : ""), [roomId]);
+
+  useEffect(() => {
+    if (!roomId || !hlsUrl) return;
+
+    let alive = true;
+    let t: any;
+
+    async function probe() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await fetch(hlsUrl, { method: "GET", cache: "no-store" });
+        if (!alive) return;
+
+        if (res.ok) {
+          setLoading(false);
+          return;
+        }
+
+        t = setTimeout(probe, 1000);
+      } catch {
+        if (!alive) return;
+        t = setTimeout(probe, 1000);
+      }
+    }
+
+    probe();
+
+    return () => {
+      alive = false;
+      if (t) clearTimeout(t);
+    };
+  }, [roomId, hlsUrl, reloadKey]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!roomId || !hlsUrl || !video) return;
+
+    if (hlsRef.current) {
+      try {
+        hlsRef.current.destroy();
+      } catch {}
+      hlsRef.current = null;
+    }
+
+    setError(null);
 
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
+      setPlayerMode("native");
+      video.src = hlsUrl;
       video.play().catch(() => {});
       return;
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-      hls.loadSource(src);
+      setPlayerMode("hlsjs");
+
+      const hls = new Hls({
+        lowLatencyMode: true,
+        backBufferLength: 30,
+      });
+
+      hlsRef.current = hls;
+
+      hls.loadSource(hlsUrl);
       hls.attachMedia(video);
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         video.play().catch(() => {});
       });
-      return () => hls.destroy();
+
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (data?.fatal) {
+          setError("Impossible de lire le stream HLS (fatal).");
+          try {
+            hls.destroy();
+          } catch {}
+          hlsRef.current = null;
+        }
+      });
+
+      return () => {
+        try {
+          hls.destroy();
+        } catch {}
+        hlsRef.current = null;
+      };
     }
-  }, [src]);
+
+    setPlayerMode("unsupported");
+    setError("HLS non supporté sur ce navigateur.");
+  }, [roomId, hlsUrl, reloadKey]);
+
+  const onRetry = () => {
+    setError(null);
+    setLoading(true);
+    setReloadKey((k) => k + 1);
+  };
 
   return (
-    <main className="min-h-dvh flex items-center justify-center p-6">
-      <div className="w-full max-w-4xl">
-        <h1 className="text-2xl font-bold mb-4">FoodStream — Live</h1>
-        <p className="text-sm text-gray-500 mb-4">
-          Room: <span className="font-mono">{roomId}</span>
-        </p>
+    <div style={{ padding: 24, display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <Link href="/watch">← Retour</Link>
+        <div style={{ fontWeight: 800 }}>
+          LIVE • {roomId ? `${roomId.slice(0, 8)}…` : "—"}
+        </div>
 
+        <button onClick={onRetry} style={{ marginLeft: "auto" }}>
+          Réessayer
+        </button>
+      </div>
+
+      <div style={{ borderRadius: 12, overflow: "hidden", background: "#111", position: "relative" }}>
         <video
+          key={`${roomId ?? "no-room"}-${reloadKey}`}
           ref={videoRef}
           controls
           playsInline
-          className="w-full rounded-xl shadow bg-black"
+          style={{ width: "100%", height: 520, background: "#000" }}
         />
 
-        <p className="text-sm text-gray-500 mt-3">
-          Si la vidéo ne démarre pas, attends 1–2 s que FFmpeg génère les segments.
-        </p>
-
-        <p className="text-xs text-gray-400 mt-2 break-all">
-          {src}
-        </p>
+        {loading && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "grid",
+              placeItems: "center",
+              background: "rgba(0,0,0,0.35)",
+              color: "white",
+              fontWeight: 700,
+            }}
+          >
+            Préparation du stream…
+          </div>
+        )}
       </div>
-    </main>
+
+      {error && (
+        <div style={{ color: "tomato" }}>
+          {error}{" "}
+          <button onClick={onRetry} style={{ marginLeft: 8 }}>
+            Réessayer
+          </button>
+        </div>
+      )}
+
+      <div style={{ opacity: 0.6, fontSize: 12 }}>
+        Mode: {playerMode} • HLS: {hlsUrl || "—"}
+      </div>
+    </div>
   );
 }

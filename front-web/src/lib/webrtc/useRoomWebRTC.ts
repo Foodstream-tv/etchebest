@@ -34,7 +34,7 @@ export function useRoomWebRTC(token: string | null) {
     setStatus("creating");
     setError(null);
 
-    const data = await apiFetch<CreateRoomRes>("/api/rooms", {
+    const data = await apiFetch<CreateRoomRes>("/rooms", {
       method: "POST",
       body: JSON.stringify({}),
       headers: authHeaders,
@@ -52,7 +52,7 @@ export function useRoomWebRTC(token: string | null) {
       setStatus("joining");
       setError(null);
 
-      await apiFetch(`/api/rooms/${id}/reserve`, {
+      await apiFetch(`/rooms/${id}/reserve`, {
         method: "POST",
         body: JSON.stringify({}),
         headers: authHeaders,
@@ -73,7 +73,7 @@ export function useRoomWebRTC(token: string | null) {
       pc.onicecandidate = async (ev) => {
         if (!ev.candidate) return;
         try {
-          await apiFetch(`/api/ice?roomId=${encodeURIComponent(id)}`, {
+          await apiFetch(`/ice?roomId=${encodeURIComponent(id)}`, {
             method: "POST",
             body: JSON.stringify({
               candidate: ev.candidate.toJSON?.() ?? ev.candidate,
@@ -103,7 +103,7 @@ export function useRoomWebRTC(token: string | null) {
       await pc.setLocalDescription(offer);
 
       const answer = await apiFetch<SdpAnswerRes>(
-        `/api/webrtc?roomId=${encodeURIComponent(id)}`,
+        `/webrtc?roomId=${encodeURIComponent(id)}`,
         {
           method: "POST",
           body: JSON.stringify({ type: "offer", sdp: offer.sdp || "" }),
@@ -140,9 +140,9 @@ export function useRoomWebRTC(token: string | null) {
     setLocalStream(null);
     setRemoteStreams([]);
 
-    if (token && id) {
+    if (token && id && status === "connected") {
       try {
-        await apiFetch(`/api/rooms/${id}/disconnect`, {
+        await apiFetch(`/rooms/${id}/disconnect`, {
           method: "POST",
           body: JSON.stringify({}),
           headers: authHeaders,
@@ -152,13 +152,20 @@ export function useRoomWebRTC(token: string | null) {
 
     setRoomId(null);
     setStatus("idle");
-  }, [roomId, token, authHeaders]);
+  }, [roomId, token, authHeaders, status]);
 
   useEffect(() => {
     return () => {
-      disconnect();
+      try {
+        pcRef.current?.getSenders().forEach((s) => s.track?.stop());
+        pcRef.current?.close();
+      } catch {}
+
+      try {
+        localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      } catch {}
     };
-  }, [disconnect]);
+  }, []);
 
   return useMemo(
     () => ({

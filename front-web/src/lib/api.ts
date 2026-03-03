@@ -1,5 +1,5 @@
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081/api";
 
 function joinUrl(base: string, path: string) {
   const b = base.replace(/\/+$/, "");
@@ -9,6 +9,7 @@ function joinUrl(base: string, path: string) {
 
 type ApiFetchOptions = RequestInit & {
   token?: string | null;
+  silent?: boolean;
 };
 
 function isFormDataBody(body: unknown): body is FormData {
@@ -49,11 +50,20 @@ export async function apiFetch<T>(
   }
 
   if (!res.ok) {
-    console.error("API ERROR", { url, status: res.status, raw: text, json });
-    throw new Error(json?.message || json?.error || text || `Erreur ${res.status}`);
+    if (!options.silent) {
+      console.error("API ERROR", { url, status: res.status, raw: text, json });
+    }
+    throw new Error(
+      json?.message || json?.error || text || `Erreur ${res.status}`
+    );
   }
 
-  if (json && typeof json === "object" && "data" in json && json.data !== undefined) {
+  if (
+    json &&
+    typeof json === "object" &&
+    "data" in json &&
+    json.data !== undefined
+  ) {
     return json.data as T;
   }
 
