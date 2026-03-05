@@ -10,7 +10,7 @@ Foodstream est une application mobile de **live streaming culinaire** permettant
 
 ### 1.1 Inscription (`/register`)
 
-```
+```text
 [Écran d'accueil]
        │
        ▼
@@ -26,6 +26,7 @@ Foodstream est une application mobile de **live streaming culinaire** permettant
 ```
 
 **Validations côté client :**
+
 - Email : format valide
 - Mot de passe : longueur, majuscule, chiffre, caractère spécial
 - Prénom / Nom : 2 caractères minimum
@@ -35,7 +36,7 @@ Foodstream est une application mobile de **live streaming culinaire** permettant
 
 ### 1.2 Connexion (`/login`)
 
-```
+```text
 [Écran de connexion]
   ├─ Email
   ├─ Mot de passe
@@ -50,7 +51,7 @@ Foodstream est une application mobile de **live streaming culinaire** permettant
 
 ### 1.3 Mot de passe oublié (`/forgot-password`)
 
-```
+```text
 [Saisie de l'email]
        │
        ▼
@@ -66,7 +67,7 @@ Foodstream est une application mobile de **live streaming culinaire** permettant
 Une fois connecté, l'utilisateur accède à 5 onglets :
 
 | Onglet | Écran | Description |
-|--------|-------|-------------|
+| ------ | ----- | ----------- |
 | 🏠 Home | `(tabs)/index` | Page d'accueil (placeholder) |
 | 🔍 Discover | `(tabs)/discover` | Découverte des lives et catégories |
 | ➕ Créer | `(tabs)/add` | Création / configuration d'un live |
@@ -79,7 +80,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 
 ### Objectif : regarder un live en cours
 
-```
+```text
 [Onglet Discover]
        │
        ├─ Catégories (Asiatique, Pâtisserie, BBQ…)
@@ -94,7 +95,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
          ┌─────────────────────────────┐
          │ 🔴 Nom du live              │
          │ 👥 2/5 streamers            │
-         │ 👁  42 spectateurs          │
+         │ 👁 42 spectateurs           │
          │                             │
          │ [▶ Regarder]  [📹 Rejoindre]│
          └─────────────────────────────┘
@@ -108,6 +109,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 ```
 
 **Flux réseau spectateur :**
+
 1. `GET /api/rooms` → liste des rooms
 2. `GET /api/hls/{roomId}/index.m3u8` → playlist HLS
 3. `GET /api/hls/{roomId}/index{N}.ts` → segments vidéo (polling)
@@ -118,7 +120,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 
 ### Objectif : créer et diffuser son propre live
 
-```
+```text
 [Onglet "Créer" — (tabs)/add]
   ├─ Titre du live
   ├─ Description
@@ -159,7 +161,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 
 ### Objectif : rejoindre un live existant en tant que participant
 
-```
+```text
 [Liste des rooms — /live-rooms]
        │
        │ Tap "📹 Rejoindre" (si places disponibles)
@@ -185,7 +187,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 
 ## 6. Parcours Profil & Paramètres
 
-```
+```text
 [Onglet Profil — (tabs)/profil]
        │
        └─ [Paramètres — /settings]
@@ -200,25 +202,25 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 
 ## 7. Schéma global des écrans
 
-```
-/login ──────────────────────────────────────────────────┐
-/register ────────────────────────────────────────────── │
-/forgot-password                                         │
-                                                         ▼
-                                              ┌──────────────────┐
-                                              │   (tabs)         │
-                                              │  ┌────────────┐  │
-                                              │  │   Home     │  │
-                                              │  │  Discover  │──┼──▶ /live-rooms ──▶ /live-viewer
-                                              │  │  Créer     │──┼──▶ /live-streaming (host)
-                                              │  │  Favoris   │  │
-                                              │  │  Profil    │──┼──▶ /settings
-                                              │  └────────────┘  │
-                                              └──────────────────┘
-                                                         │
-                                              /live-rooms (liste)
-                                                  ├──▶ /live-viewer       (spectateur HLS)
-                                                  └──▶ /live-streaming    (co-streamer WebRTC)
+```text
+/login ────────────────────────────────────┐
+/register ─────────────────────────────────│
+/forgot-password                           │
+                                           ▼
+                                ┌──────────────────┐
+                                │   (tabs)         │
+                                │  ┌────────────┐  │
+                                │  │   Home     │  │
+                                │  │  Discover  │──┼──▶ /live-rooms ──▶ /live-viewer
+                                │  │  Créer     │──┼──▶ /live-streaming (host)
+                                │  │  Favoris   │  │
+                                │  │  Profil    │──┼──▶ /settings
+                                │  └────────────┘  │
+                                └──────────────────┘
+                                           │
+                                /live-rooms (liste)
+                                    ├──▶ /live-viewer       (spectateur HLS)
+                                    └──▶ /live-streaming    (co-streamer WebRTC)
 ```
 
 ---
@@ -226,7 +228,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 ## 8. Cas d'erreur notables
 
 | Situation | Comportement |
-|-----------|-------------|
+| --------- | ------------ |
 | Room pleine (`maxParticipants` atteint) | Toast "room is full", bouton "Rejoindre" grisé |
 | Pas de réseau | Toast d'erreur, bouton "Réessayer" affiché |
 | Token JWT expiré | Redirection automatique vers `/login` |
@@ -238,7 +240,7 @@ Une fois connecté, l'utilisateur accède à 5 onglets :
 ## 9. Stack technique résumée
 
 | Couche | Technologie |
-|--------|------------|
+| ------ | ----------- |
 | Mobile | React Native (Expo) |
 | Web | Next.js |
 | Backend | Go (Gin) + PostgreSQL |

@@ -49,6 +49,29 @@ func removeLiveRoom(id string) {
 	delete(liveRooms, id)
 }
 
+// closePeerConnection safely removes senders and closes the underlying PeerConnection.
+// Extracted to reduce cognitive complexity in handlers.
+func closePeerConnection(pc PeerConnection) {
+	if pc.PeerCon == nil {
+		return
+	}
+	// If already closed, nothing to do
+	if pc.PeerCon.ConnectionState() == webrtc.PeerConnectionStateClosed {
+		return
+	}
+	for _, sender := range pc.PeerCon.GetSenders() {
+		if sender == nil {
+			continue
+		}
+		if sender.Track() != nil {
+			_ = pc.PeerCon.RemoveTrack(sender)
+		}
+	}
+	if err := pc.PeerCon.Close(); err != nil {
+		log.Printf("couldn't close connection tracker: %v", err)
+	}
+}
+
 // resolveCodec picks the best matching RTPCodecCapability for a peer connection.
 // Viewers are recvonly so their Sender has no codec params; we look at the
 // Receiver parameters instead. Returns the capability and the negotiated PT.
@@ -72,7 +95,6 @@ func resolveCodec(pc *webrtc.PeerConnection, mimeType string, fallback webrtc.RT
 			}
 		}
 	}
-	// Fallback: use just the MIME type; Pion will assign a fresh PT
 	return webrtc.RTPCodecCapability{MimeType: mimeType}, 0
 }
 
@@ -253,33 +275,37 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		roomId := c.Param("roomId")
 
 		mu.Lock()
-		defer mu.Unlock()
-
 		room, err := getLiveRoom(db, roomId)
 		if err != nil {
+			mu.Unlock()
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
 			return
 		}
 
-		if len(room.Connections) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "room not found or already empty"})
-			return
+		// Snapshot connections so we can close them outside the lock
+		conns := make([]PeerConnection, len(room.Connections))
+		copy(conns, room.Connections)
+
+		// Tear down room state
+		hls.StopStream(roomId)
+		room.Connections = nil
+		room.Tracks = nil
+		room.HostPeerCon = nil
+		room.HLSWriter = nil
+		removeLiveRoom(roomId)
+
+		if err := DeleteRoomById(db, roomId); err != nil {
+			log.Printf("HandleDisconnect: failed to delete room %s: %v", roomId, err)
+		} else {
+			log.Printf("HandleDisconnect: room %s deleted", roomId)
+		}
+		mu.Unlock()
+
+		// Close peer connections outside the lock
+		for _, pc := range conns {
+			closePeerConnection(pc)
 		}
 
-		for _, pc := range room.Connections {
-			if pc.PeerCon.ConnectionState() == webrtc.PeerConnectionStateClosed {
-				continue
-			}
-			for _, sender := range pc.PeerCon.GetSenders() {
-				if sender.Track() != nil {
-					_ = pc.PeerCon.RemoveTrack(sender)
-				}
-			}
-			err := pc.PeerCon.Close()
-			if err != nil {
-				log.Printf("couldn't close connection tracker: %v", err)
-			}
-		}
 		c.JSON(http.StatusOK, gin.H{"message": "disconnected successfully"})
 	}
 }
@@ -344,6 +370,340 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// HandleWebRTC helpers
+// ---------------------------------------------------------------------------
+
+// ensureParticipant checks if the user is already a participant; if not it
+// auto-adds them when there is room. Returns an HTTP error and false when the
+// caller should abort.
+func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
+	for _, p := range room.Participants {
+		if p == userID {
+			return true
+		}
+	}
+	if len(room.Participants) >= room.MaxParticipants {
+		c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
+		return false
+	}
+	room.Participants = append(room.Participants, userID)
+	if err := SaveRoom(db, room); err != nil {
+		log.Printf("failed to save participant: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join room"})
+		return false
+	}
+	return true
+}
+
+// newPeerConnection creates a fully configured webrtc.PeerConnection with
+// STUN, NAT traversal, port range and default codecs.
+func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error) {
+	se := webrtc.SettingEngine{}
+	if webrtcIP != "" {
+		se.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
+	}
+	se.SetEphemeralUDPPortRange(50000, 50100)
+
+	me := &webrtc.MediaEngine{}
+	if err := me.RegisterDefaultCodecs(); err != nil {
+		return nil, err
+	}
+
+	api := webrtc.NewAPI(
+		webrtc.WithSettingEngine(se),
+		webrtc.WithMediaEngine(me),
+	)
+	return api.NewPeerConnection(webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{{URLs: []string{stunURL}}},
+	})
+}
+
+// attachExistingTracks subscribes a new PeerConnection to every track that is
+// already being published in the room. Must be called with mu held.
+func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
+	for _, ti := range room.Tracks {
+		if ti.LocalTracks == nil {
+			ti.LocalTracks = make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP)
+		}
+		if ti.PeerPT == nil {
+			ti.PeerPT = make(map[*webrtc.PeerConnection]uint8)
+		}
+		cap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
+		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
+		if err != nil {
+			log.Printf("attachExistingTracks: create local track: %v", err)
+			continue
+		}
+		sender, err := pc.AddTrack(lt)
+		if err != nil {
+			log.Printf("attachExistingTracks: add track: %v", err)
+			continue
+		}
+		ti.LocalTracks[pc] = lt
+		ti.PeerPT[pc] = pt
+		ti.Senders = append(ti.Senders, sender)
+	}
+}
+
+// registerPeer adds the PeerConnection to the room, marks the host, and
+// returns any buffered ICE candidates that should be flushed later.
+// Must be called with mu held.
+func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) []webrtc.ICECandidateInit {
+	if room.HostPeerCon == nil && userID == room.Host {
+		room.HostPeerCon = pc
+	}
+	room.Connections = append(room.Connections, PeerConnection{PeerCon: pc})
+
+	pending := make([]webrtc.ICECandidateInit, len(room.PendingICE))
+	copy(pending, room.PendingICE)
+	room.PendingICE = nil
+	return pending
+}
+
+// buildCodecInfo converts a webrtc.RTPCodecParameters into an hls.CodecInfo.
+func buildCodecInfo(codec webrtc.RTPCodecParameters) *hls.CodecInfo {
+	ci := &hls.CodecInfo{
+		PayloadType: uint8(codec.PayloadType),
+		ClockRate:   codec.ClockRate,
+		Channels:    codec.Channels,
+		FmtpLine:    codec.SDPFmtpLine,
+	}
+	if i := strings.LastIndex(codec.MimeType, "/"); i >= 0 {
+		ci.CodecName = codec.MimeType[i+1:]
+	} else {
+		ci.CodecName = codec.MimeType
+	}
+	return ci
+}
+
+// hlsState holds per-handler state for lazy HLS initialisation inside OnTrack.
+type hlsState struct {
+	audio      *hls.CodecInfo
+	video      *hls.CodecInfo
+	trackCount int
+}
+
+// tryStartHLS starts the HLS pipeline once both audio and video tracks have
+// been received. Must be called with mu held.
+func (h *hlsState) tryStartHLS(room *Room, roomID string) {
+	if h.trackCount < 2 || room.HLSWriter != nil || hls.IsRunning(roomID) {
+		return
+	}
+	log.Println("starting HLS stream for room", roomID)
+	writer, _, err := hls.Start(roomID, h.audio, h.video)
+	if err != nil {
+		log.Printf("failed to start HLS: %v", err)
+		return
+	}
+	room.HLSWriter = writer
+}
+
+// broadcastTrackToPeers creates per-peer LocalTracks for a newly received
+// source track and registers them in the TrackInfo.
+// Must be called with mu held.
+func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConnection) {
+	for _, other := range room.Connections {
+		if other.PeerCon == sourcePc {
+			continue
+		}
+		cap, pt := resolveCodec(other.PeerCon, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
+		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
+		if err != nil {
+			log.Printf("broadcastTrackToPeers: create: %v", err)
+			continue
+		}
+		sender, err := other.PeerCon.AddTrack(lt)
+		if err != nil {
+			log.Printf("broadcastTrackToPeers: add: %v", err)
+			continue
+		}
+		ti.LocalTracks[other.PeerCon] = lt
+		ti.PeerPT[other.PeerCon] = pt
+		ti.Senders = append(ti.Senders, sender)
+	}
+}
+
+// peerTrack pairs a LocalTrack with the payload type to stamp on outgoing packets.
+type peerTrack struct {
+	lt *webrtc.TrackLocalStaticRTP
+	pt uint8
+}
+
+// startTrackRelay reads RTP packets from the source track and fans them out to
+// every subscribed peer (rewriting the PT) and to FFmpeg for HLS.
+func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room) {
+	buf := make([]byte, 4096)
+	var cachedWriter *hls.HLSWriter
+	var cachedPeers []peerTrack
+	pktCount := 0
+	isAudio := track.Kind() == webrtc.RTPCodecTypeAudio
+
+	for {
+		n, _, err := track.Read(buf)
+		if err != nil {
+			log.Println("track ended:", err)
+			return
+		}
+
+		var pkt rtp.Packet
+		if err := pkt.Unmarshal(buf[:n]); err != nil {
+			log.Printf("failed to unmarshal RTP: %v", err)
+			continue
+		}
+		origPT := pkt.PayloadType
+		pktCount++
+
+		// Refresh the peer snapshot every ~100 packets to reduce lock contention.
+		// Also refresh immediately on the first packet.
+		if pktCount%100 == 1 {
+			mu.Lock()
+			cachedPeers = make([]peerTrack, 0, len(ti.LocalTracks))
+			for pc, lt := range ti.LocalTracks {
+				pt := ti.PeerPT[pc]
+				if pt == 0 {
+					pt = origPT
+				}
+				cachedPeers = append(cachedPeers, peerTrack{lt, pt})
+			}
+			cachedWriter = room.HLSWriter
+			mu.Unlock()
+		}
+
+		// Fan-out with per-peer PT
+		for _, p := range cachedPeers {
+			pkt.PayloadType = p.pt
+			if err := p.lt.WriteRTP(&pkt); err != nil {
+				// peer track may have been removed — will be caught on next refresh
+			}
+		}
+		pkt.PayloadType = origPT
+
+		// Feed FFmpeg for HLS
+		if cachedWriter == nil {
+			continue
+		}
+		if isAudio && cachedWriter.AudioConn != nil {
+			_, _ = cachedWriter.AudioConn.Write(buf[:n])
+		} else if !isAudio && cachedWriter.VideoConn != nil {
+			_, _ = cachedWriter.VideoConn.Write(buf[:n])
+		}
+	}
+}
+
+// onPeerDisconnected cleans up room state when a peer leaves.
+// It is safe to call multiple times for the same PC (idempotent).
+func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerConnection) {
+	mu.Lock()
+
+	// Guard: if this PC is not in the connection list, it was already cleaned up.
+	found := false
+	updated := make([]PeerConnection, 0, len(room.Connections))
+	for _, c := range room.Connections {
+		if c.PeerCon == pc {
+			found = true
+		} else {
+			updated = append(updated, c)
+		}
+	}
+	if !found {
+		mu.Unlock()
+		return // already cleaned up by a previous state-change event
+	}
+
+	log.Printf("peer disconnected from room %s", roomID)
+	room.Connections = updated
+
+	// Clear the host pointer if this was the publisher
+	if room.HostPeerCon == pc {
+		room.HostPeerCon = nil
+	}
+
+	// Remove per-peer LocalTracks for the disconnecting peer
+	for _, ti := range room.Tracks {
+		if ti.LocalTracks != nil {
+			delete(ti.LocalTracks, pc)
+		}
+		if ti.PeerPT != nil {
+			delete(ti.PeerPT, pc)
+		}
+	}
+
+	empty := len(room.Connections) == 0
+	if empty {
+		hls.StopStream(roomID)
+		room.Tracks = nil
+		removeLiveRoom(roomID)
+		if err := DeleteRoomById(db, roomID); err != nil {
+			log.Printf("failed to delete room %s: %v", roomID, err)
+		} else {
+			log.Printf("room %s deleted (last peer left)", roomID)
+		}
+	}
+	mu.Unlock()
+
+	// Close the peer connection itself (outside the lock to avoid deadlocks).
+	// Ignore errors — the PC may already be closed.
+	if pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
+		for _, sender := range pc.GetSenders() {
+			if sender != nil {
+				_ = pc.RemoveTrack(sender)
+			}
+		}
+		_ = pc.Close()
+	}
+	log.Println("peerConnection closed and cleaned up")
+}
+
+// negotiateSDP performs the SDP offer/answer exchange and waits for ICE
+// gathering to complete. Returns false (and writes the HTTP error) on failure.
+func negotiateSDP(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.SessionDescription, pending []webrtc.ICECandidateInit) bool {
+	// Log ICE candidates for debugging
+	pc.OnICECandidate(func(cand *webrtc.ICECandidate) {
+		if cand != nil {
+			log.Printf("ICE candidate gathered: %s", cand.String())
+		}
+	})
+
+	if err := pc.SetRemoteDescription(offer); err != nil {
+		log.Printf("SetRemoteDescription: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set remote description"})
+		return false
+	}
+
+	// Flush buffered ICE candidates now that remote description is set
+	for _, p := range pending {
+		if err := pc.AddICECandidate(p); err != nil {
+			log.Printf("flush pending ICE: %v", err)
+		}
+	}
+
+	answer, err := pc.CreateAnswer(nil)
+	if err != nil {
+		log.Printf("CreateAnswer: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create answer"})
+		return false
+	}
+
+	gatherComplete := webrtc.GatheringCompletePromise(pc)
+	if err = pc.SetLocalDescription(answer); err != nil {
+		log.Printf("SetLocalDescription: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set local description"})
+		return false
+	}
+	<-gatherComplete
+
+	final := pc.LocalDescription()
+	log.Printf("Answer SDP type=%s length=%d", final.Type.String(), len(final.SDP))
+	log.Printf("Answer SDP:\n%s", final.SDP)
+	c.JSON(http.StatusOK, gin.H{"sdp": final.SDP})
+	return true
+}
+
+// ---------------------------------------------------------------------------
+// HandleWebRTC — main handler (orchestrates the helpers above)
+// ---------------------------------------------------------------------------
+
 // HandleWebRTC godoc
 // @Summary      Establish WebRTC connection
 // @Description  Create WebRTC peer connection for video streaming (participants only)
@@ -367,6 +727,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
+		// 1. Load room
 		mu.Lock()
 		room, err := getLiveRoom(db, roomID)
 		mu.Unlock()
@@ -375,382 +736,89 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
-		currentUserId := utils.GetContextString(c, "userId")
-		isParticipant := false
-		for _, p := range room.Participants {
-			if p == currentUserId {
-				isParticipant = true
-				break
-			}
+		// 2. Ensure current user is a participant
+		userID := utils.GetContextString(c, "userId")
+		if !ensureParticipant(c, db, room, userID) {
+			return
 		}
 
-		if !isParticipant {
-			// Auto-add the user as participant if there is room
-			if len(room.Participants) >= room.MaxParticipants {
-				c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
-				return
-			}
-			room.Participants = append(room.Participants, currentUserId)
-			if err := SaveRoom(db, room); err != nil {
-				log.Printf("failed to save participant: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join room"})
-				return
-			}
-		}
-
+		// 3. Parse SDP offer
 		var offer webrtc.SessionDescription
 		if err := c.ShouldBindJSON(&offer); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		config := webrtc.Configuration{
-			ICEServers: []webrtc.ICEServer{{URLs: []string{STUNServerURL}}},
-		}
-
-		// Configure ICE for Docker NAT traversal
-		settingEngine := webrtc.SettingEngine{}
-		if webrtcIP != "" {
-			settingEngine.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
-		}
-		settingEngine.SetEphemeralUDPPortRange(50000, 50100)
-
-		// Register default codecs so Pion can accept audio/video media sections
-		mediaEngine := &webrtc.MediaEngine{}
-		if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
-			log.Printf("failed to register default codecs: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register codecs"})
-			return
-		}
-
-		api := webrtc.NewAPI(
-			webrtc.WithSettingEngine(settingEngine),
-			webrtc.WithMediaEngine(mediaEngine),
-		)
-		peerConnection, err := api.NewPeerConnection(config)
+		// 4. Create PeerConnection
+		pc, err := newPeerConnection(STUNServerURL, webrtcIP)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
+		// 5. Subscribe new peer to existing tracks & register in room
 		mu.Lock()
-
-		for _, trackInfo := range room.Tracks {
-			if trackInfo.LocalTracks == nil {
-				trackInfo.LocalTracks = make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP)
-			}
-			if trackInfo.PeerPT == nil {
-				trackInfo.PeerPT = make(map[*webrtc.PeerConnection]uint8)
-			}
-			negotiatedCap, negotiatedPT := resolveCodec(peerConnection, trackInfo.Track.Codec().MimeType, trackInfo.Track.Codec().RTPCodecCapability)
-			lt, err := webrtc.NewTrackLocalStaticRTP(
-				negotiatedCap,
-				trackInfo.Track.ID()+"-"+uuid.New().String(),
-				trackInfo.Track.StreamID())
-			if err != nil {
-				log.Printf("error creating local track for new peer: %v", err)
-				continue
-			}
-			sender, err := peerConnection.AddTrack(lt)
-			if err != nil {
-				log.Printf("error adding track to new peer: %v", err)
-				continue
-			}
-			trackInfo.LocalTracks[peerConnection] = lt
-			trackInfo.PeerPT[peerConnection] = negotiatedPT
-			trackInfo.Senders = append(trackInfo.Senders, sender)
-		}
-
-		// First connection from the room host → mark as publisher
-		if room.HostPeerCon == nil && currentUserId == room.Host {
-			room.HostPeerCon = peerConnection
-		}
-
-		room.Connections = append(room.Connections, PeerConnection{PeerCon: peerConnection})
-
-		// Save pending ICE candidates to flush after SetRemoteDescription
-		pendingCandidates := make([]webrtc.ICECandidateInit, len(room.PendingICE))
-		copy(pendingCandidates, room.PendingICE)
-		room.PendingICE = nil
-
+		attachExistingTracks(pc, room)
+		pending := registerPeer(pc, room, userID)
 		mu.Unlock()
 
-		// Collect codec info from both tracks before starting HLS.
-		var (
-			audioCodec *hls.CodecInfo
-			videoCodec *hls.CodecInfo
-			trackCount int
-		)
+		// 6. OnTrack — handle incoming media from the publisher
+		hlsCtx := &hlsState{}
+		peerConnection := pc // capture for closures
 
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 			log.Printf("track received: %s codec=%s PT=%d (StreamID: %s)",
-				track.Kind().String(),
-				track.Codec().MimeType,
-				track.Codec().PayloadType,
-				track.StreamID())
+				track.Kind().String(), track.Codec().MimeType,
+				track.Codec().PayloadType, track.StreamID())
 
-			// Only relay + feed HLS from the host/publisher peer.
-			// Viewer peers may send media (e.g. browser with camera on) but we ignore it.
+			// Ignore tracks from non-host peers (e.g. viewer cameras)
 			mu.Lock()
-			isHostTrack := room.HostPeerCon == peerConnection
+			isHost := room.HostPeerCon == peerConnection
 			mu.Unlock()
-			if !isHostTrack {
+			if !isHost {
 				log.Printf("ignoring track from non-host peer (viewer media)")
 				return
 			}
 
-			codec := track.Codec()
-			ci := &hls.CodecInfo{
-				PayloadType: uint8(codec.PayloadType),
-				ClockRate:   codec.ClockRate,
-				Channels:    codec.Channels,
-				FmtpLine:    codec.SDPFmtpLine,
-			}
-			// Extract short codec name from MimeType (e.g. "video/VP8" → "VP8")
-			if idx := len(codec.MimeType) - 1; idx >= 0 {
-				for i := idx; i >= 0; i-- {
-					if codec.MimeType[i] == '/' {
-						ci.CodecName = codec.MimeType[i+1:]
-						break
-					}
-				}
-				if ci.CodecName == "" {
-					ci.CodecName = codec.MimeType
-				}
-			}
-
+			// Register codec for HLS
+			ci := buildCodecInfo(track.Codec())
 			mu.Lock()
 			if track.Kind() == webrtc.RTPCodecTypeAudio {
-				audioCodec = ci
-			} else if track.Kind() == webrtc.RTPCodecTypeVideo {
-				videoCodec = ci
+				hlsCtx.audio = ci
+			} else {
+				hlsCtx.video = ci
 			}
-			trackCount++
-
-			// Start HLS once we have both tracks
-			if trackCount >= 2 && room.HLSWriter == nil && !hls.IsRunning(roomID) {
-				log.Println("starting HLS stream for room", roomID)
-				writer, _, err := hls.Start(roomID, audioCodec, videoCodec)
-				if err != nil {
-					log.Printf("failed to start HLS: %v", err)
-				} else {
-					room.HLSWriter = writer
-				}
-			}
+			hlsCtx.trackCount++
+			hlsCtx.tryStartHLS(room, roomID)
 			mu.Unlock()
 
-			// Create one LocalTrack per existing peer so the codec is negotiated per-peer.
-			// The map is populated below and stays in sync as new peers join.
-			trackInfo := &TrackInfo{
+			// Create TrackInfo and fan out to all existing peers
+			ti := &TrackInfo{
 				LocalTracks: make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP),
 				PeerPT:      make(map[*webrtc.PeerConnection]uint8),
 				Senders:     []*webrtc.RTPSender{},
 				Track:       track,
 			}
-
 			mu.Lock()
-			room.Tracks = append(room.Tracks, trackInfo)
-
-			for _, otherPC := range room.Connections {
-				if otherPC.PeerCon == peerConnection {
-					continue
-				}
-				// Pick the first matching codec this peer supports
-				negotiatedCap, negotiatedPT := resolveCodec(otherPC.PeerCon, track.Codec().MimeType, track.Codec().RTPCodecCapability)
-				lt, err := webrtc.NewTrackLocalStaticRTP(
-					negotiatedCap,
-					track.ID()+"-"+uuid.New().String(),
-					track.StreamID())
-				if err != nil {
-					log.Printf("error creating local track for peer: %v", err)
-					continue
-				}
-				sender, err := otherPC.PeerCon.AddTrack(lt)
-				if err != nil {
-					log.Printf("error adding track to peer: %v", err)
-					continue
-				}
-				trackInfo.LocalTracks[otherPC.PeerCon] = lt
-				trackInfo.PeerPT[otherPC.PeerCon] = negotiatedPT
-				trackInfo.Senders = append(trackInfo.Senders, sender)
-			}
+			room.Tracks = append(room.Tracks, ti)
+			broadcastTrackToPeers(ti, room, peerConnection)
 			mu.Unlock()
 
-			go func() {
-				buf := make([]byte, 1500)
-				var cachedWriter *hls.HLSWriter
-				for {
-					n, _, err := track.Read(buf)
-					if err != nil {
-						log.Println("track ended:", err)
-						break
-					}
-
-					// Parse the RTP packet so we can rewrite PT per destination peer
-					var pkt rtp.Packet
-					if err := pkt.Unmarshal(buf[:n]); err != nil {
-						log.Printf("failed to unmarshal RTP packet: %v", err)
-						continue
-					}
-					origPT := pkt.PayloadType
-
-					// → relay to each peer via its own LocalTrack with the correct PT
-					mu.Lock()
-					type peerTrack struct {
-						lt *webrtc.TrackLocalStaticRTP
-						pt uint8
-					}
-					peers := make([]peerTrack, 0, len(trackInfo.LocalTracks))
-					for pc, lt := range trackInfo.LocalTracks {
-						pt := trackInfo.PeerPT[pc]
-						if pt == 0 {
-							pt = origPT // fallback: keep source PT
-						}
-						peers = append(peers, peerTrack{lt, pt})
-					}
-					mu.Unlock()
-
-					for _, p := range peers {
-						pkt.PayloadType = p.pt
-						if err := p.lt.WriteRTP(&pkt); err != nil {
-							log.Printf("failed to write RTP to peer track: %v", err)
-						}
-					}
-					// Restore original PT for next iteration
-					pkt.PayloadType = origPT
-
-					// → relay to FFmpeg via UDP for HLS
-					if cachedWriter == nil {
-						mu.Lock()
-						cachedWriter = room.HLSWriter
-						mu.Unlock()
-						if cachedWriter == nil {
-							continue
-						}
-					}
-					if cachedWriter != nil {
-						if track.Kind() == webrtc.RTPCodecTypeAudio && cachedWriter.AudioConn != nil {
-							_, _ = cachedWriter.AudioConn.Write(buf[:n])
-						} else if track.Kind() == webrtc.RTPCodecTypeVideo && cachedWriter.VideoConn != nil {
-							_, _ = cachedWriter.VideoConn.Write(buf[:n])
-						}
-					}
-				}
-			}()
+			// Start the relay goroutine
+			go startTrackRelay(track, ti, room)
 		})
 
+		// 7. OnConnectionStateChange — cleanup on disconnect
 		peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 			log.Printf("connection state has changed: %s", state.String())
-
 			if state == webrtc.PeerConnectionStateDisconnected ||
 				state == webrtc.PeerConnectionStateFailed ||
 				state == webrtc.PeerConnectionStateClosed {
-
-				log.Printf("peer disconnected from room %s", roomID)
-
-				mu.Lock()
-				// TODO: to check
-				/*
-					if !exists {
-						log.Printf("room %s does not exist or has already been deleted", roomID)
-						mu.Unlock()
-						return
-					}*/
-				var updatedConnections []PeerConnection
-				for _, pc := range room.Connections {
-					if pc.PeerCon != peerConnection {
-						updatedConnections = append(updatedConnections, pc)
-					}
-				}
-				room.Connections = updatedConnections
-
-				var updatedTracks []*TrackInfo
-				for _, trackInfo := range room.Tracks {
-					// If this track was sourced from the disconnecting peer, drop it entirely
-					if trackInfo.Track != nil && trackInfo.Track.StreamID() == peerConnection.LocalDescription().SDP {
-						continue
-					}
-					// Remove per-peer LocalTrack for the disconnecting peer
-					if trackInfo.LocalTracks != nil {
-						delete(trackInfo.LocalTracks, peerConnection)
-					}
-					updatedTracks = append(updatedTracks, trackInfo)
-				}
-				room.Tracks = updatedTracks
-
-				if len(room.Connections) == 0 {
-					hls.StopStream(roomID)
-					removeLiveRoom(roomID)
-					err := DeleteRoomById(db, roomID)
-					if err != nil {
-						log.Printf("failed to delete room: %v", err)
-					}
-				}
-				mu.Unlock()
-
-				for _, sender := range peerConnection.GetSenders() {
-					if sender != nil {
-						if err := peerConnection.RemoveTrack(sender); err != nil {
-							log.Printf("failed to remove track: %v", err)
-						}
-					}
-				}
-
-				err := peerConnection.Close()
-				if err != nil {
-					log.Printf("failed to close peer: %v", err)
-				}
-				log.Println("peerConnection closed and cleaned up")
+				onPeerDisconnected(db, room, roomID, peerConnection)
 			}
 		})
 
-		// Log ICE candidates for debugging
-		peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-			if candidate != nil {
-				log.Printf("ICE candidate gathered: %s", candidate.String())
-			}
-		})
-
-		if err = peerConnection.SetRemoteDescription(offer); err != nil {
-			log.Printf("Failed to set remote description: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set remote description"})
-			return
-		}
-
-		// Now that remote description is set, flush buffered ICE candidates
-		if len(pendingCandidates) > 0 {
-			log.Printf("flushing %d pending ICE candidates", len(pendingCandidates))
-			for _, pending := range pendingCandidates {
-				if err := peerConnection.AddICECandidate(pending); err != nil {
-					log.Printf("failed to add pending ICE candidate: %v", err)
-				}
-			}
-		}
-
-		answer, err := peerConnection.CreateAnswer(nil)
-		if err != nil {
-			log.Printf("Failed to create answer: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create answer"})
-			return
-		}
-
-		// Create a channel that signals when ICE gathering is complete
-		gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
-
-		if err = peerConnection.SetLocalDescription(answer); err != nil {
-			log.Printf("Failed to set local description: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set local description"})
-			return
-		}
-
-		// Wait for ICE gathering to finish so candidates are embedded in the SDP
-		<-gatherComplete
-		log.Printf("ICE gathering complete")
-
-		// Return the full local description (with ICE candidates embedded)
-		finalDesc := peerConnection.LocalDescription()
-		log.Printf("Answer SDP type=%s length=%d", finalDesc.Type.String(), len(finalDesc.SDP))
-		log.Printf("Answer SDP:\n%s", finalDesc.SDP)
-		c.JSON(http.StatusOK, gin.H{"sdp": finalDesc.SDP})
+		// 8. SDP negotiation & respond
+		negotiateSDP(c, peerConnection, offer, pending)
 	}
 }

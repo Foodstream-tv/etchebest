@@ -102,13 +102,13 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 	}
 	log.Printf("[HLS] SDP written to %s:\n%s", sdpPath, sdpContent)
 
-	// ---- launch FFmpeg (it will bind the UDP ports from the SDP) ----
-	cmd := exec.Command(
-		"ffmpeg",
+	// ---- build FFmpeg args dynamically based on codecs ----
+	args := []string{
 		"-loglevel", "warning",
-		"-fflags", "+genpts",
-		"-analyzeduration", "10000000", // 10 seconds – give FFmpeg time to detect VP8 frame size
-		"-probesize", "5000000", // 5 MB probe
+		"-fflags", "+genpts+discardcorrupt",
+		"-max_delay", "5000000", // 5s max reorder buffer for RTP jitter
+		"-analyzeduration", "10000000",
+		"-probesize", "5000000",
 		"-protocol_whitelist", "file,udp,rtp",
 		"-i", sdpPath,
 		// audio → aac
@@ -116,23 +116,41 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 		"-b:a", "128k",
 		"-ar", "48000",
 		"-ac", "2",
-		// video → h264
-		"-c:v", "libx264",
-		"-preset", "ultrafast",
-		"-tune", "zerolatency",
-		"-g", "30",
-		"-sc_threshold", "0",
-		"-b:v", "1500k",
-		"-maxrate", "1500k",
-		"-bufsize", "3000k",
-		"-pix_fmt", "yuv420p",
-		// HLS output
+	}
+
+	// If the source is already H264, just copy (no re-encode → much less CPU).
+	// For VP8/VP9/AV1 we need to transcode to H264 for HLS compatibility.
+	if video != nil && (video.CodecName == "H264" || video.CodecName == "h264") {
+		args = append(args,
+			"-c:v", "copy",
+			"-bsf:v", "h264_mp4toannexb",
+		)
+		log.Println("[HLS] video codec is H264, using copy mode (no re-encode)")
+	} else {
+		args = append(args,
+			"-c:v", "libx264",
+			"-preset", "ultrafast",
+			"-tune", "zerolatency",
+			"-g", "30",
+			"-sc_threshold", "0",
+			"-b:v", "1500k",
+			"-maxrate", "1500k",
+			"-bufsize", "3000k",
+			"-pix_fmt", "yuv420p",
+		)
+		log.Printf("[HLS] video codec is %s, transcoding to H264", video.CodecName)
+	}
+
+	args = append(args,
 		"-f", "hls",
 		"-hls_time", "2",
 		"-hls_list_size", "5",
 		"-hls_flags", "delete_segments",
 		filepath.Join(hlsDir, "index.m3u8"),
 	)
+
+	// ---- launch FFmpeg ----
+	cmd := exec.Command("ffmpeg", args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
