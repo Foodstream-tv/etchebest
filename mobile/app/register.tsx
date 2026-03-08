@@ -3,10 +3,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import ToastManager, { Toast } from 'toastify-react-native';
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import apiService from '../services/api';
-import { toast } from '../utils/toast';
 import { validateEmail, validateLengthRange, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
 
 // Common country codes for phone registration
@@ -62,11 +60,15 @@ export default function RegisterScreen() {
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState<FocusedField>(null);
     const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
+    const [socialMessage, setSocialMessage] = useState<string | null>(null);
+    const [apiError, setApiError] = useState<string | null>(null);
 
     const router = useRouter();
 
-    const clearError = useCallback((field: keyof FieldErrors) =>
-        setErrors(prev => ({ ...prev, [field]: null })), []);
+    const clearError = useCallback((field: keyof FieldErrors) => {
+        setErrors(prev => ({ ...prev, [field]: null }));
+        setApiError(null);
+    }, []);
 
     const handleRegister = useCallback(async () => {
         const validations: FieldErrors = {
@@ -96,11 +98,11 @@ export default function RegisterScreen() {
                 numberPhone: phoneNumber,
                 profileImage: '',
             });
-            toast.success('Inscription réussie !');
+            // We don't need a success toast since we redirect immediately
             router.replace('/login');
         } catch (error) {
             console.error('Registration error:', error instanceof Error ? error.message : 'Unknown error');
-            toast.error(error instanceof Error ? error.message : 'Erreur d\'inscription');
+            setApiError(error instanceof Error ? error.message : 'Une erreur inattendue est survenue.');
         } finally {
             setLoading(false);
         }
@@ -110,11 +112,30 @@ export default function RegisterScreen() {
         <>
             <View style={styles.background}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.headerImageContainer}>
+                        <Image
+                            source={require('@/assets/images/food-iphone.jpg')}
+                            style={styles.headerImage}
+                            resizeMode="cover"
+                        />
+                        <LinearGradient
+                            colors={['transparent', '#F5F5F7']}
+                            style={styles.headerImageGradient}
+                        />
+                        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                            <Ionicons name="arrow-back" size={24} color="#000" />
+                        </TouchableOpacity>
+                    </View>
                     <View style={styles.card}>
-                        <Text style={styles.heading}>Inscription</Text>
+                        <Text style={styles.subHeading}>Inscription</Text>
+                        <Text style={styles.welcomeText}>Créez votre compte pour commencer !</Text>
                         <View style={styles.formSection}>
-                            <Text style={styles.subHeading}>Bienvenue</Text>
-
+                            {!!apiError && (
+                                <View style={styles.apiErrorContainer}>
+                                    <Ionicons name="warning" size={20} color="#D00000" />
+                                    <Text style={styles.apiErrorText}>{apiError}</Text>
+                                </View>
+                            )}
                             <FloatingLabelInput
                                 label="Adresse e-mail"
                                 iconName="mail-outline"
@@ -242,14 +263,7 @@ export default function RegisterScreen() {
                             <View style={styles.socialIconsRow}>
                                 <TouchableOpacity
                                     style={styles.socialIconButton}
-                                    onPress={() => {
-                                        Toast.show({
-                                            text1: 'Tentative d\'inscription avec Google',
-                                            position: 'bottom',
-                                            icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
-                                            iconColor: '#4285F4',
-                                        });
-                                    }}
+                                    onPress={() => setSocialMessage('L\'inscription avec Google n\'est pas encore disponible')}
                                 >
                                     <Image
                                         source={require('@/assets/images/google_logo.png')}
@@ -259,18 +273,21 @@ export default function RegisterScreen() {
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.socialIconButton}
-                                    onPress={() => {
-                                        Toast.show({
-                                            text1: 'Tentative d\'inscription avec Apple',
-                                            position: 'bottom',
-                                            icon: <Ionicons name="logo-apple" size={24} color="#000" />,
-                                            iconColor: '#000',
-                                        });
-                                    }}
+                                    onPress={() => setSocialMessage('L\'inscription avec Apple n\'est pas encore disponible')}
                                 >
-                                    <Ionicons name="logo-apple" size={26} color="#000" />
+                                    <Ionicons name="logo-apple" size={30} color="#000" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={() => setSocialMessage('L\'inscription avec Facebook n\'est pas encore disponible')}
+                                >
+                                    <Ionicons name="logo-facebook" size={30} color="#1877F2" />
                                 </TouchableOpacity>
                             </View>
+
+                            {!!socialMessage && (
+                                <Text style={styles.socialErrorText}>{socialMessage}</Text>
+                            )}
                         </View>
                     </View>
                 </ScrollView>
@@ -294,10 +311,10 @@ export default function RegisterScreen() {
                         <ScrollView style={styles.countryList}>
                             {COUNTRY_CODES.map((country) => (
                                 <TouchableOpacity
-                                    key={country.code}
+                                    key={country.country}
                                     style={[
                                         styles.countryItem,
-                                        countryCode.code === country.code && styles.countryItemSelected
+                                        countryCode.country === country.country && styles.countryItemSelected
                                     ]}
                                     onPress={() => {
                                         setCountryCode(country);
@@ -309,7 +326,7 @@ export default function RegisterScreen() {
                                         <Text style={styles.countryName}>{country.country}</Text>
                                         <Text style={styles.countryCodeLabel}>{country.code}</Text>
                                     </View>
-                                    {countryCode.code === country.code && (
+                                    {countryCode.country === country.country && (
                                         <Ionicons name="checkmark-outline" size={24} color="#FF8A00" />
                                     )}
                                 </TouchableOpacity>
@@ -318,8 +335,6 @@ export default function RegisterScreen() {
                     </View>
                 </View>
             </Modal>
-
-            <ToastManager />
         </>
     );
 }
@@ -327,18 +342,56 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: '#fdfdfc',
+        backgroundColor: '#F5F5F7',
     },
     scrollContent: {
         flexGrow: 1,
-        padding: 16,
+        paddingBottom: 40,
+    },
+    headerImageContainer: {
+        width: '100%',
+        height: 280,
+        position: 'relative',
+    },
+    headerImage: {
+        width: '100%',
+        height: '100%',
+    },
+    headerImageGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 100,
+    },
+    backButton: {
+        position: 'absolute',
+        top: 60,
+        left: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
     },
     card: {
+        marginTop: -60,
+        marginHorizontal: 16,
         borderRadius: 32,
         paddingVertical: 48,
-        paddingHorizontal: 16,
+        paddingHorizontal: 24,
         backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 8,
     },
     heading: {
         fontSize: 28,
@@ -346,15 +399,35 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#111',
     },
-    formSection: {
-        marginTop: 80,
-    },
     subHeading: {
-        fontSize: 26,
-        fontWeight: '700',
+        fontSize: 32,
+        fontWeight: '800',
         color: '#111',
-        marginBottom: 28,
+        marginBottom: 8,
         textAlign: 'center',
+    },
+    welcomeText: {
+        fontSize: 15,
+        color: '#666',
+        textAlign: 'center',
+    },
+    formSection: {
+        marginTop: 32,
+    },
+    apiErrorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFE5E5',
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 20,
+    },
+    apiErrorText: {
+        color: '#D00000',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 8,
+        flex: 1,
     },
     dateRow: {
         flexDirection: 'row',
@@ -429,6 +502,14 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
     },
+    socialErrorText: {
+        color: '#D00000',
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: -12,
+        marginBottom: 24,
+        fontWeight: '500',
+    },
     countryCodeButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -451,7 +532,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        maxHeight: '80%',
+        height: '60%',
         paddingBottom: 20,
     },
     modalHeader: {
@@ -468,7 +549,7 @@ const styles = StyleSheet.create({
         color: '#111',
     },
     countryList: {
-        flex: 1,
+        width: '100%',
     },
     countryItem: {
         flexDirection: 'row',

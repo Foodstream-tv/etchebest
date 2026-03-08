@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ImageBackground,
   RefreshControl,
@@ -13,9 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import ToastManager from 'toastify-react-native';
 import apiService, { DiscoverData } from '../../services/api';
-import { toast } from '../../utils/toast';
 
 export default function DiscoverScreen(): React.JSX.Element {
   const [data, setData] = useState<DiscoverData | null>(null);
@@ -29,7 +28,7 @@ export default function DiscoverScreen(): React.JSX.Element {
       setData(result);
     } catch (error) {
       console.error('Discover load error:', error);
-      toast.error('Impossible de charger les données');
+      Alert.alert('Erreur', 'Impossible de charger les données');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -162,7 +161,7 @@ export default function DiscoverScreen(): React.JSX.Element {
       </View>
       
       <View style={{ height: 100 }} /> 
-      <ToastManager />
+      <View style={{ height: 100 }} /> 
     </ScrollView>
   );
 }

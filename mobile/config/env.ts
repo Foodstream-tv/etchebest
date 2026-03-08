@@ -1,6 +1,6 @@
 export const config = {
   // API
-  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:8081/api',
+  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.0.155:8081/api',
   apiTimeout: Number.parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT || '10000', 10),
 
   // Auth storage keys

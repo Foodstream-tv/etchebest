@@ -3,22 +3,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import ToastManager, { Toast } from 'toastify-react-native';
 import FloatingLabelInput from '../components/FloatingLabelInput';
-import SocialButton from '../components/SocialButton';
 import apiService from '../services/api';
 import { authService } from '../services/auth';
-import { toast } from '../utils/toast';
 import { validateEmail, validatePassword } from '../utils/validation';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
+    const [rememberMe, setRememberMe] = useState(false);
     const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
     const [loading, setLoading] = useState(false);
     const [emailError, setEmailError] = useState<string | null>(null);
     const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [socialMessage, setSocialMessage] = useState<string | null>(null);
+    const [apiError, setApiError] = useState<string | null>(null);
 
     const router = useRouter();
 
@@ -28,6 +28,7 @@ export default function LoginScreen() {
 
         setEmailError(emailValidation.isValid ? null : (emailValidation.error ?? 'Email invalide'));
         setPasswordError(passwordValidation.isValid ? null : (passwordValidation.error ?? 'Mot de passe invalide'));
+        setApiError(null);
 
         if (!emailValidation.isValid || !passwordValidation.isValid) {
             return;
@@ -53,32 +54,26 @@ export default function LoginScreen() {
                 // Non-critical: basic auth data is already saved
             }
 
-            toast.success('Connexion réussie !');
+            // Instead of toast.success, we just route since login completes the auth flow
             router.replace('/');
         } catch (error) {
             console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
-            toast.error(error instanceof Error ? error.message : 'Erreur de connexion');
+            setApiError(error instanceof Error ? error.message : 'Désolé, une erreur inattendue est survenue.');
         } finally {
             setLoading(false);
         }
     }, [email, password, router]);
 
     const handleGoogleLogin = useCallback(() => {
-        Toast.show({
-            text1: 'Tentative de connexion avec Google',
-            position: 'bottom',
-            icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
-            iconColor: '#4285F4',
-        });
+        setSocialMessage('La connexion avec Google n\'est pas encore disponible');
     }, []);
 
     const handleAppleLogin = useCallback(() => {
-        Toast.show({
-            text1: 'Tentative de connexion avec Apple',
-            position: 'bottom',
-            icon: <Ionicons name="logo-apple" size={24} color="#000" />,
-            iconColor: '#000',
-        });
+        setSocialMessage('La connexion avec Apple n\'est pas encore disponible');
+    }, []);
+
+    const handleFacebookLogin = useCallback(() => {
+        setSocialMessage('La connexion avec Facebook n\'est pas encore disponible');
     }, []);
 
     const handleTogglePassword = useCallback(() => setObscurePassword(v => !v), []);
@@ -96,13 +91,29 @@ export default function LoginScreen() {
     ), [obscurePassword, handleTogglePassword]);
 
     return (
-        <>
-            <View style={styles.background}>
+        <View style={styles.background}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.headerImageContainer}>
+                        <Image
+                            source={require('@/assets/images/food-iphone.jpg')}
+                            style={styles.headerImage}
+                            resizeMode="cover"
+                        />
+                        <LinearGradient
+                            colors={['transparent', '#F5F5F7']}
+                            style={styles.headerImageGradient}
+                        />
+                    </View>
                     <View style={styles.card}>
-                        <Text style={styles.heading}>Connexion</Text>
+                        <Text style={styles.subHeading}>Connexion</Text>
+                        <Text style={styles.welcomeText}>Bon retour, content de vous revoir !</Text>
                         <View style={styles.formSection}>
-                            <Text style={styles.subHeading}>Bonjour,</Text>
+                            {!!apiError && (
+                                <View style={styles.apiErrorContainer}>
+                                    <Ionicons name="warning" size={20} color="#D00000" />
+                                    <Text style={styles.apiErrorText}>{apiError}</Text>
+                                </View>
+                            )}
                             <FloatingLabelInput
                                 label="Adresse e-mail"
                                 iconName="mail-outline"
@@ -127,6 +138,19 @@ export default function LoginScreen() {
                                 trailingIcon={passwordTrailingIcon}
                                 error={passwordError}
                             />
+                            
+                            <View style={styles.optionsRow}>
+                                <TouchableOpacity style={styles.rememberMeContainer} onPress={() => setRememberMe(!rememberMe)}>
+                                    <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                                        {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
+                                    </View>
+                                    <Text style={styles.rememberMeText}>Se souvenir de moi</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleForgotPassword}>
+                                    <Text style={styles.linkText}>Mot de passe oublié ?</Text>
+                                </TouchableOpacity>
+                            </View>
+
                             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
                                 <LinearGradient
                                     colors={['#FFA92E', '#FF5D1E']}
@@ -146,25 +170,39 @@ export default function LoginScreen() {
                                 <Text style={styles.dividerLabel}>Ou</Text>
                                 <View style={styles.line} />
                             </View>
-                            <SocialButton
-                                label="Continuer avec Google"
-                                onPress={handleGoogleLogin}
-                                icon={
+
+                            <View style={styles.socialIconsRow}>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={handleGoogleLogin}
+                                    testID="google-login-button"
+                                >
                                     <Image
                                         source={require('@/assets/images/google_logo.png')}
-                                        style={styles.googleIcon}
+                                        style={styles.socialIcon}
                                         resizeMode="contain"
                                     />
-                                }
-                            />
-                            <SocialButton
-                                label="Continuer avec Apple"
-                                onPress={handleAppleLogin}
-                                icon={<Ionicons name="logo-apple" size={22} color="#000" />}
-                            />
-                            <TouchableOpacity onPress={handleForgotPassword}>
-                                <Text style={styles.linkText}>Mot de passe oublié ?</Text>
-                            </TouchableOpacity>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={handleAppleLogin}
+                                    testID="apple-login-button"
+                                >
+                                    <Ionicons name="logo-apple" size={30} color="#000" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={handleFacebookLogin}
+                                    testID="facebook-login-button"
+                                >
+                                    <Ionicons name="logo-facebook" size={30} color="#1877F2" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {!!socialMessage && (
+                                <Text style={styles.socialErrorText}>{socialMessage}</Text>
+                            )}
+
                             <View style={styles.footerLinks}>
                                 <Text style={styles.footerText}>Vous n&apos;avez pas de compte ?&nbsp;</Text>
                                 <TouchableOpacity onPress={handleRegister}>
@@ -175,26 +213,46 @@ export default function LoginScreen() {
                     </View>
                 </ScrollView>
             </View>
-            <ToastManager />
-        </>
     );
 }
 
 const styles = StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: '#fdfdfc',
+        backgroundColor: '#F5F5F7',
     },
     scrollContent: {
         flexGrow: 1,
-        padding: 16,
-        justifyContent: 'center',
+        paddingBottom: 40,
+    },
+    headerImageContainer: {
+        width: '100%',
+        height: 280,
+        position: 'relative',
+    },
+    headerImage: {
+        width: '100%',
+        height: '100%',
+    },
+    headerImageGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 100,
     },
     card: {
+        marginTop: -60,
+        marginHorizontal: 16,
         borderRadius: 32,
         paddingVertical: 48,
-        paddingHorizontal: 16,
+        paddingHorizontal: 24,
         backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 8,
     },
     heading: {
         fontSize: 28,
@@ -202,23 +260,70 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#111',
     },
-    formSection: {
-        marginTop: 80,
-    },
     subHeading: {
-        fontSize: 26,
-        fontWeight: '700',
+        fontSize: 32,
+        fontWeight: '800',
         color: '#111',
-        marginBottom: 28,
+        marginBottom: 8,
         textAlign: 'center',
+    },
+    welcomeText: {
+        fontSize: 15,
+        color: '#666',
+        textAlign: 'center',
+    },
+    formSection: {
+        marginTop: 32,
+    },
+    apiErrorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFE5E5',
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 20,
+    },
+    apiErrorText: {
+        color: '#D00000',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 8,
+        flex: 1,
+    },
+    optionsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 28,
+        paddingHorizontal: 4,
+    },
+    rememberMeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#bcbcbc',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    checkboxActive: {
+        backgroundColor: '#FF5D1E',
+        borderColor: '#FF5D1E',
+    },
+    rememberMeText: {
+        fontSize: 14,
+        color: '#000',
     },
     linkText: {
         textDecorationLine: 'underline',
-        textAlign: 'center',
         color: '#000',
         fontWeight: '600',
-        marginTop: 4,
-        marginBottom: 28,
+        fontSize: 14,
     },
     primaryButton: {
         borderRadius: 16,
@@ -252,9 +357,33 @@ const styles = StyleSheet.create({
         color: '#000',
         fontWeight: '600',
     },
-    googleIcon: {
-        width: 22,
-        height: 22,
+    socialIconsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 16,
+        marginBottom: 24,
+    },
+    socialIconButton: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#e8e8e8',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    socialIcon: {
+        width: 24,
+        height: 24,
+    },
+    socialErrorText: {
+        color: '#D00000',
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: -12,
+        marginBottom: 24,
+        fontWeight: '500',
     },
     footerLinks: {
         marginTop: 32,

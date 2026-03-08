@@ -11,6 +11,7 @@ interface StreamViewProps {
     readonly style?: ViewStyle;
     readonly objectFit?: 'cover' | 'contain';
     readonly mirror?: boolean;
+    readonly zOrder?: number;
 }
 
 let RTCView: React.ComponentType<{
@@ -18,6 +19,7 @@ let RTCView: React.ComponentType<{
     style?: ViewStyle;
     objectFit?: 'cover' | 'contain';
     mirror?: boolean;
+    zOrder?: number;
 }> | null = null;
 
 try {
@@ -27,7 +29,7 @@ try {
     RTCView = null;
 }
 
-export default function StreamView({ stream, style, objectFit = 'cover', mirror = false }: Readonly<StreamViewProps>) {
+export default function StreamView({ stream, style, objectFit = 'cover', mirror = false, zOrder = 0 }: Readonly<StreamViewProps>) {
     if (!RTCView) {
         return (
             <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }, style]}>
@@ -53,7 +55,7 @@ export default function StreamView({ stream, style, objectFit = 'cover', mirror 
             style={style}
             objectFit={objectFit}
             mirror={mirror}
-            zOrder={0}
+            zOrder={zOrder}
         />
     );
 }

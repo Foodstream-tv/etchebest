@@ -140,6 +140,15 @@ export function useWebRTC(): UseWebRTCReturn {
     // SDP offer/answer exchange
     const negotiate = useCallback(
         async (pc: RTCPeerConnection, currentRoomId: string) => {
+            // Provide multiple recvonly transceivers upfront so we can receive multiple 
+            // remote streams without needing real-time SDP renegotiation when others join.
+            if (typeof pc.addTransceiver === 'function') {
+                for (let i = 0; i < 5; i++) {
+                    pc.addTransceiver('video', { direction: 'recvonly' });
+                    pc.addTransceiver('audio', { direction: 'recvonly' });
+                }
+            }
+
             const offer = await pc.createOffer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: true,
@@ -148,7 +157,7 @@ export function useWebRTC(): UseWebRTCReturn {
 
             const { sdp: answerSdp } = await sendOffer(
                 currentRoomId,
-                offer.sdp
+                offer.sdp || ''
             );
 
             const SessionDesc = RTCSessionDescription

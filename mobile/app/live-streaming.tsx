@@ -180,6 +180,7 @@ function StreamControls({
                                 stream={stream as unknown as MediaStream}
                                 style={styles.remoteVideo}
                                 objectFit="cover"
+                                zOrder={1}
                             />
                         ))}
                     </View>
