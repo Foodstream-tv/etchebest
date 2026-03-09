@@ -1,12 +1,13 @@
 package room
 
 import (
-	"github.com/lib/pq"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/lib/pq"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/utils"
@@ -26,6 +27,19 @@ type AddParticipantReq struct {
 	UserId string `json:"userId" binding:"required" example:"550e8400-e29b-41d4-a716-446655440001"`
 }
 
+// Constants for WebRTC and stream configuration
+const (
+	// WebRTC UDP port range
+	webrtcPortMin = 50000
+	webrtcPortMax = 50100
+
+	// Default room configuration
+	defaultMaxParticipants = 6
+
+	// Track relay cache refresh interval (packets)
+	trackRelayRefreshInterval = 100
+)
+
 var (
 	mu        sync.Mutex
 	liveRooms = make(map[string]*Room)
@@ -34,19 +48,37 @@ var (
 // getLiveRoom returns the shared in-memory Room pointer.
 // If not yet tracked, it loads from the DB and registers it.
 func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
-	if r, ok := liveRooms[id]; ok {
+	mu.Lock()
+	r, ok := liveRooms[id]
+	mu.Unlock()
+
+	if ok {
 		return r, nil
 	}
+
+	// Load from DB without holding the lock (non-blocking)
 	r, err := GetRoomById(db, id)
 	if err != nil {
 		return nil, err
 	}
+
+	// Store in cache with lock (double-check pattern)
+	mu.Lock()
+	// Another goroutine may have loaded it while we were in the DB
+	if cached, ok := liveRooms[id]; ok {
+		mu.Unlock()
+		return cached, nil
+	}
 	liveRooms[id] = r
+	mu.Unlock()
+
 	return r, nil
 }
 
 func removeLiveRoom(id string) {
+	mu.Lock()
 	delete(liveRooms, id)
+	mu.Unlock()
 }
 
 // closePeerConnection safely removes senders and closes the underlying PeerConnection.
@@ -55,10 +87,7 @@ func closePeerConnection(pc PeerConnection) {
 	if pc.PeerCon == nil {
 		return
 	}
-	// If already closed, nothing to do
-	if pc.PeerCon.ConnectionState() == webrtc.PeerConnectionStateClosed {
-		return
-	}
+	// Remove all senders first
 	for _, sender := range pc.PeerCon.GetSenders() {
 		if sender == nil {
 			continue
@@ -67,9 +96,8 @@ func closePeerConnection(pc PeerConnection) {
 			_ = pc.PeerCon.RemoveTrack(sender)
 		}
 	}
-	if err := pc.PeerCon.Close(); err != nil {
-		log.Printf("couldn't close connection tracker: %v", err)
-	}
+	// Close the peer connection. Ignore errors — it may already be closed.
+	_ = pc.PeerCon.Close()
 }
 
 // resolveCodec picks the best matching RTPCodecCapability for a peer connection.
@@ -149,7 +177,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: 10,
+			MaxParticipants: defaultMaxParticipants,
 		}
 
 		err := CreateRoom(db, &room)
@@ -185,8 +213,10 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
 
-		room, err := GetRoomById(db, roomId)
+		mu.Lock()
+		room, err := getLiveRoom(db, roomId)
 		if err != nil {
+			mu.Unlock()
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
 			return
 		}
@@ -194,17 +224,21 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		currentUserId := utils.GetContextString(c, "userId")
 		for _, p := range room.Participants {
 			if p == currentUserId {
+				mu.Unlock()
 				c.JSON(http.StatusOK, gin.H{"message": "you already reserved this room"})
 				return
 			}
 		}
 
 		if len(room.Participants) >= room.MaxParticipants {
+			mu.Unlock()
 			c.JSON(http.StatusForbidden, gin.H{"error": "room full, cannot reserve"})
 			return
 		}
 
 		room.Participants = append(room.Participants, currentUserId)
+		mu.Unlock()
+
 		err = SaveRoom(db, room)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
@@ -236,18 +270,23 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		room, err := GetRoomById(db, req.RoomId)
+		mu.Lock()
+		room, err := getLiveRoom(db, req.RoomId)
 		if err != nil {
+			mu.Unlock()
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
 		}
 
 		if slices.Contains(room.Participants, req.UserId) {
+			mu.Unlock()
 			c.JSON(http.StatusOK, gin.H{"status": "already participant"})
 			return
 		}
 
 		room.Participants = append(room.Participants, req.UserId)
+		mu.Unlock()
+
 		err = SaveRoom(db, room)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
@@ -374,20 +413,37 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 // HandleWebRTC helpers
 // ---------------------------------------------------------------------------
 
-// ensureParticipant checks if the user is already a participant; if not it
-// auto-adds them when there is room. Returns an HTTP error and false when the
-// caller should abort.
-func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
+// ensureParticipantLocked checks if the user is a participant and auto-adds them if needed.
+// MUST be called with mu held. Does NOT call SaveRoom (caller must do it).
+// Returns false if room is full, true if user is already participant or successfully added.
+func ensureParticipantLocked(room *Room, userID string) bool {
 	for _, p := range room.Participants {
 		if p == userID {
 			return true
 		}
 	}
 	if len(room.Participants) >= room.MaxParticipants {
-		c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
 		return false
 	}
 	room.Participants = append(room.Participants, userID)
+	return true
+}
+
+// ensureParticipant is the public version that also persists changes to the database.
+func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
+	mu.Lock()
+	ok := ensureParticipantLocked(room, userID)
+	isFull := !ok && len(room.Participants) >= room.MaxParticipants
+	mu.Unlock()
+
+	if !ok {
+		if isFull {
+			c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
+		}
+		return false
+	}
+
+	// Save outside the lock
 	if err := SaveRoom(db, room); err != nil {
 		log.Printf("failed to save participant: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join room"})
@@ -403,7 +459,7 @@ func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error)
 	if webrtcIP != "" {
 		se.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
 	}
-	se.SetEphemeralUDPPortRange(50000, 50100)
+	se.SetEphemeralUDPPortRange(webrtcPortMin, webrtcPortMax)
 
 	me := &webrtc.MediaEngine{}
 	if err := me.RegisterDefaultCodecs(); err != nil {
@@ -423,12 +479,6 @@ func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error)
 // already being published in the room. Must be called with mu held.
 func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 	for _, ti := range room.Tracks {
-		if ti.LocalTracks == nil {
-			ti.LocalTracks = make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP)
-		}
-		if ti.PeerPT == nil {
-			ti.PeerPT = make(map[*webrtc.PeerConnection]uint8)
-		}
 		cap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
 		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
 		if err != nil {
@@ -554,9 +604,9 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room) {
 		origPT := pkt.PayloadType
 		pktCount++
 
-		// Refresh the peer snapshot every ~100 packets to reduce lock contention.
+		// Refresh the peer snapshot every ~trackRelayRefreshInterval packets to reduce lock contention.
 		// Also refresh immediately on the first packet.
-		if pktCount%100 == 1 {
+		if pktCount%trackRelayRefreshInterval == 1 {
 			mu.Lock()
 			cachedPeers = make([]peerTrack, 0, len(ti.LocalTracks))
 			for pc, lt := range ti.LocalTracks {
@@ -621,12 +671,8 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 
 	// Remove per-peer LocalTracks for the disconnecting peer
 	for _, ti := range room.Tracks {
-		if ti.LocalTracks != nil {
-			delete(ti.LocalTracks, pc)
-		}
-		if ti.PeerPT != nil {
-			delete(ti.PeerPT, pc)
-		}
+		delete(ti.LocalTracks, pc)
+		delete(ti.PeerPT, pc)
 	}
 
 	empty := len(room.Connections) == 0
@@ -643,15 +689,7 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	mu.Unlock()
 
 	// Close the peer connection itself (outside the lock to avoid deadlocks).
-	// Ignore errors — the PC may already be closed.
-	if pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
-		for _, sender := range pc.GetSenders() {
-			if sender != nil {
-				_ = pc.RemoveTrack(sender)
-			}
-		}
-		_ = pc.Close()
-	}
+	closePeerConnection(PeerConnection{PeerCon: pc})
 	log.Println("peerConnection closed and cleaned up")
 }
 
@@ -730,19 +768,22 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		// 1. Load room
 		mu.Lock()
 		room, err := getLiveRoom(db, roomID)
-		mu.Unlock()
 		if err != nil {
+			mu.Unlock()
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
 		}
 
-		// 2. Ensure current user is a participant
+		// 2. Ensure current user is a participant (atomically, under lock)
 		userID := utils.GetContextString(c, "userId")
-		if !ensureParticipant(c, db, room, userID) {
+		if !ensureParticipantLocked(room, userID) {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
 			return
 		}
 
-		// 3. Parse SDP offer
+		// 3. Parse SDP offer (early, before acquiring critical section)
+		mu.Unlock()
 		var offer webrtc.SessionDescription
 		if err := c.ShouldBindJSON(&offer); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -761,6 +802,11 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		attachExistingTracks(pc, room)
 		pending := registerPeer(pc, room, userID)
 		mu.Unlock()
+
+		// Save participant change outside the lock
+		if err := SaveRoom(db, room); err != nil {
+			log.Printf("failed to save participant: %v", err)
+		}
 
 		// 6. OnTrack — handle incoming media from the publisher
 		hlsCtx := &hlsState{}
