@@ -236,7 +236,23 @@
 
             // Try to play
             video.play().catch(e => log('⚠️ Autoplay bloqué – clique sur la vidéo', 'wrn'));
-            log(`🎥 Vidéo distante ajoutée: ${label} (stream.id=${stream.id})`, 'ok');
+            log(`🎥 Vidéo distante ajoutée: ${label} (stream.id=${stream.id})\nTrack state: ${stream.getVideoTracks()[0]?.muted ? 'Muted' : 'Unmuted'}`, 'ok');
+
+            // Hide the video-box if it's currently muted (e.g. pre-allocated transceiver without media)
+            const track = stream.getVideoTracks()[0] || stream.getAudioTracks()[0];
+            if (track) {
+                if (track.muted) {
+                    box.style.display = 'none';
+                }
+                track.onunmute = () => {
+                    log(`📥 Média reçu sur track ${track.kind} (${stream.id})`, 'inf');
+                    box.style.display = 'block';
+                };
+                track.onmute = () => {
+                    log(`🔇 Média arrêté sur track ${track.kind} (${stream.id})`, 'wrn');
+                    box.style.display = 'none';
+                };
+            }
         }
 
         // ---------- main join ----------
@@ -318,8 +334,16 @@
                 };
                 pc.onsignalingstatechange = () => log(`📶 Signaling: ${pc.signalingState}`, 'inf');
 
-                // Create offer — explicitly ask to receive audio + video
-                const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                // Pre-allocate transceivers for receiving remote tracks without renegotiation
+                if (typeof pc.addTransceiver === 'function') {
+                    for (let i = 0; i < 5; i++) {
+                        pc.addTransceiver('video', { direction: 'recvonly' });
+                        pc.addTransceiver('audio', { direction: 'recvonly' });
+                    }
+                }
+
+                // Create offer
+                const offer = await pc.createOffer();
 
                 // Keep all codecs so H264 is included (browser may prioritize VP8 but H264 must be present)
                 // Reorder SDP to put H264 first so Pion picks it when relaying phone tracks

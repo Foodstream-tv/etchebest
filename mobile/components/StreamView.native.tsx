@@ -42,11 +42,16 @@ export default function StreamView({ stream, style, objectFit = 'cover', mirror 
         return null;
     }
 
+    // RTCView expects a valid native stream URL on Android.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const streamURL = (stream as any).toURL?.() ?? null;
 
     if (!streamURL) {
-        return null;
+        return (
+            <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#120000' }, style]}>
+                <Text style={{ color: '#ffb3b3', fontSize: 12 }}>Flux distant sans streamURL (toURL absent)</Text>
+            </View>
+        );
     }
 
     return (

@@ -52,6 +52,13 @@ async function start() {
     }
   };
 
+  if (typeof pc.addTransceiver === 'function') {
+    for (let i = 0; i < 5; i++) {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+    }
+  }
+
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
 

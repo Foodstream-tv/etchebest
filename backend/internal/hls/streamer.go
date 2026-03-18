@@ -103,24 +103,45 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 	log.Printf("[HLS] SDP written to %s:\n%s", sdpPath, sdpContent)
 
 	// ---- build FFmpeg args dynamically based on codecs ----
+	// If the source is already H264, just copy (no re-encode → much less CPU).
+	// For VP8/VP9/AV1 we need to transcode to H264 for HLS compatibility.
+	isH264 := video != nil && (video.CodecName == "H264" || video.CodecName == "h264")
+
 	args := []string{
 		"-loglevel", "warning",
-		"-fflags", "+genpts+discardcorrupt",
-		"-max_delay", "5000000", // 5s max reorder buffer for RTP jitter
-		"-analyzeduration", "10000000",
-		"-probesize", "5000000",
+		"-fflags", "+genpts+discardcorrupt+nobuffer+flush_packets",
+		"-max_delay", "100000", // 100ms max reorder buffer
+		// analyzeduration=0: FFmpeg finishes its probe phase before the 500ms
+		// sleep below sends the first packet, so the keyframe lands directly in
+		// the decoder (not the probe buffer). Without this, the keyframe is
+		// consumed by the probe and only interframes reach the decoder, causing
+		// "Discarding interframe without a prior keyframe" indefinitely.
+		"-analyzeduration", "0",
+		"-probesize", "500000",
 		"-protocol_whitelist", "file,udp,rtp",
+	}
+
+	if !isH264 {
+		// Force single-threaded input decoding for VP8/VP9/AV1.
+		// FFmpeg's frame-parallel VP8 decoder allocates one VP8Context per
+		// CPU thread. Only thread-0 ever receives the initial keyframe via
+		// the RTP pipe; all other threads have uninitialised state and discard
+		// every subsequent frame with "Discarding interframe without a prior
+		// keyframe!". -threads MUST be placed before -i to affect the decoder
+		// (after -i it only controls the output encoder thread count).
+		args = append(args, "-threads", "1")
+	}
+
+	args = append(args,
 		"-i", sdpPath,
 		// audio → aac
 		"-c:a", "aac",
 		"-b:a", "128k",
 		"-ar", "48000",
 		"-ac", "2",
-	}
+	)
 
-	// If the source is already H264, just copy (no re-encode → much less CPU).
-	// For VP8/VP9/AV1 we need to transcode to H264 for HLS compatibility.
-	if video != nil && (video.CodecName == "H264" || video.CodecName == "h264") {
+	if isH264 {
 		args = append(args,
 			"-c:v", "copy",
 			"-bsf:v", "h264_mp4toannexb",
@@ -143,9 +164,9 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 
 	args = append(args,
 		"-f", "hls",
-		"-hls_time", "2",
-		"-hls_list_size", "5",
-		"-hls_flags", "delete_segments",
+		"-hls_time", "1",
+		"-hls_list_size", "3",
+		"-hls_flags", "delete_segments+omit_endlist+independent_segments",
 		filepath.Join(hlsDir, "index.m3u8"),
 	)
 

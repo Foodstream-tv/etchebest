@@ -7,11 +7,13 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3"
 	"gorm.io/gorm"
@@ -30,6 +32,70 @@ var (
 	mu        sync.Mutex
 	liveRooms = make(map[string]*Room)
 )
+
+func normalizeFmtp(fmtp string) string {
+	fmtp = strings.TrimSpace(strings.ToLower(fmtp))
+	if fmtp == "" {
+		return ""
+	}
+	parts := strings.Split(fmtp, ";")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	slices.Sort(parts)
+	return strings.Join(parts, ";")
+}
+
+func h264IsCompatible(src, dst string) bool {
+	src = normalizeFmtp(src)
+	dst = normalizeFmtp(dst)
+	if src == "" || dst == "" {
+		return false
+	}
+
+	getParam := func(fmtp, key string) string {
+		for _, part := range strings.Split(fmtp, ";") {
+			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			if strings.TrimSpace(kv[0]) == key {
+				return strings.TrimSpace(kv[1])
+			}
+		}
+		return ""
+	}
+
+	return getParam(src, "packetization-mode") == getParam(dst, "packetization-mode") &&
+		getParam(src, "profile-level-id") == getParam(dst, "profile-level-id")
+}
+
+func findCodec(
+	pc *webrtc.PeerConnection,
+	match func(codec webrtc.RTPCodecParameters) bool,
+) (webrtc.RTPCodecCapability, uint8, bool) {
+	for _, transceiver := range pc.GetTransceivers() {
+		receiver := transceiver.Receiver()
+		if receiver == nil {
+			continue
+		}
+		params := receiver.GetParameters()
+		for _, codec := range params.Codecs {
+			if !match(codec) {
+				continue
+			}
+			cap := webrtc.RTPCodecCapability{
+				MimeType:    codec.MimeType,
+				ClockRate:   codec.ClockRate,
+				Channels:    codec.Channels,
+				SDPFmtpLine: codec.SDPFmtpLine,
+			}
+			return cap, uint8(codec.PayloadType), true
+		}
+	}
+
+	return webrtc.RTPCodecCapability{}, 0, false
+}
 
 // getLiveRoom returns the shared in-memory Room pointer.
 // If not yet tracked, it loads from the DB and registers it.
@@ -77,24 +143,28 @@ func closePeerConnection(pc PeerConnection) {
 // Receiver parameters instead. Returns the capability and the negotiated PT.
 // Falls back to a minimal capability with PT=0 so Pion can still create the track.
 func resolveCodec(pc *webrtc.PeerConnection, mimeType string, fallback webrtc.RTPCodecCapability) (webrtc.RTPCodecCapability, uint8) {
-	for _, transceiver := range pc.GetTransceivers() {
-		receiver := transceiver.Receiver()
-		if receiver == nil {
-			continue
-		}
-		params := receiver.GetParameters()
-		for _, codec := range params.Codecs {
-			if strings.EqualFold(codec.MimeType, mimeType) {
-				cap := webrtc.RTPCodecCapability{
-					MimeType:    codec.MimeType,
-					ClockRate:   codec.ClockRate,
-					Channels:    codec.Channels,
-					SDPFmtpLine: codec.SDPFmtpLine,
-				}
-				return cap, uint8(codec.PayloadType)
-			}
+	fallbackFmtp := normalizeFmtp(fallback.SDPFmtpLine)
+
+	if cap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
+		return strings.EqualFold(codec.MimeType, mimeType) && normalizeFmtp(codec.SDPFmtpLine) == fallbackFmtp
+	}); ok {
+		return cap, pt
+	}
+
+	if strings.EqualFold(mimeType, webrtc.MimeTypeH264) {
+		if cap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
+			return strings.EqualFold(codec.MimeType, mimeType) && h264IsCompatible(fallback.SDPFmtpLine, codec.SDPFmtpLine)
+		}); ok {
+			return cap, pt
 		}
 	}
+
+	if cap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
+		return strings.EqualFold(codec.MimeType, mimeType)
+	}); ok {
+		return cap, pt
+	}
+
 	return webrtc.RTPCodecCapability{MimeType: mimeType}, 0
 }
 
@@ -277,8 +347,9 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		mu.Lock()
 		room, err := getLiveRoom(db, roomId)
 		if err != nil {
+			// Room is already gone (deleted by a concurrent disconnect) — idempotent.
 			mu.Unlock()
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			c.JSON(http.StatusOK, gin.H{"message": "disconnected successfully"})
 			return
 		}
 
@@ -340,6 +411,7 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		log.Printf("received ICE candidate for room %s: %s", roomID, candidate.Candidate)
+		userID := utils.GetContextString(c, "userId")
 
 		mu.Lock()
 		defer mu.Unlock()
@@ -350,23 +422,26 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		if len(room.Connections) == 0 {
-			room.PendingICE = append(room.PendingICE, candidate)
-			log.Printf("no connections yet, buffered candidate (total pending: %d)", len(room.PendingICE))
-			c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
-			return
+		if room.PendingICEByUser == nil {
+			room.PendingICEByUser = make(map[string][]webrtc.ICECandidateInit)
 		}
 
 		for _, pc := range room.Connections {
+			if pc.UserID != userID {
+				continue
+			}
 			if err := pc.PeerCon.AddICECandidate(candidate); err != nil {
-				log.Printf("failed to add ICE candidate: %v\n", err)
+				log.Printf("failed to add ICE candidate for user %s: %v", userID, err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add ICE candidate"})
 				return
 			}
+			c.JSON(http.StatusOK, gin.H{"status": "candidate added"})
+			return
 		}
-		room.PendingICE = nil
 
-		c.JSON(http.StatusOK, gin.H{"status": "candidate added"})
+		room.PendingICEByUser[userID] = append(room.PendingICEByUser[userID], candidate)
+		log.Printf("no peer connection yet for user %s, buffered candidate (pending: %d)", userID, len(room.PendingICEByUser[userID]))
+		c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})
 	}
 }
 
@@ -419,45 +494,22 @@ func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error)
 	})
 }
 
-// attachExistingTracks subscribes a new PeerConnection to every track that is
-// already being published in the room. Must be called with mu held.
-func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
-	for _, ti := range room.Tracks {
-		if ti.LocalTracks == nil {
-			ti.LocalTracks = make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP)
-		}
-		if ti.PeerPT == nil {
-			ti.PeerPT = make(map[*webrtc.PeerConnection]uint8)
-		}
-		cap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
-		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
-		if err != nil {
-			log.Printf("attachExistingTracks: create local track: %v", err)
-			continue
-		}
-		sender, err := pc.AddTrack(lt)
-		if err != nil {
-			log.Printf("attachExistingTracks: add track: %v", err)
-			continue
-		}
-		ti.LocalTracks[pc] = lt
-		ti.PeerPT[pc] = pt
-		ti.Senders = append(ti.Senders, sender)
-	}
-}
-
 // registerPeer adds the PeerConnection to the room, marks the host, and
-// returns any buffered ICE candidates that should be flushed later.
+// returns any buffered ICE candidates for this user that should be flushed later.
 // Must be called with mu held.
 func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) []webrtc.ICECandidateInit {
 	if room.HostPeerCon == nil && userID == room.Host {
 		room.HostPeerCon = pc
 	}
-	room.Connections = append(room.Connections, PeerConnection{PeerCon: pc})
+	room.Connections = append(room.Connections, PeerConnection{UserID: userID, PeerCon: pc})
 
-	pending := make([]webrtc.ICECandidateInit, len(room.PendingICE))
-	copy(pending, room.PendingICE)
-	room.PendingICE = nil
+	if room.PendingICEByUser == nil {
+		return nil
+	}
+
+	pending := make([]webrtc.ICECandidateInit, len(room.PendingICEByUser[userID]))
+	copy(pending, room.PendingICEByUser[userID])
+	delete(room.PendingICEByUser, userID)
 	return pending
 }
 
@@ -477,6 +529,53 @@ func buildCodecInfo(codec webrtc.RTPCodecParameters) *hls.CodecInfo {
 	return ci
 }
 
+func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
+	for _, ti := range room.Tracks {
+		if ti.LocalTracks == nil {
+			ti.LocalTracks = make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP)
+		}
+		if ti.PeerPT == nil {
+			ti.PeerPT = make(map[*webrtc.PeerConnection]uint8)
+		}
+		cap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
+		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
+		if err != nil {
+			log.Printf("attachExistingTracks: create local track: %v", err)
+			continue
+		}
+		sender, err := pc.AddTrack(lt)
+		if err != nil {
+			log.Printf("attachExistingTracks: add track: %v", err)
+			continue
+		}
+		startRTCPDrain(sender)
+		ti.LocalTracks[pc] = lt
+		ti.PeerPT[pc] = pt
+		ti.Senders = append(ti.Senders, sender)
+
+		// Request a keyframe immediately so this new peer can decode the video
+		if ti.Track.Kind() == webrtc.RTPCodecTypeVideo && ti.SourcePC != nil {
+			_ = ti.SourcePC.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
+				MediaSSRC: uint32(ti.Track.SSRC()),
+			}})
+		}
+	}
+}
+
+func startRTCPDrain(sender *webrtc.RTPSender) {
+	if sender == nil {
+		return
+	}
+	go func() {
+		rtcpBuf := make([]byte, 1500)
+		for {
+			if _, _, err := sender.Read(rtcpBuf); err != nil {
+				return
+			}
+		}
+	}()
+}
+
 // hlsState holds per-handler state for lazy HLS initialisation inside OnTrack.
 type hlsState struct {
 	audio      *hls.CodecInfo
@@ -488,6 +587,13 @@ type hlsState struct {
 // been received. Must be called with mu held.
 func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 	if h.trackCount < 2 || room.HLSWriter != nil || hls.IsRunning(roomID) {
+		return
+	}
+	if h.video == nil {
+		return
+	}
+	if !strings.EqualFold(h.video.CodecName, "h264") {
+		log.Printf("[HLS] skip start for room %s: codec %s (WebRTC relay stays prioritized)", roomID, h.video.CodecName)
 		return
 	}
 	log.Println("starting HLS stream for room", roomID)
@@ -507,21 +613,45 @@ func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConne
 		if other.PeerCon == sourcePc {
 			continue
 		}
+
 		cap, pt := resolveCodec(other.PeerCon, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
-		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
+
+		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.NewString(), ti.Track.StreamID())
 		if err != nil {
-			log.Printf("broadcastTrackToPeers: create: %v", err)
+			log.Printf("broadcastTrackToPeers: create track: %v", err)
 			continue
 		}
+
 		sender, err := other.PeerCon.AddTrack(lt)
 		if err != nil {
-			log.Printf("broadcastTrackToPeers: add: %v", err)
+			log.Printf("broadcastTrackToPeers: add track to peer: %v", err)
 			continue
 		}
+		startRTCPDrain(sender)
+
+		if ti.Track.Kind() == webrtc.RTPCodecTypeVideo {
+			requestKeyframeBurst(sourcePc, uint32(ti.Track.SSRC()))
+		}
+
 		ti.LocalTracks[other.PeerCon] = lt
 		ti.PeerPT[other.PeerCon] = pt
 		ti.Senders = append(ti.Senders, sender)
 	}
+}
+
+func requestKeyframeBurst(pc *webrtc.PeerConnection, ssrc uint32) {
+	if pc == nil || ssrc == 0 {
+		return
+	}
+	go func() {
+		for i := 0; i < 4; i++ {
+			_ = pc.WriteRTCP([]rtcp.Packet{
+				&rtcp.PictureLossIndication{MediaSSRC: ssrc},
+				&rtcp.FullIntraRequest{MediaSSRC: ssrc},
+			})
+			time.Sleep(350 * time.Millisecond)
+		}
+	}()
 }
 
 // peerTrack pairs a LocalTrack with the payload type to stamp on outgoing packets.
@@ -530,14 +660,107 @@ type peerTrack struct {
 	pt uint8
 }
 
+// isH264Keyframe returns true if the H264 RTP payload starts an IDR (keyframe) NAL.
+// It handles single NAL units, STAP-A aggregations, and FU-A fragments.
+func isH264Keyframe(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+	nalType := payload[0] & 0x1F
+	switch nalType {
+	case 5: // IDR slice — single NAL keyframe
+		return true
+	case 24: // STAP-A — scan aggregated NALs
+		offset := 1
+		for offset+2 <= len(payload) {
+			size := int(payload[offset])<<8 | int(payload[offset+1])
+			offset += 2
+			if offset+size > len(payload) {
+				break
+			}
+			if size > 0 && payload[offset]&0x1F == 5 {
+				return true
+			}
+			offset += size
+		}
+	case 28, 29: // FU-A / FU-B — fragmented NAL
+		if len(payload) < 2 {
+			return false
+		}
+		// Start bit must be set (first fragment) and inner NAL type must be IDR.
+		return payload[1]&0x80 != 0 && payload[1]&0x1F == 5
+	}
+	return false
+}
+
+// isVP8Keyframe parses a VP8 RTP payload (RFC 7741) and returns true if the
+// payload carries the first packet of a VP8 keyframe (intra-coded frame).
+func isVP8Keyframe(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+	offset := 0
+	desc0 := payload[offset]
+	offset++
+
+	// S=1 and PartID=0 means start of partition 0.
+	if desc0&0x10 == 0 || desc0&0x0F != 0 {
+		return false
+	}
+
+	// Extended VP8 descriptor present (X bit).
+	if desc0&0x80 != 0 {
+		if offset >= len(payload) {
+			return false
+		}
+		xByte := payload[offset]
+		offset++
+		// PictureID (I bit)
+		if xByte&0x80 != 0 {
+			if offset >= len(payload) {
+				return false
+			}
+			if payload[offset]&0x80 != 0 {
+				offset += 2 // 2-byte PictureID
+			} else {
+				offset++ // 1-byte PictureID
+			}
+		}
+		// TL0PICIDX (L bit)
+		if xByte&0x40 != 0 {
+			offset++
+		}
+		// TID/KEYIDX (T or K bit)
+		if xByte&0x20 != 0 || xByte&0x10 != 0 {
+			offset++
+		}
+	}
+
+	if offset >= len(payload) {
+		return false
+	}
+	// VP8 frame tag byte 0: bit 0 = 0 means keyframe.
+	return payload[offset]&0x01 == 0
+}
+
 // startTrackRelay reads RTP packets from the source track and fans them out to
-// every subscribed peer (rewriting the PT) and to FFmpeg for HLS.
-func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room) {
+// every subscribed peer (rewriting the PT) and, when isHLSSource is true,
+// to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
+// all other goroutines must leave it false so they never touch the shared HLSWriter.
+func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *webrtc.PeerConnection, isHLSSource bool) {
 	buf := make([]byte, 4096)
 	var cachedWriter *hls.HLSWriter
 	var cachedPeers []peerTrack
 	pktCount := 0
 	isAudio := track.Kind() == webrtc.RTPCodecTypeAudio
+	hlsGotKeyframe := false
+	pliLastPkt := 0
+
+	// Request a keyframe immediately so that both HLS and all WebRTC
+	// receiving peers get a clean start for the video feed.
+	if !isAudio {
+		requestKeyframeBurst(pc, uint32(track.SSRC()))
+	}
 
 	for {
 		n, _, err := track.Read(buf)
@@ -553,6 +776,13 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room) {
 		}
 		origPT := pkt.PayloadType
 		pktCount++
+
+		// Ignore retransmission/non-primary video packets for peer fanout.
+		// Reinjecting RTX payload as media causes decoder corruption on receivers
+		// (symptom: briefly unmuted, then permanently muted/black).
+		if !isAudio && origPT != uint8(track.Codec().PayloadType) {
+			continue
+		}
 
 		// Refresh the peer snapshot every ~100 packets to reduce lock contention.
 		// Also refresh immediately on the first packet.
@@ -570,22 +800,59 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room) {
 			mu.Unlock()
 		}
 
-		// Fan-out with per-peer PT
+		// Fan-out with per-peer PT rewriting. Different peers may negotiate
+		// different payload types for the same codec (e.g. VP8 PT=96 vs PT=98).
 		for _, p := range cachedPeers {
-			pkt.PayloadType = p.pt
-			if err := p.lt.WriteRTP(&pkt); err != nil {
+			pktCopy := pkt
+			pktCopy.PayloadType = p.pt
+			if err := p.lt.WriteRTP(&pktCopy); err != nil {
 				// peer track may have been removed — will be caught on next refresh
 			}
 		}
-		pkt.PayloadType = origPT
 
-		// Feed FFmpeg for HLS
-		if cachedWriter == nil {
+		// Feed FFmpeg for HLS — only from the designated host relay goroutine.
+		if !isHLSSource || cachedWriter == nil {
 			continue
 		}
 		if isAudio && cachedWriter.AudioConn != nil {
 			_, _ = cachedWriter.AudioConn.Write(buf[:n])
 		} else if !isAudio && cachedWriter.VideoConn != nil {
+			// Skip RTX retransmission packets (different PT, 2-byte OSN header).
+			if origPT != uint8(track.Codec().PayloadType) {
+				continue
+			}
+			mimeType := strings.ToLower(track.Codec().MimeType)
+
+			// Request periodic keyframes to recover faster after packet loss.
+			if pktCount-pliLastPkt >= 150 {
+				pliLastPkt = pktCount
+				_ = pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
+					MediaSSRC: uint32(track.SSRC()),
+				}})
+			}
+
+			// Gate: only forward video to FFmpeg from the first keyframe onwards.
+			// Interframes before a keyframe cause FFmpeg's VP8 decoder to spam
+			// "Discarding interframe without a prior keyframe" and never produce
+			// HLS segments.
+			// H264 is excluded from the gate because it uses copy mode (no
+			// decoding) and FFmpeg needs every packet — especially SPS/PPS
+			// (NAL types 7/8) which arrive before IDR frames.
+			if !hlsGotKeyframe && !strings.Contains(mimeType, "h264") {
+				var isKF bool
+				switch {
+				case strings.Contains(mimeType, "vp8"):
+					isKF = isVP8Keyframe(pkt.Payload)
+				default:
+					isKF = true
+				}
+				if !isKF {
+					continue
+				}
+				hlsGotKeyframe = true
+				log.Printf("[HLS] first keyframe received for room (codec=%s), video feed started", track.Codec().MimeType)
+			}
+
 			_, _ = cachedWriter.VideoConn.Write(buf[:n])
 		}
 	}
@@ -759,6 +1026,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		// 5. Subscribe new peer to existing tracks & register in room
 		mu.Lock()
 		attachExistingTracks(pc, room)
+
 		pending := registerPeer(pc, room, userID)
 		mu.Unlock()
 
@@ -771,25 +1039,21 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 				track.Kind().String(), track.Codec().MimeType,
 				track.Codec().PayloadType, track.StreamID())
 
-			// Ignore tracks from non-host peers (e.g. viewer cameras)
-			mu.Lock()
-			isHost := room.HostPeerCon == peerConnection
-			mu.Unlock()
-			if !isHost {
-				log.Printf("ignoring track from non-host peer (viewer media)")
-				return
-			}
+			// We no longer strictly ignore tracks from non-hosts. All participants can co-stream.
 
-			// Register codec for HLS
+			// Register codec for HLS (Only register HLS for the host stream)
 			ci := buildCodecInfo(track.Codec())
 			mu.Lock()
-			if track.Kind() == webrtc.RTPCodecTypeAudio {
-				hlsCtx.audio = ci
-			} else {
-				hlsCtx.video = ci
+			isHost := room.HostPeerCon == peerConnection
+			if isHost {
+				if track.Kind() == webrtc.RTPCodecTypeAudio {
+					hlsCtx.audio = ci
+				} else {
+					hlsCtx.video = ci
+				}
+				hlsCtx.trackCount++
+				hlsCtx.tryStartHLS(room, roomID)
 			}
-			hlsCtx.trackCount++
-			hlsCtx.tryStartHLS(room, roomID)
 			mu.Unlock()
 
 			// Create TrackInfo and fan out to all existing peers
@@ -798,14 +1062,16 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 				PeerPT:      make(map[*webrtc.PeerConnection]uint8),
 				Senders:     []*webrtc.RTPSender{},
 				Track:       track,
+				SourcePC:    peerConnection,
 			}
 			mu.Lock()
 			room.Tracks = append(room.Tracks, ti)
 			broadcastTrackToPeers(ti, room, peerConnection)
 			mu.Unlock()
 
-			// Start the relay goroutine
-			go startTrackRelay(track, ti, room)
+			// Start the relay goroutine.
+			// isHost is captured from the enclosing OnTrack closure.
+			go startTrackRelay(track, ti, room, peerConnection, isHost)
 		})
 
 		// 7. OnConnectionStateChange — cleanup on disconnect

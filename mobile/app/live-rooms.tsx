@@ -12,7 +12,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getRooms, RoomInfo } from '../services/streaming';
+import { getRooms, RoomInfo, UnauthorizedError } from '../services/streaming';
 
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 
@@ -138,6 +138,10 @@ export default function LiveRoomsScreen() {
             const data = await getRooms();
             setRooms(data || []);
         } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                router.replace('/login');
+                return;
+            }
             setError(err.message || 'Impossible de charger les salles');
         } finally {
             setLoading(false);

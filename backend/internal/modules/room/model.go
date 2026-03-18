@@ -14,10 +14,12 @@ type TrackInfo struct {
 	PeerPT      map[*webrtc.PeerConnection]uint8
 	Senders     []*webrtc.RTPSender // kept for cleanup
 	Track       *webrtc.TrackRemote
+	SourcePC    *webrtc.PeerConnection
 }
 
 type PeerConnection struct {
 	PeerID  uint `gorm:"primaryKey;autoIncrement"`
+	UserID  string
 	PeerCon *webrtc.PeerConnection
 }
 
@@ -30,7 +32,7 @@ type Room struct {
 	MaxParticipants int                       `json:"maxParticipants" gorm:"default:5"`
 	Connections     []PeerConnection          `json:"-" gorm:"-"`
 	Tracks          []*TrackInfo              `json:"-" gorm:"-"`
-	PendingICE      []webrtc.ICECandidateInit  `json:"-" gorm:"-"`
+	PendingICEByUser map[string][]webrtc.ICECandidateInit `json:"-" gorm:"-"`
 	HLSWriter       *hls.HLSWriter            `json:"-" gorm:"-"`
 	// HostPeerCon is the PeerConnection of the room host (publisher).
 	// Only tracks received from this peer are relayed and fed to HLS.

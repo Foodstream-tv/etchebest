@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -125,6 +126,41 @@ function StreamControls({
 
     const [hasStarted, setHasStarted] = useState(false);
 
+    const primaryRemoteStream =
+        remoteStreams.find((stream: any) => {
+            const videoTracks = typeof stream?.getVideoTracks === 'function' ? stream.getVideoTracks() : [];
+            return videoTracks.some((track: any) => track?.readyState === 'live' && track?.muted === false);
+        }) ??
+        remoteStreams.find((stream: any) => {
+            const videoTracks = typeof stream?.getVideoTracks === 'function' ? stream.getVideoTracks() : [];
+            return videoTracks.some((track: any) => track?.readyState === 'live');
+        }) ??
+        remoteStreams[0] ??
+        null;
+
+    const remoteDebugSummary = remoteStreams
+        .map((stream: any, index: number) => {
+            const tracks = typeof stream?.getVideoTracks === 'function' ? stream.getVideoTracks() : [];
+            const trackSummary = tracks
+                .map((track: any) => `${track?.id ?? 'no-id'}:${track?.readyState ?? 'na'}:${track?.muted ? 'muted' : 'unmuted'}`)
+                .join(',');
+            const hasToURL = typeof stream?.toURL === 'function';
+            return `#${index + 1} id=${stream?.id ?? 'no-id'} toURL=${hasToURL} tracks=[${trackSummary || 'none'}]`;
+        })
+        .join(' | ');
+
+    const primaryHasToURL = typeof (primaryRemoteStream as any)?.toURL === 'function';
+
+    const showLocalPip = !!localStream && !(Platform.OS === 'android' && !!primaryRemoteStream);
+
+    const primaryRemoteRenderKey = primaryRemoteStream
+        ? `${(primaryRemoteStream as any).id}-${
+            ((primaryRemoteStream as any).getVideoTracks?.() || [])
+                .map((t: any) => `${t.id}:${t.readyState}:${t.muted}`)
+                .join('|')
+        }`
+        : 'no-remote';
+
     // Auto-join if joining existing room as co-streamer
     useEffect(() => {
         if (!isHost && targetRoomId && !hasStarted) {
@@ -160,31 +196,44 @@ function StreamControls({
 
             {/* Video area */}
             <View style={styles.videoContainer}>
-                {localStream ? (
+                {primaryRemoteStream ? (
+                    <StreamView
+                        key={primaryRemoteRenderKey}
+                        stream={primaryRemoteStream as unknown as MediaStream}
+                        style={styles.remotePrimaryVideo}
+                        objectFit="cover"
+                        zOrder={20}
+                    />
+                ) : localStream ? (
                     <StreamView
                         stream={localStream as unknown as MediaStream}
                         style={styles.localVideo}
                         objectFit="cover"
                         mirror={true}
+                        zOrder={0}
                     />
                 ) : (
                     <PlaceholderVideo state={state} />
                 )}
 
-                {/* Remote streams (co-streamers) */}
-                {remoteStreams.length > 0 && (
-                    <View style={styles.remoteContainer}>
-                        {remoteStreams.map((stream) => (
-                            <StreamView
-                                key={(stream as any).id}
-                                stream={stream as unknown as MediaStream}
-                                style={styles.remoteVideo}
-                                objectFit="cover"
-                                zOrder={1}
-                            />
-                        ))}
+                {/* Local preview always visible as PiP once camera is active */}
+                {showLocalPip && (
+                    <View style={styles.localPipContainer}>
+                        <StreamView
+                            key={`local-${(localStream as any).id ?? 'stream'}`}
+                            stream={localStream as unknown as MediaStream}
+                            style={styles.localPipVideo}
+                            objectFit="cover"
+                            mirror={true}
+                            zOrder={30}
+                        />
                     </View>
                 )}
+
+                <View style={styles.debugOverlay}>
+                    <Text style={styles.debugText}>remoteStreams={remoteStreams.length} primary={primaryRemoteStream ? 'yes' : 'no'} primaryToURL={primaryHasToURL ? 'yes' : 'no'}</Text>
+                    <Text style={styles.debugText} numberOfLines={3}>{remoteDebugSummary || 'no-remote-stream'}</Text>
+                </View>
             </View>
 
             {/* Error display */}
@@ -271,17 +320,36 @@ const styles = StyleSheet.create({
         color: '#888',
         fontSize: 14,
     },
-    remoteContainer: {
+    localPipContainer: {
         position: 'absolute',
         top: 12,
         right: 12,
         gap: 8,
     },
-    remoteVideo: {
+    localPipVideo: {
         width: 120,
         height: 90,
         borderRadius: 12,
         backgroundColor: '#333',
+    },
+    remotePrimaryVideo: {
+        flex: 1,
+        borderRadius: 16,
+        backgroundColor: '#000',
+    },
+    debugOverlay: {
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        bottom: 8,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+    },
+    debugText: {
+        color: '#B7FFB7',
+        fontSize: 10,
     },
     errorBox: {
         flexDirection: 'row',
