@@ -27,18 +27,22 @@ type AddParticipantReq struct {
 	UserId string `json:"userId" binding:"required" example:"550e8400-e29b-41d4-a716-446655440001"`
 }
 
-// Constants for WebRTC and stream configuration
-const (
-	// WebRTC UDP port range
-	webrtcPortMin = 50000
-	webrtcPortMax = 50100
+// RoomConfig holds configurable parameters for room management
+type RoomConfig struct {
+	WebRTCPortMin          uint16 // Minimum UDP port for WebRTC
+	WebRTCPortMax          uint16 // Maximum UDP port for WebRTC
+	DefaultMaxParticipants int    // Default max participants per room
+}
 
-	// Default room configuration
-	defaultMaxParticipants = 6
+// DefaultRoomConfig is the global room configuration
+var DefaultRoomConfig = RoomConfig{
+	WebRTCPortMin:          50000,
+	WebRTCPortMax:          50100,
+	DefaultMaxParticipants: 6,
+}
 
-	// Track relay cache refresh interval (packets)
-	trackRelayRefreshInterval = 100
-)
+// Track relay cache refresh interval (packets between peer snapshot refreshes)
+var trackRelayRefreshInterval = 100
 
 var (
 	mu        sync.Mutex
@@ -162,7 +166,7 @@ func GetAllRooms(db *gorm.DB) gin.HandlerFunc {
 // @Failure      500  {object}  map[string]string "error: Failed to create room"
 // @Router       /api/rooms [post]
 
-func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
+func CreateNewRoom(db *gorm.DB, cfg RoomConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req Request
 		if err := c.BindJSON(&req); err != nil {
@@ -177,7 +181,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: defaultMaxParticipants,
+			MaxParticipants: cfg.DefaultMaxParticipants,
 		}
 
 		err := CreateRoom(db, &room)
@@ -454,12 +458,12 @@ func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) b
 
 // newPeerConnection creates a fully configured webrtc.PeerConnection with
 // STUN, NAT traversal, port range and default codecs.
-func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error) {
+func newPeerConnection(cfg RoomConfig, stunURL, webrtcIP string) (*webrtc.PeerConnection, error) {
 	se := webrtc.SettingEngine{}
 	if webrtcIP != "" {
 		se.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
 	}
-	se.SetEphemeralUDPPortRange(webrtcPortMin, webrtcPortMax)
+	se.SetEphemeralUDPPortRange(cfg.WebRTCPortMin, cfg.WebRTCPortMax)
 
 	me := &webrtc.MediaEngine{}
 	if err := me.RegisterDefaultCodecs(); err != nil {
@@ -757,7 +761,7 @@ func negotiateSDP(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.Sessio
 // @Failure      404  {object}  map[string]string "error: Room not found"
 // @Failure      500  {object}  map[string]string "error: Internal server error"
 // @Router       /api/webrtc [post]
-func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.HandlerFunc {
+func HandleWebRTC(db *gorm.DB, cfg RoomConfig, STUNServerURL string, webrtcIP string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
 		if roomID == "" {
@@ -791,7 +795,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		}
 
 		// 4. Create PeerConnection
-		pc, err := newPeerConnection(STUNServerURL, webrtcIP)
+		pc, err := newPeerConnection(cfg, STUNServerURL, webrtcIP)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

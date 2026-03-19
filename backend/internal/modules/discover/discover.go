@@ -1,6 +1,7 @@
 package discover
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -10,6 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// Live status constants for filtering active streams
+var activeStatuses = []string{"scheduled", "live"}
 
 // CategoryWithCount is CountryDTO enriched with a live count.
 type CategoryWithCount struct {
@@ -40,9 +44,9 @@ type DiscoverResponse struct {
 
 // CategoryLivesResponse is the payload for GET /api/discover/categories/:id/lives.
 type CategoryLivesResponse struct {
-	Lives      []live.LiveDTO     `json:"lives"`
-	Category   CategoryWithCount  `json:"category"`
-	Pagination PaginationMeta     `json:"pagination"`
+	Lives      []live.LiveDTO    `json:"lives"`
+	Category   CategoryWithCount `json:"category"`
+	Pagination PaginationMeta    `json:"pagination"`
 }
 
 type PaginationMeta struct {
@@ -58,17 +62,35 @@ func liveCountByCountry(db *gorm.DB) map[uint]int64 {
 		Count     int64
 	}
 	var rows []row
-	db.Model(&live.Live{}).
+	if err := db.Model(&live.Live{}).
 		Select("country_id, count(*) as count").
-		Where("status IN ?", []string{"scheduled", "live"}).
+		Where("status IN ?", activeStatuses).
 		Group("country_id").
-		Scan(&rows)
+		Scan(&rows).Error; err != nil {
+		log.Printf("failed to fetch live counts by country: %v", err)
+		return make(map[uint]int64)
+	}
 
 	m := make(map[uint]int64, len(rows))
 	for _, r := range rows {
 		m[r.CountryID] = r.Count
 	}
 	return m
+}
+
+// buildCategoriesWithCounts builds a list of categories with live counts.
+func buildCategoriesWithCounts(countries []country.Country, liveCounts map[uint]int64) []CategoryWithCount {
+	categories := make([]CategoryWithCount, 0, len(countries))
+	for _, ct := range countries {
+		categories = append(categories, CategoryWithCount{
+			ID:        ct.ID,
+			Name:      ct.Name,
+			Code:      ct.Code,
+			ImageURL:  ct.ImageURL,
+			LiveCount: liveCounts[ct.ID],
+		})
+	}
+	return categories
 }
 
 // GetDiscover godoc
@@ -89,17 +111,7 @@ func GetDiscover(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		liveCounts := liveCountByCountry(db)
-
-		categories := make([]CategoryWithCount, 0, len(countries))
-		for _, ct := range countries {
-			categories = append(categories, CategoryWithCount{
-				ID:        ct.ID,
-				Name:      ct.Name,
-				Code:      ct.Code,
-				ImageURL:  ct.ImageURL,
-				LiveCount: liveCounts[ct.ID],
-			})
-		}
+		categories := buildCategoriesWithCounts(countries, liveCounts)
 
 		// --- Trending country: the one with the most active lives ---
 		var trendingCountry *CategoryWithCount
@@ -119,11 +131,15 @@ func GetDiscover(db *gorm.DB) gin.HandlerFunc {
 			LiveCount int64
 		}
 		var dishRows []dishStats
-		db.Model(&live.Live{}).
+		if err := db.Model(&live.Live{}).
 			Select("dish_id, count(*) as live_count").
-			Where("status IN ?", []string{"scheduled", "live"}).
+			Where("status IN ?", activeStatuses).
 			Group("dish_id").
-			Scan(&dishRows)
+			Scan(&dishRows).Error; err != nil {
+			log.Printf("failed to fetch dish live counts: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to fetch dishes"})
+			return
+		}
 
 		dishLiveCount := make(map[uint]int64, len(dishRows))
 		for _, r := range dishRows {
@@ -142,10 +158,14 @@ func GetDiscover(db *gorm.DB) gin.HandlerFunc {
 			TotalViews int64
 		}
 		var viewRows []viewRow
-		db.Model(&live.Live{}).
+		if err := db.Model(&live.Live{}).
 			Select("dish_id, coalesce(sum(view_count), 0) as total_views").
 			Group("dish_id").
-			Scan(&viewRows)
+			Scan(&viewRows).Error; err != nil {
+			log.Printf("failed to fetch dish total views: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to fetch dishes"})
+			return
+		}
 
 		dishTotalViews := make(map[uint]int64, len(viewRows))
 		for _, r := range viewRows {
@@ -155,9 +175,11 @@ func GetDiscover(db *gorm.DB) gin.HandlerFunc {
 		topDishes := make([]DishWithStats, 0, len(dishes))
 		for _, d := range dishes {
 			var countryDTO *country.CountryDTO
+			// Create country DTO on stack, safe to take address within this iteration
+			var ct country.CountryDTO
 			if d.Country != nil {
-				c := country.CountryToDTO(*d.Country)
-				countryDTO = &c
+				ct = country.CountryToDTO(*d.Country)
+				countryDTO = &ct
 			}
 			topDishes = append(topDishes, DishWithStats{
 				ID:          d.ID,
@@ -195,17 +217,7 @@ func GetCategories(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		liveCounts := liveCountByCountry(db)
-
-		categories := make([]CategoryWithCount, 0, len(countries))
-		for _, ct := range countries {
-			categories = append(categories, CategoryWithCount{
-				ID:        ct.ID,
-				Name:      ct.Name,
-				Code:      ct.Code,
-				ImageURL:  ct.ImageURL,
-				LiveCount: liveCounts[ct.ID],
-			})
-		}
+		categories := buildCategoriesWithCounts(countries, liveCounts)
 
 		c.JSON(http.StatusOK, categories)
 	}
@@ -264,16 +276,19 @@ func GetCategoryLives(db *gorm.DB) gin.HandlerFunc {
 			orderClause = "created_at DESC"
 		}
 
-		// Count
+		// Count total lives in this category
 		var total int64
-		db.Model(&live.Live{}).Where("country_id = ?", countryID).Count(&total)
+		if err := db.Model(&live.Live{}).Where("country_id = ?", countryID).Count(&total).Error; err != nil {
+			log.Printf("failed to count lives: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to fetch lives"})
+			return
+		}
 
-		// Fetch
+		// Fetch lives for this category (no need to preload Country since it's already filtered)
 		var lives []live.Live
 		if err := db.
 			Preload("User").
 			Preload("Dish").
-			Preload("Country").
 			Preload("Tags").
 			Where("country_id = ?", countryID).
 			Order(orderClause).
@@ -289,13 +304,21 @@ func GetCategoryLives(db *gorm.DB) gin.HandlerFunc {
 			liveDTOs = append(liveDTOs, live.LiveToDTO(l))
 		}
 
-		liveCounts := liveCountByCountry(db)
+		// Count active lives in this specific country (not all countries)
+		var countryLiveCount int64
+		if err := db.Model(&live.Live{}).
+			Where("country_id = ?", countryID).
+			Where("status IN ?", activeStatuses).
+			Count(&countryLiveCount).Error; err != nil {
+			log.Printf("failed to count active lives in country: %v", err)
+		}
+
 		cat := CategoryWithCount{
 			ID:        ct.ID,
 			Name:      ct.Name,
 			Code:      ct.Code,
 			ImageURL:  ct.ImageURL,
-			LiveCount: liveCounts[ct.ID],
+			LiveCount: countryLiveCount,
 		}
 
 		c.JSON(http.StatusOK, CategoryLivesResponse{

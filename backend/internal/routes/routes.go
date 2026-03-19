@@ -1,12 +1,13 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"net/http"
 
 	"github.com/Foodstream-io/etchebest/internal/auth"
 	"github.com/Foodstream-io/etchebest/internal/middleware"
@@ -52,13 +53,13 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))
-	api.POST("/rooms", room.CreateNewRoom(db))
+	api.POST("/rooms", room.CreateNewRoom(db, room.DefaultRoomConfig))
 	api.POST("/rooms/:roomId/reserve", room.ReserveRoom(db))
 	api.POST("/rooms/participant", room.AddParticipant(db))
 	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
 
 	// WebRTC
-	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
+	api.POST("/webrtc", room.HandleWebRTC(db, room.DefaultRoomConfig, stunServerURL, webrtcIP))
 	api.POST("/ice", room.HandleICECandidate(db))
 
 	// HLS - public access (video players can't send Authorization headers)
