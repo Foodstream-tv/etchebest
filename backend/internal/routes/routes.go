@@ -1,11 +1,13 @@
 package routes
 
 import (
+	"net/http"
+	"os"
+
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"net/http"
 
 	"github.com/Foodstream-io/etchebest/internal/auth"
 	"github.com/Foodstream-io/etchebest/internal/middleware"
@@ -17,6 +19,15 @@ import (
 func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, webrtcIP string) {
 	r.Use(middleware.CorsHandler())
 	bJwtToken := []byte(jwtToken)
+
+	// Get OAuth configuration from environment
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	googleRedirectURI := os.Getenv("GOOGLE_REDIRECT_URI")
+
+	// facebookAppID := os.Getenv("FACEBOOK_APP_ID")
+	// facebookAppSecret := os.Getenv("FACEBOOK_APP_SECRET")
+	// facebookRedirectURI := os.Getenv("FACEBOOK_REDIRECT_URI")
 
 	// Health check / root endpoint
 	r.GET("/", func(c *gin.Context) {
@@ -39,6 +50,17 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	// Authentication
 	r.POST("/api/register", auth.Register(db))
 	r.POST("/api/login", auth.Login(db, bJwtToken))
+
+	// OAuth endpoints (public access)
+	if googleClientID != "" && googleClientSecret != "" && googleRedirectURI != "" {
+		r.GET("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
+		r.POST("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
+	}
+
+	// if facebookAppID != "" && facebookAppSecret != "" && facebookRedirectURI != "" {
+	// 	r.GET("/api/auth/facebook/callback", auth.FacebookCallback(db, bJwtToken, facebookAppID, facebookAppSecret, facebookRedirectURI))
+	// 	r.POST("/api/auth/facebook/callback", auth.FacebookCallback(db, bJwtToken, facebookAppID, facebookAppSecret, facebookRedirectURI))
+	// }
 
 	// User
 	admin.GET("/users", user.GetAllUsers(db))
