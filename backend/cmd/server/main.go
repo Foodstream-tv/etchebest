@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
+	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
 	"github.com/Foodstream-io/etchebest/internal/modules/dish"
 	"github.com/Foodstream-io/etchebest/internal/modules/live"
@@ -72,6 +73,7 @@ func main() {
 		&dish.Dish{},
 		&live.Live{},
 		&tag.Tag{},
+		&chat.Chat{},
 	}
 
 	if err := db.AutoMigrate(migrateModels...); err != nil {

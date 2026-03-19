@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
@@ -56,6 +57,11 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.POST("/rooms/:roomId/reserve", room.ReserveRoom(db))
 	api.POST("/rooms/participant", room.AddParticipant(db))
 	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
+
+	// Chat
+	api.GET("/rooms/:roomId/chat", chat.GetAllChatsByRoom(db))
+	api.POST("/rooms/:roomId/chat", chat.CreateNewChat(db))
+	admin.DELETE("/rooms/:roomId/chats/:chatId", chat.DeleteChat(db))
 
 	// WebRTC
 	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
