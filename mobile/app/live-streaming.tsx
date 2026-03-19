@@ -230,10 +230,12 @@ function StreamControls({
                     </View>
                 )}
 
-                <View style={styles.debugOverlay}>
-                    <Text style={styles.debugText}>remoteStreams={remoteStreams.length} primary={primaryRemoteStream ? 'yes' : 'no'} primaryToURL={primaryHasToURL ? 'yes' : 'no'}</Text>
-                    <Text style={styles.debugText} numberOfLines={3}>{remoteDebugSummary || 'no-remote-stream'}</Text>
-                </View>
+                {__DEV__ && (
+                    <View style={styles.debugOverlay}>
+                        <Text style={styles.debugText}>remoteStreams={remoteStreams.length} primary={primaryRemoteStream ? 'yes' : 'no'} primaryToURL={primaryHasToURL ? 'yes' : 'no'}</Text>
+                        <Text style={styles.debugText} numberOfLines={3}>{remoteDebugSummary || 'no-remote-stream'}</Text>
+                    </View>
+                )}
             </View>
 
             {/* Error display */}
