@@ -13,7 +13,7 @@ export class UnauthorizedError extends Error {
 async function requireAuthHeaders(): Promise<Record<string, string>> {
     const token = await auth.getToken();
     if (!token) {
-        throw new UnauthorizedError('Vous devez vous connecter pour acceder aux lives.');
+        throw new UnauthorizedError('Vous devez vous connecter pour accéder aux lives.');
     }
 
     return {
