@@ -165,7 +165,7 @@ const RecipeCard = ({ recipe }: { recipe: Recipe }) => (
     </View>
 );
 
-export default function FavoritesScreen(): JSX.Element {
+export default function FavoritesScreen(): React.JSX.Element {
     return (
         <View style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

@@ -1,37 +1,43 @@
-import { ResizeMode, Video } from 'expo-av';
-import React, { useRef, useState } from 'react';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 interface HLSPlayerProps {
     uri: string;
     onLoad?: () => void;
-    onError?: (err: any) => void;
-    style?: any;
+    onError?: (err: unknown) => void;
+    style?: object;
 }
 
-export default function HLSPlayer({ uri, onLoad, onError, style }: HLSPlayerProps) {
-    const videoRef = useRef<Video>(null);
+export default function HLSPlayer({ uri, onLoad, onError, style }: Readonly<HLSPlayerProps>) {
     const [loading, setLoading] = useState(true);
+
+    const player = useVideoPlayer({ uri }, p => {
+        p.loop = false;
+        p.play();
+    });
+
+    useEffect(() => {
+        const statusSub = player.addListener('statusChange', ({ status, error }) => {
+            if (status === 'readyToPlay') {
+                setLoading(false);
+                onLoad?.();
+            } else if (status === 'error') {
+                console.warn('HLS error:', error);
+                setLoading(false);
+                onError?.(error);
+            }
+        });
+        return () => statusSub.remove();
+    }, [player, onLoad, onError]);
 
     return (
         <View style={[styles.container, style]}>
-            <Video
-                ref={videoRef}
-                source={{ uri }}
+            <VideoView
+                player={player}
                 style={StyleSheet.absoluteFill}
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
-                isLooping={false}
-                useNativeControls
-                onLoad={() => {
-                    setLoading(false);
-                    onLoad?.();
-                }}
-                onError={(err) => {
-                    console.warn('HLS error:', err);
-                    setLoading(false);
-                    onError?.(err);
-                }}
+                contentFit="contain"
+                nativeControls
             />
             {loading && (
                 <View style={styles.loadingOverlay}>
@@ -60,3 +66,4 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
 });
+

@@ -121,7 +121,7 @@ const DropdownRow = ({
 	);
 };
 
-export default function AddScreen(): JSX.Element {
+export default function AddScreen(): React.JSX.Element {
 	const router = useRouter();
 	const [cuisineSelected, setCuisineSelected] = useState('Asiatique');
 	const [levelSelected, setLevelSelected] = useState('Débutant');

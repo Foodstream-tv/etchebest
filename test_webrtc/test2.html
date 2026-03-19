@@ -206,12 +206,15 @@
                     document.getElementById('remoteVideo').srcObject = event.streams[0];
                 };
 
-                // 4. Create offer
+                // 4. Pre-allocate transceivers & create offer
                 log('Creating offer...', 'info');
-                const offer = await pc.createOffer({
-                    offerToReceiveAudio: true,
-                    offerToReceiveVideo: true,
-                });
+                if (typeof pc.addTransceiver === 'function') {
+                    for (let i = 0; i < 5; i++) {
+                        pc.addTransceiver('video', { direction: 'recvonly' });
+                        pc.addTransceiver('audio', { direction: 'recvonly' });
+                    }
+                }
+                const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 log('Local desc set. SDP type=' + offer.type + ', length=' + offer.sdp.length, 'info');
 
