@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { ComponentProps } from 'react';
+import { useRouter } from 'expo-router';
+import React, { ComponentProps, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { authService, StoredUser } from '../../services/auth';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -91,7 +92,7 @@ const SectionHeader = ({ title, icon }: { title: string; icon: IoniconName }) =>
 
 const PreferenceChip = ({ label, active, icon }: { label: string; active?: boolean; icon?: IoniconName }) => {
 	if (active) {
-		return (			
+		return (
 			<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={[styles.chip, styles.chipActive]}>
 				{icon ? <Ionicons name={icon} size={14} color={CARD} /> : null}
 				<Text style={[styles.chipText, styles.chipTextActive]}>{label}</Text>
@@ -153,8 +154,21 @@ const ActivityRow = ({ text }: Activity) => (
 	</View>
 );
 
-export default function ProfileScreen(): JSX.Element {
+export default function ProfileScreen(): React.JSX.Element {
 	const router = useRouter();
+	const [user, setUser] = useState<StoredUser | null>(null);
+
+	useEffect(() => {
+		authService.getUser().then(setUser);
+	}, []);
+
+	const displayName = (() => {
+		if (!user) return 'Utilisateur';
+		if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
+		return user.username;
+	})();
+	const displayHandle = user ? `@${user.username}` : '@—';
+	const displayBio = user?.description ?? user?.email ?? '';
 
 	return (
 		<SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -168,63 +182,63 @@ export default function ProfileScreen(): JSX.Element {
 					</TouchableOpacity>
 				</View>
 
-					<View style={[styles.card, styles.profileCard]}>
-						<View style={styles.avatarWrapper}>
-							<Image source={require('@/assets/images/icon.png')} style={styles.avatar} />
-							<View style={styles.statusDot} />
-						</View>
-						<View style={styles.profileDetails}>
-							<Text style={styles.name}>Nicolas Loiseau</Text>
-							<Text style={styles.handle}>@nicolas • Paris, FR</Text>
-							<Text style={styles.bio}>Toujours partant pour un live ramen ou pizza.</Text>
-							<View style={styles.pillRow}>
-								<PreferenceChip label="Live" icon="radio-outline" active />
-								<PreferenceChip label="FR" />
-								<PreferenceChip label="EN" />
-							</View>
-						</View>
-						<TouchableOpacity style={styles.editButton} activeOpacity={0.9}>
-							<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.editButtonGradient}>
-								<Text style={styles.editButtonText}>Modifier</Text>
-							</LinearGradient>
-						</TouchableOpacity>
+				<View style={[styles.card, styles.profileCard]}>
+					<View style={styles.avatarWrapper}>
+						<Image source={require('@/assets/images/icon.png')} style={styles.avatar} />
+						<View style={styles.statusDot} />
 					</View>
-
-					<View style={[styles.card, styles.sectionCard]}>
-						<SectionHeader title="Préférences" icon="settings-outline" />
-						<View style={styles.preferenceBlock}>
-							<Text style={styles.blockTitle}>Thème</Text>
-							<View style={styles.chipRow}>
-								<PreferenceChip label="Clair" />
-								<PreferenceChip label="Sombre" active />
-								<PreferenceChip label="Système" />
-							</View>
-							<Text style={styles.helperText}>Switch pour essayer le mode sombre</Text>
-						</View>
-						<View style={styles.preferenceBlock}>
-							<Text style={styles.blockTitle}>Notifications</Text>
-							<View style={styles.chipRow}>
-								<PreferenceChip label="Lives" active />
-								<PreferenceChip label="Replays" />
-								<PreferenceChip label="Nouveaux chefs" />
-							</View>
-						</View>
-						<View style={styles.preferenceBlock}>
-							<Text style={styles.blockTitle}>Langue</Text>
-							<View style={styles.chipRow}>
-								<PreferenceChip label="FR" active />
-								<PreferenceChip label="EN" />
-							</View>
+					<View style={styles.profileDetails}>
+						<Text style={styles.name}>{displayName}</Text>
+						<Text style={styles.handle}>{displayHandle}</Text>
+						<Text style={styles.bio}>{displayBio}</Text>
+						<View style={styles.pillRow}>
+							<PreferenceChip label="Live" icon="radio-outline" active />
+							<PreferenceChip label="FR" />
+							<PreferenceChip label="EN" />
 						</View>
 					</View>
+					<TouchableOpacity style={styles.editButton} activeOpacity={0.9}>
+						<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.editButtonGradient}>
+							<Text style={styles.editButtonText}>Modifier</Text>
+						</LinearGradient>
+					</TouchableOpacity>
+				</View>
 
-					<View style={[styles.card, styles.sectionCard]}>
-						<SectionHeader title="Statistiques" icon="bar-chart-outline" />
-						<View style={styles.statGrid}>
-							{stats.map((stat) => (
-								<StatTile key={stat.label} {...stat} />
-							))}
+				<View style={[styles.card, styles.sectionCard]}>
+					<SectionHeader title="Préférences" icon="settings-outline" />
+					<View style={styles.preferenceBlock}>
+						<Text style={styles.blockTitle}>Thème</Text>
+						<View style={styles.chipRow}>
+							<PreferenceChip label="Clair" />
+							<PreferenceChip label="Sombre" active />
+							<PreferenceChip label="Système" />
 						</View>
+						<Text style={styles.helperText}>Switch pour essayer le mode sombre</Text>
+					</View>
+					<View style={styles.preferenceBlock}>
+						<Text style={styles.blockTitle}>Notifications</Text>
+						<View style={styles.chipRow}>
+							<PreferenceChip label="Lives" active />
+							<PreferenceChip label="Replays" />
+							<PreferenceChip label="Nouveaux chefs" />
+						</View>
+					</View>
+					<View style={styles.preferenceBlock}>
+						<Text style={styles.blockTitle}>Langue</Text>
+						<View style={styles.chipRow}>
+							<PreferenceChip label="FR" active />
+							<PreferenceChip label="EN" />
+						</View>
+					</View>
+				</View>
+
+				<View style={[styles.card, styles.sectionCard]}>
+					<SectionHeader title="Statistiques" icon="bar-chart-outline" />
+					<View style={styles.statGrid}>
+						{stats.map((stat) => (
+							<StatTile key={stat.label} {...stat} />
+						))}
+					</View>
 					<View style={styles.progressList}>
 						{progress.map((item) => (
 							<View key={item.label} style={styles.progressItem}>
@@ -245,28 +259,28 @@ export default function ProfileScreen(): JSX.Element {
 					</View>
 				</View>
 
-					<View style={[styles.card, styles.sectionCard]}>
-						<SectionHeader title="Médailles & Badges" icon="trophy-outline" />
-						<View style={styles.badgeGrid}>
-							{badges.map((badge) => (
-								<BadgeCard key={badge.title} {...badge} />
-							))}
-						</View>
-					</View>
-
-					<View style={[styles.card, styles.sectionCard]}>
-						<SectionHeader title="Comptes connectés" icon="link-outline" />
-						{connections.map((connection) => (
-							<ConnectionRow key={connection.name} {...connection} />
+				<View style={[styles.card, styles.sectionCard]}>
+					<SectionHeader title="Médailles & Badges" icon="trophy-outline" />
+					<View style={styles.badgeGrid}>
+						{badges.map((badge) => (
+							<BadgeCard key={badge.title} {...badge} />
 						))}
 					</View>
+				</View>
 
-					<View style={[styles.card, styles.sectionCard, styles.lastCard]}>
-						<SectionHeader title="Activité récente" icon="timer-outline" />
-						{activities.map((activity) => (
-							<ActivityRow key={activity.text} {...activity} />
-						))}
-					</View>
+				<View style={[styles.card, styles.sectionCard]}>
+					<SectionHeader title="Comptes connectés" icon="link-outline" />
+					{connections.map((connection) => (
+						<ConnectionRow key={connection.name} {...connection} />
+					))}
+				</View>
+
+				<View style={[styles.card, styles.sectionCard, styles.lastCard]}>
+					<SectionHeader title="Activité récente" icon="timer-outline" />
+					{activities.map((activity) => (
+						<ActivityRow key={activity.text} {...activity} />
+					))}
+				</View>
 			</ScrollView>
 		</SafeAreaView>
 	);

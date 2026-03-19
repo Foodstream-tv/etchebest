@@ -22,18 +22,20 @@ services:
       - postgres
     build: ./backend
     env_file: ./.env
-    ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
     networks:
       - back-network
+    ports:
+      - "8081:8081"
     environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       BACKEND_PORT: ${BACKEND_PORT}
+      STUN_SERVER_URL: ${STUN_SERVER_URL}
+      WEBRTC_IP: ${WEBRTC_IP:-127.0.0.1}
 
 
 volumes:

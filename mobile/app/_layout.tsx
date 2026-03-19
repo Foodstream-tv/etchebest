@@ -18,10 +18,14 @@ export default function RootLayout() {
 	return (
 		<ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
 			<Stack>
+				<Stack.Screen name="index" options={{ headerShown: false }} />
 				<Stack.Screen name="login" options={{ headerShown: false }} />
 				<Stack.Screen name="register" options={{ headerShown: false }} />
-				<Stack.Screen name="forgot-password" options={{ title: 'Mot de passe oublié' }} />
+				<Stack.Screen name="forgot-password" options={{ headerShown: false }} />
 				<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+				<Stack.Screen name="live-streaming" options={{ headerShown: false, orientation: 'portrait' }} />
+				<Stack.Screen name="live-viewer" options={{ headerShown: false, orientation: 'all' }} />
+				<Stack.Screen name="live-rooms" options={{ headerShown: false }} />
 			</Stack>
 			<StatusBar style="auto" />
 		</ThemeProvider>

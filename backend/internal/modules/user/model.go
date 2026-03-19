@@ -34,6 +34,10 @@ type User struct {
 	IsVerified         bool           `json:"isVerified" gorm:"default:false"`
 	IsFeaturedChef     bool           `json:"isFeaturedChef" gorm:"default:false;index:idx_user_featured"`
 	LastLiveAt         *time.Time     `json:"lastLiveAt" gorm:"index:idx_user_last_live"`
+	// OAuth fields
+	GoogleID      *string `json:"googleId" gorm:"index:idx_user_google"`
+	FacebookID    *string `json:"facebookId" gorm:"index:idx_user_facebook"`
+	OAuthProvider *string `json:"oauthProvider"` // "google" or "facebook"
 }
 
 type UserPatch struct {
