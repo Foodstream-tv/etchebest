@@ -12,11 +12,11 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getRooms, RoomInfo } from '../services/streaming';
+import { getRooms, RoomInfo, UnauthorizedError } from '../services/streaming';
 
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 
-function RoomCard({ room, onWatch, onJoin }: { room: RoomInfo; onWatch: () => void; onJoin: () => void }) {
+function RoomCard({ room, onWatch, onJoin }: Readonly<{ room: RoomInfo; onWatch: () => void; onJoin: () => void }>) {
     const spotsLeft = room.maxParticipants - room.participants.length;
 
     return (
@@ -78,13 +78,13 @@ function RoomListContent({
     onWatch,
     onJoin,
 }: {
-    error: string | null;
-    rooms: RoomInfo[];
-    refreshing: boolean;
-    onRefresh: () => void;
-    onRetry: () => void;
-    onWatch: (room: RoomInfo) => void;
-    onJoin: (room: RoomInfo) => void;
+    readonly error: string | null;
+    readonly rooms: RoomInfo[];
+    readonly refreshing: boolean;
+    readonly onRefresh: () => void;
+    readonly onRetry: () => void;
+    readonly onWatch: (room: RoomInfo) => void;
+    readonly onJoin: (room: RoomInfo) => void;
 }) {
     if (error) {
         return (
@@ -138,6 +138,10 @@ export default function LiveRoomsScreen() {
             const data = await getRooms();
             setRooms(data || []);
         } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                router.replace('/login');
+                return;
+            }
             setError(err.message || 'Impossible de charger les salles');
         } finally {
             setLoading(false);

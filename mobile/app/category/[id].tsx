@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   RefreshControl,
@@ -11,9 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import ToastManager from 'toastify-react-native';
-import apiService, { Category, CategoryLivesResponse, Live } from '../../services/api';
-import toast from '../../utils/toast';
+import apiService, { CategoryLivesResponse, Live } from '../../services/api';
 
 export default function CategoryLivesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,23 +21,23 @@ export default function CategoryLivesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
 
-  const fetchLives = async () => {
+  const fetchLives = useCallback(async () => {
     if (!id) return;
     try {
       const result = await apiService.getCategoryLives(Number(id));
       setData(result);
     } catch (error) {
       console.error('Category lives load error:', error);
-      toast.error('Impossible de charger les lives');
+      Alert.alert('Erreur', 'Impossible de charger les lives');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchLives();
-  }, [id]);
+  }, [fetchLives]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -51,7 +50,7 @@ export default function CategoryLivesScreen() {
       onPress={() => {
         // Navigate to live stream (to be implemented)
         // router.push(`/live/${item.id}`);
-        toast.info(`Joining live: ${item.title}`);
+        Alert.alert('Bientôt disponible', `Rejoindre le live : ${item.title}`);
       }}
     >
       <View style={styles.thumbnailContainer}>
@@ -94,7 +93,7 @@ export default function CategoryLivesScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: data?.category?.name || 'Category' }} />
-      
+
       <FlatList
         data={data?.lives || []}
         renderItem={renderLiveItem}
@@ -112,7 +111,6 @@ export default function CategoryLivesScreen() {
           )
         }
       />
-      <ToastManager />
     </View>
   );
 }
