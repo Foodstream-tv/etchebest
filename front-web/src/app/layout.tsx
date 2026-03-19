@@ -8,13 +8,11 @@ export const metadata: Metadata = {
   description: "Streaming de cuisine en direct",
 };
 
-// ⛔️ surtout PAS de "use client" ici
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // cookies() est async dans ta version de Next
   const cookieStore = await cookies();
   const cookieTheme = cookieStore.get("theme")?.value as Theme | undefined;
   const initialTheme: Theme = cookieTheme === "dark" ? "dark" : "light";
