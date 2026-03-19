@@ -10,6 +10,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PiPPreview from '../components/PiPPreview';
 import StreamView from '../components/StreamView';
 import { StreamingState, useWebRTC } from '../hooks/useWebRTC';
 
@@ -160,23 +161,24 @@ function StreamControls({
 
             {/* Video area */}
             <View style={styles.videoContainer}>
-                {localStream ? (
+                {/* Main view: first remote stream when available, otherwise placeholder */}
+                {remoteStreams.length > 0 ? (
                     <StreamView
-                        stream={localStream as unknown as MediaStream}
-                        style={styles.localVideo}
+                        key={remoteStreams[0].id}
+                        stream={remoteStreams[0] as unknown as MediaStream}
+                        style={styles.mainVideo}
                         objectFit="cover"
-                        mirror={true}
                     />
                 ) : (
                     <PlaceholderVideo state={state} />
                 )}
 
-                {/* Remote streams (co-streamers) */}
-                {remoteStreams.length > 0 && (
+                {/* Additional remote streams (co-streamers beyond the first) */}
+                {remoteStreams.length > 1 && (
                     <View style={styles.remoteContainer}>
-                        {remoteStreams.map((stream) => (
+                        {remoteStreams.slice(1).map((stream) => (
                             <StreamView
-                                key={(stream as any).id ?? String(stream)}
+                                key={stream.id}
                                 stream={stream as unknown as MediaStream}
                                 style={styles.remoteVideo}
                                 objectFit="cover"
@@ -184,6 +186,13 @@ function StreamControls({
                         ))}
                     </View>
                 )}
+
+                {/* Local camera — draggable PiP overlay in the bottom-right corner */}
+                <PiPPreview
+                    stream={localStream as unknown as MediaStream | null}
+                    initialBottom={16}
+                    initialRight={16}
+                />
             </View>
 
             {/* Error display */}
@@ -254,7 +263,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         margin: 12,
     },
-    localVideo: {
+    mainVideo: {
         flex: 1,
         borderRadius: 16,
     },
