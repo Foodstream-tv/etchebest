@@ -18,6 +18,9 @@ export default function StreamView({ stream, style, objectFit = 'cover', mirror 
     useEffect(() => {
         if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+                videoRef.current?.play().catch(e => console.error("Video auto-play failed", e));
+            };
         }
     }, [stream]);
 

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Join Room – WebRTC Test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: monospace;
+            background: #111;
+            color: #eee;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ff7a00;
+            margin-bottom: 16px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+
+        input {
+            padding: 8px 12px;
+            background: #222;
+            border: 1px solid #444;
+            color: #eee;
+            border-radius: 4px;
+            width: 260px;
+        }
+
+        input[type=password] {
+            width: 160px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #ff7a00;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            background: #c0392b;
+        }
+
+        .videos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .video-box {
+            position: relative;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+        }
+
+        .video-box label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            font-size: 11px;
+            background: rgba(0, 0, 0, .7);
+            padding: 2px 6px;
+            border-radius: 4px;
+            z-index: 1;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #remoteVideos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            font-size: 11px;
+            line-height: 1.5;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .ok {
+            color: #2ecc71;
+        }
+
+        .err {
+            color: #e74c3c;
+        }
+
+        .inf {
+            color: #3498db;
+        }
+
+        .wrn {
+            color: #f39c12;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🍴 FoodStream – Rejoindre une room</h1>
+
+    <div class="controls">
+        <input id="email" placeholder="Email" value="admin@admin.com" />
+        <input id="password" type="password" placeholder="Mot de passe" value="admin123" />
+        <button onclick="doLogin()">Se connecter</button>
+    </div>
+
+    <div class="controls">
+        <input id="roomId" placeholder="Room ID (UUID)" style="width:340px" />
+        <button id="joinBtn" onclick="doJoin()" disabled>Rejoindre</button>
+        <button class="danger" onclick="doLeave()">Quitter</button>
+    </div>
+
+    <!-- Local video -->
+    <div class="videos" id="localSection" style="display:none">
+        <div class="video-box">
+            <label>📷 Ma caméra (local)</label>
+            <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+    </div>
+
+    <!-- Remote videos injected here -->
+    <div id="remoteVideos"></div>
+
+    <div id="log"></div>
+
+    <script>
+        const BASE = "http://localhost:8081/api";
+        let token = null;
+        let pc = null;
+        let localStream = null;
+
+        // ---------- logging ----------
+        function log(msg, cls = '') {
+            const d = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = cls;
+            line.textContent = `[${new Date().toTimeString().slice(0, 8)}] ${msg}`;
+            d.appendChild(line);
+            d.scrollTop = d.scrollHeight;
+        }
+
+        // ---------- auth ----------
+        async function doLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            try {
+                const res = await fetch(`${BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await res.json();
+                if (data.token) {
+                    token = data.token;
+                    log('✅ Connecté. Token: ' + token.slice(0, 24) + '…', 'ok');
+                    document.getElementById('joinBtn').disabled = false;
+                } else {
+                    log('❌ Login échoué: ' + JSON.stringify(data), 'err');
+                }
+            } catch (e) {
+                log('❌ Login error: ' + e.message, 'err');
+            }
+        }
+
+        function authHeaders() {
+            return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+        }
+
+        // ---------- add a remote video element ----------
+        function addRemoteVideo(stream, label) {
+            const box = document.createElement('div');
+            box.className = 'video-box';
+            box.id = 'stream-' + stream.id;
+            box.style.aspectRatio = '16/9';
+            box.style.background = '#1a1a1a';
+            box.style.border = '1px solid #333';
+            box.style.borderRadius = '8px';
+            box.style.overflow = 'hidden';
+            box.style.position = 'relative';
+
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'position:absolute;top:8px;left:8px;font-size:11px;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:4px;z-index:1;';
+            lbl.textContent = label;
+
+            const video = document.createElement('video');
+            video.autoplay = true;
+            video.playsInline = true;
+            video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+            video.srcObject = stream;
+
+            // Force play on user gesture if autoplay fails
+            video.addEventListener('click', () => video.play().catch(() => { }));
+
+            box.appendChild(lbl);
+            box.appendChild(video);
+            document.getElementById('remoteVideos').appendChild(box);
+
+            // Try to play
+            video.play().catch(e => log('⚠️ Autoplay bloqué – clique sur la vidéo', 'wrn'));
+            log(`🎥 Vidéo distante ajoutée: ${label} (stream.id=${stream.id})\nTrack state: ${stream.getVideoTracks()[0]?.muted ? 'Muted' : 'Unmuted'}`, 'ok');
+
+            // Hide the video-box if it's currently muted (e.g. pre-allocated transceiver without media)
+            const track = stream.getVideoTracks()[0] || stream.getAudioTracks()[0];
+            if (track) {
+                if (track.muted) {
+                    box.style.display = 'none';
+                }
+                track.onunmute = () => {
+                    log(`📥 Média reçu sur track ${track.kind} (${stream.id})`, 'inf');
+                    box.style.display = 'block';
+                };
+                track.onmute = () => {
+                    log(`🔇 Média arrêté sur track ${track.kind} (${stream.id})`, 'wrn');
+                    box.style.display = 'none';
+                };
+            }
+        }
+
+        // ---------- main join ----------
+        async function doJoin() {
+            const roomId = document.getElementById('roomId').value.trim();
+            if (!roomId) { log('❌ Saisis un Room ID', 'err'); return; }
+            if (!token) { log('❌ Connecte-toi d\'abord', 'err'); return; }
+
+            try {
+                // Get local camera/mic
+                log('📷 Accès caméra/micro…', 'inf');
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localSection').style.display = 'grid';
+                document.getElementById('localVideo').srcObject = localStream;
+                log(`✅ Caméra OK (${localStream.getTracks().map(t => t.kind).join(', ')})`, 'ok');
+
+                // Build PeerConnection
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                });
+
+                // Add local tracks
+                localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, localStream);
+                    log(`  ➕ Track local ajouté: ${track.kind}`, 'inf');
+                });
+
+                // Remote tracks → display
+                const remoteStreams = new Map();
+                pc.ontrack = (event) => {
+                    const stream = event.streams[0];
+                    log(`📡 ontrack: kind=${event.track.kind} stream.id=${stream?.id ?? 'none'}`, 'ok');
+
+                    if (!stream) {
+                        // No stream attached — wrap the track manually
+                        const newStream = new MediaStream([event.track]);
+                        addRemoteVideo(newStream, `🎬 Remote ${event.track.kind}`);
+                        return;
+                    }
+
+                    if (!remoteStreams.has(stream.id)) {
+                        remoteStreams.set(stream.id, stream);
+                        addRemoteVideo(stream, `🎬 Remote stream`);
+                    } else {
+                        // Stream already displayed — video element will pick up new track automatically
+                        log(`  ↪ Track ajouté au stream existant: ${stream.id}`, 'inf');
+                        const videoEl = document.querySelector(`#stream-${stream.id} video`);
+                        if (videoEl && videoEl.srcObject !== stream) videoEl.srcObject = stream;
+                    }
+                };
+
+                // ICE candidates → send to backend
+                pc.onicecandidate = async (event) => {
+                    if (event.candidate) {
+                        log(`🧊 ICE local: ${event.candidate.candidate.slice(0, 60)}…`, 'inf');
+                        try {
+                            await fetch(`${BASE}/ice?roomId=${roomId}`, {
+                                method: 'POST',
+                                headers: authHeaders(),
+                                body: JSON.stringify({
+                                    candidate: event.candidate.candidate,
+                                    sdpMLineIndex: event.candidate.sdpMLineIndex,
+                                    sdpMid: event.candidate.sdpMid,
+                                }),
+                            });
+                        } catch (e) { log('⚠️ ICE send failed: ' + e.message, 'wrn'); }
+                    } else {
+                        log('🧊 ICE gathering terminé', 'inf');
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    const s = pc.iceConnectionState;
+                    log(`🔗 ICE: ${s}`, s === 'connected' || s === 'completed' ? 'ok' : s === 'failed' ? 'err' : 'inf');
+                };
+                pc.onconnectionstatechange = () => {
+                    const s = pc.connectionState;
+                    log(`🔗 Connection: ${s}`, s === 'connected' ? 'ok' : s === 'failed' || s === 'closed' ? 'err' : 'inf');
+                };
+                pc.onsignalingstatechange = () => log(`📶 Signaling: ${pc.signalingState}`, 'inf');
+
+                // Pre-allocate transceivers for receiving remote tracks without renegotiation
+                if (typeof pc.addTransceiver === 'function') {
+                    for (let i = 0; i < 5; i++) {
+                        pc.addTransceiver('video', { direction: 'recvonly' });
+                        pc.addTransceiver('audio', { direction: 'recvonly' });
+                    }
+                }
+
+                // Create offer
+                const offer = await pc.createOffer();
+
+                // Keep all codecs so H264 is included (browser may prioritize VP8 but H264 must be present)
+                // Reorder SDP to put H264 first so Pion picks it when relaying phone tracks
+                const reorderedSdp = preferH264(offer.sdp);
+                const finalOffer = new RTCSessionDescription({ type: 'offer', sdp: reorderedSdp });
+
+                await pc.setLocalDescription(finalOffer);
+                log(`📤 Offer créé (SDP length=${finalOffer.sdp.length})`, 'inf');                // Send offer to backend
+                const resp = await fetch(`${BASE}/webrtc?roomId=${roomId}`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ type: 'offer', sdp: offer.sdp }),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    log(`❌ Serveur: ${resp.status} – ${JSON.stringify(err)}`, 'err');
+                    return;
+                }
+
+                const { sdp: answerSdp } = await resp.json();
+                log(`📥 Answer reçu (SDP length=${answerSdp.length})`, 'ok');
+
+                const candidateCount = (answerSdp.match(/a=candidate:/g) || []).length;
+                log(`🧊 Candidates dans answer SDP: ${candidateCount}`, candidateCount > 0 ? 'ok' : 'wrn');
+
+                await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerSdp }));
+                log('✅ Remote description set', 'ok');
+
+            } catch (e) {
+                log('❌ Erreur: ' + e.message, 'err');
+                console.error(e);
+            }
+        }
+
+        // ---------- SDP helpers ----------
+        // Move H264 before VP8 in the video m-section so Pion negotiates H264
+        // (which is what the phone sends). Works in Chrome and Firefox.
+        function preferH264(sdp) {
+            const lines = sdp.split('\n');
+            // Find H264 payload types
+            const h264PTs = [];
+            for (const line of lines) {
+                const m = line.match(/^a=rtpmap:(\d+) H264\//i);
+                if (m) h264PTs.push(m[1]);
+            }
+            if (h264PTs.length === 0) {
+                log('⚠️ H264 absent du SDP navigateur — utilise Chrome pour H264', 'wrn');
+                return sdp;
+            }
+            // Reorder m=video payload list: H264 first
+            return sdp.replace(/^(m=video \S+ \S+) (.+)$/m, (_, prefix, pts) => {
+                const all = pts.trim().split(' ');
+                const reordered = [
+                    ...h264PTs.filter(pt => all.includes(pt)),
+                    ...all.filter(pt => !h264PTs.includes(pt)),
+                ];
+                log(`🎬 Codecs vidéo réordonnés: ${reordered.slice(0, 5).join(',')}…`, 'inf');
+                return `${prefix} ${reordered.join(' ')}`;
+            });
+        }
+
+        // ---------- leave ----------
+        function doLeave() {
+            if (pc) { pc.close(); pc = null; }
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            document.getElementById('localSection').style.display = 'none';
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideos').innerHTML = '';
+            log('👋 Déconnecté', 'wrn');
+        }
+
+        // Auto-login on load
+        window.addEventListener('load', doLogin);
+    </script>
+</body>
+
+</html>
