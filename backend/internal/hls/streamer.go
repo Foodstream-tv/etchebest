@@ -121,7 +121,7 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 		"-protocol_whitelist", "file,udp,rtp",
 	}
 
-	if !isH264 {
+	if video != nil && !isH264 {
 		// Force single-threaded input decoding for VP8/VP9/AV1.
 		// FFmpeg's frame-parallel VP8 decoder allocates one VP8Context per
 		// CPU thread. Only thread-0 ever receives the initial keyframe via
@@ -132,14 +132,17 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 		args = append(args, "-threads", "1")
 	}
 
-	args = append(args,
-		"-i", sdpPath,
+	args = append(args, "-i", sdpPath)
+
+	if audio != nil {
 		// audio → aac
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-ar", "48000",
-		"-ac", "2",
-	)
+		args = append(args,
+			"-c:a", "aac",
+			"-b:a", "128k",
+			"-ar", "48000",
+			"-ac", "2",
+		)
+	}
 
 	if isH264 {
 		args = append(args,
@@ -147,7 +150,7 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 			"-bsf:v", "h264_mp4toannexb",
 		)
 		log.Println("[HLS] video codec is H264, using copy mode (no re-encode)")
-	} else {
+	} else if video != nil {
 		args = append(args,
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
