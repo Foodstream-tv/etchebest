@@ -1,13 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import FloatingLabelInput from '../components/FloatingLabelInput';
+import config from '../config/env';
 import apiService from '../services/api';
 import { authService } from '../services/auth';
 import { validateEmail, validatePassword } from '../utils/validation';
 
+GoogleSignin.configure({
+    webClientId: config.googleClientId,
+    offlineAccess: true, // Demande un serverAuthCode
+    forceCodeForRefreshToken: true,
+});
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -64,9 +73,43 @@ export default function LoginScreen() {
         }
     }, [email, password, router]);
 
-    const handleGoogleLogin = useCallback(() => {
-        setSocialMessage('La connexion avec Google n\'est pas encore disponible');
-    }, []);
+    // ---- Google Auth Handlers (Native) ----
+    const handleGoogleLogin = useCallback(async () => {
+        setLoading(true);
+        setSocialMessage(null);
+        setApiError(null);
+        try {
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+            
+            // On récupère l'Access Token pour le backend mobile (`/api/auth/google/mobile`)
+            const { accessToken } = await GoogleSignin.getTokens();
+
+            if (accessToken) {
+               console.log('[Google Auth] Success! Access Token received. Sending to backend...');
+               
+               const authRes = await apiService.loginWithGoogle(accessToken);
+               await authService.saveAuth(authRes.token, authRes.user);
+               router.replace('/');
+            } else {
+               setSocialMessage("Impossible de récupérer le jeton d'accès Google.");
+            }
+        } catch (error: any) {
+            console.error("Google Signin Error:", error);
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                // L'utilisateur a annulé la fenêtre Google
+                setSocialMessage("Connexion annulée");
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                setSocialMessage("Connexion déjà en cours");
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                setSocialMessage("Google Play Services indisponible sur cet appareil");
+            } else {
+                setApiError("Erreur inattendue de connexion avec Google.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [router]);
 
     const handleAppleLogin = useCallback(() => {
         setSocialMessage('La connexion avec Apple n\'est pas encore disponible');
@@ -138,7 +181,7 @@ export default function LoginScreen() {
                                 trailingIcon={passwordTrailingIcon}
                                 error={passwordError}
                             />
-                            
+
                             <View style={styles.optionsRow}>
                                 <TouchableOpacity style={styles.rememberMeContainer} onPress={() => setRememberMe(!rememberMe)}>
                                     <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>

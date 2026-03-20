@@ -6,6 +6,9 @@ export const config = {
   // Auth storage keys
   tokenKey: process.env.EXPO_PUBLIC_TOKEN_KEY || 'auth_token',
   userKey: process.env.EXPO_PUBLIC_USER_KEY || 'auth_user',
+
+  // Google OAuth
+  googleClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '180195435704-86emi3b8kkgprqsc8d92sgcan08r7ni4.apps.googleusercontent.com',
 } as const;
 
 export default config;

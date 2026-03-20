@@ -48,24 +48,39 @@ func GoogleMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		result := db.Where("google_id = ?", userInfo.ID).First(&existingUser)
 
 		if result.Error == gorm.ErrRecordNotFound {
-			// Create new user
-			newUser := user.User{
-				ID:              uuid.New().String(),
-				Email:           userInfo.Email,
-				FirstName:       userInfo.FirstName,
-				LastName:        userInfo.LastName,
-				Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-				ProfileImageURL: userInfo.Picture,
-				GoogleID:        &userInfo.ID,
-				OAuthProvider:   strPtr("google"),
-				Password:        uuid.New().String(), // Random password for OAuth users
-			}
+			// Check if user exists by email
+			emailResult := db.Where("email = ?", userInfo.Email).First(&existingUser)
+			if emailResult.Error == nil {
+				// Link Google account to existing user
+				existingUser.GoogleID = &userInfo.ID
+				existingUser.OAuthProvider = strPtr("google")
+				if existingUser.ProfileImageURL == "" {
+					existingUser.ProfileImageURL = userInfo.Picture
+				}
+				if err := db.Save(&existingUser).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link account"})
+					return
+				}
+			} else {
+				// Create new user
+				newUser := user.User{
+					ID:              uuid.New().String(),
+					Email:           userInfo.Email,
+					FirstName:       userInfo.FirstName,
+					LastName:        userInfo.LastName,
+					Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
+					ProfileImageURL: userInfo.Picture,
+					GoogleID:        &userInfo.ID,
+					OAuthProvider:   strPtr("google"),
+					Password:        uuid.New().String(),
+				}
 
-			if err := db.Create(&newUser).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
-				return
+				if err := db.Create(&newUser).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+					return
+				}
+				existingUser = newUser
 			}
-			existingUser = newUser
 		} else if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			return
@@ -79,8 +94,12 @@ func GoogleMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"token":  token,
-			"userId": existingUser.ID,
+			"token": token,
+			"user": gin.H{
+				"id":       existingUser.ID,
+				"email":    existingUser.Email,
+				"username": existingUser.Username,
+			},
 		})
 	}
 }
@@ -118,29 +137,48 @@ func FacebookMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		result := db.Where("facebook_id = ?", userInfo.ID).First(&existingUser)
 
 		if result.Error == gorm.ErrRecordNotFound {
-			// Create new user
-			pictureURL := ""
-			if userInfo.Picture.Data.URL != "" {
-				pictureURL = userInfo.Picture.Data.URL
-			}
+			// Check if user exists by email
+			emailResult := db.Where("email = ?", userInfo.Email).First(&existingUser)
+			if emailResult.Error == nil {
+				// Link Facebook account to existing user
+				existingUser.FacebookID = &userInfo.ID
+				existingUser.OAuthProvider = strPtr("facebook")
+				pictureURL := ""
+				if userInfo.Picture.Data.URL != "" {
+					pictureURL = userInfo.Picture.Data.URL
+				}
+				if existingUser.ProfileImageURL == "" && pictureURL != "" {
+					existingUser.ProfileImageURL = pictureURL
+				}
+				if err := db.Save(&existingUser).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link account"})
+					return
+				}
+			} else {
+				// Create new user
+				pictureURL := ""
+				if userInfo.Picture.Data.URL != "" {
+					pictureURL = userInfo.Picture.Data.URL
+				}
 
-			newUser := user.User{
-				ID:              uuid.New().String(),
-				Email:           userInfo.Email,
-				FirstName:       userInfo.FirstName,
-				LastName:        userInfo.LastName,
-				Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-				ProfileImageURL: pictureURL,
-				FacebookID:      &userInfo.ID,
-				OAuthProvider:   strPtr("facebook"),
-				Password:        uuid.New().String(), // Random password for OAuth users
-			}
+				newUser := user.User{
+					ID:              uuid.New().String(),
+					Email:           userInfo.Email,
+					FirstName:       userInfo.FirstName,
+					LastName:        userInfo.LastName,
+					Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
+					ProfileImageURL: pictureURL,
+					FacebookID:      &userInfo.ID,
+					OAuthProvider:   strPtr("facebook"),
+					Password:        uuid.New().String(),
+				}
 
-			if err := db.Create(&newUser).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
-				return
+				if err := db.Create(&newUser).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+					return
+				}
+				existingUser = newUser
 			}
-			existingUser = newUser
 		} else if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			return
