@@ -26,6 +26,7 @@ services:
       - back-network
     ports:
       - "8081:8081"
+      - "50000-50100:50000-50100/udp"
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: ${POSTGRES_PORT}
