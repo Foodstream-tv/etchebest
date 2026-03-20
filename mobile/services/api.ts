@@ -193,6 +193,19 @@ class ApiService {
     });
     return this.handleResponse<AuthResponse>(response);
   }
+  
+  async loginWithGoogle(accessToken: string): Promise<AuthResponse> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/google/mobile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        access_token: accessToken,
+      }),
+    });
+    return this.handleResponse<AuthResponse>(response);
+  }
 
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const response = await this.fetchWithTimeout(`${this.baseUrl}/register`, {

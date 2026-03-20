@@ -32,6 +32,7 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="foodstream"/>
+        <data android:scheme="exp+foodstream"/>
       </intent-filter>
     </activity>
   </application>
