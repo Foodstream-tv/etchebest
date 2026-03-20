@@ -63,6 +63,10 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	// 	r.POST("/api/auth/facebook/callback", auth.FacebookCallback(db, bJwtToken, facebookAppID, facebookAppSecret, facebookRedirectURI))
 	// }
 
+	// OAuth Mobile endpoints (public access)
+	r.POST("/api/auth/google/mobile", auth.GoogleMobileCallback(db, bJwtToken))
+	// r.POST("/api/auth/facebook/mobile", auth.FacebookMobileCallback(db, bJwtToken))
+
 	// User
 	admin.GET("/users", user.GetAllUsers(db))
 	admin.PATCH("/users/:userId", user.UpdateUserById(db))
