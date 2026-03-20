@@ -15,6 +15,7 @@ import {
   Star,
   Activity,
 } from "lucide-react";
+import HomeFooter from "@/components/home/HomeFooter";
 
 function initialsOf(name?: string, email?: string) {
   return (name || email || "?")
@@ -88,146 +89,89 @@ export default function ProfilePage() {
   const displayName = user.username || "Mon profil";
   const locationLine = "@nicolas · Paris, FR";
   const statusLine = "“Toujours partant pour …”";
-  const avatarAlt = displayName;
 
   return (
-    <main className="pb-10">
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 md:grid-cols-[360px_minmax(0,1fr)]">
-        {/* LEFT COLUMN */}
-        <aside className="space-y-6">
-          {/* Profile card */}
-          <Card>
-            <div className="flex items-center gap-3">
-              <div className="relative h-14 w-14 overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
-                {user.profileImageUrl ? (
-                  <Image
-                    src={user.profileImageUrl}
-                    alt={avatarAlt}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-lg font-bold text-gray-700 dark:text-gray-200">
-                    {initialsOf(user.username, user.email)}
-                  </div>
-                )}
+    <main className="flex min-h-[calc(100vh-64px)] flex-col">
+      {/* CONTENU */}
+      <div className="flex-1">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 md:grid-cols-[360px_minmax(0,1fr)]">
+          {/* LEFT */}
+          <aside className="space-y-6">
+            <Card>
+              <div className="flex items-center gap-3">
+                <div className="relative h-14 w-14 overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
+                  {user.profileImageUrl ? (
+                    <Image
+                      src={user.profileImageUrl}
+                      alt={displayName}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center text-lg font-bold">
+                      {initialsOf(user.username, user.email)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">{displayName}</div>
+                  <div className="text-xs text-gray-500">{locationLine}</div>
+                  <div className="text-[11px] text-gray-400">{statusLine}</div>
+                </div>
+
+                <button className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white">
+                  Modifier
+                </button>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">
-                  {displayName}
+              <div className="mt-4 flex items-center justify-between bg-gray-50 px-3 py-2 text-xs dark:bg-white/5">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  {user.email}
                 </div>
-                <div className="truncate text-xs text-gray-500 dark:text-gray-400">
-                  {locationLine}
-                </div>
-                <div className="truncate text-[11px] text-gray-400 dark:text-gray-500">
-                  {statusLine}
-                </div>
+
+                <button
+                  onClick={() => {
+                    signOut();
+                    window.location.href = "/signin";
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="h-4 w-4" /> Déco
+                </button>
               </div>
+            </Card>
 
-              <button
-                type="button"
-                className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
-                onClick={() => alert("Modifier le profil (à brancher).")}
-              >
-                Modifier
-              </button>
-            </div>
+            <Card>
+              <h2 className="mb-3 text-sm font-semibold">Comptes connectés</h2>
 
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200">
-              <div className="flex min-w-0 items-center gap-2">
-                <Mail className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
-                <span className="truncate">{user.email}</span>
+              <ConnectedRow label="Google" connected={googleConnected} onToggle={() => setGoogleConnected(!googleConnected)} />
+              <ConnectedRow label="Twitch" connected={twitchConnected} onToggle={() => setTwitchConnected(!twitchConnected)} />
+              <ConnectedRow label="YouTube" connected={youtubeConnected} onToggle={() => setYoutubeConnected(!youtubeConnected)} />
+              <ConnectedRow label="Twitter/X" connected={xConnected} onToggle={() => setXConnected(!xConnected)} />
+            </Card>
+          </aside>
+
+          {/* RIGHT */}
+          <section className="space-y-6">
+            <Card>
+              <div className="flex flex-wrap gap-2">
+                {(["Préférences","Statistiques","Activité","Médailles & Badges","Favoris"] as ProfileTab[]).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`rounded-xl px-3 py-2 text-sm ${
+                      tab === t ? "bg-orange-500 text-white" : "bg-gray-100 dark:bg-white/5"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
+            </Card>
 
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-black/5 hover:bg-gray-50 dark:bg-neutral-900 dark:text-gray-200 dark:ring-white/10 dark:hover:bg-neutral-800"
-                onClick={() => {
-                  signOut();
-                  window.location.href = "/signin";
-                }}
-              >
-                <LogOut className="h-4 w-4" />
-                Déco
-              </button>
-            </div>
-          </Card>
-
-          {/* Connected accounts */}
-          <Card>
-            <div className="mb-3 flex items-center gap-2">
-              <LinkIcon className="h-4 w-4 text-orange-500" />
-              <h2 className="text-sm font-semibold">Comptes connectés</h2>
-            </div>
-
-            <div className="space-y-2">
-              <ConnectedRow
-                label="Google"
-                connected={googleConnected}
-                onToggle={() => setGoogleConnected((v) => !v)}
-              />
-              <ConnectedRow
-                label="Twitch"
-                connected={twitchConnected}
-                onToggle={() => setTwitchConnected((v) => !v)}
-              />
-              <ConnectedRow
-                label="YouTube"
-                connected={youtubeConnected}
-                onToggle={() => setYoutubeConnected((v) => !v)}
-              />
-              <ConnectedRow
-                label="Twitter/X"
-                connected={xConnected}
-                onToggle={() => setXConnected((v) => !v)}
-              />
-            </div>
-          </Card>
-        </aside>
-
-        {/* RIGHT COLUMN */}
-        <section className="space-y-6">
-          {/* Tabs */}
-          <Card>
-            <div className="flex flex-wrap gap-2">
-              <TabPill
-                active={tab === "Préférences"}
-                onClick={() => setTab("Préférences")}
-              >
-                <Settings className="h-4 w-4" />
-                Préférences
-              </TabPill>
-
-              <TabPill
-                active={tab === "Statistiques"}
-                onClick={() => setTab("Statistiques")}
-              >
-                <Trophy className="h-4 w-4" />
-                Statistiques
-              </TabPill>
-
-              <TabPill active={tab === "Activité"} onClick={() => setTab("Activité")}>
-                <Activity className="h-4 w-4" />
-                Activité
-              </TabPill>
-
-              <TabPill
-                active={tab === "Médailles & Badges"}
-                onClick={() => setTab("Médailles & Badges")}
-              >
-                <Trophy className="h-4 w-4 text-orange-500" />
-                Médailles & Badges
-              </TabPill>
-
-              <TabPill active={tab === "Favoris"} onClick={() => setTab("Favoris")}>
-                <Star className="h-4 w-4" />
-                Favoris
-              </TabPill>
-            </div>
-          </Card>
-
-          {/* CONTENT */}
+            {/* CONTENT */}
           {tab === "Médailles & Badges" && (
             <Card>
               <div className="mb-3 flex items-center gap-2">
@@ -260,8 +204,8 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-3">
-                <FavoriteRow title="Bao buns ultra moelleux" meta="Recette · Sauvegardé" />
-                <FavoriteRow title="Ramen Tonkotsu Ultimes" meta="Live · Suivi" />
+                <FavoriteRow title="Bao buns moelleux" meta="Recette · Sauvegardé" />
+                <FavoriteRow title="Ramen Tonkotsu" meta="Live · Suivi" />
                 <FavoriteRow title="Chef Camille Dupont" meta="Chef · Abonné" />
               </div>
             </Card>
@@ -372,14 +316,19 @@ export default function ProfilePage() {
             <Card>
               <div className="mb-3 text-sm font-semibold">Activité récente</div>
               <div className="space-y-3">
-                <ActivityRow text='A rejoint "Ramen Tonkotsu Ultimes"' />
-                <ActivityRow text='A sauvegardé "Bao buns ultra moelleux"' />
+                <ActivityRow text='A rejoint "Ramen Tonkotsu"' />
+                <ActivityRow text='A sauvegardé "Bao buns moelleux"' />
                 <ActivityRow text='A suivi le chef "Camille Dupont"' />
               </div>
             </Card>
           )}
-        </section>
+          </section>
+        </div>
       </div>
+
+      {/* ESPACE + FOOTER */}
+      <div className="h-12 md:h-16" />
+      <HomeFooter />
     </main>
   );
 }

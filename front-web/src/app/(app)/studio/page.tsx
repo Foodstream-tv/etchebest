@@ -3,16 +3,34 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Calendar, Clock, Image as ImageIcon, Radio, Video } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Image as ImageIcon,
+  Radio,
+  Video,
+  FileText,
+  Upload,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
+import HomeFooter from "@/components/home/HomeFooter";
 
 type Level = "Débutant" | "Intermédiaire" | "Avancé";
 type Visibility = "Public" | "Non listé" | "Privé";
 
-const CUISINES = ["Asiatique", "Pâtisserie", "Street food", "Healthy", "BBQ", "Végétarien"];
+const CUISINES = [
+  "Asiatique",
+  "Pâtisserie",
+  "Street food",
+  "Healthy",
+  "BBQ",
+  "Végétarien",
+];
 
 type CreateRoomRes = { roomId: string };
+type UploadImageRes = { url: string };
 
 export default function StudioPage() {
   const { token, user, ready } = useAuth();
@@ -22,14 +40,31 @@ export default function StudioPage() {
   const [desc, setDesc] = useState("");
   const [tags, setTags] = useState<string[]>(["Asiatique"]);
   const [level, setLevel] = useState<Level>("Débutant");
-  const [date, setDate] = useState<string>("");
-  const [time, setTime] = useState<string>("");
+  const [date, setDate] = useState<string>(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
+  const [time, setTime] = useState<string>(() => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+    return `${hh}:${min}`;
+  });
   const [duration, setDuration] = useState<number>(60);
   const [visibility, setVisibility] = useState<Visibility>("Public");
   const [imageUrl, setImageUrl] = useState<string>("");
 
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
+
   const [latency, setLatency] = useState<"Normale" | "Faible">("Normale");
-  const [quality, setQuality] = useState<"Auto (1080p)" | "720p" | "480p">("Auto (1080p)");
+  const [quality, setQuality] = useState<"Auto (1080p)" | "720p" | "480p">(
+    "Auto (1080p)"
+  );
   const [replays, setReplays] = useState<boolean>(true);
   const [chatActive, setChatActive] = useState(true);
   const [slowMode, setSlowMode] = useState(false);
@@ -43,46 +78,96 @@ export default function StudioPage() {
     if (!token || !user) router.replace("/signin");
   }, [ready, token, user, router]);
 
+  useEffect(() => {
+    if (!thumbnailFile) {
+      setThumbnailPreview("");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(thumbnailFile);
+    setThumbnailPreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [thumbnailFile]);
+
   const previewTitle = title.trim() || "Ramen Tonkotsu en 30 minutes";
   const previewTags = useMemo(() => [tags[0] || "Asiatique", level], [tags, level]);
-  const safeImage = imageUrl?.trim() || "/images/live-fallback.jpg";
+
+  const safeImage =
+    thumbnailPreview || imageUrl?.trim() || "/images/live-fallback.jpg";
 
   function toggleTag(t: string) {
-    setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+    setTags([t]);
   }
 
   function buildScheduledAt(): string | null {
     if (!date || !time) return null;
-    // Local time -> ISO UTC
     const dt = new Date(`${date}T${time}:00`);
     if (Number.isNaN(dt.getTime())) return null;
     return dt.toISOString();
   }
 
-  function buildPayload(mode: "draft" | "scheduled" | "live") {
+  async function uploadThumbnail(file: File): Promise<string> {
+    if (!token) throw new Error("Missing token");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL ?? ""}/uploads/image`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!res.ok) {
+      let message = "Impossible d’uploader l’image";
+      try {
+        const data = await res.json();
+        message = data?.message || data?.error || message;
+      } catch {}
+      throw new Error(message);
+    }
+
+    const data: UploadImageRes = await res.json();
+    if (!data?.url) {
+      throw new Error("Aucune URL retournée après l’upload de l’image.");
+    }
+
+    return data.url;
+  }
+
+  async function buildPayload(mode: "draft" | "scheduled" | "live") {
     const scheduledAt = buildScheduledAt();
     const roomName = title.trim() || `Live ${new Date().toISOString()}`;
 
+    let finalThumbnailUrl: string | null = imageUrl?.trim() || null;
+
+    if (thumbnailFile) {
+      finalThumbnailUrl = await uploadThumbnail(thumbnailFile);
+    }
+
     return {
-      // Backend compatibility:
       name: roomName,
       title: roomName,
-
       description: desc.trim(),
       tags,
       level,
       durationMinutes: duration,
       visibility,
-      thumbnailUrl: imageUrl?.trim() || null,
-
+      thumbnailUrl: finalThumbnailUrl,
       chatActive,
       slowMode,
       subsOnly,
       replaysEnabled: replays,
-
       latencyMode: latency === "Faible" ? "low" : "normal",
       qualityPreset: quality,
-
       status: mode,
       scheduledAt: mode === "scheduled" ? scheduledAt : null,
     };
@@ -91,9 +176,8 @@ export default function StudioPage() {
   async function createRoom(mode: "draft" | "scheduled" | "live") {
     if (!token) throw new Error("Missing token");
 
-    const payload = buildPayload(mode);
+    const payload = await buildPayload(mode);
 
-    // Si tu veux imposer une date+heure pour "scheduled"
     if (mode === "scheduled" && !payload.scheduledAt) {
       throw new Error("Choisis une date et une heure pour planifier.");
     }
@@ -125,12 +209,7 @@ export default function StudioPage() {
       setStatus("creating");
       const id = await createRoom("scheduled");
       setStatus("idle");
-
-      // Option A (actuel) : aller direct sur la page watch de la room
       router.push(`/watch/${encodeURIComponent(id)}`);
-
-      // Option B (souvent plus logique) : retour à la liste
-      // router.push("/watch");
     } catch (e: any) {
       setStatus("error");
       setError(e?.message || "Erreur");
@@ -143,8 +222,6 @@ export default function StudioPage() {
       setStatus("creating");
       const id = await createRoom("live");
       setStatus("idle");
-
-      // Important : mode=host pour coller au flow mobile
       router.push(`/broadcast/${encodeURIComponent(id)}?mode=host`);
     } catch (e: any) {
       setStatus("error");
@@ -152,10 +229,44 @@ export default function StudioPage() {
     }
   }
 
+  function appendDescriptionHint(hint: string) {
+    setDesc((prev) => {
+      if (prev.includes(hint)) return prev;
+      return prev.trim() ? `${prev}\n• ${hint}` : `• ${hint}`;
+    });
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null;
+
+    if (!file) {
+      setThumbnailFile(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Le fichier sélectionné doit être une image.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("L’image ne doit pas dépasser 5 Mo.");
+      return;
+    }
+
+    setError(null);
+    setThumbnailFile(file);
+    setImageUrl("");
+  }
+
+  function removeSelectedFile() {
+    setThumbnailFile(null);
+  }
+
   if (!ready) {
     return (
-      <main className="min-h-screen bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-100">
-        <div className="mx-auto max-w-7xl px-4 py-10">Chargement…</div>
+      <main className="min-h-screen w-full bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-100">
+        <div className="mx-auto w-full max-w-7xl px-4 py-10">Chargement…</div>
       </main>
     );
   }
@@ -166,8 +277,8 @@ export default function StudioPage() {
   const canSchedule = canCreate && !!date && !!time;
 
   return (
-    <main className="min-h-screen bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-100">
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:grid-cols-[minmax(0,1fr)_380px]">
+    <main className="min-h-screen w-full bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-100">
+      <div className="mx-auto w-full max-w-7xl gap-6 px-4 py-6 md:grid md:grid-cols-[minmax(0,1fr)_380px]">
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 text-gray-900 shadow-lg md:p-7 dark:border-white/10 dark:bg-neutral-900 dark:text-gray-100">
           <div className="mb-6 flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-orange-500">
@@ -182,28 +293,67 @@ export default function StudioPage() {
           </div>
 
           <Field label="Titre du live">
-            <input
-              className="input-dark text-base font-semibold md:text-lg"
-              placeholder="Ex : Ramen Tonkotsu en 30 minutes"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-white/10 dark:bg-white/5">
+              <input
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 md:text-lg dark:border-white/10 dark:bg-neutral-900 dark:text-white dark:placeholder:text-white/35 dark:focus:border-white/20 dark:focus:ring-white/10"
+                placeholder="Ex. : Ramen Tonkotsu en 30 minutes"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
           </Field>
 
           <Field label="Description">
-            <textarea
-              className="input-dark min-h-[160px] resize-y"
-              placeholder="Décris ton live : recette, étapes, niveau, ustensiles…"
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-            />
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/75">
+                  <FileText className="h-4 w-4" />
+                  <span>Présentation du live</span>
+                </div>
+
+                <span className="shrink-0 text-xs text-gray-400 dark:text-white/35">
+                  {desc.length}/500
+                </span>
+              </div>
+
+              <textarea
+                className="w-full min-h-[180px] resize-y rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-white/10 dark:bg-neutral-900 dark:text-white dark:placeholder:text-white/35 dark:focus:border-white/20 dark:focus:ring-white/10"
+                placeholder="Présente ton live : ce que tu vas cuisiner, les étapes, le niveau, les ingrédients ou le matériel nécessaire…"
+                value={desc}
+                maxLength={500}
+                onChange={(e) => setDesc(e.target.value)}
+              />
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  "Recette maison",
+                  "Pas à pas",
+                  "Débutant friendly",
+                  "Matériel simple",
+                ].map((hint) => (
+                  <button
+                    key={hint}
+                    type="button"
+                    onClick={() => appendDescriptionHint(hint)}
+                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-black/5 transition hover:bg-gray-100 dark:bg-white/5 dark:text-white/75 dark:ring-white/10 dark:hover:bg-white/10"
+                  >
+                    + {hint}
+                  </button>
+                ))}
+              </div>
+            </div>
           </Field>
 
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Cuisine / catégorie">
               <div className="flex flex-wrap gap-2">
                 {CUISINES.map((t) => (
-                  <Chip key={t} active={tags.includes(t)} onClick={() => toggleTag(t)} label={t} />
+                  <Chip
+                    key={t}
+                    active={tags.includes(t)}
+                    onClick={() => toggleTag(t)}
+                    label={t}
+                  />
                 ))}
               </div>
             </Field>
@@ -211,7 +361,12 @@ export default function StudioPage() {
             <Field label="Niveau">
               <div className="flex flex-wrap gap-2">
                 {(["Débutant", "Intermédiaire", "Avancé"] as Level[]).map((l) => (
-                  <Chip key={l} active={level === l} onClick={() => setLevel(l)} label={l} />
+                  <Chip
+                    key={l}
+                    active={level === l}
+                    onClick={() => setLevel(l)}
+                    label={l}
+                  />
                 ))}
               </div>
             </Field>
@@ -220,13 +375,13 @@ export default function StudioPage() {
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Date">
               <div className="flex justify-center">
-                <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                  <Calendar className="h-5 w-5 text-gray-400 dark:text-white/40" />
+                <div className="flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                  <Calendar className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="bg-transparent outline-none text-sm text-gray-900 dark:text-white"
+                    className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
                   />
                 </div>
               </div>
@@ -234,13 +389,13 @@ export default function StudioPage() {
 
             <Field label="Heure (heure locale)">
               <div className="flex justify-center">
-                <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                  <Clock className="h-5 w-5 text-gray-400 dark:text-white/40" />
+                <div className="flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                  <Clock className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
                   <input
                     type="time"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    className="bg-transparent outline-none text-sm text-gray-900 dark:text-white"
+                    className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
                   />
                 </div>
               </div>
@@ -268,40 +423,88 @@ export default function StudioPage() {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 {[30, 45, 60, 90].map((d) => (
-                  <Chip key={d} active={duration === d} onClick={() => setDuration(d)} label={`${d} min`} />
+                  <Chip
+                    key={d}
+                    active={duration === d}
+                    onClick={() => setDuration(d)}
+                    label={`${d} min`}
+                  />
                 ))}
               </div>
             </div>
           </Field>
 
-          <Field label="Visibilité">
-            <div className="flex flex-wrap gap-2">
-              {(["Public", "Non listé", "Privé"] as Visibility[]).map((v) => (
-                <Chip key={v} active={visibility === v} onClick={() => setVisibility(v)} label={v} />
-              ))}
-            </div>
-          </Field>
-
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Image du live">
-              <div className="flex justify-center">
-                <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5 w-full">
-                  <ImageIcon className="h-5 w-5 text-gray-400 dark:text-white/40" />
-                  <input
-                    placeholder="URL de l’image (optionnel)"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    className="w-full bg-transparent outline-none text-sm text-gray-900 dark:text-white"
-                  />
+              <div className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/70">
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Miniature du live</span>
                 </div>
-              </div>
-            </Field>
 
-            <Field label="Chat & interaction">
-              <div className="flex flex-wrap gap-2">
-                <Chip active={chatActive} onClick={() => setChatActive((v) => !v)} label="Chat activé" />
-                <Chip active={slowMode} onClick={() => setSlowMode((v) => !v)} label="Slow mode" />
-                <Chip active={subsOnly} onClick={() => setSubsOnly((v) => !v)} label="Abonnés seulement" />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-neutral-900">
+                    <ImageIcon className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
+                    <input
+                      placeholder="https://mon-site.com/miniature-live.jpg"
+                      value={imageUrl}
+                      onChange={(e) => {
+                        setImageUrl(e.target.value);
+                        if (e.target.value.trim()) {
+                          setThumbnailFile(null);
+                        }
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                    />
+                  </div>
+
+                  <div className="relative rounded-xl border border-dashed border-gray-300 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+                    <input
+                      id="thumbnail-file"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+
+                    <label
+                      htmlFor="thumbnail-file"
+                      className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-105"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Choisir une image depuis mon fichier
+                    </label>
+
+                    <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
+                      PNG, JPG, WEBP… 5 Mo maximum.
+                    </p>
+
+                    {thumbnailFile ? (
+                      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                            {thumbnailFile.name}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-white/45">
+                            {(thumbnailFile.size / 1024 / 1024).toFixed(2)} Mo
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={removeSelectedFile}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-700 ring-1 ring-black/5 transition hover:bg-gray-100 dark:bg-white/10 dark:text-white dark:ring-white/10 dark:hover:bg-white/15"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
+                  Tu peux soit coller une URL, soit importer une image depuis ton appareil.
+                </p>
               </div>
             </Field>
           </div>
@@ -310,7 +513,7 @@ export default function StudioPage() {
             <button
               onClick={onSaveDraft}
               disabled={status !== "idle" || !canCreate}
-              className="rounded-2xl border border-neutral-300 bg-gray-50 px-5 py-2.5 text-sm font-semibold text-gray-900 hover:bg-gray-100 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+              className="rounded-2xl border border-neutral-300 bg-gray-50 px-5 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-gray-100 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
             >
               Enregistrer le brouillon
             </button>
@@ -318,8 +521,12 @@ export default function StudioPage() {
             <button
               onClick={onSchedule}
               disabled={status !== "idle" || !canSchedule}
-              className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:brightness-105 disabled:opacity-50"
-              title={!canSchedule ? "Choisis une date et une heure pour planifier" : undefined}
+              className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+              title={
+                !canSchedule
+                  ? "Choisis une date et une heure pour planifier"
+                  : undefined
+              }
             >
               Planifier le live
             </button>
@@ -327,7 +534,7 @@ export default function StudioPage() {
             <button
               onClick={onGoLiveNow}
               disabled={status !== "idle" || !canCreate}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
               <Video className="h-4 w-4" />
               Démarrer maintenant
@@ -349,7 +556,13 @@ export default function StudioPage() {
 
             <div className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 dark:border-white/10 dark:bg-neutral-800">
               <div className="relative h-40 w-full">
-                <Image src={safeImage} alt={previewTitle} fill className="object-cover" />
+                <Image
+                  src={safeImage}
+                  alt={previewTitle}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
                 <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-bold text-white">
                   <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
                   LIVE
@@ -371,18 +584,34 @@ export default function StudioPage() {
                 <p className="line-clamp-2 text-sm font-semibold">{previewTitle}</p>
 
                 <p className="text-xs text-gray-500 dark:text-white/50">
-                  par Vous • {date ? date : "Aujourd’hui"}, {time || "19:00"}
+                  par Vous • {formatPreviewDate(date)}, {time}
                 </p>
               </div>
             </div>
           </div>
         </aside>
       </div>
+      <HomeFooter />
     </main>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function formatPreviewDate(dateValue: string) {
+  if (!dateValue) return "Aujourd’hui";
+
+  const [year, month, day] = dateValue.split("-");
+  if (!year || !month || !day) return dateValue;
+
+  return `${day}/${month}/${year}`;
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-5">
       <label className="mb-2 block text-sm font-semibold text-gray-800 dark:text-white/80">
@@ -416,12 +645,3 @@ function Chip({
     </button>
   );
 }
-
-const _css = `
-.input-dark {
-  @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none ring-0
-          border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10
-          dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder-white/40 dark:focus:border-white/25 dark:focus:ring-white/10;
-}`;
-
-export const __keepTailwind = _css;
