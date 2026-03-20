@@ -2,6 +2,7 @@ package discover
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
@@ -169,6 +170,10 @@ func GetDiscover(db *gorm.DB) gin.HandlerFunc {
 				TotalViews:  dishTotalViews[d.ID],
 			})
 		}
+
+		sort.Slice(topDishes, func(i, j int) bool {
+			return topDishes[i].TotalViews > topDishes[j].TotalViews
+		})
 
 		c.JSON(http.StatusOK, DiscoverResponse{
 			TrendingCountry: trendingCountry,

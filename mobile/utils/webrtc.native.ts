@@ -20,4 +20,13 @@ export const RTCSessionDescription = nativeWebRTC?.RTCSessionDescription;
 export const RTCView = nativeWebRTC?.RTCView;
 export const mediaDevices = nativeWebRTC?.mediaDevices;
 
+// Type-namespace aliases — these mirror the instance types from react-native-webrtc
+// so that consumers can use them as type annotations (e.g. `useState<MediaStream | null>`)
+// without seeing `| undefined` in the type, which would happen if they referenced the
+// value-namespace consts above directly as types.
+export type MediaStream = import('react-native-webrtc').MediaStream;
+export type RTCIceCandidate = import('react-native-webrtc').RTCIceCandidate;
+export type RTCPeerConnection = import('react-native-webrtc').RTCPeerConnection;
+export type RTCSessionDescription = import('react-native-webrtc').RTCSessionDescription;
+
 export const isNativeWebRTC = nativeWebRTC !== null;

@@ -22,9 +22,12 @@ services:
       - postgres
     build: ./backend
     env_file: ./.env
-    network_mode: host
+    networks:
+      - back-network
+    ports:
+      - "8081:8081"
     environment:
-      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

@@ -13,7 +13,7 @@ export class UnauthorizedError extends Error {
 async function requireAuthHeaders(): Promise<Record<string, string>> {
     const token = await auth.getToken();
     if (!token) {
-        throw new UnauthorizedError('Vous devez vous connecter pour acceder aux lives.');
+        throw new UnauthorizedError('Vous devez vous connecter pour accéder aux lives.');
     }
 
     return {
@@ -25,7 +25,7 @@ async function requireAuthHeaders(): Promise<Record<string, string>> {
 async function throwIfUnauthorized(res: Response): Promise<void> {
     if (res.status === 401) {
         await auth.logout();
-        throw new UnauthorizedError('Session expiree. Reconnectez-vous pour continuer.');
+        throw new UnauthorizedError('Session expirée. Reconnectez-vous pour continuer.');
     }
 }
 

@@ -1,3 +1,61 @@
+#!/usr/bin/env sh
+
+# set -e: exit on error
+# set -u: treat unset variables as an error
+set -eu
+
+# Determine the host machine's primary IP address in a portable way.
+# - On Linux: use `ip route` if available, otherwise fall back to `hostname -I`.
+# - On macOS: use `ipconfig getifaddr` on common interfaces.
+# The resulting IP address is printed to stdout.
+
+get_host_ip_linux() {
+  if command -v ip >/dev/null 2>&1; then
+    # Use ip route to find the source IP for a route to a public address.
+    ip route get 1.1.1.1 2>/dev/null | awk '/src/ {for (i = 1; i <= NF; i++) if ($i == "src") {print $(i+1); exit}}'
+  elif command -v hostname >/dev/null 2>&1; then
+    # Fallback: use the first IP reported by hostname -I (Linux-specific but common).
+    hostname -I 2>/dev/null | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+get_host_ip_macos() {
+  # Try common Wi-Fi / Ethernet interfaces.
+  if command -v ipconfig >/dev/null 2>&1; then
+    ipconfig getifaddr en0 2>/dev/null || \
+    ipconfig getifaddr en1 2>/dev/null || \
+    ipconfig getifaddr en2 2>/dev/null || \
+    return 1
+  else
+    return 1
+  fi
+}
+
+OS_NAME=$(uname -s 2>/dev/null || echo unknown)
+HOST_IP=""
+
+case "$OS_NAME" in
+  Linux)
+    HOST_IP=$(get_host_ip_linux || echo "")
+    ;;
+  Darwin)
+    HOST_IP=$(get_host_ip_macos || echo "")
+    ;;
+  *)
+    # Unsupported OS; leave HOST_IP empty.
+    HOST_IP=""
+    ;;
+esac
+
+if [ -z "$HOST_IP" ]; then
+  echo "ERROR: Could not determine host IP address for OS '$OS_NAME'." >&2
+  exit 1
+fi
+
+# Print the detected IP address so callers can consume it or update configs as needed.
+printf '%s\n' "$HOST_IP"
 #!/usr/bin/env bash
 # Detect the current LAN IP (interface used to reach the internet)
 # and update mobile/.env + .env so the app always hits the right host.

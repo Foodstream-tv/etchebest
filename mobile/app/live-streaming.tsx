@@ -11,6 +11,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PiPPreview from '../components/PiPPreview';
 import StreamView from '../components/StreamView';
 import { StreamingState, useWebRTC } from '../hooks/useWebRTC';
 
@@ -206,8 +207,9 @@ function StreamControls({
                     />
                 ) : localStream ? (
                     <StreamView
-                        stream={localStream as unknown as MediaStream}
-                        style={styles.localVideo}
+                        key={remoteStreams[0].id}
+                        stream={remoteStreams[0] as unknown as MediaStream}
+                        style={styles.mainVideo}
                         objectFit="cover"
                         mirror={true}
                         zOrder={0}
@@ -230,10 +232,19 @@ function StreamControls({
                     </View>
                 )}
 
-                <View style={styles.debugOverlay}>
-                    <Text style={styles.debugText}>remoteStreams={remoteStreams.length} primary={primaryRemoteStream ? 'yes' : 'no'} primaryToURL={primaryHasToURL ? 'yes' : 'no'}</Text>
-                    <Text style={styles.debugText} numberOfLines={3}>{remoteDebugSummary || 'no-remote-stream'}</Text>
-                </View>
+                {__DEV__ && (
+                    <View style={styles.debugOverlay}>
+                        <Text style={styles.debugText}>remoteStreams={remoteStreams.length} primary={primaryRemoteStream ? 'yes' : 'no'} primaryToURL={primaryHasToURL ? 'yes' : 'no'}</Text>
+                        <Text style={styles.debugText} numberOfLines={3}>{remoteDebugSummary || 'no-remote-stream'}</Text>
+                    </View>
+                )}
+
+                {/* Local camera — draggable PiP overlay in the bottom-right corner */}
+                <PiPPreview
+                    stream={localStream as unknown as MediaStream | null}
+                    initialBottom={16}
+                    initialRight={16}
+                />
             </View>
 
             {/* Error display */}
@@ -304,7 +315,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         margin: 12,
     },
-    localVideo: {
+    mainVideo: {
         flex: 1,
         borderRadius: 16,
     },
