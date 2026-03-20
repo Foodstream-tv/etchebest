@@ -59,11 +59,7 @@ export default function HomeHero() {
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-white/20" />
-            3 replays
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-white/20" />
-            3 à venir
+            2 replays
           </span>
         </div>
       </div>
@@ -84,12 +80,12 @@ export default function HomeHero() {
               LIVE
             </span>
             <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
-              👁 2180
+              👁 4
             </span>
           </div>
 
           <div className="p-3">
-            <div className="text-sm font-semibold">Ramen Tonkotsu Ultimes</div>
+            <div className="text-sm font-semibold">Ramen Tonkotsu</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
               par Aiko Tanaka
             </div>
