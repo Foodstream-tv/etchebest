@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Cette application utilise la caméra pour diffuser des lives.",
         "NSMicrophoneUsageDescription": "Cette application utilise le microphone pour diffuser des lives."
-      }
+      },
+      "bundleIdentifier": "com.nicolasgillard.foodstream"
     },
     "android": {
       "adaptiveIcon": {
@@ -50,7 +51,9 @@
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

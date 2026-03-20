@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Eye, Flame, PlayCircle, Star } from "lucide-react";
+import { useAuth } from "@/lib/useAuth";
+import { getRooms, RoomInfo } from "@/services/streaming";
 
 type TabKey = "live" | "popular" | "replays" | "planned";
 
@@ -33,49 +36,6 @@ type CardItem = {
   isLive?: boolean;
 };
 
-const MOCK_LIVE: CardItem[] = [
-  {
-    id: "1",
-    badge: "Asiatique",
-    title: "Ramen Tonkotsu Ultimes",
-    author: "Aiko Tanaka",
-    viewers: 2180,
-    isLive: true,
-  },
-  {
-    id: "2",
-    badge: "Américain",
-    title: "Tacos Birria maison",
-    author: "Luis Ortega",
-    viewers: 1450,
-    isLive: true,
-  },
-  {
-    id: "3",
-    badge: "Pâtisserie",
-    title: "Macarons Framboise & Rose",
-    author: "Camille Dupont",
-    viewers: 980,
-    when: "Aujourd’hui, 19:00",
-  },
-  {
-    id: "4",
-    badge: "Européen",
-    title: "Mezzés Libanais express",
-    author: "Nour Haddad",
-    viewers: 620,
-    when: "Demain, 12:30",
-  },
-  {
-    id: "5",
-    badge: "Asiatique",
-    title: "Bibimbap croustillant",
-    author: "Seo-jun Park",
-    viewers: 1710,
-    isLive: true,
-  },
-];
-
 const UPCOMING = [
   {
     id: "u1",
@@ -105,7 +65,10 @@ const CREATORS = [
 
 function LiveCard({ item }: { item: CardItem }) {
   return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-neutral-900">
+    <Link
+      href={`/watch/${encodeURIComponent(item.id)}`}
+      className="block overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-neutral-900"
+    >
       <div className="relative aspect-[16/9] w-full bg-gray-200 dark:bg-white/10">
         {item.isLive && (
           <div
@@ -135,20 +98,76 @@ function LiveCard({ item }: { item: CardItem }) {
           ) : null}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
 export default function HomeLiveGrid() {
   const [tab, setTab] = useState<TabKey>("live");
+  const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const { token, ready } = useAuth();
+  const didInit = useRef(false);
+
+  async function refreshRooms() {
+    if (!token) {
+      setRooms([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const data = await getRooms(token);
+      setRooms(data ?? []);
+    } catch (error) {
+      console.error("Impossible de charger les rooms :", error);
+      setRooms([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!ready) return;
+    if (didInit.current) return;
+    didInit.current = true;
+
+    refreshRooms();
+
+    const timer = setInterval(refreshRooms, 10_000);
+    return () => clearInterval(timer);
+  }, [ready, token]);
+
+  const liveItems = useMemo<CardItem[]>(() => {
+    return rooms.map((room) => ({
+      id: room.id,
+      badge: "Live",
+      title: room.name || "Live sans titre",
+      author: "Vous",
+      viewers: room.viewers ?? 0,
+      isLive: true,
+    }));
+  }, [rooms]);
 
   const items = useMemo(() => {
-    return MOCK_LIVE;
-  }, [tab]);
+    switch (tab) {
+      case "live":
+        return liveItems;
+      case "popular":
+        return [...liveItems].sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0));
+      case "replays":
+        return [];
+      case "planned":
+        return [];
+      default:
+        return liveItems;
+    }
+  }, [tab, liveItems]);
 
   return (
     <section className="pb-14 pt-8">
-      {/* Tabs row (sans contours noirs) */}
       <div className="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm dark:bg-neutral-900">
         {TABS.map((t) => {
           const active = t.key === tab;
@@ -171,20 +190,37 @@ export default function HomeLiveGrid() {
         })}
       </div>
 
-      {/* Content: grid + right sidebar (disposition inchangée) */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left: cards grid */}
         <div className="lg:col-span-2">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {items.map((it) => (
-              <LiveCard key={it.id} item={it} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-neutral-900"
+                >
+                  <div className="aspect-[16/9] w-full animate-pulse bg-gray-200 dark:bg-white/10" />
+                  <div className="space-y-2 p-4">
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : items.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {items.map((it) => (
+                <LiveCard key={it.id} item={it} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white p-6 text-sm text-gray-600 shadow-sm dark:bg-neutral-900 dark:text-gray-300">
+              Aucun contenu disponible pour cet onglet.
+            </div>
+          )}
         </div>
 
-        {/* Right: sidebar */}
         <aside className="space-y-6">
-          {/* A venir */}
           <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-neutral-900">
             <div className="mb-3 text-sm font-semibold">À venir</div>
 
@@ -209,7 +245,6 @@ export default function HomeLiveGrid() {
             </div>
           </div>
 
-          {/* Créateurs mis en avant */}
           <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-neutral-900">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-semibold">Créateurs mis en avant</div>

@@ -922,9 +922,11 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	log.Println("peerConnection closed and cleaned up")
 }
 
-// negotiateSDP performs the SDP offer/answer exchange and waits for ICE
-// gathering to complete. Returns false (and writes the HTTP error) on failure.
-func negotiateSDP(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.SessionDescription, pending []webrtc.ICECandidateInit) bool {
+// applyRemoteDescription sets the remote SDP and flushes buffered ICE candidates.
+// Must be called before attachExistingTracks so that resolveCodec can read the
+// negotiated payload types from the receiver parameters.
+// Returns false (and writes the HTTP error) on failure.
+func applyRemoteDescription(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.SessionDescription, pending []webrtc.ICECandidateInit) bool {
 	// Log ICE candidates for debugging
 	pc.OnICECandidate(func(cand *webrtc.ICECandidate) {
 		if cand != nil {
@@ -944,7 +946,14 @@ func negotiateSDP(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.Sessio
 			log.Printf("flush pending ICE: %v", err)
 		}
 	}
+	return true
+}
 
+// finalizeAnswer creates the SDP answer, waits for ICE gathering and responds.
+// Must be called after attachExistingTracks (tracks must already be added before
+// CreateAnswer so they appear in the answer SDP).
+// Returns false (and writes the HTTP error) on failure.
+func finalizeAnswer(c *gin.Context, pc *webrtc.PeerConnection) bool {
 	answer, err := pc.CreateAnswer(nil)
 	if err != nil {
 		log.Printf("CreateAnswer: %v", err)
@@ -1023,10 +1032,10 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
-		// 5. Subscribe new peer to existing tracks & register in room
+		// 5. Register peer in room and buffer pending ICE candidates.
+		//    We do NOT call attachExistingTracks here yet — resolveCodec needs
+		//    the remote description to read negotiated payload types.
 		mu.Lock()
-		attachExistingTracks(pc, room)
-
 		pending := registerPeer(pc, room, userID)
 		mu.Unlock()
 
@@ -1084,7 +1093,19 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			}
 		})
 
-		// 8. SDP negotiation & respond
-		negotiateSDP(c, peerConnection, offer, pending)
+		// 8a. Apply remote description first — this populates receiver codec parameters
+		//     so that resolveCodec (called in attachExistingTracks below) can read
+		//     the negotiated payload types and stamp outgoing RTP packets correctly.
+		if !applyRemoteDescription(c, peerConnection, offer, pending) {
+			return
+		}
+
+		// 8b. NOW attach existing tracks — resolveCodec will find the right PT.
+		mu.Lock()
+		attachExistingTracks(peerConnection, room)
+		mu.Unlock()
+
+		// 8c. Build and send the SDP answer (includes the newly added tracks).
+		finalizeAnswer(c, peerConnection)
 	}
 }
