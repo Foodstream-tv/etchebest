@@ -207,8 +207,8 @@ function StreamControls({
                     />
                 ) : localStream ? (
                     <StreamView
-                        key={remoteStreams[0].id}
-                        stream={remoteStreams[0] as unknown as MediaStream}
+                        key={`local-main-${(localStream as any)?.id ?? 'stream'}`}
+                        stream={localStream as unknown as MediaStream}
                         style={styles.mainVideo}
                         objectFit="cover"
                         mirror={true}

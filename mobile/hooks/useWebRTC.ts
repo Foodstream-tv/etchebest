@@ -277,29 +277,38 @@ export function useWebRTC(): UseWebRTCReturn {
     // SDP offer/answer exchange
     const negotiate = useCallback(
         async (pc: RTCPeerConnection, currentRoomId: string) => {
-            // Keep one recv slot per media kind so server-side AddTrack fanout
-            // can attach remote tracks without requiring explicit renegotiation.
-            if (typeof pc.addTransceiver === 'function') {
+            // On native (react-native-webrtc), forcing extra recvonly transceivers can
+            // create unstable offers/ghost tracks; keep negotiation minimal there.
+            if (Platform.OS === 'web' && typeof pc.addTransceiver === 'function') {
                 pc.addTransceiver('video', { direction: 'recvonly' });
                 pc.addTransceiver('audio', { direction: 'recvonly' });
             }
 
             const offer = await pc.createOffer();
-            
-            const reorderedSdp = preferH264(offer.sdp || '');
+            const originalSdp = offer.sdp || '';
+            const reorderedSdp = preferH264(originalSdp);
 
             const SessionDesc = RTCSessionDescription
                 ?? (typeof globalThis === 'undefined' ? undefined : (globalThis as any).RTCSessionDescription);
 
-            const finalOffer = SessionDesc 
-                ? new SessionDesc({ type: 'offer', sdp: reorderedSdp }) 
-                : { type: 'offer', sdp: reorderedSdp };
-
-            await pc.setLocalDescription(finalOffer as any);
+            let outboundSdp = reorderedSdp;
+            try {
+                const preferredOffer = SessionDesc
+                    ? new SessionDesc({ type: 'offer', sdp: reorderedSdp })
+                    : { type: 'offer', sdp: reorderedSdp };
+                await pc.setLocalDescription(preferredOffer as any);
+            } catch (err) {
+                console.warn('setLocalDescription with preferred H264 SDP failed; retrying with original SDP', err);
+                outboundSdp = originalSdp;
+                const fallbackOffer = SessionDesc
+                    ? new SessionDesc({ type: 'offer', sdp: originalSdp })
+                    : { type: 'offer', sdp: originalSdp };
+                await pc.setLocalDescription(fallbackOffer as any);
+            }
 
             const { sdp: answerSdp } = await sendOffer(
                 currentRoomId,
-                reorderedSdp
+                outboundSdp
             );
 
             const answer = new SessionDesc({ type: 'answer', sdp: answerSdp }) as RTCSessionDescriptionInit;
