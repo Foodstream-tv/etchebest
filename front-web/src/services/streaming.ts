@@ -111,3 +111,26 @@ export function getHLSUrl(roomId: string): string {
   const rid = encodeURIComponent(roomId);
   return `${MEDIA_BASE_URL}/api/hls/${rid}/index.m3u8`;
 }
+
+// ---------- Chat ----------
+
+export interface ChatMessage {
+  id: string;
+  username: string;
+  message: string;
+}
+
+export async function getChatMessages(roomId: string, token?: string | null): Promise<ChatMessage[]> {
+  const rid = encodeURIComponent(roomId);
+  return apiFetch<ChatMessage[]>(`/rooms/${rid}/chat`, { token: token ?? undefined, cache: "no-store" });
+}
+
+export async function postChatMessage(roomId: string, message: string, token: string): Promise<void> {
+  const rid = encodeURIComponent(roomId);
+  await apiFetch<unknown>(`/rooms/${rid}/chat`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ message }),
+    silent: true,
+  });
+}

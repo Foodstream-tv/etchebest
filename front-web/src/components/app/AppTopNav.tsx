@@ -40,7 +40,7 @@ export default function AppTopNav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-black/5 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/70">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <div className="mx-auto w-full px-4 sm:px-6 lg:max-w-[1400px] xl:max-w-[1600px]">
         <div className="flex h-16 items-center gap-3">
           {/* LOGO */}
           <Link href="/home" className="flex items-center gap-2 group">
@@ -48,12 +48,6 @@ export default function AppTopNav() {
               <Image src="/logo.png" alt="Foodstream" width={22} height={22} />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-orange-500 transition">
-                Foodstream
-              </div>
-              <div className="text-[11px] text-gray-500 dark:text-gray-400">
-                Cuisine live & replays
-              </div>
             </div>
           </Link>
 
