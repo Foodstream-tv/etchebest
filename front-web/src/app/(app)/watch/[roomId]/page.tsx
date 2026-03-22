@@ -2,22 +2,19 @@
 
 import Hls from "hls.js";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { getHLSUrl } from "@/services/streaming";
+import { getHLSUrl, getChatMessages, postChatMessage, ChatMessage } from "@/services/streaming";
+import { useAuth } from "@/lib/useAuth";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
 
-type ChatMessage = {
-  id: number;
-  user: string;
-  text: string;
-  time: string;
-};
+const MAX_MSG = 500;
 
 export default function WatchRoomPage() {
   const routeParams = useParams<{ roomId: string }>();
   const roomId = routeParams?.roomId;
+  const { token } = useAuth();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -32,12 +29,9 @@ export default function WatchRoomPage() {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(942);
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { id: 1, user: "Lina", text: "Le live est super propre 🔥", time: "14:02" },
-    { id: 2, user: "Max", text: "On t'entend bien maintenant", time: "14:03" },
-    { id: 3, user: "Nina", text: "Montre l’interface mobile aussi 👀", time: "14:04" },
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   const hlsUrl = useMemo(() => {
     return roomId ? getHLSUrl(roomId) : "";
@@ -159,6 +153,20 @@ export default function WatchRoomPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const fetchChat = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const msgs = await getChatMessages(roomId, token);
+      setChatMessages(msgs ?? []);
+    } catch {}
+  }, [roomId, token]);
+
+  useEffect(() => {
+    fetchChat();
+    const interval = setInterval(fetchChat, 5000);
+    return () => clearInterval(interval);
+  }, [fetchChat]);
+
   useEffect(() => {
     if (!chatScrollRef.current) return;
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -178,24 +186,20 @@ export default function WatchRoomPage() {
     });
   };
 
-  const onSendMessage = () => {
+  const onSendMessage = async () => {
     const trimmed = message.trim();
-    if (!trimmed) return;
-
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        user: "You",
-        text: trimmed,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
+    if (!trimmed || !token || !roomId || sending) return;
 
     setMessage("");
+    setSending(true);
+    try {
+      await postChatMessage(roomId, trimmed, token);
+      await fetchChat();
+    } catch {
+      setMessage(trimmed);
+    } finally {
+      setSending(false);
+    }
   };
 
   const onShare = async () => {
@@ -218,6 +222,14 @@ export default function WatchRoomPage() {
 
   return (
     <div style={pageStyle}>
+      <style>{`
+        @media (max-width: 900px) {
+          .watch-layout { grid-template-columns: 1fr !important; }
+          .watch-video { height: 56vw !important; max-height: 400px !important; }
+          .chat-list { height: 280px !important; }
+        }
+      `}</style>
+
       <div style={containerStyle}>
         <div style={topBarStyle}>
           <div style={topLeftStyle}>
@@ -246,7 +258,7 @@ export default function WatchRoomPage() {
           </div>
         </div>
 
-        <div style={layoutStyle}>
+        <div className="watch-layout" style={layoutStyle}>
           <section style={mainColumnStyle}>
             <div style={playerCardStyle}>
               <div style={videoWrapStyle}>
@@ -255,6 +267,7 @@ export default function WatchRoomPage() {
                   ref={videoRef}
                   controls
                   playsInline
+                  className="watch-video"
                   style={videoStyle}
                 />
 
@@ -305,32 +318,44 @@ export default function WatchRoomPage() {
                 <div style={metaTextStyle}>{chatMessages.length} messages</div>
               </div>
 
-              <div ref={chatScrollRef} style={chatListStyle}>
+              <div ref={chatScrollRef} className="chat-list" style={chatListStyle}>
+                {chatMessages.length === 0 && (
+                  <div style={chatEmptyStyle}>Aucun message pour l&apos;instant.</div>
+                )}
                 {chatMessages.map((msg) => (
-                  <div key={msg.id} style={chatMessageStyle}>
-                    <div style={chatMetaRowStyle}>
-                      <span style={chatUserStyle}>{msg.user}</span>
-                      <span style={chatTimeStyle}>{msg.time}</span>
-                    </div>
-                    <div style={chatTextStyle}>{msg.text}</div>
+                  <div key={msg.id} style={chatLineStyle}>
+                    <span style={chatUserStyle}>{msg.username}</span>
+                    <span style={chatSepStyle}>: </span>
+                    <span style={chatTextStyle}>{msg.message}</span>
                   </div>
                 ))}
               </div>
 
-              <div style={chatInputAreaStyle}>
-                <input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") onSendMessage();
-                  }}
-                  placeholder="Écrire un message..."
-                  style={inputStyle}
-                />
-                <button onClick={onSendMessage} style={primaryButtonStyle}>
-                  Envoyer
-                </button>
-              </div>
+              {token ? (
+                <div style={chatInputAreaStyle}>
+                  <input
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value.slice(0, MAX_MSG))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") onSendMessage();
+                    }}
+                    placeholder="Écrire un message..."
+                    style={inputStyle}
+                    disabled={sending}
+                    maxLength={MAX_MSG}
+                  />
+                  <div style={inputFooterStyle}>
+                    <span style={charCountStyle}>{message.length}/{MAX_MSG}</span>
+                    <button onClick={onSendMessage} style={primaryButtonStyle} disabled={sending}>
+                      {sending ? "…" : "Envoyer"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={chatLoginPromptStyle}>
+                  <Link href="/login" style={chatLoginLinkStyle}>Connectez-vous pour chatter</Link>
+                </div>
+              )}
             </div>
           </aside>
         </div>
@@ -400,13 +425,13 @@ const playerCardStyle: React.CSSProperties = {
 
 const videoWrapStyle: React.CSSProperties = {
   position: "relative",
-  background: "#d1d5db",
+  background: "#000",
 };
 
 const videoStyle: React.CSSProperties = {
   width: "100%",
-  height: 620,
-  maxHeight: "78vh",
+  height: 560,
+  maxHeight: "72vh",
   background: "#000",
   display: "block",
 };
@@ -437,15 +462,15 @@ const titleRowStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: 28,
-  lineHeight: 1.1,
+  fontSize: 22,
+  lineHeight: 1.2,
   fontWeight: 800,
   color: "#111827",
 };
 
 const subTextStyle: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 14,
+  marginTop: 4,
+  fontSize: 13,
   color: "#6b7280",
 };
 
@@ -463,7 +488,7 @@ const infoRowStyle: React.CSSProperties = {
 };
 
 const softBadgeStyle: React.CSSProperties = {
-  padding: "7px 10px",
+  padding: "5px 10px",
   borderRadius: 999,
   background: "#f3f4f6",
   border: "1px solid #e5e7eb",
@@ -484,44 +509,41 @@ const chatCardStyle: React.CSSProperties = {
   background: "#ffffff",
   overflow: "hidden",
   boxShadow: "0 8px 30px rgba(17, 24, 39, 0.04)",
+  display: "flex",
+  flexDirection: "column",
 };
 
 const chatHeaderStyle: React.CSSProperties = {
-  padding: "16px 16px 12px",
+  padding: "14px 16px 12px",
   borderBottom: "1px solid #eef0f3",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   gap: 10,
+  flexShrink: 0,
 };
 
 const chatTitleStyle: React.CSSProperties = {
   fontWeight: 700,
-  fontSize: 16,
+  fontSize: 15,
   color: "#111827",
 };
 
 const chatListStyle: React.CSSProperties = {
   height: 420,
   overflowY: "auto",
-  padding: 16,
-  display: "grid",
-  gap: 10,
-  background: "#fafafa",
-};
-
-const chatMessageStyle: React.CSSProperties = {
-  borderRadius: 14,
-  padding: 12,
-  background: "#ffffff",
-  border: "1px solid #eceff3",
-};
-
-const chatMetaRowStyle: React.CSSProperties = {
+  padding: "12px 14px",
   display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  marginBottom: 6,
+  flexDirection: "column",
+  gap: 4,
+  background: "#fafafa",
+  flexShrink: 0,
+};
+
+const chatLineStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.5,
+  wordBreak: "break-word",
 };
 
 const chatUserStyle: React.CSSProperties = {
@@ -529,50 +551,66 @@ const chatUserStyle: React.CSSProperties = {
   color: "#111827",
 };
 
-const chatTimeStyle: React.CSSProperties = {
-  fontSize: 12,
+const chatSepStyle: React.CSSProperties = {
   color: "#9ca3af",
 };
 
 const chatTextStyle: React.CSSProperties = {
   color: "#4b5563",
-  lineHeight: 1.5,
-  fontSize: 14,
 };
 
 const chatInputAreaStyle: React.CSSProperties = {
-  padding: 14,
+  padding: "10px 12px",
   borderTop: "1px solid #eef0f3",
-  display: "grid",
-  gap: 10,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
   background: "#ffffff",
+  flexShrink: 0,
+};
+
+const inputFooterStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+};
+
+const charCountStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#9ca3af",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  borderRadius: 12,
+  borderRadius: 10,
   border: "1px solid #e5e7eb",
   background: "#ffffff",
   color: "#111827",
-  padding: "12px 14px",
+  padding: "9px 12px",
   outline: "none",
+  fontSize: 13,
+  boxSizing: "border-box",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
   border: "none",
-  borderRadius: 12,
-  padding: "11px 16px",
+  borderRadius: 10,
+  padding: "8px 14px",
   fontWeight: 600,
+  fontSize: 13,
   background: "#111827",
   color: "#ffffff",
   cursor: "pointer",
+  flexShrink: 0,
 };
 
 const ghostButtonStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 12,
-  padding: "11px 16px",
+  padding: "9px 14px",
   fontWeight: 600,
+  fontSize: 13,
   background: "#ffffff",
   color: "#111827",
   cursor: "pointer",
@@ -582,8 +620,9 @@ const ghostLinkStyle: React.CSSProperties = {
   textDecoration: "none",
   border: "1px solid #e5e7eb",
   borderRadius: 12,
-  padding: "11px 16px",
+  padding: "9px 14px",
   fontWeight: 600,
+  fontSize: 13,
   background: "#ffffff",
   color: "#111827",
 };
@@ -592,7 +631,7 @@ const livePillStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
-  padding: "8px 12px",
+  padding: "7px 12px",
   borderRadius: 999,
   border: "1px solid #fee2e2",
   background: "#fff1f2",
@@ -614,10 +653,31 @@ const metaTextStyle: React.CSSProperties = {
   color: "#6b7280",
 };
 
+const chatEmptyStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#9ca3af",
+  textAlign: "center",
+  padding: "24px 0",
+};
+
+const chatLoginPromptStyle: React.CSSProperties = {
+  padding: "14px 16px",
+  borderTop: "1px solid #eef0f3",
+  textAlign: "center",
+  flexShrink: 0,
+};
+
+const chatLoginLinkStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#111827",
+  textDecoration: "underline",
+};
+
 const errorStyle: React.CSSProperties = {
-  borderRadius: 14,
-  padding: "12px 14px",
-  fontSize: 14,
+  borderRadius: 12,
+  padding: "10px 14px",
+  fontSize: 13,
   border: "1px solid #fecaca",
   background: "#fef2f2",
   color: "#dc2626",

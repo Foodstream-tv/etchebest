@@ -41,9 +41,9 @@ type DiscoverResponse struct {
 
 // CategoryLivesResponse is the payload for GET /api/discover/categories/:id/lives.
 type CategoryLivesResponse struct {
-	Lives      []live.LiveDTO     `json:"lives"`
-	Category   CategoryWithCount  `json:"category"`
-	Pagination PaginationMeta     `json:"pagination"`
+	Lives      []live.LiveDTO    `json:"lives"`
+	Category   CategoryWithCount `json:"category"`
+	Pagination PaginationMeta    `json:"pagination"`
 }
 
 type PaginationMeta struct {

@@ -2,8 +2,23 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
+import { apiFetch } from "@/lib/api";
+
+type MeProfile = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  profileImageUrl: string;
+  description: string;
+  followerCount: number;
+  isVerified: boolean;
+  isFeaturedChef: boolean;
+  followingIds: string[];
+  followersIds: string[];
+};
 import {
   Mail,
   LogOut,
@@ -33,9 +48,15 @@ type ThemeChoice = "Clair" | "Sombre" | "Système";
 type ProfileTab = "Préférences" | "Statistiques" | "Activité" | "Médailles & Badges" | "Favoris";
 
 export default function ProfilePage() {
-  const { user, signOut, ready } = useAuth();
+  const { user, token, signOut, ready } = useAuth();
 
   const [tab, setTab] = useState<ProfileTab>("Préférences");
+  const [profile, setProfile] = useState<MeProfile | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    apiFetch<MeProfile>("/users/me", { token }).then(setProfile).catch(() => {});
+  }, [token]);
 
   const [theme, setTheme] = useState<ThemeChoice>("Sombre");
   const [lang, setLang] = useState<"FR" | "EN">("FR");
@@ -86,9 +107,12 @@ export default function ProfilePage() {
     );
   }
 
-  const displayName = user.username || "Mon profil";
-  const locationLine = "@nicolas · Paris, FR";
-  const statusLine = "“Toujours partant pour …”";
+  const displayName =
+    profile
+      ? [profile.firstName, profile.lastName].filter(Boolean).join(" ") || profile.username
+      : user.username || "Mon profil";
+  const locationLine = profile?.username ? `@${profile.username}` : null;
+  const statusLine = profile?.description || null;
 
   return (
     <main className="flex min-h-[calc(100vh-64px)] flex-col">
@@ -100,24 +124,46 @@ export default function ProfilePage() {
             <Card>
               <div className="flex items-center gap-3">
                 <div className="relative h-14 w-14 overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
-                  {user.profileImageUrl ? (
+                  {(profile?.profileImageUrl || user.profileImageUrl) ? (
                     <Image
-                      src={user.profileImageUrl}
+                      src={(profile?.profileImageUrl || user.profileImageUrl)!}
                       alt={displayName}
                       fill
                       className="object-cover"
                     />
                   ) : (
                     <div className="grid h-full w-full place-items-center text-lg font-bold">
-                      {initialsOf(user.username, user.email)}
+                      {initialsOf(profile?.username || user.username, user.email)}
                     </div>
                   )}
                 </div>
 
                 <div className="flex-1">
-                  <div className="text-sm font-semibold">{displayName}</div>
-                  <div className="text-xs text-gray-500">{locationLine}</div>
-                  <div className="text-[11px] text-gray-400">{statusLine}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-semibold">{displayName}</div>
+                    {profile?.isVerified && (
+                      <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
+                        Vérifié
+                      </span>
+                    )}
+                    {profile?.isFeaturedChef && (
+                      <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                        Chef
+                      </span>
+                    )}
+                  </div>
+                  {locationLine && (
+                    <div className="text-xs text-gray-500">{locationLine}</div>
+                  )}
+                  {statusLine && (
+                    <div className="text-[11px] text-gray-400">{statusLine}</div>
+                  )}
+                  {profile && (
+                    <div className="mt-1 flex gap-3 text-[11px] text-gray-500">
+                      <span><strong className="text-gray-800 dark:text-gray-200">{profile.followerCount}</strong> abonnés</span>
+                      <span><strong className="text-gray-800 dark:text-gray-200">{profile.followingIds?.length ?? 0}</strong> abonnements</span>
+                    </div>
+                  )}
                 </div>
 
                 <button className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white">

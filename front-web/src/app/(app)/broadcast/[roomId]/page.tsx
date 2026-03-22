@@ -62,6 +62,13 @@ export default function BroadcastRoomPage() {
 
   return (
     <div style={pageStyle}>
+      <style>{`
+        @media (max-width: 900px) {
+          .broadcast-layout { grid-template-columns: 1fr !important; }
+          .broadcast-video-frame { height: 56vw !important; min-height: 200px !important; max-height: 400px !important; }
+          .broadcast-remote-video { height: 130px !important; }
+        }
+      `}</style>
       <div style={containerStyle}>
         <header style={headerStyle}>
           <div style={headerLeftStyle}>
@@ -112,7 +119,7 @@ export default function BroadcastRoomPage() {
 
         {error && <div style={errorStyle}>{error}</div>}
 
-        <div style={layoutStyle}>
+        <div className="broadcast-layout" style={layoutStyle}>
           <section style={mainColumnStyle}>
             <div style={videoCardStyle}>
               <div style={videoHeaderStyle}>
@@ -156,7 +163,7 @@ export default function BroadcastRoomPage() {
                 </div>
               </div>
 
-              <div style={videoFrameStyle}>
+              <div className="broadcast-video-frame" style={videoFrameStyle}>
                 {localStream ? (
                   <StreamView stream={localStream} muted />
                 ) : (
@@ -190,7 +197,7 @@ export default function BroadcastRoomPage() {
                   {remoteStreams.map((stream, index) => (
                     <div key={stream.id} style={remoteCardStyle}>
                       <div style={remoteLabelStyle}>Participant {index + 1}</div>
-                      <div style={remoteVideoStyle}>
+                      <div className="broadcast-remote-video" style={remoteVideoStyle}>
                         <StreamView stream={stream} />
                       </div>
                     </div>
@@ -275,8 +282,9 @@ const videoHeaderStyle: React.CSSProperties = {
 };
 
 const videoFrameStyle: React.CSSProperties = {
-  height: 640,
-  background: "#d1d5db",
+  height: 560,
+  maxHeight: "72vh",
+  background: "#111",
 };
 
 const sideCardStyle: React.CSSProperties = {
@@ -297,6 +305,7 @@ const sideTitleStyle: React.CSSProperties = {
 
 const remoteListStyle: React.CSSProperties = {
   display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
   gap: 12,
 };
 
