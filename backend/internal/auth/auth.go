@@ -1,9 +1,10 @@
 package auth
 
 import (
-	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"net/http"
 	"time"
+
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -35,19 +36,17 @@ type RequestRegister struct {
 	NumberPhone        string `json:"numberPhone" binding:"required,min=1" example:"123456"`
 }
 
-/*
-Register godoc
-@Summary      Register a new user
-@Description  Create a new user account with email and password
-@Tags         auth
-@Accept       json
-@Produce      json
-@Param        request body RegisterRequest true "Registration details"
-@Success      200  {object}  map[string]string "message: User registered"
-@Failure      400  {object}  map[string]string "error: Invalid request or User already exists"
-@Failure      500  {object}  map[string]string "error: Internal server error"
-@Router       /register [post]
-*/
+// Register godoc
+// @Summary      Register a new user
+// @Description  Create a new user account with email and password
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body auth.RequestRegister true "Registration details"
+// @Success      200  {object}  map[string]string "message: User registered"
+// @Failure      400  {object}  map[string]string "error: Invalid request or User already exists"
+// @Failure      500  {object}  map[string]string "error: Internal server error"
+// @Router       /api/register [post]
 func Register(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req RequestRegister
@@ -84,20 +83,18 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-/*
-Login godoc
-@Summary      Login user
-@Description  Authenticate user and return JWT token
-@Tags         auth
-@Accept       json
-@Produce      json
-@Param        request body LoginRequest true "Login credentials"
-@Success      200  {object}  map[string]string "token: JWT token string"
-@Failure      400  {object}  map[string]string "error: Invalid request"
-@Failure      401  {object}  map[string]string "error: User not found or Invalid password"
-@Failure      500  {object}  map[string]string "error: Internal server error"
-@Router       /login [post]
-*/
+// Login godoc
+// @Summary      Login user
+// @Description  Authenticate user and return JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body auth.RequestLogin true "Login credentials"
+// @Success      200  {object}  map[string]string "token: JWT token string"
+// @Failure      400  {object}  map[string]string "error: Invalid request"
+// @Failure      401  {object}  map[string]string "error: User not found or Invalid password"
+// @Failure      500  {object}  map[string]string "error: Internal server error"
+// @Router       /api/login [post]
 func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req RequestLogin
@@ -138,4 +135,19 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{"token": tokenString})
 	}
+}
+
+// generateJWT creates a JWT token for authentication
+func GenerateJWT(user *user.User, jwtKey []byte) (string, error) {
+	expiration := time.Now().Add(7 * 24 * time.Hour)
+	claims := &Claims{
+		UserID: user.ID,
+		Role:   user.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiration),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtKey)
 }

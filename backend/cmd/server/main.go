@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
+	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
 	"github.com/Foodstream-io/etchebest/internal/modules/dish"
 	"github.com/Foodstream-io/etchebest/internal/modules/live"
@@ -25,7 +26,7 @@ import (
 // @contact.name   API Support
 // @contact.email  mohamme@molaryy.fr
 
-// @host      https://api.foodstream.tv
+// @host      localhost:8081
 // @BasePath  /
 
 // @securityDefinitions.apikey BearerAuth
@@ -59,6 +60,12 @@ func main() {
 		log.Fatal("STUN_SERVER_URL env variable not set")
 	}
 
+	webrtcIP := os.Getenv("WEBRTC_IP")
+	if webrtcIP == "" {
+		webrtcIP = "127.0.0.1" // default for local development
+		log.Printf("WEBRTC_IP not set, defaulting to %s", webrtcIP)
+	}
+
 	var migrateModels = []any{
 		&user.User{},
 		&room.Room{},
@@ -66,13 +73,14 @@ func main() {
 		&dish.Dish{},
 		&live.Live{},
 		&tag.Tag{},
+		&chat.Chat{},
 	}
 
 	if err := db.AutoMigrate(migrateModels...); err != nil {
 		log.Fatal(err)
 	}
 
-	routes.Routes(r, db, jwtKey, stunServerURL)
+	routes.Routes(r, db, jwtKey, stunServerURL, webrtcIP)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)

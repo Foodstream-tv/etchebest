@@ -26,14 +26,18 @@ type User struct {
 	CountryNumberPhone int            `json:"countryNumberPhone"`
 	NumberPhone        string         `json:"numberPhone"`
 	Role               string         `json:"role" gorm:"not null"`
-	FollowingIDS       pq.StringArray `json:"followingIds" gorm:"type:text[]"`
-	FollowersIDS       pq.StringArray `json:"followersIds " gorm:"type:text[]"`
+	FollowingIDS       pq.StringArray `json:"followingIds" gorm:"type:text[]" swaggertype:"array,string"`
+	FollowersIDS       pq.StringArray `json:"followersIds" gorm:"type:text[]" swaggertype:"array,string"`
 	FollowerCount      int            `json:"followerCount" gorm:"default:0;index:idx_user_followers"`
 	TotalLives         int            `json:"totalLives" gorm:"default:0"`
 	TotalViews         int            `json:"totalViews" gorm:"default:0"`
 	IsVerified         bool           `json:"isVerified" gorm:"default:false"`
 	IsFeaturedChef     bool           `json:"isFeaturedChef" gorm:"default:false;index:idx_user_featured"`
 	LastLiveAt         *time.Time     `json:"lastLiveAt" gorm:"index:idx_user_last_live"`
+	// OAuth fields
+	GoogleID      *string `json:"googleId" gorm:"index:idx_user_google"`
+	FacebookID    *string `json:"facebookId" gorm:"index:idx_user_facebook"`
+	OAuthProvider *string `json:"oauthProvider"` // "google" or "facebook"
 }
 
 type UserPatch struct {

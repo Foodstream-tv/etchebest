@@ -1,14 +1,17 @@
-.PHONY: help run start update restart rebuild clean install dev ios android web clear-cache test test-watch test-coverage
+.PHONY: help run start update restart rebuild clean install dev ios android web clear-cache test test-watch test-coverage sync-ip
+
+SET_IP := ../set-ip.sh
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  make run          - Start the Expo development server"
+	@echo "  make run          - Sync IP then start the Expo development server"
 	@echo "  make start        - Alias for 'make run'"
-	@echo "  make dev          - Start with cache cleared"
-	@echo "  make ios          - Start on iOS simulator"
-	@echo "  make android      - Start on Android emulator"
+	@echo "  make dev          - Sync IP then start with cache cleared"
+	@echo "  make ios          - Sync IP then start on iOS simulator"
+	@echo "  make android      - Sync IP then start on Android device/emulator"
 	@echo "  make web          - Start web version"
+	@echo "  make sync-ip      - Detect LAN IP and update .env + restart backend"
 	@echo "  make update       - Update all dependencies"
 	@echo "  make restart      - Restart the development server"
 	@echo "  make rebuild      - Clean and reinstall everything"
@@ -19,23 +22,27 @@ help:
 	@echo "  make test-watch   - Run tests in watch mode"
 	@echo "  make test-coverage - Run tests with coverage report"
 
+# Sync LAN IP into .env files and restart backend
+sync-ip:
+	@bash $(SET_IP)
+
 # Start the development server
-run:
+run: sync-ip
 	npx expo start
 
 # Alias for run
 start: run
 
 # Start with cache cleared
-dev:
+dev: sync-ip
 	npx expo start --clear
 
 # Start on iOS
-ios:
+ios: sync-ip
 	npx expo start --ios
 
 # Start on Android
-android:
+android: sync-ip
 	npx expo start --android
 
 # Start web version

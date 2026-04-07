@@ -60,7 +60,7 @@ export default function SignInPage() {
             }
             setAuth({ token: login.token, user });
 
-            router.replace("/profile");
+            router.replace("/home");
           } catch {
 
           }

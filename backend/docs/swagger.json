@@ -6,37 +6,43 @@
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
-            "url": "http://www.swagger.io/support",
-            "email": "support@swagger.io"
-        },
-        "license": {
-            "name": "Apache 2.0",
-            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+            "email": "mohamme@molaryy.fr"
         },
         "version": "1.0"
     },
-    "host": "localhost:8080",
+    "host": "localhost:8081",
     "basePath": "/",
     "paths": {
-        "/api/discover": {
+        "/api/admin/users": {
             "get": {
-                "description": "Returns trending country, top dishes and categories",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve list of all users (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Discover"
+                    "users"
                 ],
-                "summary": "Discover home",
+                "summary": "Get all users",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/discover.DiscoverHomeResponse"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/user.User"
+                            }
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "error: Failed to fetch users",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -47,112 +53,92 @@
                 }
             }
         },
-        "/api/discover/categories": {
-            "get": {
-                "description": "Returns all active countries with live count",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Discover"
-                ],
-                "summary": "List discover categories",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/discover.CategoryWithCount"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
+        "/api/admin/users/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
                     }
-                }
-            }
-        },
-        "/api/discover/categories/{id}/lives": {
-            "get": {
-                "description": "Returns paginated lives for a specific country with filters",
+                ],
+                "description": "Delete a user by their ID (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Discover"
+                    "users"
                 ],
-                "summary": "Get lives by category",
+                "summary": "Delete a user",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "Category ID",
-                        "name": "id",
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "error: Failed to delete user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update a user's profile by their ID (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update a user by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort by (views, viewers, recent)",
-                        "name": "sort",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Live status",
-                        "name": "filters[status]",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Dish ID",
-                        "name": "filters[dish_id]",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Minimum viewers",
-                        "name": "filters[min_viewers]",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Lives started in last N hours",
-                        "name": "filters[hours_ago]",
-                        "in": "query"
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.UserPatch"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/user.User"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "error: Invalid JSON",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -161,7 +147,7 @@
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "error: User not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -170,7 +156,7 @@
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "error: Failed to update user",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -181,298 +167,766 @@
                 }
             }
         },
-        "/api/home": {
-            "get": {
-                "description": "Return the featured live, tabs, chefs, and tags",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "home"
-                ],
-                "summary": "Complete home page",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/home.HomePageResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
-                        }
+        "/api/ice": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
                     }
-                }
-            }
-        },
-        "/api/home/chefs": {
-            "get": {
-                "description": "Return popular or featured creators",
+                ],
+                "description": "Add ICE candidates for WebRTC connection establishment",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "home"
+                    "webrtc"
                 ],
-                "summary": "List of featured chefs",
+                "summary": "Handle ICE candidates",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "default": 6,
-                        "description": "Number of chefs to return",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/home.ChefsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/home/lives": {
-            "get": {
-                "description": "Return the lives according to the tab: live, popular, replay, scheduled",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "home"
-                ],
-                "summary": "GetLivesByTab",
-                "parameters": [
-                    {
-                        "enum": [
-                            "live",
-                            "popular",
-                            "replay",
-                            "scheduled"
-                        ],
                         "type": "string",
-                        "description": "Tab name",
-                        "name": "tab",
+                        "description": "Room ID",
+                        "name": "roomId",
                         "in": "query",
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Items per page",
-                        "name": "limit",
-                        "in": "query"
+                        "description": "ICE Candidate",
+                        "name": "candidate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "status: Candidate added or Candidate buffered",
                         "schema": {
-                            "$ref": "#/definitions/home.LivesTabResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "error: Room ID is required or Invalid ICE candidate format",
                         "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "error: Failed to add ICE candidate",
                         "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
             }
         },
-        "/api/home/lives/filtered": {
-            "get": {
-                "description": "Allow to filter lives by tag, status, user, etc.",
+        "/api/login": {
+            "post": {
+                "description": "Authenticate user and return JWT token",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "home"
+                    "auth"
                 ],
-                "summary": "GetLivesWithFilters",
+                "summary": "Login user",
+                "parameters": [
+                    {
+                        "description": "Login credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RequestLogin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "token: JWT token string",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "error: User not found or Invalid password",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/register": {
+            "post": {
+                "description": "Create a new user account with email and password",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "Registration details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RequestRegister"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: User registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid request or User already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rooms": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve list of all streaming rooms",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "Get all rooms",
+                "responses": {
+                    "200": {
+                        "description": "rooms: list of rooms",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/room.Room"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to fetch rooms",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rooms/participant": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a user as a participant to a specific room",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "Add participant to room",
+                "parameters": [
+                    {
+                        "description": "Room and user IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/room.AddParticipantReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status: Participant added or Already participant",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "error: Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rooms/{roomId}/disconnect": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Close all WebRTC connections and clean up room resources",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webrtc"
+                ],
+                "summary": "Disconnect from room",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by tag ID",
-                        "name": "filters[tag_id]",
-                        "in": "query"
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Disconnected successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
+                    "400": {
+                        "description": "error: Room not found or already empty",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rooms/{roomId}/reserve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reserve a participant slot in a room in advance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "Reserve a spot in a room",
+                "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by tag slug",
-                        "name": "filters[tag_slug]",
-                        "in": "query"
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: reserved successfully, or you already reserved this room",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
+                    "400": {
+                        "description": "error: RoomID is required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "error: Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "error: Room full, cannot reserve",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to save reservation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/follow/{userId}": {
+            "post": {
+                "security": [
                     {
-                        "enum": [
-                            "live",
-                            "scheduled",
-                            "ended"
-                        ],
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Follow another user by their ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Follow a user",
+                "parameters": [
+                    {
                         "type": "string",
-                        "description": "Filter by status",
-                        "name": "filters[status]",
-                        "in": "query"
+                        "description": "User ID to follow",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: User followed successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
-                    {
-                        "type": "string",
-                        "description": "Filter by user ID",
-                        "name": "filters[user_id]",
-                        "in": "query"
+                    "403": {
+                        "description": "error: You are already following this user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
-                    {
-                        "type": "integer",
-                        "description": "Minimum current viewers",
-                        "name": "filters[min_viewers]",
-                        "in": "query"
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
+                    "500": {
+                        "description": "error: Failed to save",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/me": {
+            "get": {
+                "security": [
                     {
-                        "type": "boolean",
-                        "description": "Has replay available",
-                        "name": "filters[has_replay]",
-                        "in": "query"
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve the authenticated user's profile",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/user.User"
+                        }
                     },
+                    "500": {
+                        "description": "error: Failed to fetch user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
                     {
-                        "enum": [
-                            "views",
-                            "viewers",
-                            "recent"
-                        ],
-                        "type": "string",
-                        "description": "Sort order",
-                        "name": "sort",
-                        "in": "query"
-                    },
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update the authenticated user's profile",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update current user",
+                "parameters": [
                     {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Items per page",
-                        "name": "limit",
-                        "in": "query"
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.UserPatch"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/home.LivesFilteredResponse"
+                            "$ref": "#/definitions/user.User"
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid JSON",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "error: Failed to update user",
                         "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
             }
         },
-        "/api/home/search": {
-            "get": {
-                "description": "Research by title, dish name, chef name",
+        "/api/users/unfollow/{userId}": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Unfollow a user by their ID",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "home"
+                    "users"
                 ],
-                "summary": "Global search for lives",
+                "summary": "Unfollow a user",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
-                        "name": "q",
+                        "description": "User ID to unfollow",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: User unfollowed successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: You are not following this user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to save",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/webrtc": {
+            "post": {
+                "description": "Create WebRTC peer connection for video streaming (participants only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webrtc"
+                ],
+                "summary": "Establish WebRTC connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Room ID",
+                        "name": "roomId",
                         "in": "query",
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Items per page",
-                        "name": "limit",
-                        "in": "query"
+                        "description": "WebRTC Session Description (SDP offer)",
+                        "name": "offer",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "sdp: SDP answer",
                         "schema": {
-                            "$ref": "#/definitions/home.SearchResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "error: Room ID is required or Invalid offer",
                         "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "error: Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "error: You are a viewer, WebRTC not allowed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "error: Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/home/tags": {
-            "get": {
-                "description": "Return all active culinary tags with the number of lives",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "home"
-                ],
-                "summary": "List all tags",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/home.TagsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/home.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -480,201 +934,141 @@
         }
     },
     "definitions": {
-        "discover.CategoryWithCount": {
+        "auth.RequestLogin": {
             "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
             "properties": {
-                "code": {
-                    "type": "string"
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
                 },
-                "id": {
-                    "type": "integer"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "live_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
+                "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "Password123@"
                 }
             }
         },
-        "discover.DiscoverHomeResponse": {
+        "auth.RequestRegister": {
             "type": "object",
+            "required": [
+                "countryNumberPhone",
+                "description",
+                "email",
+                "firstName",
+                "lastName",
+                "numberPhone",
+                "password",
+                "profileImage",
+                "username"
+            ],
             "properties": {
-                "categories": {
+                "countryNumberPhone": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 33
+                },
+                "description": {
+                    "type": "string",
+                    "minLength": 10,
+                    "example": "I like eating sushi"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "firstName": {
+                    "type": "string",
+                    "minLength": 2,
+                    "example": "John"
+                },
+                "lastName": {
+                    "type": "string",
+                    "minLength": 2,
+                    "example": "Doe"
+                },
+                "numberPhone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "example": "123456"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "Password123@"
+                },
+                "profileImage": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/dto.CountryDTO"
+                        "type": "integer"
                     }
                 },
-                "top_dishes": {
+                "username": {
+                    "type": "string",
+                    "minLength": 2,
+                    "example": "JohnDoe23"
+                }
+            }
+        },
+        "room.AddParticipantReq": {
+            "type": "object",
+            "required": [
+                "roomId",
+                "userId"
+            ],
+            "properties": {
+                "roomId": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "userId": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440001"
+                }
+            }
+        },
+        "room.Room": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "maxParticipants": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "participants": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/discover.DishWithStats"
+                        "type": "string"
                     }
                 },
-                "trending_country": {
-                    "$ref": "#/definitions/dto.CountryDTO"
+                "viewers": {
+                    "type": "integer"
                 }
             }
         },
-        "discover.DishWithStats": {
+        "user.User": {
             "type": "object",
             "properties": {
-                "country": {
-                    "$ref": "#/definitions/dto.CountryDTO"
+                "countryNumberPhone": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "live_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "total_views": {
-                    "type": "integer"
-                }
-            }
-        },
-        "dto.CountryDTO": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.DishDTO": {
-            "type": "object",
-            "properties": {
-                "country": {
-                    "$ref": "#/definitions/dto.CountryDTO"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.LiveDTO": {
-            "type": "object",
-            "properties": {
-                "country": {
-                    "$ref": "#/definitions/dto.CountryDTO"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "current_viewers": {
-                    "type": "integer"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "dish": {
-                    "$ref": "#/definitions/dto.DishDTO"
-                },
-                "ended_at": {
-                    "type": "string"
-                },
-                "has_replay": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "like_count": {
-                    "type": "integer"
-                },
-                "preview_gif": {
-                    "type": "string"
-                },
-                "replay_url": {
-                    "type": "string"
-                },
-                "replay_views": {
-                    "type": "integer"
-                },
-                "started_at": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.TagDTO"
-                    }
-                },
-                "thumbnail_url": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/dto.UserDTO"
-                },
-                "view_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "dto.TagDTO": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "live_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "slug": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.UserDTO": {
-            "type": "object",
-            "properties": {
-                "description": {
+                "email": {
                     "type": "string"
                 },
                 "firstName": {
@@ -704,10 +1098,28 @@
                 "isVerified": {
                     "type": "boolean"
                 },
+                "lastLiveAt": {
+                    "type": "string"
+                },
                 "lastName": {
                     "type": "string"
                 },
+                "numberPhone": {
+                    "type": "string"
+                },
                 "profileImageUrl": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "totalLives": {
+                    "type": "integer"
+                },
+                "totalViews": {
+                    "type": "integer"
+                },
+                "updatedAt": {
                     "type": "string"
                 },
                 "username": {
@@ -715,177 +1127,32 @@
                 }
             }
         },
-        "home.ChefHighlight": {
+        "user.UserPatch": {
             "type": "object",
             "properties": {
-                "active_lives_count": {
+                "countryNumberPhone": {
                     "type": "integer"
                 },
                 "description": {
                     "type": "string"
                 },
+                "email": {
+                    "type": "string"
+                },
                 "firstName": {
                     "type": "string"
                 },
-                "followerCount": {
-                    "type": "integer"
-                },
-                "followersIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "followingIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "id": {
+                "lastName": {
                     "type": "string"
                 },
-                "isFeaturedChef": {
-                    "type": "boolean"
-                },
-                "isVerified": {
-                    "type": "boolean"
-                },
-                "lastName": {
+                "numberPhone": {
                     "type": "string"
                 },
                 "profileImageUrl": {
                     "type": "string"
                 },
-                "recent_live_title": {
-                    "type": "string"
-                },
                 "username": {
                     "type": "string"
-                }
-            }
-        },
-        "home.ChefsResponse": {
-            "type": "object",
-            "properties": {
-                "chefs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/home.ChefHighlight"
-                    }
-                }
-            }
-        },
-        "home.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                }
-            }
-        },
-        "home.HomePageResponse": {
-            "type": "object",
-            "properties": {
-                "featured_chefs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/home.ChefHighlight"
-                    }
-                },
-                "featured_live": {
-                    "$ref": "#/definitions/dto.LiveDTO"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.TagDTO"
-                    }
-                },
-                "upcoming_lives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.LiveDTO"
-                    }
-                }
-            }
-        },
-        "home.LivesFilteredResponse": {
-            "type": "object",
-            "properties": {
-                "filters_applied": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "lives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.LiveDTO"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/home.Pagination"
-                }
-            }
-        },
-        "home.LivesTabResponse": {
-            "type": "object",
-            "properties": {
-                "lives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.LiveDTO"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/home.Pagination"
-                }
-            }
-        },
-        "home.Pagination": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "total_pages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "home.SearchResponse": {
-            "type": "object",
-            "properties": {
-                "lives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.LiveDTO"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/home.Pagination"
-                },
-                "query": {
-                    "type": "string"
-                }
-            }
-        },
-        "home.TagsResponse": {
-            "type": "object",
-            "properties": {
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.TagDTO"
-                    }
                 }
             }
         }

@@ -1,12 +1,15 @@
 package routes
 
 import (
+	"github.com/Foodstream-io/etchebest/internal/modules/chat"
+	"net/http"
+	"os"
+
+	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
-	"github.com/Foodstream-io/etchebest/internal/pages/streams"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"net/http"
 
 	"github.com/Foodstream-io/etchebest/internal/auth"
 	"github.com/Foodstream-io/etchebest/internal/middleware"
@@ -15,9 +18,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
+func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, webrtcIP string) {
 	r.Use(middleware.CorsHandler())
 	bJwtToken := []byte(jwtToken)
+
+	// Get OAuth configuration from environment
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	googleRedirectURI := os.Getenv("GOOGLE_REDIRECT_URI")
+
+	// facebookAppID := os.Getenv("FACEBOOK_APP_ID")
+	// facebookAppSecret := os.Getenv("FACEBOOK_APP_SECRET")
+	// facebookRedirectURI := os.Getenv("FACEBOOK_REDIRECT_URI")
 
 	// Health check / root endpoint
 	r.GET("/", func(c *gin.Context) {
@@ -41,6 +53,21 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	r.POST("/api/register", auth.Register(db))
 	r.POST("/api/login", auth.Login(db, bJwtToken))
 
+	// OAuth endpoints (public access)
+	if googleClientID != "" && googleClientSecret != "" && googleRedirectURI != "" {
+		r.GET("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
+		r.POST("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
+	}
+
+	// if facebookAppID != "" && facebookAppSecret != "" && facebookRedirectURI != "" {
+	// 	r.GET("/api/auth/facebook/callback", auth.FacebookCallback(db, bJwtToken, facebookAppID, facebookAppSecret, facebookRedirectURI))
+	// 	r.POST("/api/auth/facebook/callback", auth.FacebookCallback(db, bJwtToken, facebookAppID, facebookAppSecret, facebookRedirectURI))
+	// }
+
+	// OAuth Mobile endpoints (public access)
+	r.POST("/api/auth/google/mobile", auth.GoogleMobileCallback(db, bJwtToken))
+	// r.POST("/api/auth/facebook/mobile", auth.FacebookMobileCallback(db, bJwtToken))
+
 	// User
 	admin.GET("/users", user.GetAllUsers(db))
 	admin.PATCH("/users/:userId", user.UpdateUserById(db))
@@ -57,13 +84,22 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string) {
 	api.POST("/rooms/participant", room.AddParticipant(db))
 	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
 
+	// Chat
+	api.GET("/rooms/:roomId/chat", chat.GetAllChatsByRoom(db))
+	api.POST("/rooms/:roomId/chat", chat.CreateNewChat(db))
+	admin.DELETE("/rooms/:roomId/chats/:chatId", chat.DeleteChat(db))
+
 	// WebRTC
-	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL))
+	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
 	api.POST("/ice", room.HandleICECandidate(db))
 
-	// Hls
-	api.GET("/streams/:roomId/token", streams.GetLiveToken()) // ask a token first -> const res = await fetch(`/api/streams/${roomId}/token`);
-	api.Static("/hls", "./hls")                               // watch the stream -> video.src = `/hls/${roomId}/index.m3u8?token=${token}`;
+	// HLS - public access (video players can't send Authorization headers)
+	r.Static("/api/hls", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/index.m3u8`;
+
+	// Discover (public)
+	r.GET("/api/discover", discover.GetDiscover(db))
+	r.GET("/api/discover/categories", discover.GetCategories(db))
+	r.GET("/api/discover/categories/:id/lives", discover.GetCategoryLives(db))
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -120,7 +121,8 @@ const DropdownRow = ({
 	);
 };
 
-export default function AddScreen(): JSX.Element {
+export default function AddScreen(): React.JSX.Element {
+	const router = useRouter();
 	const [cuisineSelected, setCuisineSelected] = useState('Asiatique');
 	const [levelSelected, setLevelSelected] = useState('Débutant');
 	const [durationSelected, setDurationSelected] = useState('60 min');
@@ -287,13 +289,13 @@ export default function AddScreen(): JSX.Element {
 					<Text style={styles.helperText}>Durée estimée : 45-90 min</Text>
 
 					<View style={styles.ctaRow}>
-						<TouchableOpacity style={styles.secondaryButton} activeOpacity={0.9}>
-							<Text style={styles.secondaryButtonText}>Enregistrer le brouillon</Text>
+						<TouchableOpacity style={styles.secondaryButton} activeOpacity={0.9} onPress={() => router.push('/live-rooms')}>
+							<Text style={styles.secondaryButtonText}>Voir les lives</Text>
 						</TouchableOpacity>
-						<TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
+						<TouchableOpacity style={styles.primaryButton} activeOpacity={0.9} onPress={() => router.push({ pathname: '/live-streaming', params: { mode: 'host' } })}>
 							<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.primaryGradient}>
 								<Ionicons name="radio-outline" size={16} color="#fff" />
-								<Text style={styles.primaryText}>Planifier le live</Text>
+								<Text style={styles.primaryText}>Lancer le live</Text>
 							</LinearGradient>
 						</TouchableOpacity>
 					</View>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>WebRTC Debug Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+
+        video {
+            width: 320px;
+            height: 240px;
+            background: #333;
+            margin: 10px;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            padding: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        input {
+            padding: 10px;
+            margin: 5px;
+            width: 300px;
+        }
+
+        .error {
+            color: #f55;
+        }
+
+        .success {
+            color: #5f5;
+        }
+
+        .info {
+            color: #5af;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>WebRTC Debug Test</h2>
+
+    <div>
+        <label>Email: <input id="email" value="admin@admin.com" /></label>
+        <label>Password: <input id="password" type="password" value="admin123" /></label>
+        <button onclick="doLogin()">Login</button>
+    </div>
+    <div>
+        <button onclick="doStart()" id="startBtn" disabled>Create Room & Start</button>
+        <button onclick="doStop()">Stop</button>
+    </div>
+
+    <div>
+        <video id="localVideo" autoplay muted playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        const BASE = "http://localhost:8081/api";
+        let token = null;
+        let pc = null;
+        let localStream = null;
+
+        function log(msg, cls = '') {
+            const d = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = cls;
+            line.textContent = `[${new Date().toISOString().slice(11, 23)}] ${msg}`;
+            d.appendChild(line);
+            d.scrollTop = d.scrollHeight;
+            console.log(msg);
+        }
+
+        async function doLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            try {
+                const res = await fetch(`${BASE.replace('/api', '')}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await res.json();
+                if (data.token) {
+                    token = data.token;
+                    log('Login OK, token: ' + token.slice(0, 30) + '...', 'success');
+                    document.getElementById('startBtn').disabled = false;
+                } else {
+                    log('Login failed: ' + JSON.stringify(data), 'error');
+                }
+            } catch (e) {
+                log('Login error: ' + e.message, 'error');
+            }
+        }
+
+        function authHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token,
+            };
+        }
+
+        async function doStart() {
+            try {
+                // 1. Create room
+                log('Creating room...', 'info');
+                const roomRes = await fetch(`${BASE}/rooms`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ name: 'Debug Room' }),
+                });
+                const roomData = await roomRes.json();
+                log('Room created: ' + JSON.stringify(roomData), 'success');
+                const roomId = roomData.roomId || roomData.id;
+                if (!roomId) {
+                    log('No roomId in response!', 'error');
+                    return;
+                }
+
+                // 2. Get camera
+                log('Getting camera...', 'info');
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: true,
+                });
+                document.getElementById('localVideo').srcObject = localStream;
+                log('Camera OK: ' + localStream.getTracks().map(t => t.kind).join(', '), 'success');
+
+                // 3. Create peer connection
+                log('Creating PeerConnection...', 'info');
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                });
+
+                localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, localStream);
+                    log('  Added track: ' + track.kind);
+                });
+
+                pc.onicecandidate = async (event) => {
+                    if (event.candidate) {
+                        log('Local ICE: ' + event.candidate.candidate.slice(0, 60));
+                        try {
+                            // Send in the same wrapper format the backend expects
+                            const res = await fetch(`${BASE}/ice?roomId=${roomId}`, {
+                                method: 'POST',
+                                headers: authHeaders(),
+                                body: JSON.stringify({
+                                    candidate: event.candidate.candidate,
+                                    sdpMLineIndex: event.candidate.sdpMLineIndex,
+                                    sdpMid: event.candidate.sdpMid,
+                                }),
+                            });
+                            const txt = await res.text();
+                            log('  ICE send status=' + res.status + ' ' + txt, res.ok ? '' : 'error');
+                        } catch (e) {
+                            log('  ICE send error: ' + e.message, 'error');
+                        }
+                    } else {
+                        log('ICE gathering complete (null candidate)', 'info');
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    log('ICE connection state: ' + pc.iceConnectionState,
+                        pc.iceConnectionState === 'connected' ? 'success' :
+                            pc.iceConnectionState === 'failed' ? 'error' : 'info');
+                };
+
+                pc.onconnectionstatechange = () => {
+                    log('Connection state: ' + pc.connectionState,
+                        pc.connectionState === 'connected' ? 'success' :
+                            pc.connectionState === 'failed' ? 'error' : 'info');
+                };
+
+                pc.onicegatheringstatechange = () => {
+                    log('ICE gathering state: ' + pc.iceGatheringState, 'info');
+                };
+
+                pc.onsignalingstatechange = () => {
+                    log('Signaling state: ' + pc.signalingState, 'info');
+                };
+
+                pc.ontrack = (event) => {
+                    log('Remote track received: ' + event.track.kind, 'success');
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                };
+
+                // 4. Pre-allocate transceivers & create offer
+                log('Creating offer...', 'info');
+                if (typeof pc.addTransceiver === 'function') {
+                    for (let i = 0; i < 5; i++) {
+                        pc.addTransceiver('video', { direction: 'recvonly' });
+                        pc.addTransceiver('audio', { direction: 'recvonly' });
+                    }
+                }
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                log('Local desc set. SDP type=' + offer.type + ', length=' + offer.sdp.length, 'info');
+
+                // 5. Send offer, get answer
+                log('Sending offer to server...', 'info');
+                const sdpRes = await fetch(`${BASE}/webrtc?roomId=${roomId}`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ type: 'offer', sdp: offer.sdp }),
+                });
+                const sdpData = await sdpRes.json();
+                log('Server response status=' + sdpRes.status, sdpRes.ok ? 'success' : 'error');
+
+                if (!sdpData.sdp) {
+                    log('No SDP in answer: ' + JSON.stringify(sdpData), 'error');
+                    return;
+                }
+                log('Answer SDP length=' + sdpData.sdp.length, 'info');
+                log('Answer SDP preview: ' + sdpData.sdp.slice(0, 200), 'info');
+
+                // Check if answer contains ICE candidates
+                const candidateLines = sdpData.sdp.split('\n').filter(l => l.startsWith('a=candidate'));
+                log('Candidates in answer SDP: ' + candidateLines.length, candidateLines.length > 0 ? 'success' : 'error');
+                candidateLines.forEach(c => log('  Server candidate: ' + c));
+
+                // 6. Set remote description
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdpData.sdp }));
+                    log('Remote description set OK', 'success');
+                } catch (e) {
+                    log('Failed to set remote desc: ' + e.message, 'error');
+                }
+
+                log('Waiting for connection...', 'info');
+
+            } catch (e) {
+                log('Error: ' + e.message, 'error');
+                console.error(e);
+            }
+        }
+
+        function doStop() {
+            if (pc) { pc.close(); pc = null; }
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            log('Stopped', 'info');
+        }
+    </script>
+</body>
+
+</html>
