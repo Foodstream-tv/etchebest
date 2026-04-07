@@ -1,7 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 
 const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
 const BORDER = '#E7E7EC';
@@ -393,11 +394,13 @@ const styles = StyleSheet.create({
         borderColor: BORDER,
         padding: 14,
         gap: 6,
-        shadowColor: '#00000010',
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 2,
+        ...createShadowStyle({
+            color: '#00000010',
+            offset: { width: 0, height: 4 },
+            opacity: 0.1,
+            radius: 8,
+            elevation: 2,
+        }),
     },
     statHeader: {
         flexDirection: 'row',
@@ -424,11 +427,13 @@ const styles = StyleSheet.create({
         borderColor: BORDER,
         padding: 14,
         gap: 10,
-        shadowColor: '#00000010',
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 2,
+        ...createShadowStyle({
+            color: '#00000010',
+            offset: { width: 0, height: 4 },
+            opacity: 0.1,
+            radius: 8,
+            elevation: 2,
+        }),
     },
     statLine: {
         flexDirection: 'row',
@@ -449,11 +454,13 @@ const styles = StyleSheet.create({
         borderColor: BORDER,
         padding: 14,
         gap: 10,
-        shadowColor: '#00000010',
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 2,
+        ...createShadowStyle({
+            color: '#00000010',
+            offset: { width: 0, height: 4 },
+            opacity: 0.1,
+            radius: 8,
+            elevation: 2,
+        }),
     },
     tipHeader: {
         flexDirection: 'row',
@@ -477,11 +484,13 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         borderWidth: 1,
         borderColor: BORDER,
-        shadowColor: '#00000010',
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 2,
+        ...createShadowStyle({
+            color: '#00000010',
+            offset: { width: 0, height: 4 },
+            opacity: 0.1,
+            radius: 8,
+            elevation: 2,
+        }),
         overflow: 'hidden',
     },
     recipeImageWrapper: {

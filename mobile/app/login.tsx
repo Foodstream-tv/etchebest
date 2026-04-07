@@ -6,17 +6,23 @@ import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import config from '../config/env';
 import apiService from '../services/api';
 import { authService } from '../services/auth';
 import { validateEmail, validatePassword } from '../utils/validation';
 
-GoogleSignin.configure({
-    webClientId: config.googleClientId,
-    offlineAccess: true, // Demande un serverAuthCode
-    forceCodeForRefreshToken: true,
-});
+const isGoogleSignInSupported = Platform.OS !== 'web';
+
+if (isGoogleSignInSupported) {
+    GoogleSignin.configure({
+        webClientId: config.googleClientId,
+        offlineAccess: true, // Demande un serverAuthCode
+        forceCodeForRefreshToken: true,
+    });
+}
+
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -75,6 +81,11 @@ export default function LoginScreen() {
 
     // ---- Google Auth Handlers (Native) ----
     const handleGoogleLogin = useCallback(async () => {
+        if (!isGoogleSignInSupported) {
+            setSocialMessage('Connexion Google non prise en charge sur le web.');
+            return;
+        }
+
         setLoading(true);
         setSocialMessage(null);
         setApiError(null);
@@ -119,9 +130,22 @@ export default function LoginScreen() {
         setSocialMessage('La connexion avec Facebook n\'est pas encore disponible');
     }, []);
 
+    const blurActiveElementOnWeb = useCallback(() => {
+        if (Platform.OS === 'web') {
+            const activeElement = document.activeElement as HTMLElement | null;
+            activeElement?.blur?.();
+        }
+    }, []);
+
     const handleTogglePassword = useCallback(() => setObscurePassword(v => !v), []);
-    const handleForgotPassword = useCallback(() => router.push('/forgot-password'), [router]);
-    const handleRegister = useCallback(() => router.push('/register'), [router]);
+    const handleForgotPassword = useCallback(() => {
+        blurActiveElementOnWeb();
+        router.push('/forgot-password');
+    }, [blurActiveElementOnWeb, router]);
+    const handleRegister = useCallback(() => {
+        blurActiveElementOnWeb();
+        router.push('/register');
+    }, [blurActiveElementOnWeb, router]);
 
     const passwordTrailingIcon = useMemo(() => (
         <TouchableOpacity onPress={handleTogglePassword}>
@@ -291,11 +315,13 @@ const styles = StyleSheet.create({
         paddingVertical: 48,
         paddingHorizontal: 24,
         backgroundColor: '#fff',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.08,
-        shadowRadius: 24,
-        elevation: 8,
+        ...createShadowStyle({
+            color: '#000',
+            offset: { width: 0, height: 12 },
+            opacity: 0.08,
+            radius: 24,
+            elevation: 8,
+        }),
     },
     heading: {
         fontSize: 28,

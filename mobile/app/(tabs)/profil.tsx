@@ -1,8 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { ComponentProps, useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService, StoredUser } from '../../services/auth';
 
@@ -329,11 +330,13 @@ const styles = StyleSheet.create({
 		padding: 16,
 		borderWidth: 1,
 		borderColor: BORDER,
-		shadowColor: '#00000015',
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.08,
-		shadowRadius: 8,
-		elevation: 2,
+		...createShadowStyle({
+		    color: '#00000015',
+		    offset: { width: 0, height: 4 },
+		    opacity: 0.08,
+		    radius: 8,
+		    elevation: 2,
+		}),
 	},
 	profileCard: {
 		flexDirection: 'row',

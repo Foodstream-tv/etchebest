@@ -1,8 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '../services/auth';
 
@@ -598,11 +599,13 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: BORDER,
-    shadowColor: '#00000010',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 2,
+    ...createShadowStyle({
+        color: '#00000010',
+        offset: { width: 0, height: 6 },
+        opacity: 0.1,
+        radius: 10,
+        elevation: 2,
+    }),
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -713,10 +716,12 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: '#fff',
-    shadowColor: '#00000020',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
+    ...createShadowStyle({
+        color: '#00000020',
+        offset: { width: 0, height: 1 },
+        opacity: 0.2,
+        radius: 2,
+    }),
   },
   toggleThumbOn: {
     alignSelf: 'flex-end',
@@ -736,10 +741,12 @@ const styles = StyleSheet.create({
     padding: 1,
   },
   channelCardActive: {
-    shadowColor: '#FF7A0020',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    ...createShadowStyle({
+        color: '#FF7A0020',
+        offset: { width: 0, height: 4 },
+        opacity: 0.2,
+        radius: 8,
+    }),
   },
   channelInner: {
     flexDirection: 'row',
