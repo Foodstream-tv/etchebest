@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ImageBackground,
   RefreshControl,
@@ -13,11 +14,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import ToastManager from 'toastify-react-native';
 import apiService, { DiscoverData } from '../../services/api';
-import toast from '../../utils/toast';
 
-export default function DiscoverScreen() {
+export default function DiscoverScreen(): React.JSX.Element {
   const [data, setData] = useState<DiscoverData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,7 +28,7 @@ export default function DiscoverScreen() {
       setData(result);
     } catch (error) {
       console.error('Discover load error:', error);
-      toast.error('Impossible de charger les données');
+      Alert.alert('Erreur', 'Impossible de charger les données');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -162,7 +161,7 @@ export default function DiscoverScreen() {
       </View>
       
       <View style={{ height: 100 }} /> 
-      <ToastManager />
+      <View style={{ height: 100 }} /> 
     </ScrollView>
   );
 }
@@ -248,7 +247,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: 'bold',
     color: '#fff',
-    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.3)',
   },
   liveBadge: {
     flexDirection: 'row',

@@ -8,7 +8,9 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o etchebest
+RUN go build -o etchebest ./cmd/server/main.go
+
+RUN apk add --no-cache ffmpeg
 
 EXPOSE 8080
 

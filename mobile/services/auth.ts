@@ -32,6 +32,9 @@ export interface StoredUser {
   id: string;
   email: string;
   username: string;
+  firstName?: string;
+  lastName?: string;
+  description?: string;
 }
 
 class AuthService {

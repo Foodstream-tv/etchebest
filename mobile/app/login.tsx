@@ -1,35 +1,45 @@
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import ToastManager, { Toast } from 'toastify-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import FloatingLabelInput from '../components/FloatingLabelInput';
+import config from '../config/env';
 import apiService from '../services/api';
-import authService from '../services/auth';
-import toast from '../utils/toast';
+import { authService } from '../services/auth';
 import { validateEmail, validatePassword } from '../utils/validation';
 
-
+GoogleSignin.configure({
+    webClientId: config.googleClientId,
+    offlineAccess: true, // Demande un serverAuthCode
+    forceCodeForRefreshToken: true,
+});
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
-    const [emailFocused, setEmailFocused] = useState(false);
-    const [passwordFocused, setPasswordFocused] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
+    const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
     const [loading, setLoading] = useState(false);
+    const [emailError, setEmailError] = useState<string | null>(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [socialMessage, setSocialMessage] = useState<string | null>(null);
+    const [apiError, setApiError] = useState<string | null>(null);
 
     const router = useRouter();
 
-    const handleLogin = async () => {
+    const handleLogin = useCallback(async () => {
         const emailValidation = validateEmail(email);
-        if (!emailValidation.isValid) {
-            toast.error(emailValidation.error ?? 'Erreur de validation de l\'email');
-            return;
-        }
-
         const passwordValidation = validatePassword(password);
-        if (!passwordValidation.isValid) {
-            toast.error(passwordValidation.error ?? 'Erreur de validation du mot de passe');
+
+        setEmailError(emailValidation.isValid ? null : (emailValidation.error ?? 'Email invalide'));
+        setPasswordError(passwordValidation.isValid ? null : (passwordValidation.error ?? 'Mot de passe invalide'));
+        setApiError(null);
+
+        if (!emailValidation.isValid || !passwordValidation.isValid) {
             return;
         }
 
@@ -38,68 +48,152 @@ export default function LoginScreen() {
             const response = await apiService.login({ email, password });
             await authService.saveAuth(response.token, response.user);
 
-            toast.success('Connexion réussie !');
+            // Fetch full profile to enrich stored user with firstName, lastName, description
+            try {
+                const profile = await apiService.getProfile(response.token);
+                await authService.saveAuth(response.token, {
+                    id: profile.id,
+                    email: profile.email,
+                    username: profile.username,
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    description: profile.description,
+                });
+            } catch {
+                // Non-critical: basic auth data is already saved
+            }
+
+            // Instead of toast.success, we just route since login completes the auth flow
             router.replace('/');
         } catch (error) {
             console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
-            toast.error(error instanceof Error ? error.message : 'Erreur de connexion');
+            setApiError(error instanceof Error ? error.message : 'Désolé, une erreur inattendue est survenue.');
         } finally {
             setLoading(false);
         }
-    };
+    }, [email, password, router]);
+
+    // ---- Google Auth Handlers (Native) ----
+    const handleGoogleLogin = useCallback(async () => {
+        setLoading(true);
+        setSocialMessage(null);
+        setApiError(null);
+        try {
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+            
+            // On récupère l'Access Token pour le backend mobile (`/api/auth/google/mobile`)
+            const { accessToken } = await GoogleSignin.getTokens();
+
+            if (accessToken) {
+               console.log('[Google Auth] Success! Access Token received. Sending to backend...');
+               
+               const authRes = await apiService.loginWithGoogle(accessToken);
+               await authService.saveAuth(authRes.token, authRes.user);
+               router.replace('/');
+            } else {
+               setSocialMessage("Impossible de récupérer le jeton d'accès Google.");
+            }
+        } catch (error: any) {
+            console.error("Google Signin Error:", error);
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                // L'utilisateur a annulé la fenêtre Google
+                setSocialMessage("Connexion annulée");
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                setSocialMessage("Connexion déjà en cours");
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                setSocialMessage("Google Play Services indisponible sur cet appareil");
+            } else {
+                setApiError("Erreur inattendue de connexion avec Google.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [router]);
+
+    const handleAppleLogin = useCallback(() => {
+        setSocialMessage('La connexion avec Apple n\'est pas encore disponible');
+    }, []);
+
+    const handleFacebookLogin = useCallback(() => {
+        setSocialMessage('La connexion avec Facebook n\'est pas encore disponible');
+    }, []);
+
+    const handleTogglePassword = useCallback(() => setObscurePassword(v => !v), []);
+    const handleForgotPassword = useCallback(() => router.push('/forgot-password'), [router]);
+    const handleRegister = useCallback(() => router.push('/register'), [router]);
+
+    const passwordTrailingIcon = useMemo(() => (
+        <TouchableOpacity onPress={handleTogglePassword}>
+            <Ionicons
+                name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#000"
+            />
+        </TouchableOpacity>
+    ), [obscurePassword, handleTogglePassword]);
 
     return (
-        <>
-            <View style={styles.background}>
+        <View style={styles.background}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.headerImageContainer}>
+                        <Image
+                            source={require('@/assets/images/food-iphone.jpg')}
+                            style={styles.headerImage}
+                            resizeMode="cover"
+                        />
+                        <LinearGradient
+                            colors={['transparent', '#F5F5F7']}
+                            style={styles.headerImageGradient}
+                        />
+                    </View>
                     <View style={styles.card}>
-                        <Text style={styles.heading}>Connexion</Text>
+                        <Text style={styles.subHeading}>Connexion</Text>
+                        <Text style={styles.welcomeText}>Bon retour, content de vous revoir !</Text>
                         <View style={styles.formSection}>
-                            <Text style={styles.subHeading}>Bonjour,</Text>
-                            <View style={styles.inputWrapper}>
-                                {Boolean(emailFocused || email) && (
-                                    <Text style={styles.floatingLabel}>Adresse e-mail</Text>
-                                )}
-                                <View style={[styles.inputGroup, (emailFocused || email) && styles.inputGroupFocused]}>
-                                    <Ionicons name="mail-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={emailFocused || email ? '' : 'Adresse e-mail'}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        onFocus={() => setEmailFocused(true)}
-                                        onBlur={() => setEmailFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
+                            {!!apiError && (
+                                <View style={styles.apiErrorContainer}>
+                                    <Ionicons name="warning" size={20} color="#D00000" />
+                                    <Text style={styles.apiErrorText}>{apiError}</Text>
                                 </View>
+                            )}
+                            <FloatingLabelInput
+                                label="Adresse e-mail"
+                                iconName="mail-outline"
+                                focused={focusedField === 'email'}
+                                value={email}
+                                onChangeText={(v) => { setEmail(v); setEmailError(null); }}
+                                onFocus={() => setFocusedField('email')}
+                                onBlur={() => setFocusedField(null)}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                error={emailError}
+                            />
+                            <FloatingLabelInput
+                                label="Mot de passe"
+                                iconName="lock-closed-outline"
+                                focused={focusedField === 'password'}
+                                value={password}
+                                onChangeText={(v) => { setPassword(v); setPasswordError(null); }}
+                                onFocus={() => setFocusedField('password')}
+                                onBlur={() => setFocusedField(null)}
+                                secureTextEntry={obscurePassword}
+                                trailingIcon={passwordTrailingIcon}
+                                error={passwordError}
+                            />
+
+                            <View style={styles.optionsRow}>
+                                <TouchableOpacity style={styles.rememberMeContainer} onPress={() => setRememberMe(!rememberMe)}>
+                                    <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                                        {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
+                                    </View>
+                                    <Text style={styles.rememberMeText}>Se souvenir de moi</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleForgotPassword}>
+                                    <Text style={styles.linkText}>Mot de passe oublié ?</Text>
+                                </TouchableOpacity>
                             </View>
-                            <View style={styles.inputWrapper}>
-                                {Boolean(passwordFocused || password) && (
-                                    <Text style={styles.floatingLabel}>Mot de passe</Text>
-                                )}
-                                <View style={[styles.inputGroup, (passwordFocused || password) && styles.inputGroupFocused]}>
-                                    <Ionicons name="lock-closed-outline" size={20} color="#000" style={styles.leadingIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={passwordFocused || password ? '' : 'Mot de passe'}
-                                        secureTextEntry={obscurePassword}
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        onFocus={() => setPasswordFocused(true)}
-                                        onBlur={() => setPasswordFocused(false)}
-                                        placeholderTextColor="#7a7a7a"
-                                    />
-                                    <TouchableOpacity onPress={() => setObscurePassword(!obscurePassword)}>
-                                        <Ionicons
-                                            name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                            size={20}
-                                            color="#000"
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
+
                             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
                                 <LinearGradient
                                     colors={['#FFA92E', '#FF5D1E']}
@@ -119,52 +213,42 @@ export default function LoginScreen() {
                                 <Text style={styles.dividerLabel}>Ou</Text>
                                 <View style={styles.line} />
                             </View>
-                            <TouchableOpacity
-                                style={styles.socialButton}
-                                onPress={() => {
-                                    Toast.show({
-                                        text1: 'Tentative de connexion avec Google',
-                                        position: 'bottom',
-                                        icon: <Ionicons name="logo-google" size={24} color="#4285F4" />,
-                                        iconColor: '#4285F4',
-                                    });
-                                }}
-                            >
-                                <View style={styles.socialButtonContent}>
-                                    <View style={styles.socialIconBadge}>
-                                        <Image
-                                            source={require('@/assets/images/google_logo.png')}
-                                            style={styles.googleIcon}
-                                            resizeMode="contain"
-                                        />
-                                    </View>
-                                    <Text style={styles.socialText}>Continuer avec Google</Text>
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.socialButton}
-                                onPress={() => {
-                                    Toast.show({
-                                        text1: 'Tentative de connexion avec Apple',
-                                        position: 'bottom',
-                                        icon: <Ionicons name="logo-apple" size={24} color="#000" />,
-                                        iconColor: '#000',
-                                    });
-                                }}
-                            >
-                                <View style={styles.socialButtonContent}>
-                                    <View style={styles.socialIconBadge}>
-                                        <Ionicons name="logo-apple" size={22} color="#000" />
-                                    </View>
-                                    <Text style={styles.socialText}>Continuer avec Apple</Text>
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => router.push('/forgot-password')}>
-                                <Text style={styles.linkText}>Mot de passe oublié ?</Text>
-                            </TouchableOpacity>
+
+                            <View style={styles.socialIconsRow}>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={handleGoogleLogin}
+                                    testID="google-login-button"
+                                >
+                                    <Image
+                                        source={require('@/assets/images/google_logo.png')}
+                                        style={styles.socialIcon}
+                                        resizeMode="contain"
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={handleAppleLogin}
+                                    testID="apple-login-button"
+                                >
+                                    <Ionicons name="logo-apple" size={30} color="#000" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.socialIconButton}
+                                    onPress={handleFacebookLogin}
+                                    testID="facebook-login-button"
+                                >
+                                    <Ionicons name="logo-facebook" size={30} color="#1877F2" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {!!socialMessage && (
+                                <Text style={styles.socialErrorText}>{socialMessage}</Text>
+                            )}
+
                             <View style={styles.footerLinks}>
-                                <Text style={styles.footerText}>Vous n&apos;avez pas de compte ? </Text>
-                                <TouchableOpacity onPress={() => router.push('/register')}>
+                                <Text style={styles.footerText}>Vous n&apos;avez pas de compte ?&nbsp;</Text>
+                                <TouchableOpacity onPress={handleRegister}>
                                     <Text style={styles.linkHighlight}>Inscrivez-vous</Text>
                                 </TouchableOpacity>
                             </View>
@@ -172,26 +256,46 @@ export default function LoginScreen() {
                     </View>
                 </ScrollView>
             </View>
-            <ToastManager />
-        </>
     );
 }
 
 const styles = StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: '#fdfdfc',
+        backgroundColor: '#F5F5F7',
     },
     scrollContent: {
         flexGrow: 1,
-        padding: 16,
-        justifyContent: 'center',
+        paddingBottom: 40,
+    },
+    headerImageContainer: {
+        width: '100%',
+        height: 280,
+        position: 'relative',
+    },
+    headerImage: {
+        width: '100%',
+        height: '100%',
+    },
+    headerImageGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 100,
     },
     card: {
+        marginTop: -60,
+        marginHorizontal: 16,
         borderRadius: 32,
         paddingVertical: 48,
-        paddingHorizontal: 16,
+        paddingHorizontal: 24,
         backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 8,
     },
     heading: {
         fontSize: 28,
@@ -199,60 +303,70 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#111',
     },
-    formSection: {
-        marginTop: 80,
-    },
     subHeading: {
-        fontSize: 26,
-        fontWeight: '700',
+        fontSize: 32,
+        fontWeight: '800',
         color: '#111',
-        marginBottom: 28,
+        marginBottom: 8,
         textAlign: 'center',
     },
-    inputWrapper: {
-        marginBottom: 16,
-        position: 'relative',
+    welcomeText: {
+        fontSize: 15,
+        color: '#666',
+        textAlign: 'center',
     },
-    floatingLabel: {
-        position: 'absolute',
-        top: -8,
-        left: 16,
-        backgroundColor: '#fff',
-        paddingHorizontal: 4,
-        fontSize: 12,
-        color: '#FF8A00',
-        fontWeight: '600',
-        zIndex: 1,
+    formSection: {
+        marginTop: 32,
     },
-    inputGroup: {
+    apiErrorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 16,
+        backgroundColor: '#FFE5E5',
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 20,
+    },
+    apiErrorText: {
+        color: '#D00000',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 8,
+        flex: 1,
+    },
+    optionsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 28,
+        paddingHorizontal: 4,
+    },
+    rememberMeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
         borderWidth: 1,
         borderColor: '#bcbcbc',
-        paddingHorizontal: 16,
-        height: 56,
-        backgroundColor: '#fff',
-        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
     },
-    inputGroupFocused: {
-        borderColor: '#FF8A00',
+    checkboxActive: {
+        backgroundColor: '#FF5D1E',
+        borderColor: '#FF5D1E',
     },
-    leadingIcon: {
-        marginRight: 12,
-    },
-    input: {
-        flex: 1,
-        fontSize: 16,
+    rememberMeText: {
+        fontSize: 14,
         color: '#000',
     },
     linkText: {
         textDecorationLine: 'underline',
-        textAlign: 'center',
         color: '#000',
         fontWeight: '600',
-        marginTop: 4,
-        marginBottom: 28,
+        fontSize: 14,
     },
     primaryButton: {
         borderRadius: 16,
@@ -286,39 +400,33 @@ const styles = StyleSheet.create({
         color: '#000',
         fontWeight: '600',
     },
-    socialButton: {
-        borderRadius: 18,
-        paddingVertical: 14,
-        paddingHorizontal: 18,
-        marginBottom: 16,
+    socialIconsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 16,
+        marginBottom: 24,
+    },
+    socialIconButton: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
         backgroundColor: '#fff',
         borderWidth: 1,
         borderColor: '#e8e8e8',
-        width: '100%',
-    },
-    socialButtonContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    socialIconBadge: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: '#f4f4f4',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    googleIcon: {
-        width: 22,
-        height: 22,
+    socialIcon: {
+        width: 24,
+        height: 24,
     },
-    socialText: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-        marginLeft: 18,
+    socialErrorText: {
+        color: '#D00000',
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: -12,
+        marginBottom: 24,
+        fontWeight: '500',
     },
     footerLinks: {
         marginTop: 32,

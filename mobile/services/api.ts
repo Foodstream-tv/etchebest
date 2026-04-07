@@ -1,5 +1,5 @@
 // API Configuration
-import config from '../config/env';
+import envConfig from '../config/env';
 
 export interface LoginRequest {
   email: string;
@@ -124,9 +124,9 @@ export interface CategoryLivesResponse {
 
 class ApiService {
   private readonly baseUrl: string;
-  private readonly timeout: number; 
+  private readonly timeout: number;
 
-  constructor(baseUrl: string = config.apiBaseUrl, timeout: number = config.apiTimeout) {
+  constructor(baseUrl: string = envConfig.apiBaseUrl, timeout: number = envConfig.apiTimeout) {
     this.baseUrl = baseUrl;
     this.timeout = timeout;
   }
@@ -189,6 +189,19 @@ class ApiService {
       body: JSON.stringify({
         email: credentials.email.trim().toLowerCase(),
         password: credentials.password,
+      }),
+    });
+    return this.handleResponse<AuthResponse>(response);
+  }
+  
+  async loginWithGoogle(accessToken: string): Promise<AuthResponse> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/google/mobile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        access_token: accessToken,
       }),
     });
     return this.handleResponse<AuthResponse>(response);
