@@ -7,10 +7,7 @@
  * boundaries on release so it can never be dragged off-screen.
  */
 import React, { useEffect, useRef } from 'react';
-import {Animated,
-    PanResponder,
-    StyleSheet,
-    useWindowDimensions,} from 'react-native';
+import { Animated, PanResponder, StyleSheet, useWindowDimensions } from 'react-native';
 import { createShadowStyle } from '@/utils/shadow';
 import StreamView from './StreamView';
 
