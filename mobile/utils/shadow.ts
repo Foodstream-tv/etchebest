@@ -20,18 +20,17 @@ const hexToRgba = (color: string, opacity: number): string => {
   }
 
   if (hex.length === 6) {
-    hex = `ff${hex}`;
+    hex = `${hex}ff`;
   }
 
   if (hex.length !== 8) {
     return `rgba(0, 0, 0, ${opacity})`;
   }
 
-  const int = parseInt(hex, 16);
-  const alpha = ((int >> 24) & 255) / 255;
-  const red = (int >> 16) & 255;
-  const green = (int >> 8) & 255;
-  const blue = int & 255;
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const alpha = parseInt(hex.slice(6, 8), 16) / 255;
   const finalAlpha = Math.min(1, Math.max(0, alpha * opacity));
   return `rgba(${red}, ${green}, ${blue}, ${finalAlpha.toFixed(3)})`;
 };
