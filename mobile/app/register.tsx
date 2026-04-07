@@ -57,7 +57,7 @@ export default function RegisterScreen() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
-    const countryPickerCloseRef = useRef<any>(null);
+    const countryPickerCloseRef = useRef<React.ElementRef<typeof TouchableOpacity> | null>(null);
     const [obscurePassword, setObscurePassword] = useState(true);
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState<FocusedField>(null);
