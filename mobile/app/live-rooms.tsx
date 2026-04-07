@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -9,8 +9,8 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
-} from 'react-native';
+    View} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getRooms, RoomInfo, UnauthorizedError } from '../services/streaming';
 
@@ -379,10 +379,12 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#FF7A00',
-        shadowOpacity: 0.3,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 6,
+        ...createShadowStyle({
+            color: '#FF7A00',
+            offset: { width: 0, height: 4 },
+            opacity: 0.3,
+            radius: 8,
+            elevation: 6,
+        }),
     },
 });

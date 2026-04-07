@@ -1,8 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import apiService from '../services/api';
 import { validateEmail, validateLengthRange, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
@@ -56,6 +57,7 @@ export default function RegisterScreen() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
+    const countryPickerCloseRef = useRef<any>(null);
     const [obscurePassword, setObscurePassword] = useState(true);
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState<FocusedField>(null);
@@ -64,6 +66,20 @@ export default function RegisterScreen() {
     const [apiError, setApiError] = useState<string | null>(null);
 
     const router = useRouter();
+
+    useEffect(() => {
+        if (showCountryPicker && Platform.OS === 'web') {
+            countryPickerCloseRef.current?.focus?.();
+        }
+    }, [showCountryPicker]);
+
+    const openCountryPicker = useCallback(() => {
+        if (Platform.OS === 'web') {
+            const active = document.activeElement as HTMLElement | null;
+            active?.blur?.();
+        }
+        setShowCountryPicker(true);
+    }, []);
 
     const clearError = useCallback((field: keyof FieldErrors) => {
         setErrors(prev => ({ ...prev, [field]: null }));
@@ -219,7 +235,7 @@ export default function RegisterScreen() {
                                 trailingIcon={
                                     <TouchableOpacity
                                         style={styles.countryCodeButton}
-                                        onPress={() => setShowCountryPicker(true)}
+                                        onPress={openCountryPicker}
                                     >
                                         <Text style={styles.countryCodeText}>{countryCode.flag} {countryCode.code}</Text>
                                         <Ionicons name="chevron-down-outline" size={16} color="#000" />
@@ -304,7 +320,7 @@ export default function RegisterScreen() {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Sélectionner un indicatif</Text>
-                            <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
+                            <TouchableOpacity ref={countryPickerCloseRef} onPress={() => setShowCountryPicker(false)}>
                                 <Ionicons name="close-outline" size={28} color="#000" />
                             </TouchableOpacity>
                         </View>
@@ -374,11 +390,13 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
+        ...createShadowStyle({
+            color: '#000',
+            offset: { width: 0, height: 4 },
+            opacity: 0.1,
+            radius: 8,
+            elevation: 4,
+        }),
     },
     card: {
         marginTop: -60,
@@ -387,11 +405,13 @@ const styles = StyleSheet.create({
         paddingVertical: 48,
         paddingHorizontal: 24,
         backgroundColor: '#fff',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.08,
-        shadowRadius: 24,
-        elevation: 8,
+        ...createShadowStyle({
+            color: '#000',
+            offset: { width: 0, height: 12 },
+            opacity: 0.08,
+            radius: 24,
+            elevation: 8,
+        }),
     },
     heading: {
         fontSize: 28,

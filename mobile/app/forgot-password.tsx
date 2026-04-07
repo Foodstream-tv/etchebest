@@ -1,8 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import { validateEmail } from '../utils/validation';
 
@@ -131,11 +132,13 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
+        ...createShadowStyle({
+            color: '#000',
+            offset: { width: 0, height: 4 },
+            opacity: 0.1,
+            radius: 8,
+            elevation: 4,
+        }),
     },
     card: {
         marginTop: -60,
@@ -144,11 +147,13 @@ const styles = StyleSheet.create({
         paddingVertical: 48,
         paddingHorizontal: 24,
         backgroundColor: '#fff',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.08,
-        shadowRadius: 24,
-        elevation: 8,
+        ...createShadowStyle({
+            color: '#000',
+            offset: { width: 0, height: 12 },
+            opacity: 0.08,
+            radius: 24,
+            elevation: 8,
+        }),
     },
     subHeading: {
         fontSize: 32,

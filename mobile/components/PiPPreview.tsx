@@ -7,12 +7,11 @@
  * boundaries on release so it can never be dragged off-screen.
  */
 import React, { useEffect, useRef } from 'react';
-import {
-    Animated,
+import {Animated,
     PanResponder,
     StyleSheet,
-    useWindowDimensions,
-} from 'react-native';
+    useWindowDimensions,} from 'react-native';
+import { createShadowStyle } from '@/utils/shadow';
 import StreamView from './StreamView';
 
 const PIP_WIDTH = 120;
@@ -118,11 +117,13 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.25)',
         // Subtle shadow so the PiP floats above the background content.
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 8,
+        ...createShadowStyle({
+            color: '#000',
+            offset: { width: 0, height: 4 },
+            opacity: 0.4,
+            radius: 8,
+            elevation: 8,
+        }),
     },
     video: {
         flex: 1,
