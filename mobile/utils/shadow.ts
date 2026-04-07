@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, type ViewStyle } from 'react-native';
 
 type ShadowConfig = {
   color: string;
@@ -41,7 +41,7 @@ export const createShadowStyle = ({
   opacity,
   radius,
   elevation,
-}: ShadowConfig): { [key: string]: any } => {
+}: ShadowConfig): { boxShadow: string } | ViewStyle => {
   if (Platform.OS === 'web') {
     return {
       boxShadow: `${offset.width}px ${offset.height}px ${radius}px ${hexToRgba(color, opacity)}`,
