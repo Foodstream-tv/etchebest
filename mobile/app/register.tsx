@@ -1,33 +1,32 @@
-import {Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import { createShadowStyle } from '@/utils/shadow';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ToastManager from 'toastify-react-native';
+
+import BrandBackdrop from '../components/BrandBackdrop';
 import FloatingLabelInput from '../components/FloatingLabelInput';
+import { brandHeadlineFont, brandTheme } from '../constants/brandTheme';
+import { LanguageProvider, useI18n } from '../contexts/LanguageContext';
 import apiService from '../services/api';
+import toast from '../utils/toast';
 import { validateEmail, validateLengthRange, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
 
-// Common country codes for phone registration
-// Each entry has:
-// - code: The international dialing prefix (string with +)
-// - country: Localized country name in French
-// - flag: Emoji flag for visual identification
-// - value: Numeric country code for API (matches API's countryNumberPhone field)
 const COUNTRY_CODES = [
-    { code: '+33', country: 'France', flag: '🇫🇷', value: 33 },
-    { code: '+1', country: 'États-Unis', flag: '🇺🇸', value: 1 },
-    { code: '+1', country: 'Canada', flag: '🇨🇦', value: 1 },
-    { code: '+44', country: 'Royaume-Uni', flag: '🇬🇧', value: 44 },
-    { code: '+49', country: 'Allemagne', flag: '🇩🇪', value: 49 },
-    { code: '+34', country: 'Espagne', flag: '🇪🇸', value: 34 },
-    { code: '+39', country: 'Italie', flag: '🇮🇹', value: 39 },
-    { code: '+32', country: 'Belgique', flag: '🇧🇪', value: 32 },
-    { code: '+41', country: 'Suisse', flag: '🇨🇭', value: 41 },
-    { code: '+352', country: 'Luxembourg', flag: '🇱🇺', value: 352 },
-    { code: '+212', country: 'Maroc', flag: '🇲🇦', value: 212 },
-    { code: '+213', country: 'Algérie', flag: '🇩🇿', value: 213 },
-    { code: '+216', country: 'Tunisie', flag: '🇹🇳', value: 216 },
+    { code: '+33', country: 'France', flag: 'FR', value: 33 },
+    { code: '+1', country: 'Etats-Unis', flag: 'US', value: 1 },
+    { code: '+1', country: 'Canada', flag: 'CA', value: 1 },
+    { code: '+44', country: 'Royaume-Uni', flag: 'GB', value: 44 },
+    { code: '+49', country: 'Allemagne', flag: 'DE', value: 49 },
+    { code: '+34', country: 'Espagne', flag: 'ES', value: 34 },
+    { code: '+39', country: 'Italie', flag: 'IT', value: 39 },
+    { code: '+32', country: 'Belgique', flag: 'BE', value: 32 },
+    { code: '+41', country: 'Suisse', flag: 'CH', value: 41 },
+    { code: '+352', country: 'Luxembourg', flag: 'LU', value: 352 },
+    { code: '+212', country: 'Maroc', flag: 'MA', value: 212 },
+    { code: '+213', country: 'Algerie', flag: 'DZ', value: 213 },
+    { code: '+216', country: 'Tunisie', flag: 'TN', value: 216 },
 ];
 
 type FocusedField = 'email' | 'firstName' | 'lastName' | 'username' | 'password' | 'phone' | 'description' | null;
@@ -43,11 +42,106 @@ type FieldErrors = {
 };
 
 const NO_ERRORS: FieldErrors = {
-    email: null, firstName: null, lastName: null,
-    username: null, password: null, phone: null, description: null,
+    email: null,
+    firstName: null,
+    lastName: null,
+    username: null,
+    password: null,
+    phone: null,
+    description: null,
 };
 
 export default function RegisterScreen() {
+    return (
+        <LanguageProvider>
+            <RegisterScreenContent />
+        </LanguageProvider>
+    );
+}
+
+type RegisterCopy = {
+    backToLogin: string;
+    headlineTop: string;
+    headlineAccent: string;
+    subline: string;
+    formLabel: string;
+    emailLabel: string;
+    firstNameLabel: string;
+    lastNameLabel: string;
+    usernameLabel: string;
+    passwordLabel: string;
+    phoneLabel: string;
+    descriptionLabel: string;
+    submit: string;
+    divider: string;
+    signupGoogleAttempt: string;
+    signupAppleAttempt: string;
+    countryModalTitle: string;
+    registerSuccess: string;
+    registerError: string;
+    validationFirstName: string;
+    validationLastName: string;
+    validationUsername: string;
+    validationDescription: string;
+};
+
+const REGISTER_COPY: Record<'fr' | 'en', RegisterCopy> = {
+    fr: {
+        backToLogin: 'Login',
+        headlineTop: 'Rejoins le',
+        headlineAccent: 'cercle des chefs.',
+        subline: 'Cree ton profil et lance ton premier live culinaire securise.',
+        formLabel: 'Inscription',
+        emailLabel: 'Adresse e-mail',
+        firstNameLabel: 'Prenom',
+        lastNameLabel: 'Nom',
+        usernameLabel: 'Identifiant',
+        passwordLabel: 'Mot de passe',
+        phoneLabel: 'Numero de telephone',
+        descriptionLabel: 'Description',
+        submit: 'Inscription',
+        divider: 'Ou',
+        signupGoogleAttempt: "Tentative d'inscription avec Google",
+        signupAppleAttempt: "Tentative d'inscription avec Apple",
+        countryModalTitle: 'Selectionner un indicatif',
+        registerSuccess: 'Inscription reussie !',
+        registerError: "Erreur d'inscription",
+        validationFirstName: 'Le prenom',
+        validationLastName: 'Le nom',
+        validationUsername: 'L identifiant',
+        validationDescription: 'La description',
+    },
+    en: {
+        backToLogin: 'Login',
+        headlineTop: 'Join the',
+        headlineAccent: 'chef circle.',
+        subline: 'Build your profile and start your first secure live cooking room.',
+        formLabel: 'Sign up',
+        emailLabel: 'Email address',
+        firstNameLabel: 'First name',
+        lastNameLabel: 'Last name',
+        usernameLabel: 'Username',
+        passwordLabel: 'Password',
+        phoneLabel: 'Phone number',
+        descriptionLabel: 'Description',
+        submit: 'Create account',
+        divider: 'Or',
+        signupGoogleAttempt: 'Google sign-up attempt',
+        signupAppleAttempt: 'Apple sign-up attempt',
+        countryModalTitle: 'Select country code',
+        registerSuccess: 'Registration successful!',
+        registerError: 'Registration error',
+        validationFirstName: 'First name',
+        validationLastName: 'Last name',
+        validationUsername: 'Username',
+        validationDescription: 'Description',
+    },
+};
+
+function RegisterScreenContent() {
+    const { locale } = useI18n();
+    const copy = REGISTER_COPY[locale];
+
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -57,49 +151,38 @@ export default function RegisterScreen() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
-    const countryPickerCloseRef = useRef<React.ElementRef<typeof TouchableOpacity> | null>(null);
     const [obscurePassword, setObscurePassword] = useState(true);
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState<FocusedField>(null);
     const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
-    const [socialMessage, setSocialMessage] = useState<string | null>(null);
-    const [apiError, setApiError] = useState<string | null>(null);
 
     const router = useRouter();
 
-    useEffect(() => {
-        if (showCountryPicker && Platform.OS === 'web') {
-            countryPickerCloseRef.current?.focus?.();
-        }
-    }, [showCountryPicker]);
+    const clearError = useCallback(
+        (field: keyof FieldErrors) => setErrors((prev) => ({ ...prev, [field]: null })),
+        [],
+    );
 
-    const openCountryPicker = useCallback(() => {
-        if (Platform.OS === 'web') {
-            const active = document.activeElement as HTMLElement | null;
-            active?.blur?.();
-        }
-        setShowCountryPicker(true);
-    }, []);
-
-    const clearError = useCallback((field: keyof FieldErrors) => {
-        setErrors(prev => ({ ...prev, [field]: null }));
-        setApiError(null);
-    }, []);
+    const handleBackToLogin = useCallback(() => {
+        router.replace('/login' as any);
+    }, [router]);
 
     const handleRegister = useCallback(async () => {
         const validations: FieldErrors = {
             email: validateEmail(email).error ?? null,
-            firstName: validateMinLength(firstName, 2, 'Le prénom').error ?? null,
-            lastName: validateMinLength(lastName, 2, 'Le nom').error ?? null,
-            username: validateMinLength(username, 3, 'L\'identifiant').error ?? null,
+            firstName: validateMinLength(firstName, 2, copy.validationFirstName).error ?? null,
+            lastName: validateMinLength(lastName, 2, copy.validationLastName).error ?? null,
+            username: validateMinLength(username, 3, copy.validationUsername).error ?? null,
             password: validatePassword(password).error ?? null,
-            description: validateLengthRange(description, 10, 500, 'La description').error ?? null,
+            description: validateLengthRange(description, 10, 500, copy.validationDescription).error ?? null,
             phone: validatePhone(phoneNumber).error ?? null,
         };
 
         const hasError = Object.values(validations).some(Boolean);
         setErrors(validations);
-        if (hasError) return;
+        if (hasError) {
+            return;
+        }
 
         setLoading(true);
         try {
@@ -114,223 +197,246 @@ export default function RegisterScreen() {
                 numberPhone: phoneNumber,
                 profileImage: '',
             });
-            // We don't need a success toast since we redirect immediately
-            router.replace('/login');
+            toast.success(copy.registerSuccess);
+            router.replace('/login' as any);
         } catch (error) {
             console.error('Registration error:', error instanceof Error ? error.message : 'Unknown error');
-            setApiError(error instanceof Error ? error.message : 'Une erreur inattendue est survenue.');
+            toast.error(error instanceof Error ? error.message : copy.registerError);
         } finally {
             setLoading(false);
         }
-    }, [email, firstName, lastName, username, password, description, phoneNumber, countryCode, router]);
+    }, [email, firstName, lastName, username, password, description, phoneNumber, countryCode, router, copy]);
 
     return (
         <>
             <View style={styles.background}>
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <View style={styles.headerImageContainer}>
-                        <Image
-                            source={require('@/assets/images/food-iphone.jpg')}
-                            style={styles.headerImage}
-                            resizeMode="cover"
-                        />
-                        <LinearGradient
-                            colors={['transparent', '#F5F5F7']}
-                            style={styles.headerImageGradient}
-                        />
-                        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#000" />
-                        </TouchableOpacity>
+                <BrandBackdrop />
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        activeOpacity={0.7}
+                        onPress={handleBackToLogin}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Ionicons name="arrow-back" size={20} color={brandTheme.colors.text} />
+                        <Text style={styles.backButtonText}>{copy.backToLogin}</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.hero}>
+                        <Text style={styles.headline}>
+                            {copy.headlineTop}{"\n"}
+                            <Text style={styles.headlineAccent}>{copy.headlineAccent}</Text>
+                        </Text>
+                        <Text style={styles.subline}>
+                            {copy.subline}
+                        </Text>
                     </View>
+
                     <View style={styles.card}>
-                        <Text style={styles.subHeading}>Inscription</Text>
-                        <Text style={styles.welcomeText}>Créez votre compte pour commencer !</Text>
-                        <View style={styles.formSection}>
-                            {!!apiError && (
-                                <View style={styles.apiErrorContainer}>
-                                    <Ionicons name="warning" size={20} color="#D00000" />
-                                    <Text style={styles.apiErrorText}>{apiError}</Text>
-                                </View>
-                            )}
-                            <FloatingLabelInput
-                                label="Adresse e-mail"
-                                iconName="mail-outline"
-                                focused={focusedField === 'email'}
-                                value={email}
-                                onChangeText={v => { setEmail(v); clearError('email'); }}
-                                onFocus={() => setFocusedField('email')}
-                                onBlur={() => setFocusedField(null)}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                error={errors.email}
-                            />
+                        <Text style={styles.formLabel}>{copy.formLabel}</Text>
 
-                            <FloatingLabelInput
-                                label="Prénom"
-                                iconName="person-outline"
-                                focused={focusedField === 'firstName'}
-                                value={firstName}
-                                onChangeText={v => { setFirstName(v); clearError('firstName'); }}
-                                onFocus={() => setFocusedField('firstName')}
-                                onBlur={() => setFocusedField(null)}
-                                autoCapitalize="words"
-                                error={errors.firstName}
-                            />
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.emailLabel}
+                            iconName="mail-outline"
+                            focused={focusedField === 'email'}
+                            value={email}
+                            onChangeText={(v) => {
+                                setEmail(v);
+                                clearError('email');
+                            }}
+                            onFocus={() => setFocusedField('email')}
+                            onBlur={() => setFocusedField(null)}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            error={errors.email}
+                        />
 
-                            <FloatingLabelInput
-                                label="Nom"
-                                iconName="person-outline"
-                                focused={focusedField === 'lastName'}
-                                value={lastName}
-                                onChangeText={v => { setLastName(v); clearError('lastName'); }}
-                                onFocus={() => setFocusedField('lastName')}
-                                onBlur={() => setFocusedField(null)}
-                                autoCapitalize="words"
-                                error={errors.lastName}
-                            />
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.firstNameLabel}
+                            iconName="person-outline"
+                            focused={focusedField === 'firstName'}
+                            value={firstName}
+                            onChangeText={(v) => {
+                                setFirstName(v);
+                                clearError('firstName');
+                            }}
+                            onFocus={() => setFocusedField('firstName')}
+                            onBlur={() => setFocusedField(null)}
+                            autoCapitalize="words"
+                            error={errors.firstName}
+                        />
 
-                            <FloatingLabelInput
-                                label="Identifiant"
-                                iconName="at-outline"
-                                focused={focusedField === 'username'}
-                                value={username}
-                                onChangeText={v => { setUsername(v); clearError('username'); }}
-                                onFocus={() => setFocusedField('username')}
-                                onBlur={() => setFocusedField(null)}
-                                autoCapitalize="none"
-                                error={errors.username}
-                            />
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.lastNameLabel}
+                            iconName="person-outline"
+                            focused={focusedField === 'lastName'}
+                            value={lastName}
+                            onChangeText={(v) => {
+                                setLastName(v);
+                                clearError('lastName');
+                            }}
+                            onFocus={() => setFocusedField('lastName')}
+                            onBlur={() => setFocusedField(null)}
+                            autoCapitalize="words"
+                            error={errors.lastName}
+                        />
 
-                            <FloatingLabelInput
-                                label="Mot de passe"
-                                iconName="lock-closed-outline"
-                                focused={focusedField === 'password'}
-                                value={password}
-                                onChangeText={v => { setPassword(v); clearError('password'); }}
-                                onFocus={() => setFocusedField('password')}
-                                onBlur={() => setFocusedField(null)}
-                                secureTextEntry={obscurePassword}
-                                error={errors.password}
-                                trailingIcon={
-                                    <TouchableOpacity onPress={() => setObscurePassword(v => !v)}>
-                                        <Ionicons
-                                            name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                            size={20}
-                                            color="#000"
-                                        />
-                                    </TouchableOpacity>
-                                }
-                            />
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.usernameLabel}
+                            iconName="at-outline"
+                            focused={focusedField === 'username'}
+                            value={username}
+                            onChangeText={(v) => {
+                                setUsername(v);
+                                clearError('username');
+                            }}
+                            onFocus={() => setFocusedField('username')}
+                            onBlur={() => setFocusedField(null)}
+                            autoCapitalize="none"
+                            error={errors.username}
+                        />
 
-                            <FloatingLabelInput
-                                label="Numéro de téléphone"
-                                iconName="call-outline"
-                                focused={focusedField === 'phone'}
-                                value={phoneNumber}
-                                onChangeText={v => { setPhoneNumber(v); clearError('phone'); }}
-                                onFocus={() => setFocusedField('phone')}
-                                onBlur={() => setFocusedField(null)}
-                                keyboardType="phone-pad"
-                                error={errors.phone}
-                                trailingIcon={
-                                    <TouchableOpacity
-                                        style={styles.countryCodeButton}
-                                        onPress={openCountryPicker}
-                                    >
-                                        <Text style={styles.countryCodeText}>{countryCode.flag} {countryCode.code}</Text>
-                                        <Ionicons name="chevron-down-outline" size={16} color="#000" />
-                                    </TouchableOpacity>
-                                }
-                            />
-
-                            <FloatingLabelInput
-                                label="Description"
-                                iconName="chatbubble-outline"
-                                focused={focusedField === 'description'}
-                                value={description}
-                                onChangeText={v => { setDescription(v); clearError('description'); }}
-                                onFocus={() => setFocusedField('description')}
-                                onBlur={() => setFocusedField(null)}
-                                multiline
-                                error={errors.description}
-                            />
-
-                            <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
-                                <LinearGradient
-                                    colors={['#FFA92E', '#FF5D1E']}
-                                    start={{ x: 0, y: 0.5 }}
-                                    end={{ x: 1, y: 0.5 }}
-                                    style={styles.primaryGradient}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator color="#fff" />
-                                    ) : (
-                                        <Text style={styles.primaryButtonText}>Inscription</Text>
-                                    )}
-                                </LinearGradient>
-                            </TouchableOpacity>
-
-                            <View style={styles.dividerRow}>
-                                <View style={styles.line} />
-                                <Text style={styles.dividerLabel}>Ou</Text>
-                                <View style={styles.line} />
-                            </View>
-
-                            <View style={styles.socialIconsRow}>
-                                <TouchableOpacity
-                                    style={styles.socialIconButton}
-                                    onPress={() => setSocialMessage('L\'inscription avec Google n\'est pas encore disponible')}
-                                >
-                                    <Image
-                                        source={require('@/assets/images/google_logo.png')}
-                                        style={styles.socialIcon}
-                                        resizeMode="contain"
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.passwordLabel}
+                            iconName="lock-closed-outline"
+                            focused={focusedField === 'password'}
+                            value={password}
+                            onChangeText={(v) => {
+                                setPassword(v);
+                                clearError('password');
+                            }}
+                            onFocus={() => setFocusedField('password')}
+                            onBlur={() => setFocusedField(null)}
+                            secureTextEntry={obscurePassword}
+                            error={errors.password}
+                            trailingIcon={
+                                <TouchableOpacity onPress={() => setObscurePassword((v) => !v)}>
+                                    <Ionicons
+                                        name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                                        size={20}
+                                        color={brandTheme.colors.muted}
                                     />
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.socialIconButton}
-                                    onPress={() => setSocialMessage('L\'inscription avec Apple n\'est pas encore disponible')}
-                                >
-                                    <Ionicons name="logo-apple" size={30} color="#000" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.socialIconButton}
-                                    onPress={() => setSocialMessage('L\'inscription avec Facebook n\'est pas encore disponible')}
-                                >
-                                    <Ionicons name="logo-facebook" size={30} color="#1877F2" />
-                                </TouchableOpacity>
-                            </View>
+                            }
+                        />
 
-                            {!!socialMessage && (
-                                <Text style={styles.socialErrorText}>{socialMessage}</Text>
-                            )}
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.phoneLabel}
+                            iconName="call-outline"
+                            focused={focusedField === 'phone'}
+                            value={phoneNumber}
+                            onChangeText={(v) => {
+                                setPhoneNumber(v);
+                                clearError('phone');
+                            }}
+                            onFocus={() => setFocusedField('phone')}
+                            onBlur={() => setFocusedField(null)}
+                            keyboardType="phone-pad"
+                            error={errors.phone}
+                            trailingIcon={
+                                <TouchableOpacity style={styles.countryCodeButton} onPress={() => setShowCountryPicker(true)}>
+                                    <Text style={styles.countryCodeText}>
+                                        {countryCode.flag} {countryCode.code}
+                                    </Text>
+                                    <Ionicons name="chevron-down-outline" size={16} color={brandTheme.colors.muted} />
+                                </TouchableOpacity>
+                            }
+                        />
+
+                        <FloatingLabelInput
+                            variant="login"
+                            label={copy.descriptionLabel}
+                            iconName="chatbubble-outline"
+                            focused={focusedField === 'description'}
+                            value={description}
+                            onChangeText={(v) => {
+                                setDescription(v);
+                                clearError('description');
+                            }}
+                            onFocus={() => setFocusedField('description')}
+                            onBlur={() => setFocusedField(null)}
+                            multiline
+                            error={errors.description}
+                        />
+
+                        <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
+                            <LinearGradient
+                                colors={brandTheme.gradients.primary}
+                                start={{ x: 0, y: 0.5 }}
+                                end={{ x: 1, y: 0.5 }}
+                                style={styles.primaryGradient}
+                            >
+                                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{copy.submit}</Text>}
+                            </LinearGradient>
+                        </TouchableOpacity>
+
+                        <View style={styles.dividerRow}>
+                            <View style={styles.line} />
+                            <Text style={styles.dividerLabel}>{copy.divider}</Text>
+                            <View style={styles.line} />
+                        </View>
+
+                        <View style={styles.socialIconsRow}>
+                            <TouchableOpacity
+                                style={styles.socialIconButton}
+                                onPress={() => {
+                                    toast.info(copy.signupGoogleAttempt);
+                                }}
+                            >
+                                <Image
+                                    source={require('@/assets/images/google_logo.png')}
+                                    style={styles.socialIcon}
+                                    resizeMode="contain"
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.socialIconButton}
+                                onPress={() => {
+                                    toast.info(copy.signupAppleAttempt);
+                                }}
+                            >
+                                <Ionicons name="logo-apple" size={26} color={brandTheme.colors.text} />
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </ScrollView>
             </View>
 
-            {/* Country Code Picker Modal */}
             <Modal
                 visible={showCountryPicker}
                 animationType="slide"
-                transparent={true}
+                transparent
                 onRequestClose={() => setShowCountryPicker(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Sélectionner un indicatif</Text>
-                            <TouchableOpacity ref={countryPickerCloseRef} onPress={() => setShowCountryPicker(false)}>
-                                <Ionicons name="close-outline" size={28} color="#000" />
+                            <Text style={styles.modalTitle}>{copy.countryModalTitle}</Text>
+                            <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
+                                <Ionicons name="close-outline" size={28} color={brandTheme.colors.text} />
                             </TouchableOpacity>
                         </View>
                         <ScrollView style={styles.countryList}>
                             {COUNTRY_CODES.map((country) => (
                                 <TouchableOpacity
-                                    key={country.country}
+                                    key={`${country.code}-${country.country}`}
                                     style={[
                                         styles.countryItem,
-                                        countryCode.country === country.country && styles.countryItemSelected
+                                        countryCode.code === country.code && countryCode.country === country.country
+                                            ? styles.countryItemSelected
+                                            : undefined,
                                     ]}
                                     onPress={() => {
                                         setCountryCode(country);
@@ -342,8 +448,8 @@ export default function RegisterScreen() {
                                         <Text style={styles.countryName}>{country.country}</Text>
                                         <Text style={styles.countryCodeLabel}>{country.code}</Text>
                                     </View>
-                                    {countryCode.country === country.country && (
-                                        <Ionicons name="checkmark-outline" size={24} color="#FF8A00" />
+                                    {countryCode.code === country.code && countryCode.country === country.country && (
+                                        <Ionicons name="checkmark-outline" size={24} color={brandTheme.colors.orange} />
                                     )}
                                 </TouchableOpacity>
                             ))}
@@ -351,6 +457,8 @@ export default function RegisterScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <ToastManager />
         </>
     );
 }
@@ -358,122 +466,72 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: brandTheme.colors.bg,
+        overflow: 'hidden',
+    },
+    scrollView: {
+        overflow: 'hidden',
     },
     scrollContent: {
         flexGrow: 1,
+        paddingHorizontal: 20,
+        paddingTop: 60,
         paddingBottom: 40,
     },
-    headerImageContainer: {
-        width: '100%',
-        height: 280,
-        position: 'relative',
-    },
-    headerImage: {
-        width: '100%',
-        height: '100%',
-    },
-    headerImageGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 100,
-    },
     backButton: {
-        position: 'absolute',
-        top: 60,
-        left: 20,
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        ...createShadowStyle({
-            color: '#000',
-            offset: { width: 0, height: 4 },
-            opacity: 0.1,
-            radius: 8,
-            elevation: 4,
-        }),
+        gap: 6,
+        marginBottom: 18,
+    },
+    backButtonText: {
+        color: brandTheme.colors.text,
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    hero: {
+        marginBottom: 20,
+        gap: 10,
+    },
+    headline: {
+        color: brandTheme.colors.text,
+        fontSize: 34,
+        lineHeight: 38,
+        fontFamily: brandHeadlineFont,
+        fontWeight: '700',
+    },
+    headlineAccent: {
+        color: brandTheme.colors.orange,
+        fontStyle: 'italic',
+    },
+    subline: {
+        color: brandTheme.colors.muted,
+        fontSize: 15,
+        lineHeight: 23,
     },
     card: {
-        marginTop: -60,
-        marginHorizontal: 16,
-        borderRadius: 32,
-        paddingVertical: 48,
-        paddingHorizontal: 24,
-        backgroundColor: '#fff',
-        ...createShadowStyle({
-            color: '#000',
-            offset: { width: 0, height: 12 },
-            opacity: 0.08,
-            radius: 24,
-            elevation: 8,
-        }),
-    },
-    heading: {
-        fontSize: 28,
-        fontWeight: '700',
-        textAlign: 'center',
-        color: '#111',
-    },
-    subHeading: {
-        fontSize: 32,
-        fontWeight: '800',
-        color: '#111',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    welcomeText: {
-        fontSize: 15,
-        color: '#666',
-        textAlign: 'center',
-    },
-    formSection: {
-        marginTop: 32,
-    },
-    apiErrorContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFE5E5',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 20,
-    },
-    apiErrorText: {
-        color: '#D00000',
-        fontSize: 14,
-        fontWeight: '600',
-        marginLeft: 8,
-        flex: 1,
-    },
-    dateRow: {
-        flexDirection: 'row',
-        gap: 12,
-        marginBottom: 16,
-    },
-    dateInput: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#bcbcbc',
+        borderRadius: brandTheme.radii.xxl,
+        paddingVertical: 20,
         paddingHorizontal: 16,
-        height: 56,
-        backgroundColor: '#fff',
+        backgroundColor: brandTheme.colors.surface,
+        borderWidth: 1,
+        borderColor: brandTheme.colors.border,
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)',
     },
-    dateText: {
-        fontSize: 16,
-        color: '#000',
-        flex: 1,
+    formLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 1.4,
+        textTransform: 'uppercase',
+        color: brandTheme.colors.muted,
+        marginBottom: 12,
     },
     primaryButton: {
         borderRadius: 16,
         overflow: 'hidden',
         width: '100%',
+        marginTop: 4,
     },
     primaryGradient: {
         paddingVertical: 16,
@@ -490,31 +548,30 @@ const styles = StyleSheet.create({
     dividerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 32,
+        marginVertical: 28,
     },
     line: {
         flex: 1,
         height: 1,
-        backgroundColor: '#121212',
+        backgroundColor: brandTheme.colors.border,
     },
     dividerLabel: {
         marginHorizontal: 12,
-        color: '#000',
+        color: brandTheme.colors.muted,
         fontWeight: '600',
     },
     socialIconsRow: {
         flexDirection: 'row',
         justifyContent: 'center',
         gap: 16,
-        marginBottom: 24,
     },
     socialIconButton: {
         width: 56,
         height: 56,
         borderRadius: 16,
-        backgroundColor: '#fff',
+        backgroundColor: brandTheme.colors.surfaceStrong,
         borderWidth: 1,
-        borderColor: '#e8e8e8',
+        borderColor: brandTheme.colors.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -522,38 +579,33 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
     },
-    socialErrorText: {
-        color: '#D00000',
-        fontSize: 14,
-        textAlign: 'center',
-        marginTop: -12,
-        marginBottom: 24,
-        fontWeight: '500',
-    },
     countryCodeButton: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingRight: 8,
         borderRightWidth: 1,
-        borderRightColor: '#e8e8e8',
+        borderRightColor: brandTheme.colors.border,
         marginRight: 8,
     },
     countryCodeText: {
-        fontSize: 16,
-        color: '#000',
+        fontSize: 14,
+        color: brandTheme.colors.text,
         marginRight: 4,
+        fontWeight: '600',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: '#17110a',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        height: '60%',
+        maxHeight: '80%',
         paddingBottom: 20,
+        borderWidth: 1,
+        borderColor: brandTheme.colors.border,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -561,29 +613,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#e8e8e8',
+        borderBottomColor: brandTheme.colors.border,
     },
     modalTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#111',
+        color: brandTheme.colors.text,
     },
     countryList: {
-        width: '100%',
+        flex: 1,
     },
     countryItem: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#f5f5f5',
+        borderBottomColor: brandTheme.colors.border,
     },
     countryItemSelected: {
-        backgroundColor: '#FFF5E6',
+        backgroundColor: 'rgba(249, 115, 22, 0.12)',
     },
     countryFlag: {
-        fontSize: 28,
+        fontSize: 16,
         marginRight: 12,
+        color: brandTheme.colors.text,
+        width: 34,
     },
     countryInfo: {
         flex: 1,
@@ -591,11 +645,11 @@ const styles = StyleSheet.create({
     countryName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#111',
+        color: brandTheme.colors.text,
         marginBottom: 2,
     },
     countryCodeLabel: {
         fontSize: 14,
-        color: '#7a7a7a',
+        color: brandTheme.colors.muted,
     },
 });

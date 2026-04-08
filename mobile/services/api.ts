@@ -42,11 +42,33 @@ export interface UserProfile {
   description: string;
   createdAt: string;
   updatedAt: string;
+  passwordUpdatedAt?: string;
   countryNumberPhone: number;
   numberPhone: string;
   role: string;
   followingIds: string[];
   followersIds: string[];
+}
+
+export interface PasswordUpdateRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface PasswordUpdateResponse {
+  message: string;
+  passwordUpdatedAt: string;
+}
+
+export interface UpdateProfileRequest {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  profileImageUrl?: string;
+  description?: string;
+  countryNumberPhone?: number;
+  numberPhone?: string;
 }
 
 export interface Room {
@@ -193,7 +215,7 @@ class ApiService {
     });
     return this.handleResponse<AuthResponse>(response);
   }
-  
+
   async loginWithGoogle(accessToken: string): Promise<AuthResponse> {
     const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/google/mobile`, {
       method: 'POST',
@@ -235,6 +257,61 @@ class ApiService {
       },
     });
     return this.handleResponse<UserProfile>(response);
+  }
+
+  async updateProfile(token: string, data: UpdateProfileRequest): Promise<UserProfile> {
+    const payload: UpdateProfileRequest = {};
+
+    if (data.email !== undefined) payload.email = data.email.trim().toLowerCase();
+    if (data.firstName !== undefined) payload.firstName = data.firstName.trim();
+    if (data.lastName !== undefined) payload.lastName = data.lastName.trim();
+    if (data.username !== undefined) payload.username = data.username.trim();
+    if (data.profileImageUrl !== undefined) payload.profileImageUrl = data.profileImageUrl.trim();
+    if (data.description !== undefined) payload.description = data.description.trim();
+    if (data.countryNumberPhone !== undefined) payload.countryNumberPhone = data.countryNumberPhone;
+    if (data.numberPhone !== undefined) payload.numberPhone = data.numberPhone.trim();
+
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    return this.handleResponse<UserProfile>(response);
+  }
+
+  async updatePassword(token: string, data: PasswordUpdateRequest): Promise<PasswordUpdateResponse> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me/password`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      }),
+    });
+    return this.handleResponse<PasswordUpdateResponse>(response);
+  }
+
+  async deleteCurrentUser(token: string): Promise<void> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error: ApiError = await response.json().catch(() => ({
+        message: `HTTP error! status: ${response.status}`,
+      }));
+      throw new Error(error.message || error.error || "Une erreur s'est produite");
+    }
   }
 
   async getRooms(token: string): Promise<Room[]> {

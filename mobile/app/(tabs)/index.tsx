@@ -1,4 +1,7 @@
-import {Ionicons } from '@expo/vector-icons';
+import BrandBackdrop from '@/components/BrandBackdrop';
+import { brandTheme } from '@/constants/brandTheme';
+import { createShadowStyle } from '@/utils/shadow';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -9,12 +12,18 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,} from 'react-native';
-import { createShadowStyle } from '@/utils/shadow';
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getRooms, RoomInfo, UnauthorizedError } from '../../services/streaming';
 
-const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
+const ORANGE_GRADIENT = brandTheme.gradients.primary;
+const BACKGROUND = brandTheme.colors.bg;
+const CARD = brandTheme.colors.surface;
+const SURFACE_STRONG = brandTheme.colors.surfaceStrong;
+const BORDER = brandTheme.colors.border;
+const TEXT = brandTheme.colors.text;
+const MUTED = brandTheme.colors.muted;
 
 function RoomCard({ room, onWatch, onJoin }: Readonly<{ room: RoomInfo; onWatch: () => void; onJoin: () => void }>) {
     const spotsLeft = room.maxParticipants - room.participants.length;
@@ -28,13 +37,13 @@ function RoomCard({ room, onWatch, onJoin }: Readonly<{ room: RoomInfo; onWatch:
 
             <View style={styles.cardStats}>
                 <View style={styles.stat}>
-                    <Ionicons name="people-outline" size={14} color="#888" />
+                    <Ionicons name="people-outline" size={14} color={MUTED} />
                     <Text style={styles.statText}>
                         {room.participants.length}/{room.maxParticipants} streamers
                     </Text>
                 </View>
                 <View style={styles.stat}>
-                    <Ionicons name="eye-outline" size={14} color="#888" />
+                    <Ionicons name="eye-outline" size={14} color={MUTED} />
                     <Text style={styles.statText}>{room.viewers} spectateurs</Text>
                 </View>
             </View>
@@ -89,7 +98,7 @@ function RoomListContent({
     if (error) {
         return (
             <View style={styles.center}>
-                <Ionicons name="cloud-offline-outline" size={48} color="#ccc" />
+                <Ionicons name="cloud-offline-outline" size={48} color={MUTED} />
                 <Text style={styles.emptyText}>{error}</Text>
                 <TouchableOpacity onPress={onRetry} style={styles.retryBtn}>
                     <Text style={styles.retryBtnText}>Réessayer</Text>
@@ -100,7 +109,7 @@ function RoomListContent({
     if (rooms.length === 0) {
         return (
             <View style={styles.center}>
-                <Ionicons name="radio-outline" size={48} color="#ccc" />
+                <Ionicons name="radio-outline" size={48} color={MUTED} />
                 <Text style={styles.emptyText}>Aucun live en cours</Text>
                 <Text style={styles.emptySubtext}>Sois le premier à lancer un live !</Text>
             </View>
@@ -119,7 +128,7 @@ function RoomListContent({
                 />
             )}
             refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF7A00" />
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandTheme.colors.orange} />
             }
         />
     );
@@ -139,7 +148,7 @@ export default function HomeScreen() {
             setRooms(data || []);
         } catch (err: any) {
             if (err instanceof UnauthorizedError) {
-                router.replace('/login');
+                router.replace('/login' as any);
                 return;
             }
             setError(err.message || 'Impossible de charger les salles');
@@ -178,17 +187,18 @@ export default function HomeScreen() {
 
     return (
         <SafeAreaView edges={['top']} style={styles.container}>
+            <BrandBackdrop compact />
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Lives en cours</Text>
                 <TouchableOpacity onPress={fetchRooms} style={styles.refreshBtn}>
-                    <Ionicons name="refresh-outline" size={22} color="#888" />
+                    <Ionicons name="refresh-outline" size={22} color={MUTED} />
                 </TouchableOpacity>
             </View>
 
             {loading ? (
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color="#FF7A00" />
+                    <ActivityIndicator size="large" color={brandTheme.colors.orange} />
                 </View>
             ) : (
                 <RoomListContent
@@ -224,7 +234,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F8FB',
+        backgroundColor: BACKGROUND,
     },
     header: {
         flexDirection: 'row',
@@ -237,17 +247,17 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#fff',
+        backgroundColor: SURFACE_STRONG,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#E7E7EC',
+        borderColor: BORDER,
     },
     headerTitle: {
         flex: 1,
         fontSize: 24,
         fontWeight: '800',
-        color: '#1F2430',
+        color: TEXT,
     },
     center: {
         flex: 1,
@@ -258,12 +268,12 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
-        color: '#888',
+        color: MUTED,
         textAlign: 'center',
     },
     emptySubtext: {
         fontSize: 14,
-        color: '#aaa',
+        color: MUTED,
     },
     retryBtn: {
         paddingHorizontal: 20,
@@ -282,11 +292,11 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: CARD,
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: '#E7E7EC',
+        borderColor: BORDER,
         gap: 12,
         marginBottom: 12,
     },
@@ -304,7 +314,7 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#1F2430',
+        color: TEXT,
         flex: 1,
     },
     cardStats: {
@@ -317,7 +327,7 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     statText: {
-        color: '#888',
+        color: MUTED,
         fontSize: 13,
     },
     cardActions: {
@@ -333,8 +343,8 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#E7E7EC',
-        backgroundColor: '#FAFAFC',
+        borderColor: BORDER,
+        backgroundColor: SURFACE_STRONG,
         flex: 1,
         justifyContent: 'center',
     },
@@ -365,10 +375,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 10,
         borderRadius: 12,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: SURFACE_STRONG,
     },
     fullText: {
-        color: '#999',
+        color: MUTED,
         fontWeight: '700',
         fontSize: 13,
     },

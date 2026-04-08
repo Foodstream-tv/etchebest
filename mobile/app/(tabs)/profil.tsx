@@ -1,11 +1,29 @@
-import {Ionicons } from '@expo/vector-icons';
+import BrandBackdrop from '@/components/BrandBackdrop';
+import { brandTheme } from '@/constants/brandTheme';
+import { useI18n } from '@/contexts/LanguageContext';
+import { createShadowStyle } from '@/utils/shadow';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { ComponentProps, useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import { createShadowStyle } from '@/utils/shadow';
+import React, { ComponentProps, useCallback, useEffect, useState } from 'react';
+import {
+	ActivityIndicator,
+	Alert,
+	Image,
+	Modal,
+	Platform,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TextInput,
+	TouchableOpacity,
+	View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import apiService, { UpdateProfileRequest } from '../../services/api';
 import { authService, StoredUser } from '../../services/auth';
+import { validateEmail } from '../../utils/validation';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -36,45 +54,30 @@ type Activity = {
 	text: string;
 };
 
-const PRIMARY = '#FF7A00';
-const MUTED = '#7B8294';
-const BORDER = '#E7E7EC';
-const BACKGROUND = '#F8F8FB';
-const CARD = '#FFFFFF';
-const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
+type LocaleChip = 'fr' | 'en';
 
-const badges: Badge[] = [
-	{ title: 'Chef Débutant', description: '5 lives suivis', icon: 'flame-outline' },
-	{ title: 'Gourmet Curieux', description: '10 recettes sauvegardées', icon: 'restaurant-outline' },
-	{ title: 'Roi du Chat', description: '100 messages envoyés', icon: 'chatbubble-ellipses-outline' },
-	{ title: 'Matinal', description: '3 lives à 8h', icon: 'sunny-outline' },
-	{ title: 'Noctambule', description: '3 lives après minuit', icon: 'moon-outline' },
-	{ title: 'Ambassadeur', description: '5 parrainages', icon: 'sparkles-outline' },
-];
+type ProfileFormState = {
+	firstName: string;
+	lastName: string;
+	username: string;
+	email: string;
+	description: string;
+};
 
-const stats: Stat[] = [
-	{ label: 'Temps de visionnage', value: '42 h' },
-	{ label: 'Recettes cuisinées', value: '18' },
-	{ label: 'Streak', value: '7 jours' },
-	{ label: 'Chefs suivis', value: '24' },
-];
-
-const progress: ProgressBar[] = [
-	{ label: 'Niveau de Chef', value: 68 },
-	{ label: 'Objectif hebdo (5h)', value: 80 },
-];
+const PRIMARY = brandTheme.colors.orange;
+const MUTED = brandTheme.colors.muted;
+const BORDER = brandTheme.colors.border;
+const BACKGROUND = brandTheme.colors.bg;
+const CARD = brandTheme.colors.surface;
+const SURFACE_STRONG = brandTheme.colors.surfaceStrong;
+const TEXT = brandTheme.colors.text;
+const ORANGE_GRADIENT = brandTheme.gradients.primary;
 
 const connections: Connection[] = [
 	{ name: 'Google', connected: true },
 	{ name: 'Twitch', connected: false },
 	{ name: 'YouTube', connected: false },
 	{ name: 'Twitter/X', connected: false },
-];
-
-const activities: Activity[] = [
-	{ text: 'A rejoint "Ramen Tonkotsu Ultimes"' },
-	{ text: 'A sauvegardé "Bao buns ultra moelleux"' },
-	{ text: 'A suivi le chef "Camille Dupont"' },
 ];
 
 const connectionIcons: Record<string, IoniconName> = {
@@ -84,6 +87,14 @@ const connectionIcons: Record<string, IoniconName> = {
 	'Twitter/X': 'logo-twitter',
 };
 
+const getProfileFormFromUser = (user: StoredUser | null): ProfileFormState => ({
+	firstName: user?.firstName ?? '',
+	lastName: user?.lastName ?? '',
+	username: user?.username ?? '',
+	email: user?.email ?? '',
+	description: user?.description ?? '',
+});
+
 const SectionHeader = ({ title, icon }: { title: string; icon: IoniconName }) => (
 	<View style={styles.sectionHeader}>
 		<Ionicons name={icon} size={18} color={PRIMARY} />
@@ -91,20 +102,37 @@ const SectionHeader = ({ title, icon }: { title: string; icon: IoniconName }) =>
 	</View>
 );
 
-const PreferenceChip = ({ label, active, icon }: { label: string; active?: boolean; icon?: IoniconName }) => {
-	if (active) {
-		return (
-			<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={[styles.chip, styles.chipActive]}>
-				{icon ? <Ionicons name={icon} size={14} color={CARD} /> : null}
-				<Text style={[styles.chipText, styles.chipTextActive]}>{label}</Text>
-			</LinearGradient>
-		);
-	}
-	return (
+const PreferenceChip = ({
+	label,
+	active,
+	icon,
+	onPress,
+}: {
+	label: string;
+	active?: boolean;
+	icon?: IoniconName;
+	onPress?: () => void;
+}) => {
+	const content = active ? (
+		<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={[styles.chip, styles.chipActive]}>
+			{icon ? <Ionicons name={icon} size={15} color="#fff" /> : null}
+			<Text style={[styles.chipText, styles.chipTextActive]}>{label}</Text>
+		</LinearGradient>
+	) : (
 		<View style={styles.chip}>
-			{icon ? <Ionicons name={icon} size={14} color={PRIMARY} /> : null}
+			{icon ? <Ionicons name={icon} size={15} color={PRIMARY} /> : null}
 			<Text style={styles.chipText}>{label}</Text>
 		</View>
+	);
+
+	if (!onPress) {
+		return content;
+	}
+
+	return (
+		<TouchableOpacity activeOpacity={0.85} onPress={onPress}>
+			{content}
+		</TouchableOpacity>
 	);
 };
 
@@ -126,7 +154,12 @@ const BadgeCard = ({ title, description, icon }: Badge) => (
 	</View>
 );
 
-const ConnectionRow = ({ name, connected }: Connection) => (
+const ConnectionRow = ({
+	name,
+	connected,
+	connectedLabel,
+	linkLabel,
+}: Connection & { connectedLabel: string; linkLabel: string }) => (
 	<View style={styles.connectionRow}>
 		<View style={styles.connectionInfo}>
 			<Ionicons name={connectionIcons[name] ?? 'link-outline'} size={18} color={PRIMARY} />
@@ -134,14 +167,14 @@ const ConnectionRow = ({ name, connected }: Connection) => (
 		</View>
 		<TouchableOpacity style={[styles.connectionButton, connected && styles.connectionButtonConnected]} activeOpacity={0.85}>
 			{connected ? (
-				<Text style={[styles.connectionButtonText, styles.connectionButtonTextConnected]}>Connecté</Text>
+				<Text style={[styles.connectionButtonText, styles.connectionButtonTextConnected]}>{connectedLabel}</Text>
 			) : (
 				<LinearGradient
 					colors={ORANGE_GRADIENT}
 					start={{ x: 0, y: 0.5 }}
 					end={{ x: 1, y: 0.5 }}
 					style={styles.connectionGradient}>
-					<Text style={styles.connectionButtonTextActive}>Lier</Text>
+					<Text style={styles.connectionButtonTextActive}>{linkLabel}</Text>
 				</LinearGradient>
 			)}
 		</TouchableOpacity>
@@ -157,28 +190,173 @@ const ActivityRow = ({ text }: Activity) => (
 
 export default function ProfileScreen(): React.JSX.Element {
 	const router = useRouter();
+	const { locale, setLocale, t } = useI18n();
 	const [user, setUser] = useState<StoredUser | null>(null);
+	const [editModalVisible, setEditModalVisible] = useState(false);
+	const [isSavingProfile, setIsSavingProfile] = useState(false);
+	const [profileForm, setProfileForm] = useState<ProfileFormState>(() => getProfileFormFromUser(null));
+	const [profileFormError, setProfileFormError] = useState<string | null>(null);
+
+	const badges: Badge[] = [
+		{ title: t('profile.badges.beginner.title'), description: t('profile.badges.beginner.description'), icon: 'flame-outline' },
+		{ title: t('profile.badges.curious.title'), description: t('profile.badges.curious.description'), icon: 'restaurant-outline' },
+		{ title: t('profile.badges.chatKing.title'), description: t('profile.badges.chatKing.description'), icon: 'chatbubble-ellipses-outline' },
+		{ title: t('profile.badges.earlyBird.title'), description: t('profile.badges.earlyBird.description'), icon: 'sunny-outline' },
+		{ title: t('profile.badges.nightOwl.title'), description: t('profile.badges.nightOwl.description'), icon: 'moon-outline' },
+		{ title: t('profile.badges.ambassador.title'), description: t('profile.badges.ambassador.description'), icon: 'sparkles-outline' },
+	];
+
+	const stats: Stat[] = [
+		{ label: t('profile.stats.watchTime'), value: '42 h' },
+		{ label: t('profile.stats.recipes'), value: '18' },
+		{ label: t('profile.stats.streak'), value: t('profile.stats.streakValue') },
+		{ label: t('profile.stats.followedChefs'), value: '24' },
+	];
+
+	const progress: ProgressBar[] = [
+		{ label: t('profile.progress.level'), value: 68 },
+		{ label: t('profile.progress.weeklyGoal'), value: 80 },
+	];
+
+	const activities: Activity[] = [
+		{ text: t('profile.activity.item1') },
+		{ text: t('profile.activity.item2') },
+		{ text: t('profile.activity.item3') },
+	];
 
 	useEffect(() => {
-		authService.getUser().then(setUser);
+		authService.getUser().then((storedUser) => {
+			setUser(storedUser);
+			setProfileForm(getProfileFormFromUser(storedUser));
+		});
 	}, []);
 
 	const displayName = (() => {
-		if (!user) return 'Utilisateur';
+		if (!user) return t('common.user');
 		if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
 		return user.username;
 	})();
 	const displayHandle = user ? `@${user.username}` : '@—';
 	const displayBio = user?.description ?? user?.email ?? '';
 
+	const handleOpenSettings = useCallback(() => {
+		if (Platform.OS === 'web') {
+			const activeElement = document.activeElement as HTMLElement | null;
+			activeElement?.blur?.();
+		}
+
+		router.push('/settings');
+	}, [router]);
+
+	const handleProfileFieldChange = useCallback((field: keyof ProfileFormState, value: string) => {
+		setProfileForm((prevState) => ({
+			...prevState,
+			[field]: value,
+		}));
+	}, []);
+
+	const handleOpenEditModal = useCallback(() => {
+		setProfileForm(getProfileFormFromUser(user));
+		setProfileFormError(null);
+		setEditModalVisible(true);
+	}, [user]);
+
+	const handleCloseEditModal = useCallback(() => {
+		if (isSavingProfile) {
+			return;
+		}
+		setEditModalVisible(false);
+		setProfileFormError(null);
+	}, [isSavingProfile]);
+
+	const validateProfileForm = useCallback((): string | null => {
+		const firstName = profileForm.firstName.trim();
+		const lastName = profileForm.lastName.trim();
+		const username = profileForm.username.trim();
+		const email = profileForm.email.trim().toLowerCase();
+
+		if (!firstName) {
+			return t('profile.edit.error.firstNameRequired');
+		}
+		if (!lastName) {
+			return t('profile.edit.error.lastNameRequired');
+		}
+		if (!username || username.length < 3) {
+			return t('profile.edit.error.usernameMin');
+		}
+		if (!email) {
+			return t('profile.edit.error.emailRequired');
+		}
+
+		const emailValidation = validateEmail(email);
+		if (!emailValidation.isValid) {
+			return emailValidation.error ?? t('profile.edit.error.emailInvalid');
+		}
+
+		return null;
+	}, [profileForm, t]);
+
+	const handleSaveProfile = useCallback(async () => {
+		const validationError = validateProfileForm();
+		if (validationError) {
+			setProfileFormError(validationError);
+			return;
+		}
+
+		const token = await authService.getToken();
+		if (!token) {
+			Alert.alert(t('profile.edit.alert.sessionTitle'), t('profile.edit.alert.sessionMessage'));
+			return;
+		}
+
+		setIsSavingProfile(true);
+		setProfileFormError(null);
+
+		try {
+			const payload: UpdateProfileRequest = {
+				firstName: profileForm.firstName,
+				lastName: profileForm.lastName,
+				username: profileForm.username,
+				email: profileForm.email,
+				description: profileForm.description,
+			};
+
+			const updatedProfile = await apiService.updateProfile(token, payload);
+			const updatedStoredUser: StoredUser = {
+				id: updatedProfile.id,
+				email: updatedProfile.email,
+				username: updatedProfile.username,
+				firstName: updatedProfile.firstName,
+				lastName: updatedProfile.lastName,
+				description: updatedProfile.description,
+			};
+
+			await authService.saveAuth(token, updatedStoredUser);
+			setUser(updatedStoredUser);
+			setProfileForm(getProfileFormFromUser(updatedStoredUser));
+			setEditModalVisible(false);
+		} catch (error) {
+			setProfileFormError(error instanceof Error ? error.message : t('profile.edit.error.updateFailed'));
+		} finally {
+			setIsSavingProfile(false);
+		}
+	}, [profileForm, t, validateProfileForm]);
+
+	const handleChangeLocale = useCallback((nextLocale: LocaleChip) => {
+		setLocale(nextLocale).catch(() => {
+			// no-op: keep previous locale if persistence fails
+		});
+	}, [setLocale]);
+
 	return (
 		<SafeAreaView edges={['top']} style={styles.safeArea}>
+			<BrandBackdrop compact />
 			<ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				<View style={styles.titleRow}>
-					<Text style={styles.title}>Profil</Text>
-					<TouchableOpacity style={styles.settingsButton} activeOpacity={0.85} onPress={() => router.push('/settings')}>
+					<Text style={styles.title}>{t('profile.title')}</Text>
+					<TouchableOpacity style={styles.settingsButton} activeOpacity={0.85} onPress={handleOpenSettings}>
 						<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.settingsGradient}>
-							<Ionicons name="settings-outline" size={18} color={CARD} />
+							<Ionicons name="settings-outline" size={20} color="#fff" />
 						</LinearGradient>
 					</TouchableOpacity>
 				</View>
@@ -192,49 +370,44 @@ export default function ProfileScreen(): React.JSX.Element {
 						<Text style={styles.name}>{displayName}</Text>
 						<Text style={styles.handle}>{displayHandle}</Text>
 						<Text style={styles.bio}>{displayBio}</Text>
-						<View style={styles.pillRow}>
-							<PreferenceChip label="Live" icon="radio-outline" active />
-							<PreferenceChip label="FR" />
-							<PreferenceChip label="EN" />
-						</View>
 					</View>
-					<TouchableOpacity style={styles.editButton} activeOpacity={0.9}>
+					<TouchableOpacity style={styles.editButton} activeOpacity={0.9} onPress={handleOpenEditModal}>
 						<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.editButtonGradient}>
-							<Text style={styles.editButtonText}>Modifier</Text>
+							<Text style={styles.editButtonText}>{t('profile.edit.button')}</Text>
 						</LinearGradient>
 					</TouchableOpacity>
 				</View>
 
 				<View style={[styles.card, styles.sectionCard]}>
-					<SectionHeader title="Préférences" icon="settings-outline" />
+					<SectionHeader title={t('profile.section.preferences')} icon="settings-outline" />
 					<View style={styles.preferenceBlock}>
-						<Text style={styles.blockTitle}>Thème</Text>
+						<Text style={styles.blockTitle}>{t('profile.preferences.theme')}</Text>
 						<View style={styles.chipRow}>
-							<PreferenceChip label="Clair" />
-							<PreferenceChip label="Sombre" active />
-							<PreferenceChip label="Système" />
+							<PreferenceChip label={t('profile.preferences.theme.light')} />
+							<PreferenceChip label={t('profile.preferences.theme.dark')} active />
+							<PreferenceChip label={t('profile.preferences.theme.system')} />
 						</View>
-						<Text style={styles.helperText}>Switch pour essayer le mode sombre</Text>
+						<Text style={styles.helperText}>{t('profile.preferences.theme.helper')}</Text>
 					</View>
 					<View style={styles.preferenceBlock}>
-						<Text style={styles.blockTitle}>Notifications</Text>
+						<Text style={styles.blockTitle}>{t('profile.preferences.notifications')}</Text>
 						<View style={styles.chipRow}>
-							<PreferenceChip label="Lives" active />
-							<PreferenceChip label="Replays" />
-							<PreferenceChip label="Nouveaux chefs" />
+							<PreferenceChip label={t('profile.preferences.notifications.lives')} active />
+							<PreferenceChip label={t('profile.preferences.notifications.replays')} />
+							<PreferenceChip label={t('profile.preferences.notifications.newChefs')} />
 						</View>
 					</View>
 					<View style={styles.preferenceBlock}>
-						<Text style={styles.blockTitle}>Langue</Text>
+						<Text style={styles.blockTitle}>{t('profile.preferences.language')}</Text>
 						<View style={styles.chipRow}>
-							<PreferenceChip label="FR" active />
-							<PreferenceChip label="EN" />
+							<PreferenceChip label={t('common.languages.fr')} active={locale === 'fr'} onPress={() => handleChangeLocale('fr')} />
+							<PreferenceChip label={t('common.languages.en')} active={locale === 'en'} onPress={() => handleChangeLocale('en')} />
 						</View>
 					</View>
 				</View>
 
 				<View style={[styles.card, styles.sectionCard]}>
-					<SectionHeader title="Statistiques" icon="bar-chart-outline" />
+					<SectionHeader title={t('profile.section.stats')} icon="bar-chart-outline" />
 					<View style={styles.statGrid}>
 						{stats.map((stat) => (
 							<StatTile key={stat.label} {...stat} />
@@ -261,7 +434,7 @@ export default function ProfileScreen(): React.JSX.Element {
 				</View>
 
 				<View style={[styles.card, styles.sectionCard]}>
-					<SectionHeader title="Médailles & Badges" icon="trophy-outline" />
+					<SectionHeader title={t('profile.section.badges')} icon="trophy-outline" />
 					<View style={styles.badgeGrid}>
 						{badges.map((badge) => (
 							<BadgeCard key={badge.title} {...badge} />
@@ -270,19 +443,124 @@ export default function ProfileScreen(): React.JSX.Element {
 				</View>
 
 				<View style={[styles.card, styles.sectionCard]}>
-					<SectionHeader title="Comptes connectés" icon="link-outline" />
+					<SectionHeader title={t('profile.section.connections')} icon="link-outline" />
 					{connections.map((connection) => (
-						<ConnectionRow key={connection.name} {...connection} />
+						<ConnectionRow
+							key={connection.name}
+							{...connection}
+							connectedLabel={t('common.connected')}
+							linkLabel={t('common.link')}
+						/>
 					))}
 				</View>
 
 				<View style={[styles.card, styles.sectionCard, styles.lastCard]}>
-					<SectionHeader title="Activité récente" icon="timer-outline" />
+					<SectionHeader title={t('profile.section.activity')} icon="timer-outline" />
 					{activities.map((activity) => (
 						<ActivityRow key={activity.text} {...activity} />
 					))}
 				</View>
 			</ScrollView>
+
+			<Modal
+				visible={editModalVisible}
+				transparent
+				animationType="fade"
+				onRequestClose={handleCloseEditModal}>
+				<View style={styles.modalBackdrop}>
+					<BlurView intensity={44} tint="dark" style={styles.modalBlur} />
+					<View style={styles.modalBackdropTint} />
+					<View style={styles.modalCard}>
+						<View style={styles.modalHeader}>
+							<Text style={styles.modalTitle}>{t('profile.edit.modalTitle')}</Text>
+							<TouchableOpacity onPress={handleCloseEditModal} disabled={isSavingProfile}>
+								<Ionicons name="close" size={20} color={TEXT} />
+							</TouchableOpacity>
+						</View>
+
+						<View style={styles.modalBody}>
+							<View style={styles.inputGroup}>
+								<Text style={styles.inputLabel}>{t('profile.edit.firstName')}</Text>
+								<TextInput
+									value={profileForm.firstName}
+									onChangeText={(value) => handleProfileFieldChange('firstName', value)}
+									placeholder={t('profile.edit.placeholder.firstName')}
+									placeholderTextColor={MUTED}
+									style={styles.inputControl}
+									autoCapitalize="words"
+								/>
+							</View>
+
+							<View style={styles.inputGroup}>
+								<Text style={styles.inputLabel}>{t('profile.edit.lastName')}</Text>
+								<TextInput
+									value={profileForm.lastName}
+									onChangeText={(value) => handleProfileFieldChange('lastName', value)}
+									placeholder={t('profile.edit.placeholder.lastName')}
+									placeholderTextColor={MUTED}
+									style={styles.inputControl}
+									autoCapitalize="words"
+								/>
+							</View>
+
+							<View style={styles.inputGroup}>
+								<Text style={styles.inputLabel}>{t('profile.edit.username')}</Text>
+								<TextInput
+									value={profileForm.username}
+									onChangeText={(value) => handleProfileFieldChange('username', value)}
+									placeholder={t('profile.edit.placeholder.username')}
+									placeholderTextColor={MUTED}
+									style={styles.inputControl}
+									autoCapitalize="none"
+								/>
+							</View>
+
+							<View style={styles.inputGroup}>
+								<Text style={styles.inputLabel}>{t('profile.edit.email')}</Text>
+								<TextInput
+									value={profileForm.email}
+									onChangeText={(value) => handleProfileFieldChange('email', value)}
+									placeholder={t('profile.edit.placeholder.email')}
+									placeholderTextColor={MUTED}
+									style={styles.inputControl}
+									autoCapitalize="none"
+									keyboardType="email-address"
+								/>
+							</View>
+
+							<View style={styles.inputGroup}>
+								<Text style={styles.inputLabel}>{t('profile.edit.bio')}</Text>
+								<TextInput
+									value={profileForm.description}
+									onChangeText={(value) => handleProfileFieldChange('description', value)}
+									placeholder={t('profile.edit.placeholder.bio')}
+									placeholderTextColor={MUTED}
+									style={[styles.inputControl, styles.inputControlMultiline]}
+									multiline
+									numberOfLines={3}
+								/>
+							</View>
+						</View>
+
+						{profileFormError ? <Text style={styles.formErrorText}>{profileFormError}</Text> : null}
+
+						<View style={styles.modalActions}>
+							<TouchableOpacity style={styles.modalSecondaryButton} onPress={handleCloseEditModal} disabled={isSavingProfile}>
+								<Text style={styles.modalSecondaryButtonText}>{t('common.cancel')}</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={[styles.modalPrimaryButton, isSavingProfile && styles.modalPrimaryButtonDisabled]}
+								onPress={handleSaveProfile}
+								disabled={isSavingProfile}>
+								<LinearGradient colors={ORANGE_GRADIENT} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.modalPrimaryGradient}>
+									{isSavingProfile ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.modalPrimaryButtonText}>{t('common.save')}</Text>}
+								</LinearGradient>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</View>
+			</Modal>
 		</SafeAreaView>
 	);
 }
@@ -306,7 +584,7 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 24,
 		fontWeight: '700',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	titleRow: {
 		flexDirection: 'row',
@@ -331,11 +609,11 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		...createShadowStyle({
-		    color: '#00000015',
-		    offset: { width: 0, height: 4 },
-		    opacity: 0.08,
-		    radius: 8,
-		    elevation: 2,
+			color: '#00000015',
+			offset: { width: 0, height: 4 },
+			opacity: 0.08,
+			radius: 8,
+			elevation: 2,
 		}),
 	},
 	profileCard: {
@@ -359,7 +637,7 @@ const styles = StyleSheet.create({
 		width: 14,
 		height: 14,
 		borderRadius: 7,
-		backgroundColor: '#3DC575',
+		backgroundColor: brandTheme.colors.success,
 		borderWidth: 2,
 		borderColor: CARD,
 		position: 'absolute',
@@ -373,7 +651,7 @@ const styles = StyleSheet.create({
 	name: {
 		fontSize: 18,
 		fontWeight: '700',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	handle: {
 		fontSize: 14,
@@ -381,7 +659,7 @@ const styles = StyleSheet.create({
 	},
 	bio: {
 		fontSize: 14,
-		color: '#2C3240',
+		color: TEXT,
 	},
 	pillRow: {
 		flexDirection: 'row',
@@ -399,7 +677,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 	},
 	editButtonText: {
-		color: CARD,
+		color: '#fff',
 		fontWeight: '700',
 	},
 	sectionCard: {
@@ -413,7 +691,7 @@ const styles = StyleSheet.create({
 	sectionTitle: {
 		fontSize: 16,
 		fontWeight: '700',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	preferenceBlock: {
 		gap: 8,
@@ -421,7 +699,7 @@ const styles = StyleSheet.create({
 	blockTitle: {
 		fontSize: 14,
 		fontWeight: '600',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	chipRow: {
 		flexDirection: 'row',
@@ -437,19 +715,19 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 6,
-		backgroundColor: '#F3F4F6',
+		backgroundColor: SURFACE_STRONG,
 	},
 	chipActive: {
 		backgroundColor: 'transparent',
 		borderColor: 'transparent',
 	},
 	chipText: {
-		color: '#1F2430',
+		color: TEXT,
 		fontWeight: '600',
 		fontSize: 13,
 	},
 	chipTextActive: {
-		color: CARD,
+		color: '#fff',
 	},
 	helperText: {
 		color: MUTED,
@@ -480,12 +758,12 @@ const styles = StyleSheet.create({
 		padding: 12,
 		flex: 1,
 		minWidth: '45%',
-		backgroundColor: '#FDFDFE',
+		backgroundColor: SURFACE_STRONG,
 	},
 	statValue: {
 		fontSize: 20,
 		fontWeight: '700',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	statLabel: {
 		fontSize: 13,
@@ -504,7 +782,7 @@ const styles = StyleSheet.create({
 	},
 	progressTrack: {
 		height: 10,
-		backgroundColor: '#EEF0F3',
+		backgroundColor: 'rgba(255, 255, 255, 0.12)',
 		borderRadius: 8,
 		overflow: 'hidden',
 	},
@@ -523,20 +801,20 @@ const styles = StyleSheet.create({
 		borderRadius: 12,
 		padding: 12,
 		width: '48%',
-		backgroundColor: '#FFFAF5',
+		backgroundColor: 'rgba(249, 115, 22, 0.1)',
 	},
 	badgeIcon: {
 		width: 36,
 		height: 36,
 		borderRadius: 10,
-		backgroundColor: '#FFE7D3',
+		backgroundColor: 'rgba(249, 115, 22, 0.22)',
 		alignItems: 'center',
 		justifyContent: 'center',
 		marginBottom: 8,
 	},
 	badgeTitle: {
 		fontWeight: '700',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	badgeDescription: {
 		color: MUTED,
@@ -560,15 +838,15 @@ const styles = StyleSheet.create({
 	},
 	connectionName: {
 		fontWeight: '700',
-		color: '#1F2430',
+		color: TEXT,
 	},
 	connectionButton: {
 		borderRadius: 10,
 		overflow: 'hidden',
 	},
 	connectionButtonConnected: {
-		backgroundColor: '#E8FAF0',
-		borderColor: '#3DC575',
+		backgroundColor: 'rgba(74, 222, 128, 0.12)',
+		borderColor: brandTheme.colors.success,
 		borderWidth: 1,
 		paddingHorizontal: 12,
 		paddingVertical: 8,
@@ -578,11 +856,11 @@ const styles = StyleSheet.create({
 		fontWeight: '700',
 	},
 	connectionButtonTextActive: {
-		color: CARD,
+		color: '#fff',
 		fontWeight: '700',
 	},
 	connectionButtonTextConnected: {
-		color: '#1F7A4E',
+		color: '#9BF8C2',
 	},
 	connectionGradient: {
 		paddingHorizontal: 12,
@@ -601,10 +879,111 @@ const styles = StyleSheet.create({
 		marginBottom: 8,
 	},
 	activityText: {
-		color: '#1F2430',
+		color: TEXT,
 		flex: 1,
 	},
 	lastCard: {
 		marginBottom: 20,
+	},
+	modalBackdrop: {
+		flex: 1,
+		justifyContent: 'center',
+		padding: 20,
+	},
+	modalBlur: {
+		...StyleSheet.absoluteFillObject,
+	},
+	modalBackdropTint: {
+		...StyleSheet.absoluteFillObject,
+		backgroundColor: 'rgba(13, 10, 8, 0.36)',
+	},
+	modalCard: {
+		backgroundColor: 'rgba(12, 8, 4, 0.86)',
+		borderRadius: 16,
+		padding: 16,
+		gap: 12,
+		borderWidth: 1,
+		borderColor: BORDER,
+		...createShadowStyle({
+			color: '#0000001C',
+			offset: { width: 0, height: 8 },
+			opacity: 0.14,
+			radius: 16,
+			elevation: 3,
+		}),
+	},
+	modalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	modalTitle: {
+		fontSize: 18,
+		fontWeight: '700',
+		color: TEXT,
+	},
+	modalBody: {
+		gap: 10,
+	},
+	inputGroup: {
+		gap: 6,
+	},
+	inputLabel: {
+		fontSize: 13,
+		fontWeight: '600',
+		color: MUTED,
+	},
+	inputControl: {
+		borderWidth: 1,
+		borderColor: BORDER,
+		borderRadius: 10,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		color: TEXT,
+		backgroundColor: SURFACE_STRONG,
+	},
+	inputControlMultiline: {
+		minHeight: 92,
+		textAlignVertical: 'top',
+	},
+	formErrorText: {
+		color: '#FCA5A5',
+		fontSize: 12,
+	},
+	modalActions: {
+		flexDirection: 'row',
+		justifyContent: 'flex-end',
+		gap: 10,
+		marginTop: 4,
+	},
+	modalSecondaryButton: {
+		borderWidth: 1,
+		borderColor: BORDER,
+		borderRadius: 10,
+		paddingHorizontal: 14,
+		paddingVertical: 10,
+		backgroundColor: SURFACE_STRONG,
+	},
+	modalSecondaryButtonText: {
+		color: TEXT,
+		fontWeight: '600',
+	},
+	modalPrimaryButton: {
+		borderRadius: 10,
+		overflow: 'hidden',
+	},
+	modalPrimaryButtonDisabled: {
+		opacity: 0.72,
+	},
+	modalPrimaryGradient: {
+		minWidth: 118,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingHorizontal: 14,
+		paddingVertical: 10,
+	},
+	modalPrimaryButtonText: {
+		color: '#fff',
+		fontWeight: '700',
 	},
 });

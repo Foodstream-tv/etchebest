@@ -1,15 +1,16 @@
-import {Ionicons } from '@expo/vector-icons';
+import { brandTheme } from '@/constants/brandTheme';
+import { createShadowStyle } from '@/utils/shadow';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
-import { createShadowStyle } from '@/utils/shadow';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
-const BORDER = '#E7E7EC';
-const CARD = '#FFFFFF';
-const BACKGROUND = '#F8F8FB';
-const MUTED = '#7B8294';
-const TEXT = '#1F2430';
+const ORANGE_GRADIENT = brandTheme.gradients.primary;
+const BORDER = brandTheme.colors.border;
+const CARD = brandTheme.colors.surface;
+const BACKGROUND = brandTheme.colors.bg;
+const MUTED = brandTheme.colors.muted;
+const TEXT = brandTheme.colors.text;
 
 type Tag = { label: string };
 type Recipe = {
