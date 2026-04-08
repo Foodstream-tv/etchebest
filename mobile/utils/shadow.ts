@@ -1,6 +1,6 @@
 import { Platform, type ViewStyle } from 'react-native';
 
-type ShadowConfig = {
+export type ShadowConfig = {
   color: string;
   offset: { width: number; height: number };
   opacity: number;
@@ -27,10 +27,10 @@ const hexToRgba = (color: string, opacity: number): string => {
     return `rgba(0, 0, 0, ${opacity})`;
   }
 
-  const red = parseInt(hex.slice(0, 2), 16);
-  const green = parseInt(hex.slice(2, 4), 16);
-  const blue = parseInt(hex.slice(4, 6), 16);
-  const alpha = parseInt(hex.slice(6, 8), 16) / 255;
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const alpha = Number.parseInt(hex.slice(6, 8), 16) / 255;
   const finalAlpha = Math.min(1, Math.max(0, alpha * opacity));
   return `rgba(${red}, ${green}, ${blue}, ${finalAlpha.toFixed(3)})`;
 };
@@ -48,11 +48,13 @@ export const createShadowStyle = ({
     };
   }
 
+  const elevationStyle = typeof elevation === 'number' ? { elevation } : {};
+
   return {
     shadowColor: color,
     shadowOffset: offset,
     shadowOpacity: opacity,
     shadowRadius: radius,
-    ...(elevation !== undefined ? { elevation } : {}),
+    ...elevationStyle,
   };
 };
