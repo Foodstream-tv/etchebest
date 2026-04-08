@@ -23,6 +23,7 @@ type User struct {
 	Description        string         `json:"description"`
 	CreatedAt          time.Time      `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt          time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
+	PasswordUpdatedAt  *time.Time     `json:"passwordUpdatedAt" gorm:"index:idx_user_password_updated_at"`
 	CountryNumberPhone int            `json:"countryNumberPhone"`
 	NumberPhone        string         `json:"numberPhone"`
 	Role               string         `json:"role" gorm:"not null"`
@@ -54,5 +55,7 @@ type UserPatch struct {
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
 	u.Role = USER
+	now := time.Now()
+	u.PasswordUpdatedAt = &now
 	return nil
 }

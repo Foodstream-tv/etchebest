@@ -1,12 +1,20 @@
 package user
 
 import (
-	"github.com/Foodstream-io/etchebest/internal/utils"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"net/http"
 	"slices"
+	"time"
+
+	"github.com/Foodstream-io/etchebest/internal/utils"
+	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
+
+type UpdatePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" binding:"required"`
+	NewPassword     string `json:"newPassword" binding:"required,min=8"`
+}
 
 // GetAllUsers godoc
 // @Summary      Get all users
@@ -67,11 +75,35 @@ func GetMe(db *gorm.DB) gin.HandlerFunc {
 // @Router       /api/admin/users/{userId} [delete]
 func DeleteUserById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		currentUserId := utils.GetContextString(c, "userId")
+		userId := c.Param("userId")
 
-		if err := DeleteUserByID(db, currentUserId); err != nil {
+		if err := DeleteUserByID(db, userId); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+			return
 		}
+		c.Status(http.StatusNoContent)
+	}
+}
+
+// DeleteCurrentUser godoc
+// @Summary      Delete current user
+// @Description  Delete the authenticated user's account
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      204  "No Content"
+// @Failure      500  {object}  map[string]string "error: Failed to delete user"
+// @Router       /api/users/me [delete]
+func DeleteCurrentUser(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		currentUserID := utils.GetContextString(c, "userId")
+
+		if err := DeleteUserByID(db, currentUserID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+			return
+		}
+
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -138,6 +170,68 @@ func updateUser(db *gorm.DB, c *gin.Context, userId string) {
 	c.JSON(http.StatusOK, existingUser)
 }
 
+// UpdateCurrentPassword godoc
+// @Summary      Update current user password
+// @Description  Update the authenticated user's password and password update timestamp
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body user.UpdatePasswordRequest true "Current and new password"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string "error: Invalid JSON or invalid new password"
+// @Failure      401  {object}  map[string]string "error: Invalid current password"
+// @Failure      404  {object}  map[string]string "error: User not found"
+// @Failure      500  {object}  map[string]string "error: Failed to update password"
+// @Router       /api/users/me/password [patch]
+func UpdateCurrentPassword(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		currentUserID := utils.GetContextString(c, "userId")
+
+		existingUser, err := GetUserByID(db, currentUserID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+
+		var request UpdatePasswordRequest
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
+			return
+		}
+
+		if request.CurrentPassword == request.NewPassword {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must be different from current password"})
+			return
+		}
+
+		if err := bcrypt.CompareHashAndPassword([]byte(existingUser.Password), []byte(request.CurrentPassword)); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid current password"})
+			return
+		}
+
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+			return
+		}
+
+		passwordUpdatedAt := time.Now()
+		if err := db.Model(existingUser).Updates(map[string]any{
+			"password":            string(hashedPassword),
+			"password_updated_at": passwordUpdatedAt,
+		}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":           "password updated successfully",
+			"passwordUpdatedAt": passwordUpdatedAt,
+		})
+	}
+}
+
 // FollowUser godoc
 // @Summary      Follow a user
 // @Description  Follow another user by their ID
@@ -181,7 +275,7 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		if err := SaveUser(db, currentUser).Error; err != nil {
+		if err := SaveUser(db, currentUser); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}
@@ -230,11 +324,11 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 		indexFollowerToRemove := slices.Index(userToUnfollow.FollowersIDS, currentUser.ID)
 		userToUnfollow.FollowersIDS = append(userToUnfollow.FollowersIDS[:indexFollowerToRemove], userToUnfollow.FollowersIDS[indexFollowerToRemove+1:]...)
 
-		if err := SaveUser(db, userToUnfollow).Error; err != nil {
+		if err := SaveUser(db, userToUnfollow); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save user to db"})
 			return
 		}
-		if err := SaveUser(db, currentUser).Error; err != nil {
+		if err := SaveUser(db, currentUser); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}

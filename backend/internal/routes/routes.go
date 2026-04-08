@@ -1,9 +1,10 @@
 package routes
 
 import (
-	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"net/http"
 	"os"
+
+	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 
 	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
@@ -21,6 +22,7 @@ import (
 func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, webrtcIP string) {
 	r.Use(middleware.CorsHandler())
 	bJwtToken := []byte(jwtToken)
+	const usersMePath = "/users/me"
 
 	// Get OAuth configuration from environment
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
@@ -72,8 +74,10 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	admin.GET("/users", user.GetAllUsers(db))
 	admin.PATCH("/users/:userId", user.UpdateUserById(db))
 	admin.DELETE("/users/:userId", user.DeleteUserById(db))
-	api.GET("/users/me", user.GetMe(db))
-	api.PATCH("/users/me", user.UpdateCurrentUser(db))
+	api.GET(usersMePath, user.GetMe(db))
+	api.PATCH(usersMePath, user.UpdateCurrentUser(db))
+	api.PATCH(usersMePath+"/password", user.UpdateCurrentPassword(db))
+	api.DELETE(usersMePath, user.DeleteCurrentUser(db))
 	api.POST("/users/follow/:userId", user.FollowUser(db))
 	api.POST("/users/unfollow/:userId", user.UnfollowUser(db))
 
