@@ -194,7 +194,7 @@ function LoginScreenContent() {
             const { accessToken } = await GoogleSignin.getTokens();
 
             if (accessToken) {
-                const authRes = await (apiService as any).loginWithGoogle(accessToken);
+                const authRes = await apiService.loginWithGoogle(accessToken);
                 await authService.saveAuth(authRes.token, authRes.user);
                 router.replace('/');
             } else {

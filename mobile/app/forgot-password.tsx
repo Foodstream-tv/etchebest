@@ -10,9 +10,11 @@ import FloatingLabelInput from '@/components/FloatingLabelInput';
 import { brandHeadlineFont, brandTheme } from '@/constants/brandTheme';
 import { LanguageProvider, useI18n } from '@/contexts/LanguageContext';
 import toast from '@/utils/toast';
+import { validateEmail } from '@/utils/validation';
 
 type ForgotCopy = {
     emptyEmail: string;
+    invalidEmail: string;
     successToast: string;
     headlineTop: string;
     headlineAccent: string;
@@ -27,6 +29,7 @@ type ForgotCopy = {
 const FORGOT_COPY: Record<'fr' | 'en', ForgotCopy> = {
     fr: {
         emptyEmail: 'Veuillez entrer votre adresse e-mail',
+        invalidEmail: 'Veuillez entrer une adresse e-mail valide',
         successToast: 'Si un compte existe, un lien de reinitialisation a ete envoye.',
         headlineTop: 'Reinitialisez votre',
         headlineAccent: 'mot de passe.',
@@ -39,6 +42,7 @@ const FORGOT_COPY: Record<'fr' | 'en', ForgotCopy> = {
     },
     en: {
         emptyEmail: 'Please enter your email address',
+        invalidEmail: 'Please enter a valid email address',
         successToast: 'If an account exists, a reset link has been sent.',
         headlineTop: 'Reset your',
         headlineAccent: 'access key.',
@@ -72,6 +76,13 @@ const ForgotPasswordContent: React.FC = () => {
         if (!email.trim()) {
             setError(copy.emptyEmail);
             toast.error(copy.emptyEmail);
+            return;
+        }
+
+        const emailValidation = validateEmail(email);
+        if (!emailValidation.isValid) {
+            setError(copy.invalidEmail);
+            toast.error(copy.invalidEmail);
             return;
         }
 
