@@ -13,9 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PiPPreview from '../components/PiPPreview';
 import StreamView from '../components/StreamView';
+import { brandTheme } from '../constants/brandTheme';
 import { StreamingState, useWebRTC } from '../hooks/useWebRTC';
 
-const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
+const ORANGE_GRADIENT = brandTheme.gradients.primary;
 
 function StatusBadge({ state }: Readonly<{ state: StreamingState }>) {
     const labels: Record<StreamingState, string> = {
@@ -155,10 +156,9 @@ function StreamControls({
     const showLocalPip = !!localStream && !(Platform.OS === 'android' && !!primaryRemoteStream);
 
     const primaryRemoteRenderKey = primaryRemoteStream
-        ? `${(primaryRemoteStream as any).id}-${
-            ((primaryRemoteStream as any).getVideoTracks?.() || [])
-                .map((t: any) => `${t.id}:${t.readyState}:${t.muted}`)
-                .join('|')
+        ? `${(primaryRemoteStream as any).id}-${((primaryRemoteStream as any).getVideoTracks?.() || [])
+            .map((t: any) => `${t.id}:${t.readyState}:${t.muted}`)
+            .join('|')
         }`
         : 'no-remote';
 
@@ -180,6 +180,32 @@ function StreamControls({
         router.back();
     }, [stopLive, router]);
 
+    let mainVideoContent: React.ReactNode;
+    if (primaryRemoteStream) {
+        mainVideoContent = (
+            <StreamView
+                key={primaryRemoteRenderKey}
+                stream={primaryRemoteStream as unknown as MediaStream}
+                style={styles.remotePrimaryVideo}
+                objectFit="cover"
+                zOrder={20}
+            />
+        );
+    } else if (localStream) {
+        mainVideoContent = (
+            <StreamView
+                key={`local-main-${(localStream as any)?.id ?? 'stream'}`}
+                stream={localStream as unknown as MediaStream}
+                style={styles.mainVideo}
+                objectFit="cover"
+                mirror={true}
+                zOrder={0}
+            />
+        );
+    } else {
+        mainVideoContent = <PlaceholderVideo state={state} />;
+    }
+
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
@@ -197,26 +223,7 @@ function StreamControls({
 
             {/* Video area */}
             <View style={styles.videoContainer}>
-                {primaryRemoteStream ? (
-                    <StreamView
-                        key={primaryRemoteRenderKey}
-                        stream={primaryRemoteStream as unknown as MediaStream}
-                        style={styles.remotePrimaryVideo}
-                        objectFit="cover"
-                        zOrder={20}
-                    />
-                ) : localStream ? (
-                    <StreamView
-                        key={`local-main-${(localStream as any)?.id ?? 'stream'}`}
-                        stream={localStream as unknown as MediaStream}
-                        style={styles.mainVideo}
-                        objectFit="cover"
-                        mirror={true}
-                        zOrder={0}
-                    />
-                ) : (
-                    <PlaceholderVideo state={state} />
-                )}
+                {mainVideoContent}
 
                 {/* Local preview always visible as PiP once camera is active */}
                 {showLocalPip && (

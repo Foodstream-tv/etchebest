@@ -1,9 +1,9 @@
+import { brandTheme } from '@/constants/brandTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   RefreshControl,
@@ -12,7 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import ToastManager from 'toastify-react-native';
 import apiService, { CategoryLivesResponse, Live } from '../../services/api';
+import toast from '../../utils/toast';
 
 export default function CategoryLivesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,23 +23,23 @@ export default function CategoryLivesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
 
-  const fetchLives = useCallback(async () => {
+  const fetchLives = async () => {
     if (!id) return;
     try {
       const result = await apiService.getCategoryLives(Number(id));
       setData(result);
     } catch (error) {
       console.error('Category lives load error:', error);
-      Alert.alert('Erreur', 'Impossible de charger les lives');
+      toast.error('Impossible de charger les lives');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id]);
+  };
 
   useEffect(() => {
     fetchLives();
-  }, [fetchLives]);
+  }, [id]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -50,7 +52,7 @@ export default function CategoryLivesScreen() {
       onPress={() => {
         // Navigate to live stream (to be implemented)
         // router.push(`/live/${item.id}`);
-        Alert.alert('Bientôt disponible', `Rejoindre le live : ${item.title}`);
+        toast.info(`Joining live: ${item.title}`);
       }}
     >
       <View style={styles.thumbnailContainer}>
@@ -85,7 +87,7 @@ export default function CategoryLivesScreen() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#FF8A00" />
+        <ActivityIndicator size="large" color={brandTheme.colors.orange} />
       </View>
     );
   }
@@ -100,17 +102,18 @@ export default function CategoryLivesScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF8A00" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandTheme.colors.orange} />
         }
         ListEmptyComponent={
           !loading && (
             <View style={styles.emptyContainer}>
-              <Ionicons name="videocam-off-outline" size={64} color="#ccc" />
+              <Ionicons name="videocam-off-outline" size={64} color={brandTheme.colors.muted} />
               <Text style={styles.emptyText}>Aucun live en cours pour cette catégorie</Text>
             </View>
           )
         }
       />
+      <ToastManager />
     </View>
   );
 }
@@ -118,23 +121,24 @@ export default function CategoryLivesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: brandTheme.colors.bg,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: brandTheme.colors.bg,
   },
   listContent: {
     padding: 16,
   },
   liveCard: {
-    backgroundColor: '#fff',
+    backgroundColor: brandTheme.colors.surface,
     borderRadius: 16,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: brandTheme.colors.border,
     elevation: 2,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     overflow: 'hidden',
   },
   thumbnailContainer: {
@@ -145,7 +149,7 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#eee',
+    backgroundColor: brandTheme.colors.surfaceStrong,
   },
   liveBadge: {
     position: 'absolute',
@@ -193,19 +197,19 @@ const styles = StyleSheet.create({
   liveTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: brandTheme.colors.text,
     marginBottom: 4,
     lineHeight: 22,
   },
   streamerName: {
     fontSize: 14,
-    color: '#666',
+    color: brandTheme.colors.muted,
     marginBottom: 2,
     fontWeight: '500',
   },
   dishName: {
     fontSize: 12,
-    color: '#FF8A00',
+    color: brandTheme.colors.orange,
     fontWeight: '500',
   },
   emptyContainer: {
@@ -216,7 +220,7 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#888',
+    color: brandTheme.colors.muted,
     textAlign: 'center',
   },
 });

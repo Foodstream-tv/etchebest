@@ -1,12 +1,14 @@
+import { brandTheme } from '@/constants/brandTheme';
+import { useI18n } from '@/contexts/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ImageBackground,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,9 +16,35 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import ToastManager from 'toastify-react-native';
 import apiService, { DiscoverData } from '../../services/api';
+import toast from '../../utils/toast';
 
-export default function DiscoverScreen(): React.JSX.Element {
+const DISCOVER_COPY = {
+  fr: {
+    loadError: 'Impossible de charger les donnees',
+    title: 'Decouvrir',
+    trendingCountry: 'Pays tendance 🔥',
+    categories: 'Categories',
+    seeAll: 'Voir tout',
+    topDishes: 'Plats populaires 🍲',
+    liveLabel: 'LIVE',
+  },
+  en: {
+    loadError: 'Unable to load data',
+    title: 'Discover',
+    trendingCountry: 'Trending country 🔥',
+    categories: 'Categories',
+    seeAll: 'See all',
+    topDishes: 'Popular dishes 🍲',
+    liveLabel: 'LIVE',
+  },
+} as const;
+
+export default function DiscoverScreen() {
+  const { locale } = useI18n();
+  const copy = DISCOVER_COPY[locale];
+
   const [data, setData] = useState<DiscoverData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,7 +56,7 @@ export default function DiscoverScreen(): React.JSX.Element {
       setData(result);
     } catch (error) {
       console.error('Discover load error:', error);
-      Alert.alert('Erreur', 'Impossible de charger les données');
+      toast.error(copy.loadError);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -47,7 +75,7 @@ export default function DiscoverScreen(): React.JSX.Element {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#FF8A00" />
+        <ActivityIndicator size="large" color={brandTheme.colors.orange} />
       </View>
     );
   }
@@ -57,20 +85,20 @@ export default function DiscoverScreen(): React.JSX.Element {
       style={styles.container}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF8A00" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandTheme.colors.orange} />
       }
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Découvrir</Text>
+        <Text style={styles.headerTitle}>{copy.title}</Text>
         <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color="#111" />
+          <Ionicons name="search" size={24} color={brandTheme.colors.text} />
         </TouchableOpacity>
       </View>
 
       {/* Trending Country Section */}
       {data?.trending_country && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pays Tendance 🔥</Text>
+          <Text style={styles.sectionTitle}>{copy.trendingCountry}</Text>
           <TouchableOpacity
             style={styles.trendingCard}
             onPress={() => {
@@ -94,7 +122,7 @@ export default function DiscoverScreen(): React.JSX.Element {
                   <View style={styles.liveBadge}>
                     <View style={styles.liveDot} />
                     <Text style={styles.liveText}>
-                      {data.trending_country.live_count || 0} LIVE
+                      {data.trending_country.live_count || 0} {copy.liveLabel}
                     </Text>
                   </View>
                 </View>
@@ -107,15 +135,15 @@ export default function DiscoverScreen(): React.JSX.Element {
       {/* Categories Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Catégories</Text>
+          <Text style={styles.sectionTitle}>{copy.categories}</Text>
           <TouchableOpacity>
-            <Text style={styles.seeAllText}>Voir tout</Text>
+            <Text style={styles.seeAllText}>{copy.seeAll}</Text>
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesList}>
           {data?.categories.map((category) => (
-            <TouchableOpacity 
-              key={category.id} 
+            <TouchableOpacity
+              key={category.id}
               style={styles.categoryCard}
               onPress={() => router.push(`/category/${category.id}`)}
             >
@@ -135,7 +163,7 @@ export default function DiscoverScreen(): React.JSX.Element {
 
       {/* Top Dishes Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Plats Populaires 🍲</Text>
+        <Text style={styles.sectionTitle}>{copy.topDishes}</Text>
         <View style={styles.dishesGrid}>
           {data?.top_dishes.map((dish) => (
             <TouchableOpacity key={dish.id} style={styles.dishCard}>
@@ -151,7 +179,7 @@ export default function DiscoverScreen(): React.JSX.Element {
                   {dish.country?.name}
                 </Text>
                 <View style={styles.dishStats}>
-                  <Ionicons name="eye-outline" size={14} color="#666" />
+                  <Ionicons name="eye-outline" size={14} color={brandTheme.colors.muted} />
                   <Text style={styles.dishStatText}>{dish.total_views}</Text>
                 </View>
               </View>
@@ -159,9 +187,9 @@ export default function DiscoverScreen(): React.JSX.Element {
           ))}
         </View>
       </View>
-      
-      <View style={{ height: 100 }} /> 
-      <View style={{ height: 100 }} /> 
+
+      <View style={{ height: 100 }} />
+      <ToastManager />
     </ScrollView>
   );
 }
@@ -169,13 +197,13 @@ export default function DiscoverScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: brandTheme.colors.bg,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: brandTheme.colors.bg,
   },
   header: {
     paddingHorizontal: 20,
@@ -184,18 +212,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#120c08',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1a1a1a',
+    color: brandTheme.colors.text,
   },
   searchButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: brandTheme.colors.surfaceStrong,
+    borderWidth: 1,
+    borderColor: brandTheme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -212,12 +242,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: brandTheme.colors.text,
     marginBottom: 12,
   },
   seeAllText: {
     fontSize: 14,
-    color: '#FF8A00',
+    color: brandTheme.colors.orange,
     fontWeight: '600',
   },
   trendingCard: {
@@ -226,7 +256,7 @@ const styles = StyleSheet.create({
     height: 220,
     elevation: 4,
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    backgroundColor: '#fff',
+    backgroundColor: brandTheme.colors.surface,
   },
   trendingImage: {
     width: '100%',
@@ -247,6 +277,13 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: 'bold',
     color: '#fff',
+    ...(Platform.OS === 'web'
+      ? ({ textShadow: '0px 2px 4px rgba(0, 0, 0, 0.3)' } as any)
+      : {
+        textShadowColor: 'rgba(0, 0, 0, 0.3)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+      }),
   },
   liveBadge: {
     flexDirection: 'row',
@@ -283,7 +320,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 8,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: brandTheme.colors.border,
     elevation: 2,
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
   },
@@ -294,7 +331,7 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#444',
+    color: brandTheme.colors.muted,
     textAlign: 'center',
   },
   dishesGrid: {
@@ -304,7 +341,7 @@ const styles = StyleSheet.create({
   },
   dishCard: {
     width: '48%',
-    backgroundColor: '#fff',
+    backgroundColor: brandTheme.colors.surface,
     borderRadius: 16,
     marginBottom: 16,
     elevation: 2,
@@ -314,7 +351,7 @@ const styles = StyleSheet.create({
   dishImage: {
     width: '100%',
     height: 120,
-    backgroundColor: '#eee',
+    backgroundColor: brandTheme.colors.surfaceStrong,
   },
   dishInfo: {
     padding: 12,
@@ -322,12 +359,12 @@ const styles = StyleSheet.create({
   dishName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: brandTheme.colors.text,
     marginBottom: 4,
   },
   dishCountry: {
     fontSize: 12,
-    color: '#888',
+    color: brandTheme.colors.muted,
     marginBottom: 8,
   },
   dishStats: {
@@ -336,7 +373,7 @@ const styles = StyleSheet.create({
   },
   dishStatText: {
     fontSize: 12,
-    color: '#666',
+    color: brandTheme.colors.muted,
     marginLeft: 4,
   },
 });

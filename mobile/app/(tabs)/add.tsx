@@ -1,17 +1,19 @@
-import {Ionicons } from '@expo/vector-icons';
+import { brandTheme } from '@/constants/brandTheme';
+import { createShadowStyle } from '@/utils/shadow';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
-import { createShadowStyle } from '@/utils/shadow';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const ORANGE_GRADIENT = ['#FFA92E', '#FF5D1E'] as const;
-const BORDER = '#E7E7EC';
-const CARD = '#FFFFFF';
-const BACKGROUND = '#F8F8FB';
-const TEXT = '#1F2430';
-const MUTED = '#7B8294';
+const ORANGE_GRADIENT = brandTheme.gradients.primary;
+const BORDER = brandTheme.colors.border;
+const CARD = brandTheme.colors.surface;
+const SURFACE_STRONG = brandTheme.colors.surfaceStrong;
+const BACKGROUND = brandTheme.colors.bg;
+const TEXT = brandTheme.colors.text;
+const MUTED = brandTheme.colors.muted;
 
 type Pill = { label: string };
 
@@ -322,11 +324,11 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		...createShadowStyle({
-		    color: '#00000010',
-		    offset: { width: 0, height: 6 },
-		    opacity: 0.1,
-		    radius: 10,
-		    elevation: 2,
+			color: '#00000010',
+			offset: { width: 0, height: 6 },
+			opacity: 0.1,
+			radius: 10,
+			elevation: 2,
 		}),
 		gap: 12,
 	},
@@ -334,7 +336,7 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		borderRadius: 14,
-		backgroundColor: '#FAFAFC',
+		backgroundColor: SURFACE_STRONG,
 		padding: 14,
 		gap: 12,
 		alignItems: 'center',
@@ -354,7 +356,7 @@ const styles = StyleSheet.create({
 		width: 40,
 		height: 40,
 		borderRadius: 12,
-		backgroundColor: '#FFEFE0',
+		backgroundColor: SURFACE_STRONG,
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
@@ -386,11 +388,11 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		...createShadowStyle({
-		    color: '#00000010',
-		    offset: { width: 0, height: 6 },
-		    opacity: 0.1,
-		    radius: 10,
-		    elevation: 2,
+			color: '#00000010',
+			offset: { width: 0, height: 6 },
+			opacity: 0.1,
+			radius: 10,
+			elevation: 2,
 		}),
 		gap: 14,
 	},
@@ -414,7 +416,7 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		borderRadius: 12,
-		backgroundColor: '#FAFAFC',
+		backgroundColor: SURFACE_STRONG,
 		paddingHorizontal: 12,
 		paddingVertical: 10,
 	},
@@ -451,10 +453,10 @@ const styles = StyleSheet.create({
 		borderRadius: 12,
 		borderWidth: 1,
 		borderColor: BORDER,
-		backgroundColor: '#f5f5f7',
+		backgroundColor: SURFACE_STRONG,
 	},
 	pillActive: {
-		backgroundColor: '#FFF6EC',
+		backgroundColor: 'rgba(249, 115, 22, 0.16)',
 		borderColor: '#FF7A00',
 	},
 	pillText: {
@@ -511,18 +513,18 @@ const styles = StyleSheet.create({
 	},
 	toggleTrackOff: {
 		borderWidth: 1,
-		borderColor: '#d2d4db',
+		borderColor: BORDER,
 	},
 	toggleThumb: {
 		width: 24,
 		height: 24,
 		borderRadius: 12,
-		backgroundColor: '#fff',
+		backgroundColor: TEXT,
 		...createShadowStyle({
-		    color: '#00000020',
-		    offset: { width: 0, height: 1 },
-		    opacity: 0.2,
-		    radius: 2,
+			color: '#00000020',
+			offset: { width: 0, height: 1 },
+			opacity: 0.2,
+			radius: 2,
 		}),
 	},
 	toggleThumbOn: {
@@ -539,15 +541,15 @@ const styles = StyleSheet.create({
 	secondaryButton: {
 		borderRadius: 12,
 		borderWidth: 1,
-		borderColor: '#D0D1D5',
+		borderColor: BORDER,
 		paddingHorizontal: 14,
 		paddingVertical: 12,
-		backgroundColor: '#fff',
+		backgroundColor: SURFACE_STRONG,
 		flex: 1,
 		alignItems: 'center',
 	},
 	secondaryButtonText: {
-		color: '#2c2f38',
+		color: TEXT,
 		fontWeight: '700',
 	},
 	primaryButton: {
@@ -584,7 +586,7 @@ const styles = StyleSheet.create({
 		borderRadius: 12,
 		paddingHorizontal: 12,
 		paddingVertical: 10,
-		backgroundColor: '#FAFAFC',
+		backgroundColor: SURFACE_STRONG,
 	},
 	dropdownValue: {
 		color: TEXT,
@@ -601,11 +603,11 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		...createShadowStyle({
-		    color: '#00000015',
-		    offset: { width: 0, height: 4 },
-		    opacity: 0.12,
-		    radius: 8,
-		    elevation: 4,
+			color: '#00000015',
+			offset: { width: 0, height: 4 },
+			opacity: 0.12,
+			radius: 8,
+			elevation: 4,
 		}),
 		zIndex: 30,
 		maxHeight: 200,
@@ -621,11 +623,11 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: BORDER,
 		...createShadowStyle({
-		    color: '#00000010',
-		    offset: { width: 0, height: 6 },
-		    opacity: 0.1,
-		    radius: 10,
-		    elevation: 2,
+			color: '#00000010',
+			offset: { width: 0, height: 6 },
+			opacity: 0.1,
+			radius: 10,
+			elevation: 2,
 		}),
 		gap: 14,
 	},
