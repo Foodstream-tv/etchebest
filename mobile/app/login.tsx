@@ -1,33 +1,135 @@
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+    ActivityIndicator,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+
+import { brandHeadlineFont, brandTheme } from '@/constants/brandTheme';
+import { LanguageProvider, useI18n } from '@/contexts/LanguageContext';
 import { createShadowStyle } from '@/utils/shadow';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import config from '../config/env';
 import apiService from '../services/api';
 import { authService } from '../services/auth';
 import { validateEmail, validatePassword } from '../utils/validation';
 
 const isGoogleSignInSupported = Platform.OS !== 'web';
+const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
-if (isGoogleSignInSupported) {
+if (isGoogleSignInSupported && googleWebClientId) {
     GoogleSignin.configure({
-        webClientId: config.googleClientId,
-        offlineAccess: true, // Demande un serverAuthCode
+        webClientId: googleWebClientId,
+        offlineAccess: true,
         forceCodeForRefreshToken: true,
     });
 }
 
+type LoginCopy = {
+    invalidEmail: string;
+    invalidPassword: string;
+    unknownError: string;
+    googleNotSupported: string;
+    googleTokenMissing: string;
+    googleCancelled: string;
+    googleInProgress: string;
+    googlePlayServicesMissing: string;
+    googleUnknown: string;
+    appleUnavailable: string;
+    headlineTop: string;
+    headlineMiddle: string;
+    headlineAccent: string;
+    heroDescription: string;
+    sectionLabel: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    loginButton: string;
+    divider: string;
+    continueGoogle: string;
+    continueApple: string;
+    forgotPassword: string;
+    noAccount: string;
+    register: string;
+};
+
+const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
+    fr: {
+        invalidEmail: 'Email invalide',
+        invalidPassword: 'Mot de passe invalide',
+        unknownError: 'Desole, une erreur inattendue est survenue.',
+        googleNotSupported: 'Connexion Google non prise en charge sur le web.',
+        googleTokenMissing: "Impossible de recuperer le jeton d'acces Google.",
+        googleCancelled: 'Connexion annulee',
+        googleInProgress: 'Connexion deja en cours',
+        googlePlayServicesMissing: 'Google Play Services indisponible sur cet appareil',
+        googleUnknown: 'Erreur inattendue de connexion avec Google.',
+        appleUnavailable: "La connexion avec Apple n'est pas encore disponible",
+        headlineTop: 'Cuisinez en live.',
+        headlineMiddle: 'Apprenez avec les',
+        headlineAccent: 'meilleurs chefs.',
+        heroDescription: 'Lives culinaires, masterclass privees et une communaute qui cuisine ensemble.',
+        sectionLabel: 'CONNEXION',
+        emailPlaceholder: 'Adresse e-mail',
+        passwordPlaceholder: 'Mot de passe',
+        loginButton: 'Se connecter',
+        divider: 'Ou',
+        continueGoogle: 'Continuer avec Google',
+        continueApple: 'Continuer avec Apple',
+        forgotPassword: 'Mot de passe oublie ?',
+        noAccount: "Vous n'avez pas de compte ? ",
+        register: 'Inscrivez-vous',
+    },
+    en: {
+        invalidEmail: 'Invalid email',
+        invalidPassword: 'Invalid password',
+        unknownError: 'Sorry, an unexpected error occurred.',
+        googleNotSupported: 'Google sign-in is not supported on web.',
+        googleTokenMissing: 'Unable to retrieve Google access token.',
+        googleCancelled: 'Sign in cancelled',
+        googleInProgress: 'Sign in already in progress',
+        googlePlayServicesMissing: 'Google Play Services unavailable on this device',
+        googleUnknown: 'Unexpected Google sign-in error.',
+        appleUnavailable: 'Apple sign-in is not available yet',
+        headlineTop: 'Cook live.',
+        headlineMiddle: 'Learn from the',
+        headlineAccent: 'best chefs.',
+        heroDescription: 'Live cooking sessions, private masterclasses, and a community that cooks together.',
+        sectionLabel: 'SIGN IN',
+        emailPlaceholder: 'Email address',
+        passwordPlaceholder: 'Password',
+        loginButton: 'Sign in',
+        divider: 'Or',
+        continueGoogle: 'Continue with Google',
+        continueApple: 'Continue with Apple',
+        forgotPassword: 'Forgot password?',
+        noAccount: "Don't have an account? ",
+        register: 'Sign up',
+    },
+};
+
 export default function LoginScreen() {
+    return (
+        <LanguageProvider>
+            <LoginScreenContent />
+        </LanguageProvider>
+    );
+}
+
+function LoginScreenContent() {
+    const { locale } = useI18n();
+    const copy = LOGIN_COPY[locale];
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
-    const [rememberMe, setRememberMe] = useState(false);
     const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
     const [loading, setLoading] = useState(false);
     const [emailError, setEmailError] = useState<string | null>(null);
@@ -41,8 +143,8 @@ export default function LoginScreen() {
         const emailValidation = validateEmail(email);
         const passwordValidation = validatePassword(password);
 
-        setEmailError(emailValidation.isValid ? null : (emailValidation.error ?? 'Email invalide'));
-        setPasswordError(passwordValidation.isValid ? null : (passwordValidation.error ?? 'Mot de passe invalide'));
+        setEmailError(emailValidation.isValid ? null : (emailValidation.error ?? copy.invalidEmail));
+        setPasswordError(passwordValidation.isValid ? null : (passwordValidation.error ?? copy.invalidPassword));
         setApiError(null);
 
         if (!emailValidation.isValid || !passwordValidation.isValid) {
@@ -54,7 +156,6 @@ export default function LoginScreen() {
             const response = await apiService.login({ email, password });
             await authService.saveAuth(response.token, response.user);
 
-            // Fetch full profile to enrich stored user with firstName, lastName, description
             try {
                 const profile = await apiService.getProfile(response.token);
                 await authService.saveAuth(response.token, {
@@ -64,25 +165,23 @@ export default function LoginScreen() {
                     firstName: profile.firstName,
                     lastName: profile.lastName,
                     description: profile.description,
-                });
+                } as any);
             } catch {
-                // Non-critical: basic auth data is already saved
+                // Keep the basic auth payload if profile enrichment fails.
             }
 
-            // Instead of toast.success, we just route since login completes the auth flow
             router.replace('/');
         } catch (error) {
             console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
-            setApiError(error instanceof Error ? error.message : 'Désolé, une erreur inattendue est survenue.');
+            setApiError(error instanceof Error ? error.message : copy.unknownError);
         } finally {
             setLoading(false);
         }
-    }, [email, password, router]);
+    }, [email, password, router, copy]);
 
-    // ---- Google Auth Handlers (Native) ----
     const handleGoogleLogin = useCallback(async () => {
         if (!isGoogleSignInSupported) {
-            setSocialMessage('Connexion Google non prise en charge sur le web.');
+            setSocialMessage(copy.googleNotSupported);
             return;
         }
 
@@ -91,44 +190,35 @@ export default function LoginScreen() {
         setApiError(null);
         try {
             await GoogleSignin.hasPlayServices();
-            const userInfo = await GoogleSignin.signIn();
-            
-            // On récupère l'Access Token pour le backend mobile (`/api/auth/google/mobile`)
+            await GoogleSignin.signIn();
             const { accessToken } = await GoogleSignin.getTokens();
 
             if (accessToken) {
-               console.log('[Google Auth] Success! Access Token received. Sending to backend...');
-               
-               const authRes = await apiService.loginWithGoogle(accessToken);
-               await authService.saveAuth(authRes.token, authRes.user);
-               router.replace('/');
+                const authRes = await (apiService as any).loginWithGoogle(accessToken);
+                await authService.saveAuth(authRes.token, authRes.user);
+                router.replace('/');
             } else {
-               setSocialMessage("Impossible de récupérer le jeton d'accès Google.");
+                setSocialMessage(copy.googleTokenMissing);
             }
         } catch (error: any) {
-            console.error("Google Signin Error:", error);
+            console.error('Google Signin Error:', error);
             if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-                // L'utilisateur a annulé la fenêtre Google
-                setSocialMessage("Connexion annulée");
+                setSocialMessage(copy.googleCancelled);
             } else if (error.code === statusCodes.IN_PROGRESS) {
-                setSocialMessage("Connexion déjà en cours");
+                setSocialMessage(copy.googleInProgress);
             } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                setSocialMessage("Google Play Services indisponible sur cet appareil");
+                setSocialMessage(copy.googlePlayServicesMissing);
             } else {
-                setApiError("Erreur inattendue de connexion avec Google.");
+                setApiError(copy.googleUnknown);
             }
         } finally {
             setLoading(false);
         }
-    }, [router]);
+    }, [router, copy]);
 
     const handleAppleLogin = useCallback(() => {
-        setSocialMessage('La connexion avec Apple n\'est pas encore disponible');
-    }, []);
-
-    const handleFacebookLogin = useCallback(() => {
-        setSocialMessage('La connexion avec Facebook n\'est pas encore disponible');
-    }, []);
+        setSocialMessage(copy.appleUnavailable);
+    }, [copy]);
 
     const blurActiveElementOnWeb = useCallback(() => {
         if (Platform.OS === 'web') {
@@ -137,336 +227,467 @@ export default function LoginScreen() {
         }
     }, []);
 
-    const handleTogglePassword = useCallback(() => setObscurePassword(v => !v), []);
+    const handleTogglePassword = useCallback(() => {
+        setObscurePassword((prev) => !prev);
+    }, []);
+
     const handleForgotPassword = useCallback(() => {
         blurActiveElementOnWeb();
         router.push('/forgot-password');
     }, [blurActiveElementOnWeb, router]);
+
     const handleRegister = useCallback(() => {
         blurActiveElementOnWeb();
         router.push('/register');
     }, [blurActiveElementOnWeb, router]);
 
-    const passwordTrailingIcon = useMemo(() => (
-        <TouchableOpacity onPress={handleTogglePassword}>
-            <Ionicons
-                name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color="#000"
-            />
-        </TouchableOpacity>
-    ), [obscurePassword, handleTogglePassword]);
-
     return (
-        <View style={styles.background}>
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <View style={styles.headerImageContainer}>
-                        <Image
-                            source={require('@/assets/images/food-iphone.jpg')}
-                            style={styles.headerImage}
-                            resizeMode="cover"
-                        />
-                        <LinearGradient
-                            colors={['transparent', '#F5F5F7']}
-                            style={styles.headerImageGradient}
-                        />
+        <View style={styles.screen}>
+            <LinearGradient
+                colors={['#0A0503', '#070302', '#050201']}
+                start={{ x: 0.1, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.backgroundGradient}
+            />
+
+            <View style={styles.orbLayer}>
+                <LinearGradient
+                    colors={['rgba(255, 122, 26, 0.28)', 'rgba(255, 122, 26, 0.03)']}
+                    style={[styles.orb, styles.orbTopRight]}
+                />
+                <LinearGradient
+                    colors={['rgba(255, 122, 26, 0.2)', 'rgba(255, 122, 26, 0.03)']}
+                    style={[styles.orb, styles.orbMidLeft]}
+                />
+                <LinearGradient
+                    colors={['rgba(255, 122, 26, 0.24)', 'rgba(255, 122, 26, 0.03)']}
+                    style={[styles.orb, styles.orbBottomLeft]}
+                />
+            </View>
+
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
+                <View style={styles.heroSection}>
+                    <View style={styles.brandRow}>
+                        <Image source={require('@/assets/images/logo.png')} style={styles.brandLogo} resizeMode="cover" />
+                        <Text style={styles.brandTitle}>
+                            foodstream
+                            <Text style={styles.brandTitleAccent}>.tv</Text>
+                        </Text>
                     </View>
-                    <View style={styles.card}>
-                        <Text style={styles.subHeading}>Connexion</Text>
-                        <Text style={styles.welcomeText}>Bon retour, content de vous revoir !</Text>
-                        <View style={styles.formSection}>
-                            {!!apiError && (
-                                <View style={styles.apiErrorContainer}>
-                                    <Ionicons name="warning" size={20} color="#D00000" />
-                                    <Text style={styles.apiErrorText}>{apiError}</Text>
-                                </View>
-                            )}
-                            <FloatingLabelInput
-                                label="Adresse e-mail"
-                                iconName="mail-outline"
-                                focused={focusedField === 'email'}
+
+                    <Text style={styles.heroHeadline}>
+                        {copy.headlineTop}{"\n"}
+                        {copy.headlineMiddle}{"\n"}
+                        <Text style={styles.heroHeadlineAccent}>{copy.headlineAccent}</Text>
+                    </Text>
+
+                    <Text style={styles.heroDescription}>
+                        {copy.heroDescription}
+                    </Text>
+                </View>
+
+                <View style={styles.card}>
+                    <Text style={styles.sectionLabel}>{copy.sectionLabel}</Text>
+
+                    {!!apiError && (
+                        <View style={styles.apiErrorContainer}>
+                            <Ionicons name="warning" size={18} color="#F6A5A5" />
+                            <Text style={styles.apiErrorText}>{apiError}</Text>
+                        </View>
+                    )}
+
+                    <View style={styles.inputWrapper}>
+                        <View style={[styles.inputField, focusedField === 'email' && styles.inputFieldFocused, !!emailError && styles.inputFieldError]}>
+                            <Ionicons name="mail-outline" size={22} color="rgba(250, 244, 234, 0.56)" style={styles.inputLeadingIcon} />
+                            <TextInput
                                 value={email}
-                                onChangeText={(v) => { setEmail(v); setEmailError(null); }}
+                                onChangeText={(value) => {
+                                    setEmail(value);
+                                    setEmailError(null);
+                                }}
                                 onFocus={() => setFocusedField('email')}
                                 onBlur={() => setFocusedField(null)}
+                                style={styles.inputText}
+                                placeholder={copy.emailPlaceholder}
+                                placeholderTextColor="rgba(250, 244, 234, 0.4)"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
-                                error={emailError}
+                                autoCorrect={false}
+                                keyboardAppearance="dark"
+                                textContentType="emailAddress"
                             />
-                            <FloatingLabelInput
-                                label="Mot de passe"
-                                iconName="lock-closed-outline"
-                                focused={focusedField === 'password'}
+                        </View>
+                        {!!emailError && <Text style={styles.inputErrorText}>{emailError}</Text>}
+                    </View>
+
+                    <View style={styles.inputWrapper}>
+                        <View style={[styles.inputField, focusedField === 'password' && styles.inputFieldFocused, !!passwordError && styles.inputFieldError]}>
+                            <Ionicons name="lock-closed-outline" size={22} color="rgba(250, 244, 234, 0.56)" style={styles.inputLeadingIcon} />
+                            <TextInput
                                 value={password}
-                                onChangeText={(v) => { setPassword(v); setPasswordError(null); }}
+                                onChangeText={(value) => {
+                                    setPassword(value);
+                                    setPasswordError(null);
+                                }}
                                 onFocus={() => setFocusedField('password')}
                                 onBlur={() => setFocusedField(null)}
+                                style={styles.inputText}
+                                placeholder={copy.passwordPlaceholder}
+                                placeholderTextColor="rgba(250, 244, 234, 0.4)"
                                 secureTextEntry={obscurePassword}
-                                trailingIcon={passwordTrailingIcon}
-                                error={passwordError}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                keyboardAppearance="dark"
+                                textContentType="password"
                             />
-
-                            <View style={styles.optionsRow}>
-                                <TouchableOpacity style={styles.rememberMeContainer} onPress={() => setRememberMe(!rememberMe)}>
-                                    <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
-                                        {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
-                                    </View>
-                                    <Text style={styles.rememberMeText}>Se souvenir de moi</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={handleForgotPassword}>
-                                    <Text style={styles.linkText}>Mot de passe oublié ?</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
-                                <LinearGradient
-                                    colors={['#FFA92E', '#FF5D1E']}
-                                    start={{ x: 0, y: 0.5 }}
-                                    end={{ x: 1, y: 0.5 }}
-                                    style={styles.primaryGradient}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator color="#fff" />
-                                    ) : (
-                                        <Text style={styles.primaryButtonText}>Se connecter</Text>
-                                    )}
-                                </LinearGradient>
+                            <TouchableOpacity onPress={handleTogglePassword} style={styles.eyeButton}>
+                                <Ionicons
+                                    name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                                    size={22}
+                                    color="rgba(250, 244, 234, 0.56)"
+                                />
                             </TouchableOpacity>
-                            <View style={styles.dividerRow}>
-                                <View style={styles.line} />
-                                <Text style={styles.dividerLabel}>Ou</Text>
-                                <View style={styles.line} />
-                            </View>
-
-                            <View style={styles.socialIconsRow}>
-                                <TouchableOpacity
-                                    style={styles.socialIconButton}
-                                    onPress={handleGoogleLogin}
-                                    testID="google-login-button"
-                                >
-                                    <Image
-                                        source={require('@/assets/images/google_logo.png')}
-                                        style={styles.socialIcon}
-                                        resizeMode="contain"
-                                    />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.socialIconButton}
-                                    onPress={handleAppleLogin}
-                                    testID="apple-login-button"
-                                >
-                                    <Ionicons name="logo-apple" size={30} color="#000" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.socialIconButton}
-                                    onPress={handleFacebookLogin}
-                                    testID="facebook-login-button"
-                                >
-                                    <Ionicons name="logo-facebook" size={30} color="#1877F2" />
-                                </TouchableOpacity>
-                            </View>
-
-                            {!!socialMessage && (
-                                <Text style={styles.socialErrorText}>{socialMessage}</Text>
-                            )}
-
-                            <View style={styles.footerLinks}>
-                                <Text style={styles.footerText}>Vous n&apos;avez pas de compte ?&nbsp;</Text>
-                                <TouchableOpacity onPress={handleRegister}>
-                                    <Text style={styles.linkHighlight}>Inscrivez-vous</Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
+                        {!!passwordError && <Text style={styles.inputErrorText}>{passwordError}</Text>}
                     </View>
-                </ScrollView>
-            </View>
+
+                    <TouchableOpacity
+                        style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+                        onPress={handleLogin}
+                        disabled={loading}
+                    >
+                        <LinearGradient
+                            colors={brandTheme.gradients.primary}
+                            start={{ x: 0, y: 0.5 }}
+                            end={{ x: 1, y: 0.5 }}
+                            style={styles.primaryButtonGradient}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFF7EF" />
+                            ) : (
+                                <Text style={styles.primaryButtonText}>{copy.loginButton}</Text>
+                            )}
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    <View style={styles.dividerRow}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerLabel}>{copy.divider}</Text>
+                        <View style={styles.dividerLine} />
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.socialButton}
+                        onPress={handleGoogleLogin}
+                        testID="google-login-button"
+                    >
+                        <View style={styles.socialButtonContent}>
+                            <View style={styles.socialIconBadge}>
+                                <Image source={require('@/assets/images/google_logo.png')} style={styles.googleIcon} resizeMode="contain" />
+                            </View>
+                            <Text style={styles.socialText}>{copy.continueGoogle}</Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.socialButton}
+                        onPress={handleAppleLogin}
+                        testID="apple-login-button"
+                    >
+                        <View style={styles.socialButtonContent}>
+                            <View style={styles.socialIconBadge}>
+                                <Ionicons name="logo-apple" size={24} color="#F4EDE3" />
+                            </View>
+                            <Text style={styles.socialText}>{copy.continueApple}</Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    {!!socialMessage && <Text style={styles.socialMessage}>{socialMessage}</Text>}
+
+                    <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordWrap}>
+                        <Text style={styles.forgotPasswordText}>{copy.forgotPassword}</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.footerRow}>
+                        <Text style={styles.footerText}>{copy.noAccount}</Text>
+                        <TouchableOpacity onPress={handleRegister}>
+                            <Text style={styles.footerLink}>{copy.register}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    background: {
+    screen: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: '#050201',
+    },
+    backgroundGradient: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    orbLayer: {
+        ...StyleSheet.absoluteFillObject,
+        pointerEvents: 'none',
+    },
+    orb: {
+        position: 'absolute',
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 122, 26, 0.14)',
+    },
+    orbTopRight: {
+        width: 360,
+        height: 360,
+        top: -92,
+        right: -112,
+    },
+    orbMidLeft: {
+        width: 112,
+        height: 112,
+        top: 156,
+        left: 18,
+    },
+    orbBottomLeft: {
+        width: 254,
+        height: 254,
+        bottom: 34,
+        left: -140,
     },
     scrollContent: {
         flexGrow: 1,
-        paddingBottom: 40,
+        paddingHorizontal: 18,
+        paddingTop: Platform.OS === 'ios' ? 54 : 36,
+        paddingBottom: 26,
     },
-    headerImageContainer: {
-        width: '100%',
-        height: 280,
-        position: 'relative',
+    heroSection: {
+        marginBottom: 20,
+        paddingHorizontal: 0,
     },
-    headerImage: {
-        width: '100%',
-        height: '100%',
+    brandRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 18,
     },
-    headerImageGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 100,
+    brandLogo: {
+        width: 46,
+        height: 46,
+        borderRadius: 999,
+        marginRight: 12,
+    },
+    brandTitle: {
+        color: '#F5EFE8',
+        fontSize: 22,
+        fontWeight: '800',
+        letterSpacing: 0.2,
+    },
+    brandTitleAccent: {
+        color: '#FF7A1A',
+    },
+    heroHeadline: {
+        color: '#F8F1E9',
+        fontSize: 34,
+        lineHeight: 46,
+        fontFamily: brandHeadlineFont,
+        fontWeight: '700',
+    },
+    heroHeadlineAccent: {
+        color: '#FF7A1A',
+        fontStyle: 'italic',
+    },
+    heroDescription: {
+        marginTop: 18,
+        color: 'rgba(248, 241, 233, 0.48)',
+        fontSize: 15,
+        lineHeight: 22,
+        maxWidth: 352,
     },
     card: {
-        marginTop: -60,
-        marginHorizontal: 16,
-        borderRadius: 32,
-        paddingVertical: 48,
-        paddingHorizontal: 24,
-        backgroundColor: '#fff',
+        marginTop: 4,
+        borderRadius: 34,
+        backgroundColor: 'rgba(19, 12, 9, 0.93)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.12)',
+        paddingHorizontal: 20,
+        paddingTop: 24,
+        paddingBottom: 24,
         ...createShadowStyle({
-            color: '#000',
-            offset: { width: 0, height: 12 },
-            opacity: 0.08,
-            radius: 24,
-            elevation: 8,
+            color: '#000000',
+            offset: { width: 0, height: 20 },
+            opacity: 0.34,
+            radius: 28,
+            elevation: 16,
         }),
     },
-    heading: {
-        fontSize: 28,
+    sectionLabel: {
+        color: 'rgba(248, 241, 233, 0.58)',
+        fontSize: 12,
         fontWeight: '700',
-        textAlign: 'center',
-        color: '#111',
-    },
-    subHeading: {
-        fontSize: 32,
-        fontWeight: '800',
-        color: '#111',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    welcomeText: {
-        fontSize: 15,
-        color: '#666',
-        textAlign: 'center',
-    },
-    formSection: {
-        marginTop: 32,
+        letterSpacing: 3.2,
+        marginBottom: 16,
     },
     apiErrorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFE5E5',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 20,
+        backgroundColor: 'rgba(145, 33, 33, 0.28)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 125, 125, 0.4)',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 14,
+        marginBottom: 12,
     },
     apiErrorText: {
-        color: '#D00000',
-        fontSize: 14,
-        fontWeight: '600',
+        color: '#F7C0C0',
+        fontSize: 13,
         marginLeft: 8,
         flex: 1,
     },
-    optionsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 28,
-        paddingHorizontal: 4,
+    inputWrapper: {
+        marginBottom: 14,
     },
-    rememberMeContainer: {
+    inputField: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    checkbox: {
-        width: 20,
-        height: 20,
-        borderRadius: 6,
         borderWidth: 1,
-        borderColor: '#bcbcbc',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 8,
+        borderColor: 'rgba(255, 255, 255, 0.13)',
+        backgroundColor: 'rgba(255, 255, 255, 0.047)',
+        borderRadius: 24,
+        minHeight: 60,
+        paddingHorizontal: 16,
     },
-    checkboxActive: {
-        backgroundColor: '#FF5D1E',
-        borderColor: '#FF5D1E',
+    inputFieldFocused: {
+        borderColor: '#FF8B21',
     },
-    rememberMeText: {
-        fontSize: 14,
-        color: '#000',
+    inputFieldError: {
+        borderColor: '#EB8F8F',
     },
-    linkText: {
-        textDecorationLine: 'underline',
-        color: '#000',
-        fontWeight: '600',
-        fontSize: 14,
+    inputLeadingIcon: {
+        marginRight: 14,
+    },
+    inputText: {
+        flex: 1,
+        color: '#F8F1E9',
+        fontSize: 17,
+        paddingVertical: 14,
+    },
+    eyeButton: {
+        padding: 4,
+        marginLeft: 10,
+    },
+    inputErrorText: {
+        marginTop: 6,
+        marginLeft: 4,
+        color: '#F2A1A1',
+        fontSize: 12,
+        fontWeight: '500',
     },
     primaryButton: {
-        borderRadius: 16,
+        borderRadius: 22,
         overflow: 'hidden',
-        width: '100%',
+        marginTop: 10,
     },
-    primaryGradient: {
-        paddingVertical: 16,
-        borderRadius: 16,
-        width: '100%',
+    primaryButtonDisabled: {
+        opacity: 0.8,
+    },
+    primaryButtonGradient: {
+        minHeight: 58,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     primaryButtonText: {
-        textAlign: 'center',
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#fff',
+        color: '#FFF8EF',
+        fontSize: 17,
+        fontWeight: '800',
     },
     dividerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 32,
+        marginVertical: 24,
     },
-    line: {
+    dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: '#121212',
+        backgroundColor: 'rgba(255, 255, 255, 0.11)',
     },
     dividerLabel: {
         marginHorizontal: 12,
-        color: '#000',
-        fontWeight: '600',
+        color: 'rgba(248, 241, 233, 0.56)',
+        fontSize: 14,
+        fontWeight: '700',
     },
-    socialIconsRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 16,
-        marginBottom: 24,
-    },
-    socialIconButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 16,
-        backgroundColor: '#fff',
+    socialButton: {
+        borderRadius: 22,
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        marginBottom: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.048)',
         borderWidth: 1,
-        borderColor: '#e8e8e8',
+        borderColor: 'rgba(255, 255, 255, 0.13)',
+        width: '100%',
+    },
+    socialButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    socialIconBadge: {
+        width: 40,
+        height: 40,
+        borderRadius: 11,
+        backgroundColor: 'rgba(255, 255, 255, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.06)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    socialIcon: {
-        width: 24,
-        height: 24,
+    googleIcon: {
+        width: 22,
+        height: 22,
     },
-    socialErrorText: {
-        color: '#D00000',
-        fontSize: 14,
+    socialText: {
+        flex: 1,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#F8F1E9',
+        marginLeft: 16,
+    },
+    socialMessage: {
+        color: '#F2A1A1',
         textAlign: 'center',
-        marginTop: -12,
-        marginBottom: 24,
-        fontWeight: '500',
+        fontSize: 13,
+        marginTop: -2,
+        marginBottom: 8,
     },
-    footerLinks: {
-        marginTop: 32,
+    forgotPasswordWrap: {
+        alignSelf: 'center',
+        marginTop: 6,
+    },
+    forgotPasswordText: {
+        color: '#F7EFE6',
+        textDecorationLine: 'underline',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    footerRow: {
+        marginTop: 12,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
     },
     footerText: {
-        color: '#000',
-        fontSize: 14,
+        color: 'rgba(248, 241, 233, 0.56)',
+        fontSize: 15,
     },
-    linkHighlight: {
-        color: '#D06000',
-        fontWeight: '700',
-        fontSize: 14,
+    footerLink: {
+        color: '#FF7A1A',
+        fontSize: 15,
+        fontWeight: '800',
     },
 });

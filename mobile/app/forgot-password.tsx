@@ -1,219 +1,240 @@
-import {Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import { createShadowStyle } from '@/utils/shadow';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import { validateEmail } from '../utils/validation';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ToastManager from 'toastify-react-native';
 
-export default function ForgotPasswordScreen() {
+import BrandBackdrop from '@/components/BrandBackdrop';
+import FloatingLabelInput from '@/components/FloatingLabelInput';
+import { brandHeadlineFont, brandTheme } from '@/constants/brandTheme';
+import { LanguageProvider, useI18n } from '@/contexts/LanguageContext';
+import toast from '@/utils/toast';
+
+type ForgotCopy = {
+    emptyEmail: string;
+    successToast: string;
+    headlineTop: string;
+    headlineAccent: string;
+    subline: string;
+    successMessagePrefix: string;
+    formLabel: string;
+    emailLabel: string;
+    sendLink: string;
+    backToLogin: string;
+};
+
+const FORGOT_COPY: Record<'fr' | 'en', ForgotCopy> = {
+    fr: {
+        emptyEmail: 'Veuillez entrer votre adresse e-mail',
+        successToast: 'Si un compte existe, un lien de reinitialisation a ete envoye.',
+        headlineTop: 'Reinitialisez votre',
+        headlineAccent: 'mot de passe.',
+        subline: 'Entrez votre e-mail et nous vous enverrons un lien securise de reinitialisation.',
+        successMessagePrefix: 'Si un compte existe pour',
+        formLabel: 'Mot de passe oublie',
+        emailLabel: 'Adresse e-mail',
+        sendLink: 'Envoyer le lien',
+        backToLogin: 'Retour a la connexion',
+    },
+    en: {
+        emptyEmail: 'Please enter your email address',
+        successToast: 'If an account exists, a reset link has been sent.',
+        headlineTop: 'Reset your',
+        headlineAccent: 'access key.',
+        subline: 'Enter your account email and we will send a secure password reset link.',
+        successMessagePrefix: 'If an account exists for',
+        formLabel: 'Forgot password',
+        emailLabel: 'Email address',
+        sendLink: 'Send reset link',
+        backToLogin: 'Back to login',
+    },
+};
+
+const ForgotPasswordScreen: React.FC = () => (
+    <LanguageProvider>
+        <ForgotPasswordContent />
+    </LanguageProvider>
+);
+
+const ForgotPasswordContent: React.FC = () => {
+    const { locale } = useI18n();
+    const copy = FORGOT_COPY[locale];
+
     const [email, setEmail] = useState('');
-    const [error, setError] = useState<string | null>(null);
     const [submitted, setSubmitted] = useState(false);
-    const [focusedField, setFocusedField] = useState<'email' | null>(null);
+    const [focused, setFocused] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
     const router = useRouter();
 
     const handleSubmit = () => {
-        const emailValidation = validateEmail(email);
-        setError(emailValidation.isValid ? null : (emailValidation.error ?? 'Email invalide'));
-        
-        if (!emailValidation.isValid) return;
+        if (!email.trim()) {
+            setError(copy.emptyEmail);
+            toast.error(copy.emptyEmail);
+            return;
+        }
 
+        setError(null);
         setSubmitted(true);
+        toast.success(copy.successToast);
     };
 
     return (
-        <View style={styles.background}>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <View style={styles.headerImageContainer}>
-                    <Image
-                        source={require('@/assets/images/food-iphone.jpg')}
-                        style={styles.headerImage}
-                        resizeMode="cover"
-                    />
-                    <LinearGradient
-                        colors={['transparent', '#F5F5F7']}
-                        style={styles.headerImageGradient}
-                    />
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()} testID="back-button">
-                        <Ionicons name="arrow-back" size={24} color="#000" />
+        <View style={styles.screen}>
+            <BrandBackdrop compact />
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                <View style={styles.hero}>
+                    <Text style={styles.headline}>
+                        {copy.headlineTop}
+                        {'\n'}
+                        <Text style={styles.headlineAccent}>{copy.headlineAccent}</Text>
+                    </Text>
+                    <Text style={styles.subline}>
+                        {copy.subline}
+                    </Text>
+                </View>
+
+                <View style={styles.card}>
+                    {submitted ? (
+                        <View style={styles.successWrap}>
+                            <Ionicons name="checkmark-circle-outline" size={40} color={brandTheme.colors.success} />
+                            <Text style={styles.successText}>
+                                {copy.successMessagePrefix} <Text style={styles.successEmail}>{email}</Text>, {copy.successToast.toLowerCase()}
+                            </Text>
+                        </View>
+                    ) : (
+                        <>
+                            <Text style={styles.formLabel}>{copy.formLabel}</Text>
+                            <FloatingLabelInput
+                                label={copy.emailLabel}
+                                iconName="mail-outline"
+                                focused={focused}
+                                value={email}
+                                onChangeText={(value) => {
+                                    setEmail(value);
+                                    if (error) {
+                                        setError(null);
+                                    }
+                                }}
+                                onFocus={() => setFocused(true)}
+                                onBlur={() => setFocused(false)}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                error={error}
+                            />
+
+                            <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit}>
+                                <LinearGradient
+                                    colors={brandTheme.gradients.primary}
+                                    start={{ x: 0, y: 0.5 }}
+                                    end={{ x: 1, y: 0.5 }}
+                                    style={styles.primaryGradient}
+                                >
+                                    <Text style={styles.primaryButtonText}>{copy.sendLink}</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </>
+                    )}
+
+                    <TouchableOpacity style={styles.backLinkWrap} onPress={() => router.replace('/login' as any)}>
+                        <Text style={styles.backLink}>{copy.backToLogin}</Text>
                     </TouchableOpacity>
                 </View>
-                
-                <View style={styles.card}>
-                    <Text style={styles.subHeading}>Récupération</Text>
-                    <Text style={styles.welcomeText}>
-                        {submitted 
-                            ? 'Vérifiez votre boîte mail' 
-                            : 'Entrez votre adresse e-mail pour recevoir un lien de réinitialisation.'}
-                    </Text>
-                    
-                    <View style={styles.formSection}>
-                        {submitted ? (
-                            <View style={styles.successContainer}>
-                                <Ionicons name="checkmark-circle" size={64} color="#4CAF50" style={styles.successIcon} />
-                                <Text style={styles.infoText}>
-                                    Si un compte existe pour <Text style={{ fontWeight: '700' }}>{email}</Text>, un lien de réinitialisation a été envoyé.
-                                </Text>
-                                <TouchableOpacity 
-                                    style={styles.secondaryButton} 
-                                    onPress={() => router.back()}
-                                    testID="return-to-login-button"
-                                >
-                                    <Text style={styles.secondaryButtonText}>Retour à la connexion</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <>
-                                <FloatingLabelInput
-                                    label="Adresse e-mail"
-                                    iconName="mail-outline"
-                                    focused={focusedField === 'email'}
-                                    value={email}
-                                    onChangeText={(v) => { setEmail(v); setError(null); }}
-                                    onFocus={() => setFocusedField('email')}
-                                    onBlur={() => setFocusedField(null)}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    error={error}
-                                />
-                                <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit}>
-                                    <LinearGradient
-                                        colors={['#FFA92E', '#FF5D1E']}
-                                        start={{ x: 0, y: 0.5 }}
-                                        end={{ x: 1, y: 0.5 }}
-                                        style={styles.primaryGradient}
-                                    >
-                                        <Text style={styles.primaryButtonText}>Envoyer le lien</Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                </View>
             </ScrollView>
+            <ToastManager />
         </View>
     );
-}
+};
 
 const styles = StyleSheet.create({
-    background: {
+    screen: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: brandTheme.colors.bg,
     },
-    scrollContent: {
+    content: {
         flexGrow: 1,
-        paddingBottom: 40,
+        paddingHorizontal: 20,
+        paddingTop: 64,
+        paddingBottom: 32,
     },
-    headerImageContainer: {
-        width: '100%',
-        height: 280,
-        position: 'relative',
+    hero: {
+        gap: 12,
+        marginBottom: 24,
     },
-    headerImage: {
-        width: '100%',
-        height: '100%',
+    headline: {
+        color: brandTheme.colors.text,
+        fontSize: 34,
+        lineHeight: 38,
+        fontFamily: brandHeadlineFont,
+        fontWeight: '700',
     },
-    headerImageGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 100,
+    headlineAccent: {
+        color: brandTheme.colors.orange,
+        fontStyle: 'italic',
     },
-    backButton: {
-        position: 'absolute',
-        top: 60,
-        left: 20,
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...createShadowStyle({
-            color: '#000',
-            offset: { width: 0, height: 4 },
-            opacity: 0.1,
-            radius: 8,
-            elevation: 4,
-        }),
+    subline: {
+        color: brandTheme.colors.muted,
+        fontSize: 15,
+        lineHeight: 23,
     },
     card: {
-        marginTop: -60,
-        marginHorizontal: 16,
-        borderRadius: 32,
-        paddingVertical: 48,
-        paddingHorizontal: 24,
-        backgroundColor: '#fff',
-        ...createShadowStyle({
-            color: '#000',
-            offset: { width: 0, height: 12 },
-            opacity: 0.08,
-            radius: 24,
-            elevation: 8,
-        }),
+        borderRadius: brandTheme.radii.xxl,
+        paddingHorizontal: 16,
+        paddingVertical: 18,
+        backgroundColor: brandTheme.colors.surface,
+        borderWidth: 1,
+        borderColor: brandTheme.colors.border,
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)',
     },
-    subHeading: {
-        fontSize: 32,
-        fontWeight: '800',
-        color: '#111',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    welcomeText: {
-        fontSize: 15,
-        color: '#666',
-        textAlign: 'center',
-        lineHeight: 22,
-        paddingHorizontal: 8,
-    },
-    formSection: {
-        marginTop: 32,
+    formLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 1.4,
+        textTransform: 'uppercase',
+        color: brandTheme.colors.muted,
+        marginBottom: 12,
     },
     primaryButton: {
-        borderRadius: 16,
+        borderRadius: 14,
         overflow: 'hidden',
         width: '100%',
-        marginTop: 8,
+        marginTop: 2,
     },
     primaryGradient: {
-        paddingVertical: 16,
-        borderRadius: 16,
-        width: '100%',
+        paddingVertical: 15,
+        borderRadius: 14,
         alignItems: 'center',
     },
     primaryButtonText: {
-        textAlign: 'center',
+        color: '#fff',
         fontSize: 16,
         fontWeight: '700',
-        color: '#fff',
     },
-    successContainer: {
+    successWrap: {
         alignItems: 'center',
-        paddingVertical: 16,
+        gap: 10,
+        marginBottom: 12,
+        paddingTop: 8,
     },
-    successIcon: {
-        marginBottom: 16,
-    },
-    infoText: {
-        color: '#333',
-        fontSize: 15,
+    successText: {
+        color: brandTheme.colors.text,
         textAlign: 'center',
-        lineHeight: 24,
-        marginBottom: 32,
+        fontSize: 15,
+        lineHeight: 22,
     },
-    secondaryButton: {
-        backgroundColor: '#f0f0f0',
-        paddingVertical: 16,
-        borderRadius: 16,
-        width: '100%',
-        alignItems: 'center',
+    successEmail: {
+        fontWeight: '700',
     },
-    secondaryButtonText: {
-        color: '#111',
-        fontWeight: '600',
-        fontSize: 16,
+    backLinkWrap: {
+        marginTop: 16,
+    },
+    backLink: {
+        textAlign: 'center',
+        color: brandTheme.colors.orange,
+        fontWeight: '700',
+        textDecorationLine: 'underline',
     },
 });
+
+export default ForgotPasswordScreen;
