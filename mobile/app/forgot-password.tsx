@@ -9,7 +9,7 @@ import BrandBackdrop from '@/components/BrandBackdrop';
 import FloatingLabelInput from '@/components/FloatingLabelInput';
 import { brandHeadlineFont, brandTheme } from '@/constants/brandTheme';
 import { LanguageProvider, useI18n } from '@/contexts/LanguageContext';
-import toast from '@/utils/toast';
+import { toast } from '@/utils/toast';
 import { validateEmail } from '@/utils/validation';
 
 type ForgotCopy = {
