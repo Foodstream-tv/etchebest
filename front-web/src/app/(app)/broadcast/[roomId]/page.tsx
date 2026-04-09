@@ -1,11 +1,50 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
 import StreamView from "@/components/StreamView";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useAuth } from "@/lib/useAuth";
+import Link from "next/link";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type BroadcastState = ReturnType<typeof useWebRTC>["state"];
+
+function getStatusMeta(state: BroadcastState): { label: string; dotColor: string } {
+  switch (state) {
+    case "live":
+      return { label: "En direct", dotColor: "#ef4444" };
+    case "connecting":
+      return { label: "Connexion…", dotColor: "#f59e0b" };
+    case "creating":
+      return { label: "Création…", dotColor: "#3b82f6" };
+    default:
+      return { label: "Prêt", dotColor: "#9ca3af" };
+  }
+}
+
+function getEmptyStateMessage(
+  ready: boolean,
+  token: string | null | undefined,
+  state: BroadcastState
+): string {
+  if (!ready) {
+    return "Chargement…";
+  }
+
+  if (!token) {
+    return "Connecte-toi pour activer la caméra.";
+  }
+
+  if (state === "creating") {
+    return "Création en cours…";
+  }
+
+  if (state === "connecting") {
+    return "Connexion en cours…";
+  }
+
+  return "Le flux local n’est pas encore disponible.";
+}
 
 export default function BroadcastRoomPage() {
   const router = useRouter();
@@ -31,34 +70,32 @@ export default function BroadcastRoomPage() {
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
+  const autoJoinRoomRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
     if (!token) return;
     if (!roomIdFromUrl) return;
+    if (isHost) return;
+    if (autoJoinRoomRef.current === roomIdFromUrl) return;
 
-    if (!isHost && !hasStarted) {
-      setHasStarted(true);
-      joinAsCoStreamer(roomIdFromUrl);
-    }
-  }, [ready, token, isHost, roomIdFromUrl, hasStarted, joinAsCoStreamer]);
+    autoJoinRoomRef.current = roomIdFromUrl;
+    joinAsCoStreamer(roomIdFromUrl).catch(() => {
+      if (autoJoinRoomRef.current === roomIdFromUrl) {
+        autoJoinRoomRef.current = null;
+      }
+    });
+  }, [ready, token, isHost, roomIdFromUrl, joinAsCoStreamer]);
 
   const displayRoom = roomId ?? roomIdFromUrl;
   const viewerHref = displayRoom ? `/watch/${encodeURIComponent(displayRoom)}` : null;
+  const { label: statusLabel, dotColor: statusDotColor } = getStatusMeta(state);
+  const emptyStateMessage = getEmptyStateMessage(ready, token, state);
 
-  const statusLabel =
-    state === "live"
-      ? "En direct"
-      : state === "connecting"
-      ? "Connexion…"
-      : state === "creating"
-      ? "Création…"
-      : "Prêt";
-
-  const handleBack = async () => {
+  async function handleBack() {
     await stopLive();
     router.back();
-  };
+  }
 
   return (
     <div style={pageStyle}>
@@ -80,14 +117,7 @@ export default function BroadcastRoomPage() {
               <span
                 style={{
                   ...statusDotStyle,
-                  background:
-                    state === "live"
-                      ? "#ef4444"
-                      : state === "connecting"
-                      ? "#f59e0b"
-                      : state === "creating"
-                      ? "#3b82f6"
-                      : "#9ca3af",
+                  background: statusDotColor,
                 }}
               />
               <span>{statusLabel}</span>
@@ -169,17 +199,7 @@ export default function BroadcastRoomPage() {
                 ) : (
                   <div style={emptyStateStyle}>
                     <div style={emptyTitleStyle}>Caméra non active</div>
-                    <div style={emptyTextStyle}>
-                      {!ready
-                        ? "Chargement…"
-                        : !token
-                        ? "Connecte-toi pour activer la caméra."
-                        : state === "creating"
-                        ? "Création en cours…"
-                        : state === "connecting"
-                        ? "Connexion en cours…"
-                        : "Le flux local n’est pas encore disponible."}
-                    </div>
+                    <div style={emptyTextStyle}>{emptyStateMessage}</div>
                   </div>
                 )}
               </div>

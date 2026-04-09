@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
-	github.com/pion/webrtc/v3 v3.3.5
+	github.com/pion/webrtc/v3 v3.3.6
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
@@ -58,7 +58,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
 	github.com/pion/dtls/v2 v2.2.12 // indirect
-	github.com/pion/ice/v2 v2.3.37 // indirect
+	github.com/pion/ice/v2 v2.3.38 // indirect
 	github.com/pion/interceptor v0.1.39 // indirect
 	github.com/pion/logging v0.2.3 // indirect
 	github.com/pion/mdns v0.0.12 // indirect
