@@ -3,7 +3,7 @@ package room
 import (
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/lib/pq"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 )
 
 type TrackInfo struct {

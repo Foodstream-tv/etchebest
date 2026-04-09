@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"gorm.io/gorm"
 )
 
