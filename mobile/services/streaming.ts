@@ -132,6 +132,41 @@ export async function sendICECandidate(
     }
 }
 
+export interface RenegotiationOffer {
+    type: 'offer';
+    sdp: string;
+}
+
+export async function fetchRenegotiationOffer(roomId: string): Promise<RenegotiationOffer | null> {
+    const res = await fetch(`${BASE_URL}/webrtc/offers/next?roomId=${roomId}`, {
+        method: 'GET',
+        headers: await authHeaders(),
+    });
+    await throwIfUnauthorized(res);
+
+    if (res.status === 204) {
+        return null;
+    }
+
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, `Renegotiation poll failed (${res.status})`));
+    }
+
+    return res.json();
+}
+
+export async function sendRenegotiationAnswer(roomId: string, sdp: string): Promise<void> {
+    const res = await fetch(`${BASE_URL}/webrtc/answer?roomId=${roomId}`, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ type: 'answer', sdp }),
+    });
+    await throwIfUnauthorized(res);
+    if (!res.ok) {
+        throw new Error(await getErrorMessage(res, `Renegotiation answer failed (${res.status})`));
+    }
+}
+
 // ---------- HLS ----------
 
 export function getHLSUrl(roomId: string): string {

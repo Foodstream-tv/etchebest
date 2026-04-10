@@ -115,6 +115,111 @@ func removeLiveRoom(id string) {
 	delete(liveRooms, id)
 }
 
+func getPeerConnectionByUser(room *Room, userID string) *webrtc.PeerConnection {
+	for _, conn := range room.Connections {
+		if conn.UserID == userID {
+			return conn.PeerCon
+		}
+	}
+	return nil
+}
+
+// requestRenegotiationOffer creates and queues a server offer for one user.
+// The offer is fetched by the client via polling and answered through
+// HandleRenegotiationAnswer.
+func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnection) {
+	if room == nil || pc == nil || userID == "" {
+		return
+	}
+
+	mu.Lock()
+	if room.PendingOfferByUser == nil {
+		room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
+	}
+	if room.RenegotiatingByUser == nil {
+		room.RenegotiatingByUser = make(map[string]bool)
+	}
+	if room.NeedsRenegotiationByUser == nil {
+		room.NeedsRenegotiationByUser = make(map[string]bool)
+	}
+
+	if _, hasPendingOffer := room.PendingOfferByUser[userID]; hasPendingOffer {
+		room.NeedsRenegotiationByUser[userID] = true
+		mu.Unlock()
+		return
+	}
+	if room.RenegotiatingByUser[userID] {
+		room.NeedsRenegotiationByUser[userID] = true
+		mu.Unlock()
+		return
+	}
+	room.RenegotiatingByUser[userID] = true
+	mu.Unlock()
+
+	defer func() {
+		mu.Lock()
+		if room.RenegotiatingByUser != nil {
+			room.RenegotiatingByUser[userID] = false
+		}
+		mu.Unlock()
+	}()
+
+	if pc.ConnectionState() == webrtc.PeerConnectionStateClosed {
+		return
+	}
+	if pc.SignalingState() != webrtc.SignalingStateStable {
+		mu.Lock()
+		if room.NeedsRenegotiationByUser != nil {
+			room.NeedsRenegotiationByUser[userID] = true
+		}
+		mu.Unlock()
+		return
+	}
+
+	offer, err := pc.CreateOffer(nil)
+	if err != nil {
+		log.Printf("CreateOffer (renegotiation) failed for user %s: %v", userID, err)
+		mu.Lock()
+		if room.NeedsRenegotiationByUser != nil {
+			room.NeedsRenegotiationByUser[userID] = true
+		}
+		mu.Unlock()
+		return
+	}
+
+	gatherComplete := webrtc.GatheringCompletePromise(pc)
+	if err := pc.SetLocalDescription(offer); err != nil {
+		log.Printf("SetLocalDescription (renegotiation) failed for user %s: %v", userID, err)
+		mu.Lock()
+		if room.NeedsRenegotiationByUser != nil {
+			room.NeedsRenegotiationByUser[userID] = true
+		}
+		mu.Unlock()
+		return
+	}
+	<-gatherComplete
+
+	local := pc.LocalDescription()
+	if local == nil {
+		mu.Lock()
+		if room.NeedsRenegotiationByUser != nil {
+			room.NeedsRenegotiationByUser[userID] = true
+		}
+		mu.Unlock()
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if getPeerConnectionByUser(room, userID) != pc {
+		return
+	}
+	if room.PendingOfferByUser == nil {
+		room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
+	}
+	room.PendingOfferByUser[userID] = *local
+}
+
 // closePeerConnection safely removes senders and closes the underlying PeerConnection.
 // Extracted to reduce cognitive complexity in handlers.
 func closePeerConnection(pc PeerConnection) {
@@ -445,6 +550,103 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// PollRenegotiationOffer returns a pending server offer for the caller, if any.
+func PollRenegotiationOffer(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomID := c.Query("roomId")
+		if roomID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
+			return
+		}
+
+		userID := utils.GetContextString(c, "userId")
+
+		mu.Lock()
+		room, err := getLiveRoom(db, roomID)
+		if err != nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			return
+		}
+		offer, ok := room.PendingOfferByUser[userID]
+		mu.Unlock()
+
+		if !ok {
+			c.Status(http.StatusNoContent)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"type": offer.Type.String(),
+			"sdp":  offer.SDP,
+		})
+	}
+}
+
+// HandleRenegotiationAnswer applies a client answer for a pending server offer.
+func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomID := c.Query("roomId")
+		if roomID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
+			return
+		}
+
+		var answer webrtc.SessionDescription
+		if err := c.ShouldBindJSON(&answer); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid answer payload"})
+			return
+		}
+		if answer.Type != webrtc.SDPTypeAnswer {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "expected SDP answer"})
+			return
+		}
+
+		userID := utils.GetContextString(c, "userId")
+
+		mu.Lock()
+		room, err := getLiveRoom(db, roomID)
+		if err != nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			return
+		}
+
+		pc := getPeerConnectionByUser(room, userID)
+		if pc == nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "peer connection not found"})
+			return
+		}
+
+		mu.Unlock()
+
+		if err := pc.SetRemoteDescription(answer); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set remote description"})
+			return
+		}
+
+		mu.Lock()
+		if room.PendingOfferByUser != nil {
+			delete(room.PendingOfferByUser, userID)
+		}
+		mu.Unlock()
+
+		mu.Lock()
+		needsAnotherOffer := room.NeedsRenegotiationByUser != nil && room.NeedsRenegotiationByUser[userID]
+		if needsAnotherOffer {
+			room.NeedsRenegotiationByUser[userID] = false
+		}
+		mu.Unlock()
+
+		if needsAnotherOffer {
+			go requestRenegotiationOffer(room, userID, pc)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": "answer applied"})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // HandleWebRTC helpers
 // ---------------------------------------------------------------------------
@@ -608,7 +810,14 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 // broadcastTrackToPeers creates per-peer LocalTracks for a newly received
 // source track and registers them in the TrackInfo.
 // Must be called with mu held.
-func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConnection) {
+type renegotiationTarget struct {
+	userID string
+	pc     *webrtc.PeerConnection
+}
+
+func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConnection) []renegotiationTarget {
+	targetByUser := make(map[string]*webrtc.PeerConnection)
+
 	for _, other := range room.Connections {
 		if other.PeerCon == sourcePc {
 			continue
@@ -636,7 +845,15 @@ func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConne
 		ti.LocalTracks[other.PeerCon] = lt
 		ti.PeerPT[other.PeerCon] = pt
 		ti.Senders = append(ti.Senders, sender)
+		targetByUser[other.UserID] = other.PeerCon
 	}
+
+	targets := make([]renegotiationTarget, 0, len(targetByUser))
+	for userID, pc := range targetByUser {
+		targets = append(targets, renegotiationTarget{userID: userID, pc: pc})
+	}
+
+	return targets
 }
 
 func requestKeyframeBurst(pc *webrtc.PeerConnection, ssrc uint32) {
@@ -865,10 +1082,12 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 
 	// Guard: if this PC is not in the connection list, it was already cleaned up.
 	found := false
+	disconnectedUserID := ""
 	updated := make([]PeerConnection, 0, len(room.Connections))
 	for _, c := range room.Connections {
 		if c.PeerCon == pc {
 			found = true
+			disconnectedUserID = c.UserID
 		} else {
 			updated = append(updated, c)
 		}
@@ -880,6 +1099,20 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 
 	log.Printf("peer disconnected from room %s", roomID)
 	room.Connections = updated
+	if disconnectedUserID != "" {
+		if room.PendingICEByUser != nil {
+			delete(room.PendingICEByUser, disconnectedUserID)
+		}
+		if room.PendingOfferByUser != nil {
+			delete(room.PendingOfferByUser, disconnectedUserID)
+		}
+		if room.RenegotiatingByUser != nil {
+			delete(room.RenegotiatingByUser, disconnectedUserID)
+		}
+		if room.NeedsRenegotiationByUser != nil {
+			delete(room.NeedsRenegotiationByUser, disconnectedUserID)
+		}
+	}
 
 	// Clear the host pointer if this was the publisher
 	if room.HostPeerCon == pc {
@@ -1073,10 +1306,15 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 				Track:       track,
 				SourcePC:    peerConnection,
 			}
+			var renegotiationTargets []renegotiationTarget
 			mu.Lock()
 			room.Tracks = append(room.Tracks, ti)
-			broadcastTrackToPeers(ti, room, peerConnection)
+			renegotiationTargets = broadcastTrackToPeers(ti, room, peerConnection)
 			mu.Unlock()
+
+			for _, target := range renegotiationTargets {
+				go requestRenegotiationOffer(room, target.userID, target.pc)
+			}
 
 			// Start the relay goroutine.
 			// isHost is captured from the enclosing OnTrack closure.

@@ -24,16 +24,19 @@ type PeerConnection struct {
 }
 
 type Room struct {
-	ID               string                               `json:"id" gorm:"primaryKey"`
-	Name             string                               `json:"name"`
-	Host             string                               `json:"host"`
-	Participants     pq.StringArray                       `json:"participants" gorm:"type:text[]" swaggertype:"array,string"`
-	Viewers          int                                  `json:"viewers"`
-	MaxParticipants  int                                  `json:"maxParticipants" gorm:"default:5"`
-	Connections      []PeerConnection                     `json:"-" gorm:"-"`
-	Tracks           []*TrackInfo                         `json:"-" gorm:"-"`
-	PendingICEByUser map[string][]webrtc.ICECandidateInit `json:"-" gorm:"-"`
-	HLSWriter        *hls.HLSWriter                       `json:"-" gorm:"-"`
+	ID                       string                               `json:"id" gorm:"primaryKey"`
+	Name                     string                               `json:"name"`
+	Host                     string                               `json:"host"`
+	Participants             pq.StringArray                       `json:"participants" gorm:"type:text[]" swaggertype:"array,string"`
+	Viewers                  int                                  `json:"viewers"`
+	MaxParticipants          int                                  `json:"maxParticipants" gorm:"default:5"`
+	Connections              []PeerConnection                     `json:"-" gorm:"-"`
+	Tracks                   []*TrackInfo                         `json:"-" gorm:"-"`
+	PendingICEByUser         map[string][]webrtc.ICECandidateInit `json:"-" gorm:"-"`
+	PendingOfferByUser       map[string]webrtc.SessionDescription `json:"-" gorm:"-"`
+	RenegotiatingByUser      map[string]bool                      `json:"-" gorm:"-"`
+	NeedsRenegotiationByUser map[string]bool                      `json:"-" gorm:"-"`
+	HLSWriter                *hls.HLSWriter                       `json:"-" gorm:"-"`
 	// HostPeerCon is the PeerConnection of the room host (publisher).
 	// Only tracks received from this peer are relayed and fed to HLS.
 	HostPeerCon *webrtc.PeerConnection `json:"-" gorm:"-"`

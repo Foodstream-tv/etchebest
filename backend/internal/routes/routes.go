@@ -95,6 +95,8 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// WebRTC
 	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
+	api.GET("/webrtc/offers/next", room.PollRenegotiationOffer(db))
+	api.POST("/webrtc/answer", room.HandleRenegotiationAnswer(db))
 	api.POST("/ice", room.HandleICECandidate(db))
 
 	// HLS - public access (video players can't send Authorization headers)
