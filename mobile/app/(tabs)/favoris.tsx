@@ -8,6 +8,7 @@ import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 const ORANGE_GRADIENT = brandTheme.gradients.primary;
 const BORDER = brandTheme.colors.border;
 const CARD = brandTheme.colors.surface;
+const SURFACE_STRONG = brandTheme.colors.surfaceStrong;
 const BACKGROUND = brandTheme.colors.bg;
 const MUTED = brandTheme.colors.muted;
 const TEXT = brandTheme.colors.text;
@@ -159,8 +160,10 @@ const RecipeCard = ({ recipe }: { recipe: Recipe }) => (
                     <Ionicons name="star-outline" size={14} color="#FF7A00" />
                     <Text style={styles.ratingText}>{recipe.rating.toFixed(1)}</Text>
                 </View>
-                <View style={styles.liveBadge}>
-                    <Text style={styles.liveBadgeText}>{recipe.type}</Text>
+                <View style={[styles.liveBadge, recipe.type === 'Live' ? styles.liveBadgeLive : styles.liveBadgeReplay]}>
+                    <Text style={[styles.liveBadgeText, recipe.type === 'Live' ? styles.liveBadgeTextLive : styles.liveBadgeTextReplay]}>
+                        {recipe.type}
+                    </Text>
                 </View>
             </View>
         </View>
@@ -369,18 +372,18 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: BORDER,
-        backgroundColor: '#f5f5f7',
+        backgroundColor: SURFACE_STRONG,
     },
     filterChipActive: {
-        backgroundColor: '#FFF6EC',
-        borderColor: '#FF7A00',
+        backgroundColor: 'rgba(249, 115, 22, 0.16)',
+        borderColor: 'rgba(249, 115, 22, 0.58)',
     },
     filterChipText: {
         color: MUTED,
         fontWeight: '700',
     },
     filterChipTextActive: {
-        color: '#FF7A00',
+        color: '#FDE8D5',
     },
     cardsGrid: {
         gap: 12,
@@ -584,13 +587,26 @@ const styles = StyleSheet.create({
     },
     liveBadge: {
         borderRadius: 10,
-        backgroundColor: '#f0f1f3',
         paddingHorizontal: 10,
         paddingVertical: 6,
+        borderWidth: 1,
+    },
+    liveBadgeLive: {
+        backgroundColor: 'rgba(249, 115, 22, 0.18)',
+        borderColor: 'rgba(249, 115, 22, 0.55)',
+    },
+    liveBadgeReplay: {
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        borderColor: 'rgba(255, 255, 255, 0.12)',
     },
     liveBadgeText: {
-        color: MUTED,
         fontWeight: '700',
         fontSize: 12,
+    },
+    liveBadgeTextLive: {
+        color: '#FFE7D3',
+    },
+    liveBadgeTextReplay: {
+        color: MUTED,
     },
 });
