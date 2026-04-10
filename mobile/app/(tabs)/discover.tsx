@@ -28,7 +28,7 @@ const DISCOVER_COPY = {
     heroTitle: 'Ton inspiration du jour',
     heroButtonLives: 'Voir les lives',
     heroButtonCategories: 'Explorer',
-    quickStats: 'En un coup d oeil',
+    quickStats: "En un coup d'oeil",
     statLives: 'Lives actifs',
     statCategories: 'Categories',
     statDishes: 'Plats tendance',
@@ -39,6 +39,8 @@ const DISCOVER_COPY = {
     quickPicks: 'Acces rapide',
     openCategory: 'Ouvrir la categorie',
     liveLabel: 'LIVE',
+    heroCountryDescription: (name: string, count: number) =>
+      `${name} attire ${count} live actuellement.`,
   },
   en: {
     loadError: 'Unable to load data',
@@ -58,6 +60,8 @@ const DISCOVER_COPY = {
     quickPicks: 'Quick picks',
     openCategory: 'Open category',
     liveLabel: 'LIVE',
+    heroCountryDescription: (name: string, count: number) =>
+      `${name} is drawing ${count} ${count === 1 ? 'live' : 'lives'} right now.`,
   },
 } as const;
 
@@ -133,7 +137,10 @@ export default function DiscoverScreen() {
           <Text style={styles.heroTitle}>{copy.heroTitle}</Text>
           <Text style={styles.heroDescription}>
             {data?.trending_country
-              ? `${data.trending_country.name} attire ${data.trending_country.live_count || 0} ${copy.liveLabel.toLowerCase()} actuellement.`
+              ? copy.heroCountryDescription(
+                  data.trending_country.name,
+                  data.trending_country.live_count || 0,
+                )
               : copy.subtitle}
           </Text>
 
