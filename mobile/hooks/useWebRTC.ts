@@ -3,9 +3,11 @@ import { Platform } from 'react-native';
 import {
     createRoom,
     disconnectRoom,
+    fetchRenegotiationOffer,
     reserveRoom,
     sendICECandidate,
     sendOffer,
+    sendRenegotiationAnswer,
 } from '../services/streaming';
 import {
     mediaDevices,
@@ -126,6 +128,8 @@ export function useWebRTC(): UseWebRTCReturn {
     const roomIdRef = useRef<string | null>(null);
     const iceCandidateQueue = useRef<RTCIceCandidate[]>([]);
     const remoteStreamsRef = useRef<Map<string, any>>(new Map());
+    const renegotiationInFlightRef = useRef(false);
+    const renegotiationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const getRenderableStreams = useCallback(() => {
         const streams = Array.from(remoteStreamsRef.current.values());
@@ -143,6 +147,63 @@ export function useWebRTC(): UseWebRTCReturn {
             );
         }
     }, []);
+
+    const pollRenegotiationOffer = useCallback(async () => {
+        if (renegotiationInFlightRef.current) {
+            return;
+        }
+
+        const pc = pcRef.current;
+        const currentRoomId = roomIdRef.current;
+        if (!pc || !currentRoomId) {
+            return;
+        }
+
+        renegotiationInFlightRef.current = true;
+        try {
+            const pendingOffer = await fetchRenegotiationOffer(currentRoomId);
+            if (!pendingOffer) {
+                return;
+            }
+
+            const SessionDesc = RTCSessionDescription
+                ?? (typeof globalThis === 'undefined' ? undefined : (globalThis as any).RTCSessionDescription);
+            const inboundOffer = SessionDesc
+                ? new SessionDesc({ type: 'offer', sdp: pendingOffer.sdp })
+                : { type: 'offer', sdp: pendingOffer.sdp };
+            await pc.setRemoteDescription(inboundOffer as any);
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer as any);
+
+            const answerSdp = pc.localDescription?.sdp || answer.sdp || '';
+            if (!answerSdp) {
+                throw new Error('Renegotiation answer SDP is empty.');
+            }
+
+            await sendRenegotiationAnswer(currentRoomId, answerSdp);
+        } catch (err) {
+            console.warn('renegotiation poll/apply failed:', err);
+        } finally {
+            renegotiationInFlightRef.current = false;
+        }
+    }, []);
+
+    const stopRenegotiationPolling = useCallback(() => {
+        if (renegotiationPollRef.current) {
+            clearInterval(renegotiationPollRef.current);
+            renegotiationPollRef.current = null;
+        }
+        renegotiationInFlightRef.current = false;
+    }, []);
+
+    const startRenegotiationPolling = useCallback(() => {
+        stopRenegotiationPolling();
+        renegotiationPollRef.current = setInterval(() => {
+            void pollRenegotiationOffer();
+        }, 1200);
+        void pollRenegotiationOffer();
+    }, [pollRenegotiationOffer, stopRenegotiationPolling]);
 
     // Acquire camera + mic
     const getLocalMedia = useCallback(async (): Promise<MediaStream> => {
@@ -346,13 +407,14 @@ export function useWebRTC(): UseWebRTCReturn {
 
                 // 4. SDP exchange
                 await negotiate(pc, newRoomId);
+                startRenegotiationPolling();
             } catch (err: any) {
                 console.error('startLive error:', err);
                 setError(err.message || 'Failed to start live');
                 setState('error');
             }
         },
-        [ensureNativeWebRTC, getLocalMedia, createPeerConnection, negotiate]
+        [ensureNativeWebRTC, getLocalMedia, createPeerConnection, negotiate, startRenegotiationPolling]
     );
 
     const joinAsCoStreamer = useCallback(
@@ -376,16 +438,19 @@ export function useWebRTC(): UseWebRTCReturn {
 
                 // 4. SDP exchange
                 await negotiate(pc, targetRoomId);
+                startRenegotiationPolling();
             } catch (err: any) {
                 console.error('joinAsCoStreamer error:', err);
                 setError(err.message || 'Failed to join stream');
                 setState('error');
             }
         },
-        [ensureNativeWebRTC, getLocalMedia, createPeerConnection, negotiate]
+        [ensureNativeWebRTC, getLocalMedia, createPeerConnection, negotiate, startRenegotiationPolling]
     );
 
     const stopLive = useCallback(async () => {
+        stopRenegotiationPolling();
+
         // Close peer connection
         if (pcRef.current) {
             pcRef.current.close();
@@ -413,17 +478,18 @@ export function useWebRTC(): UseWebRTCReturn {
         roomIdRef.current = null;
         setState('idle');
         setError(null);
-    }, [localStream]);
+    }, [localStream, stopRenegotiationPolling]);
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
+            stopRenegotiationPolling();
             if (pcRef.current) {
                 pcRef.current.close();
             }
             remoteStreamsRef.current.clear();
         };
-    }, []);
+    }, [stopRenegotiationPolling]);
 
     return {
         state,
