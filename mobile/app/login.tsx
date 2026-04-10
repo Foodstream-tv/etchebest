@@ -12,6 +12,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from 'react-native';
 
@@ -126,6 +127,8 @@ export default function LoginScreen() {
 function LoginScreenContent() {
     const { locale } = useI18n();
     const copy = LOGIN_COPY[locale];
+    const { height } = useWindowDimensions();
+    const useCompactHero = height < 830;
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -266,31 +269,31 @@ function LoginScreenContent() {
             </View>
 
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[styles.scrollContent, useCompactHero && styles.scrollContentCompact]}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                <View style={styles.heroSection}>
-                    <View style={styles.brandRow}>
-                        <Image source={require('@/assets/images/logo.png')} style={styles.brandLogo} resizeMode="cover" />
-                        <Text style={styles.brandTitle}>
+                <View style={[styles.heroSection, useCompactHero && styles.heroSectionCompact]}>
+                    <View style={[styles.brandRow, useCompactHero && styles.brandRowCompact]}>
+                        <Image source={require('@/assets/images/logo.png')} style={[styles.brandLogo, useCompactHero && styles.brandLogoCompact]} resizeMode="cover" />
+                        <Text style={[styles.brandTitle, useCompactHero && styles.brandTitleCompact]}>
                             foodstream
                             <Text style={styles.brandTitleAccent}>.tv</Text>
                         </Text>
                     </View>
 
-                    <Text style={styles.heroHeadline}>
+                    <Text style={[styles.heroHeadline, useCompactHero && styles.heroHeadlineCompact]}>
                         {copy.headlineTop}{"\n"}
                         {copy.headlineMiddle}{"\n"}
                         <Text style={styles.heroHeadlineAccent}>{copy.headlineAccent}</Text>
                     </Text>
 
-                    <Text style={styles.heroDescription}>
+                    <Text style={[styles.heroDescription, useCompactHero && styles.heroDescriptionCompact]}>
                         {copy.heroDescription}
                     </Text>
                 </View>
 
-                <View style={styles.card}>
+                <View style={[styles.card, useCompactHero && styles.cardCompact]}>
                     <Text style={styles.sectionLabel}>{copy.sectionLabel}</Text>
 
                     {!!apiError && (
@@ -466,14 +469,24 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 54 : 36,
         paddingBottom: 26,
     },
+    scrollContentCompact: {
+        paddingTop: Platform.OS === 'ios' ? 42 : 28,
+        paddingBottom: 18,
+    },
     heroSection: {
         marginBottom: 20,
         paddingHorizontal: 0,
+    },
+    heroSectionCompact: {
+        marginBottom: 12,
     },
     brandRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 18,
+    },
+    brandRowCompact: {
+        marginBottom: 12,
     },
     brandLogo: {
         width: 46,
@@ -481,11 +494,19 @@ const styles = StyleSheet.create({
         borderRadius: 999,
         marginRight: 12,
     },
+    brandLogoCompact: {
+        width: 40,
+        height: 40,
+        marginRight: 10,
+    },
     brandTitle: {
         color: '#F5EFE8',
         fontSize: 22,
         fontWeight: '800',
         letterSpacing: 0.2,
+    },
+    brandTitleCompact: {
+        fontSize: 20,
     },
     brandTitleAccent: {
         color: '#FF7A1A',
@@ -497,6 +518,10 @@ const styles = StyleSheet.create({
         fontFamily: brandHeadlineFont,
         fontWeight: '700',
     },
+    heroHeadlineCompact: {
+        fontSize: 28,
+        lineHeight: 36,
+    },
     heroHeadlineAccent: {
         color: '#FF7A1A',
         fontStyle: 'italic',
@@ -507,6 +532,11 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 22,
         maxWidth: 352,
+    },
+    heroDescriptionCompact: {
+        marginTop: 12,
+        fontSize: 14,
+        lineHeight: 20,
     },
     card: {
         marginTop: 4,
@@ -524,6 +554,9 @@ const styles = StyleSheet.create({
             radius: 28,
             elevation: 16,
         }),
+    },
+    cardCompact: {
+        marginTop: 0,
     },
     sectionLabel: {
         color: 'rgba(248, 241, 233, 0.58)',

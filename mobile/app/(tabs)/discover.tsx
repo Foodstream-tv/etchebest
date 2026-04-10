@@ -24,20 +24,44 @@ const DISCOVER_COPY = {
   fr: {
     loadError: 'Impossible de charger les donnees',
     title: 'Decouvrir',
+    subtitle: 'Trouve ton prochain live, une idee de plat et une categorie a explorer.',
+    heroTitle: 'Ton inspiration du jour',
+    heroButtonLives: 'Voir les lives',
+    heroButtonCategories: 'Explorer',
+    quickStats: "En un coup d'oeil",
+    statLives: 'Lives actifs',
+    statCategories: 'Categories',
+    statDishes: 'Plats tendance',
     trendingCountry: 'Pays tendance 🔥',
     categories: 'Categories',
     seeAll: 'Voir tout',
     topDishes: 'Plats populaires 🍲',
+    quickPicks: 'Acces rapide',
+    openCategory: 'Ouvrir la categorie',
     liveLabel: 'LIVE',
+    heroCountryDescription: (name: string, count: number) =>
+      `${name} attire ${count} live actuellement.`,
   },
   en: {
     loadError: 'Unable to load data',
     title: 'Discover',
+    subtitle: 'Find your next live stream, dish idea, and category to explore.',
+    heroTitle: 'Your daily inspiration',
+    heroButtonLives: 'See live rooms',
+    heroButtonCategories: 'Explore',
+    quickStats: 'At a glance',
+    statLives: 'Active lives',
+    statCategories: 'Categories',
+    statDishes: 'Trending dishes',
     trendingCountry: 'Trending country 🔥',
     categories: 'Categories',
     seeAll: 'See all',
     topDishes: 'Popular dishes 🍲',
+    quickPicks: 'Quick picks',
+    openCategory: 'Open category',
     liveLabel: 'LIVE',
+    heroCountryDescription: (name: string, count: number) =>
+      `${name} is drawing ${count} ${count === 1 ? 'live' : 'lives'} right now.`,
   },
 } as const;
 
@@ -49,6 +73,11 @@ export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+
+  const totalLiveCount =
+    data?.categories?.reduce((sum, category) => sum + (category.live_count || 0), 0) ??
+    data?.trending_country?.live_count ??
+    0;
 
   const fetchData = async () => {
     try {
@@ -89,10 +118,95 @@ export default function DiscoverScreen() {
       }
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{copy.title}</Text>
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.headerTitle}>{copy.title}</Text>
+          <Text style={styles.headerSubtitle}>{copy.subtitle}</Text>
+        </View>
         <TouchableOpacity style={styles.searchButton}>
           <Ionicons name="search" size={24} color={brandTheme.colors.text} />
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.heroSection}>
+        <LinearGradient
+          colors={['rgba(249, 115, 22, 0.2)', 'rgba(255, 255, 255, 0.03)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
+        >
+          <Text style={styles.heroTitle}>{copy.heroTitle}</Text>
+          <Text style={styles.heroDescription}>
+            {data?.trending_country
+              ? copy.heroCountryDescription(
+                  data.trending_country.name,
+                  data.trending_country.live_count || 0,
+                )
+              : copy.subtitle}
+          </Text>
+
+          <View style={styles.heroActions}>
+            <TouchableOpacity
+              style={[styles.heroButton, styles.heroButtonPrimary]}
+              onPress={() => router.push('/live-rooms')}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="play-circle-outline" size={16} color={brandTheme.colors.text} />
+              <Text style={styles.heroButtonText}>{copy.heroButtonLives}</Text>
+            </TouchableOpacity>
+
+            {data?.trending_country && (
+              <TouchableOpacity
+                style={styles.heroButton}
+                onPress={() => router.push(`/category/${data.trending_country.id}`)}
+                activeOpacity={0.9}
+              >
+                <Ionicons name="grid-outline" size={16} color={brandTheme.colors.text} />
+                <Text style={styles.heroButtonText}>{copy.heroButtonCategories}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </LinearGradient>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{copy.quickStats}</Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Ionicons name="radio-outline" size={16} color={brandTheme.colors.orange} />
+            <Text style={styles.statValue}>{totalLiveCount}</Text>
+            <Text style={styles.statLabel}>{copy.statLives}</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="layers-outline" size={16} color={brandTheme.colors.orange} />
+            <Text style={styles.statValue}>{data?.categories?.length ?? 0}</Text>
+            <Text style={styles.statLabel}>{copy.statCategories}</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="flame-outline" size={16} color={brandTheme.colors.orange} />
+            <Text style={styles.statValue}>{data?.top_dishes?.length ?? 0}</Text>
+            <Text style={styles.statLabel}>{copy.statDishes}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{copy.quickPicks}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickPicksList}>
+          {data?.categories?.slice(0, 5).map((category) => (
+            <TouchableOpacity
+              key={`pick-${category.id}`}
+              style={styles.quickPickCard}
+              onPress={() => router.push(`/category/${category.id}`)}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.quickPickTitle}>{category.name}</Text>
+              <Text style={styles.quickPickMeta}>{category.live_count || 0} {copy.liveLabel}</Text>
+              <Text style={styles.quickPickCta}>{copy.openCategory}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Trending Country Section */}
@@ -208,16 +322,26 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#120c08',
+  },
+  headerTextWrap: {
+    flex: 1,
+    paddingRight: 12,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
     color: brandTheme.colors.text,
+  },
+  headerSubtitle: {
+    marginTop: 6,
+    color: brandTheme.colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
   },
   searchButton: {
     width: 44,
@@ -229,9 +353,111 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  heroSection: {
+    paddingHorizontal: 20,
+    marginTop: 8,
+  },
+  heroCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: brandTheme.colors.border,
+    backgroundColor: brandTheme.colors.surface,
+    padding: 16,
+  },
+  heroTitle: {
+    color: brandTheme.colors.text,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  heroDescription: {
+    marginTop: 8,
+    color: brandTheme.colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  heroActions: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  heroButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: brandTheme.colors.border,
+    backgroundColor: brandTheme.colors.surfaceStrong,
+  },
+  heroButtonPrimary: {
+    borderColor: 'rgba(249, 115, 22, 0.42)',
+    backgroundColor: 'rgba(249, 115, 22, 0.16)',
+  },
+  heroButtonText: {
+    color: brandTheme.colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   section: {
     marginTop: 24,
     paddingHorizontal: 20,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: brandTheme.colors.border,
+    borderRadius: 14,
+    backgroundColor: brandTheme.colors.surface,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  statValue: {
+    color: brandTheme.colors.text,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  statLabel: {
+    color: brandTheme.colors.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  quickPicksList: {
+    paddingRight: 20,
+  },
+  quickPickCard: {
+    width: 170,
+    marginRight: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: brandTheme.colors.border,
+    backgroundColor: brandTheme.colors.surface,
+    padding: 12,
+  },
+  quickPickTitle: {
+    color: brandTheme.colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  quickPickMeta: {
+    marginTop: 6,
+    color: brandTheme.colors.orange,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  quickPickCta: {
+    marginTop: 10,
+    color: brandTheme.colors.muted,
+    fontSize: 11,
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
