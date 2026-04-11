@@ -4,57 +4,72 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
-  type ReactNode,
 } from "react";
 
 export type Theme = "light" | "dark";
 
-type ThemeContextType = {
-  theme: Theme;
-  toggleTheme: () => void;
-  setTheme: (t: Theme) => void;
+type ThemeProviderProps = {
+  initialTheme: Theme;
+  children: React.ReactNode;
 };
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+type ThemeContextValue = {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
+};
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+function setThemeCookie(theme: Theme) {
+  document.cookie = `theme=${theme}; path=/; max-age=31536000; samesite=lax`;
+}
+
+function applyThemeToDocument(theme: Theme) {
+  const html = document.documentElement;
+
+  if (theme === "dark") {
+    html.classList.add("dark");
+  } else {
+    html.classList.remove("dark");
+  }
+}
 
 export function ThemeProvider({
   initialTheme,
   children,
-}: {
-  initialTheme: Theme;
-  children: ReactNode;
-}) {
+}: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(initialTheme);
 
   useEffect(() => {
-    const root = document.documentElement; // ✅ <html>
-
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-
-    // ✅ cookie global (1 an)
-    document.cookie = `theme=${theme}; path=/; max-age=31536000; SameSite=Lax`;
+    applyThemeToDocument(theme);
+    setThemeCookie(theme);
   }, [theme]);
 
-  const setTheme = (t: Theme) => setThemeState(t);
-  const toggleTheme = () =>
-    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      theme,
+      setTheme: (nextTheme: Theme) => {
+        setThemeState(nextTheme);
+      },
+      toggleTheme: () => {
+        setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+      },
+    }),
+    [theme]
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error("useTheme must be used inside ThemeProvider");
+  const context = useContext(ThemeContext);
+
+  if (!context) {
+    throw new Error("useTheme must be used within ThemeProvider");
   }
-  return ctx;
+
+  return context;
 }

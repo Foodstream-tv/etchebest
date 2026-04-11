@@ -7,7 +7,7 @@ import HomeFooter from "@/components/home/HomeFooter";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen w-full bg-neutral-50 dark:bg-neutral-950">
+    <main className="min-h-screen w-full">
 
       <PageContainer className="py-6 lg:py-8">
         <HomeHero />
