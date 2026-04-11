@@ -1,75 +1,96 @@
 "use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
-import Input from "@/components/Form/Input";
-import AuthBackground from "@/components/AuthBackground";
+import AuthCard from "@/components/auth/AuthCard";
+import TextField from "@/components/auth/TextField";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setLoading(true);
+
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/forgot-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: email.trim().toLowerCase() }),
         }
       );
-      if (!res.ok) throw new Error("Envoi impossible");
+
+      if (!res.ok) {
+        throw new Error("Envoi impossible.");
+      }
+
       setSent(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <AuthBackground>
-      <section className="mx-auto flex w-full max-w-md flex-col px-5 py-6">
-        <h1 className="text-center text-xl font-medium text-white/90">
-          Mot de passe oublié
-        </h1>
+    <AuthCard
+      label="Réinitialisation"
+      title={sent ? "Email envoyé" : "Mot de passe oublié"}
+      subtitle={
+        sent
+          ? "Vérifiez votre boîte mail pour réinitialiser votre mot de passe."
+          : "Entrez votre adresse e-mail pour recevoir un lien de réinitialisation."
+      }
+      bottomText="Vous vous souvenez de votre mot de passe ?"
+      bottomLinkHref="/signin"
+      bottomLinkLabel="Connexion"
+    >
+      {!sent ? (
+        <form onSubmit={onSubmit} className="space-y-4">
+          <TextField
+            icon={Mail}
+            value={email}
+            onChange={setEmail}
+            placeholder="Adresse e-mail"
+            type="email"
+            autoComplete="email"
+            required
+            disabled={loading}
+          />
 
-        <div className="mt-6 rounded-3xl bg-white/85 p-5 shadow-xl backdrop-blur-md">
-          <h2 className="mb-4 text-center text-2xl font-semibold">
-            Réinitialisation
-          </h2>
+          {error ? <p className="text-sm font-medium text-red-500">{error}</p> : null}
 
-          {sent ? (
-            <p className="text-center text-sm">
-              Si un compte existe pour <strong>{email}</strong>, un e-mail de
-              réinitialisation a été envoyé.
-            </p>
-          ) : (
-            <form onSubmit={onSubmit} className="space-y-4">
-              <Input
-                type="email"
-                required
-                placeholder="Adresse e-mail"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                icon={<Mail className="h-5 w-5 text-gray-600" />}
-              />
-              {error && <p className="text-sm text-red-600">{error}</p>}
-              <button type="submit" className="btn-primary">
-                Envoyer le lien
-              </button>
-            </form>
-          )}
-
-          <div className="mt-5 text-center text-sm">
-            <Link href="/signin" className="text-gray-700 underline">
-              Retour à la connexion
-            </Link>
-          </div>
+          <button
+            type="submit"
+            disabled={loading || !email.trim()}
+            className="auth-btn-primary"
+          >
+            {loading ? "Envoi…" : "Envoyer le lien"}
+          </button>
+        </form>
+      ) : (
+        <div className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+          Un email de réinitialisation a été envoyé.
         </div>
-      </section>
-    </AuthBackground>
+      )}
+
+      {!sent ? (
+        <div className="mt-5 text-center">
+          <Link
+            href="/signin"
+            className="text-sm font-medium text-orange-500 transition hover:text-orange-400 hover:underline"
+          >
+            Retour à la connexion
+          </Link>
+        </div>
+      ) : null}
+    </AuthCard>
   );
 }

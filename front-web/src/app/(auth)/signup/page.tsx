@@ -1,45 +1,50 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Mail, User } from "lucide-react";
+import { Mail, User, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AuthCard from "@/components/auth/AuthCard";
 import PasswordField from "@/components/auth/PasswordField";
-import PhoneField, { COUNTRY_CODES, type CountryCode } from "@/components/auth/PhoneField";
-import { useAuth } from "@/lib/useAuth";
+import PhoneField, {
+  COUNTRY_CODES,
+  type CountryCode,
+} from "@/components/auth/PhoneField";
+import TextField from "@/components/auth/TextField";
+import TextAreaField from "@/components/auth/TextAreaField";
+import OAuthButton from "@/components/auth/OAuthButton";
 import { useAuthSubmit } from "@/lib/useAuthSubmit";
 
-type AuthResponse = {
-  token: string;
-  user: {
+type RegisterResponse = {
+  token?: string;
+  user?: {
     id: string;
     email: string;
     username: string;
   };
 };
 
-function isValidEmail(v: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function minLen(v: string, n: number) {
-  return v.trim().length >= n;
+function minLen(value: string, min: number) {
+  return value.trim().length >= min;
 }
 
-function inRange(v: string, min: number, max: number) {
-  const len = v.trim().length;
+function inRange(value: string, min: number, max: number) {
+  const len = value.trim().length;
   return len >= min && len <= max;
 }
 
-function isValidPhone(v: string) {
-  const digits = v.replace(/[^\d]/g, "");
+function isValidPhone(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
   return digits.length >= 6 && digits.length <= 15;
 }
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { setAuth } = useAuth();
-  const { submit, loading, error, setError } = useAuthSubmit<AuthResponse>();
+  const { submit, loading, error, setError } = useAuthSubmit<RegisterResponse>();
+
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -61,18 +66,46 @@ export default function SignUpPage() {
     );
   }, [email, firstName, lastName, username, password, description, phoneNumber]);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
 
-    if (!isValidEmail(email)) return setError("Email invalide");
-    if (!minLen(firstName, 2)) return setError("Le prénom doit faire au moins 2 caractères");
-    if (!minLen(lastName, 2)) return setError("Le nom doit faire au moins 2 caractères");
-    if (!minLen(username, 3)) return setError("L'identifiant doit faire au moins 3 caractères");
-    if (password.length < 6) return setError("Le mot de passe doit faire au moins 6 caractères");
-    if (!inRange(description, 10, 500)) return setError("La description doit faire entre 10 et 500 caractères");
-    if (!isValidPhone(phoneNumber)) return setError("Numéro de téléphone invalide");
+    if (!isValidEmail(email)) {
+      setError("Email invalide.");
+      return;
+    }
 
-    const payload = {
+    if (!minLen(firstName, 2)) {
+      setError("Le prénom doit faire au moins 2 caractères.");
+      return;
+    }
+
+    if (!minLen(lastName, 2)) {
+      setError("Le nom doit faire au moins 2 caractères.");
+      return;
+    }
+
+    if (!minLen(username, 3)) {
+      setError("L'identifiant doit faire au moins 3 caractères.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Le mot de passe doit faire au moins 6 caractères.");
+      return;
+    }
+
+    if (!inRange(description, 10, 500)) {
+      setError("La description doit faire entre 10 et 500 caractères.");
+      return;
+    }
+
+    if (!isValidPhone(phoneNumber)) {
+      setError("Numéro de téléphone invalide.");
+      return;
+    }
+
+    await submit("/register", {
       email: email.trim().toLowerCase(),
       password,
       username: username.trim(),
@@ -82,108 +115,109 @@ export default function SignUpPage() {
       countryNumberPhone: countryCode.value,
       numberPhone: phoneNumber.trim(),
       profileImage: "",
-    };
+    });
 
-    const data = await submit("/register", payload);
     router.replace("/signin");
   }
 
   return (
     <AuthCard
       label="Inscription"
-      title="Bienvenue"
+      title="Créer un compte"
+      subtitle="Rejoignez FoodStream et personnalisez votre profil."
       bottomText="Vous avez déjà un compte ?"
       bottomLinkHref="/signin"
-      bottomLinkLabel="CONNECTEZ-VOUS"
+      bottomLinkLabel="Connectez-vous"
     >
       <form onSubmit={onSubmit} className="space-y-4">
-        {/* Email */}
-        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-          <Mail className="h-5 w-5 text-gray-600" />
-          <input
-            className="input"
-            type="email"
-            placeholder="Adresse e-mail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-        </div>
+        <TextField
+          icon={Mail}
+          value={email}
+          onChange={setEmail}
+          placeholder="Adresse e-mail"
+          type="email"
+          autoComplete="email"
+          required
+          disabled={loading}
+        />
 
-        {/* Prénom */}
-        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-          <User className="h-5 w-5 text-gray-600" />
-          <input
-            className="input"
-            placeholder="Prénom"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            autoComplete="given-name"
-            required
-          />
-        </div>
+        <TextField
+          icon={User}
+          value={firstName}
+          onChange={setFirstName}
+          placeholder="Prénom"
+          autoComplete="given-name"
+          required
+          disabled={loading}
+        />
 
-        {/* Nom */}
-        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-          <User className="h-5 w-5 text-gray-600" />
-          <input
-            className="input"
-            placeholder="Nom"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            autoComplete="family-name"
-            required
-          />
-        </div>
+        <TextField
+          icon={User}
+          value={lastName}
+          onChange={setLastName}
+          placeholder="Nom"
+          autoComplete="family-name"
+          required
+          disabled={loading}
+        />
 
-        {/* Username */}
-        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-          <User className="h-5 w-5 text-gray-600" />
-          <input
-            className="input"
-            placeholder="Identifiant"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="nickname"
-            required
-          />
-        </div>
+        <TextField
+          icon={User}
+          value={username}
+          onChange={setUsername}
+          placeholder="Identifiant"
+          autoComplete="nickname"
+          required
+          disabled={loading}
+        />
 
-        {/* Password */}
         <PasswordField
           value={password}
           onChange={setPassword}
           placeholder="Mot de passe"
           autoComplete="new-password"
+          disabled={loading}
         />
 
-        {/* Phone with country code */}
         <PhoneField
           country={countryCode}
           onCountryChange={setCountryCode}
           phone={phoneNumber}
           onPhoneChange={setPhoneNumber}
+          disabled={loading}
         />
 
-        {/* Description */}
-        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-          <User className="h-5 w-5 text-gray-600" />
-          <textarea
-            className="input min-h-[96px] resize-y py-2"
-            placeholder="Parlez-nous de vous… (10 à 500 caractères)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-          />
-        </div>
+        <TextAreaField
+          icon={FileText}
+          value={description}
+          onChange={setDescription}
+          placeholder="Parlez-nous de vous… (10 à 500 caractères)"
+          required
+          disabled={loading}
+          maxLength={500}
+        />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error ? <p className="text-sm font-medium text-red-500">{error}</p> : null}
 
-        <button type="submit" disabled={loading || !canSubmit} className="btn-primary">
-          {loading ? "Création…" : "Inscription"}
+        <button
+          type="submit"
+          disabled={loading || !canSubmit}
+          className="auth-btn-primary"
+        >
+          {loading ? "Création…" : "S'inscrire"}
         </button>
       </form>
+
+      <div className="my-5 flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+        <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
+        <span>ou</span>
+        <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
+      </div>
+
+      <div className="space-y-3">
+        <OAuthButton provider="google" disabled={loading} />
+        <OAuthButton provider="apple" disabled={loading} />
+      </div>
     </AuthCard>
   );
 }

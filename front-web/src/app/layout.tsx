@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { cookies } from "next/headers";
+import { Inter } from "next/font/google";
 import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
+import AppBackground from "@/components/layout/AppBackground";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "FoodStream",
@@ -18,9 +26,14 @@ export default async function RootLayout({
   const initialTheme: Theme = cookieTheme === "dark" ? "dark" : "light";
 
   return (
-    <html lang="fr" className={initialTheme === "dark" ? "dark" : ""}>
-      <body className="bg-neutral-50 text-gray-900 dark:bg-neutral-950 dark:text-gray-50">
-        <ThemeProvider initialTheme={initialTheme}>{children}</ThemeProvider>
+    <html
+      lang="fr"
+      className={`${inter.variable} ${initialTheme === "dark" ? "dark" : ""}`}
+    >
+      <body className="min-h-screen text-gray-900 dark:text-gray-50">
+        <ThemeProvider initialTheme={initialTheme}>
+          <AppBackground>{children}</AppBackground>
+        </ThemeProvider>
       </body>
     </html>
   );
