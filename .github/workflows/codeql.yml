@@ -1,0 +1,109 @@
+name: CodeQL
+
+on:
+    push:
+        branches: [main, dev]
+    pull_request:
+        branches: [main, dev]
+    schedule:
+        - cron: "17 3 * * 1"
+
+permissions:
+    actions: read
+    contents: read
+    security-events: write
+
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+    analyze:
+        name: Analyze (${{ matrix.language }})
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 75
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - language: javascript-typescript
+                      runner: ubuntu-latest
+                      build_mode: none
+                    - language: go
+                      runner: ubuntu-latest
+                      build_mode: manual
+                    - language: swift
+                      runner: macos-15
+                      build_mode: manual
+                    - language: java-kotlin
+                      runner: ubuntu-latest
+                      build_mode: manual
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              if: matrix.language == 'swift' || matrix.language == 'java-kotlin'
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: npm
+                  cache-dependency-path: mobile/package-lock.json
+
+            - name: Install mobile dependencies
+              if: matrix.language == 'swift' || matrix.language == 'java-kotlin'
+              run: npm ci
+              working-directory: mobile
+
+            - name: Setup Java
+              if: matrix.language == 'java-kotlin'
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: "17"
+
+            - name: Initialize CodeQL
+              uses: github/codeql-action/init@v3
+              with:
+                  languages: ${{ matrix.language }}
+                  build-mode: ${{ matrix.build_mode }}
+
+            - name: Setup Go
+              if: matrix.language == 'go'
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.25.2
+                  cache-dependency-path: backend/go.sum
+
+            - name: Build Go backend
+              if: matrix.language == 'go'
+              run: go build ./...
+              working-directory: backend
+
+            - name: Install iOS pods
+              if: matrix.language == 'swift'
+              run: pod install --project-directory=mobile/ios
+
+            - name: Build iOS app
+              if: matrix.language == 'swift'
+              run: |
+                  xcodebuild \
+                    -workspace mobile/ios/foodstream.xcworkspace \
+                    -scheme foodstream \
+                    -configuration Debug \
+                    -sdk iphonesimulator \
+                    -destination 'generic/platform=iOS Simulator' \
+                    CODE_SIGNING_ALLOWED=NO \
+                    build
+
+            - name: Build Android app
+              if: matrix.language == 'java-kotlin'
+              run: |
+                  cd mobile/android
+                  chmod +x ./gradlew
+                  ./gradlew assembleDebug --no-daemon -x lint -x test
+
+            - name: Perform CodeQL analysis
+              uses: github/codeql-action/analyze@v3
+              with:
+                  category: /language:${{ matrix.language }}
