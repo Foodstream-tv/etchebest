@@ -66,10 +66,10 @@ jobs:
               }
             } catch (error) {
               core.warning(
-                `Unable to read repository CodeQL default setup state (${error.message}). Continuing advanced workflow.`
+                `Unable to read repository CodeQL default setup state (${error.message}). Defaulting to skip advanced workflow to avoid SARIF upload conflicts.`
               );
               core.setOutput('state', 'check_failed');
-              core.setOutput('enabled', 'false');
+              core.setOutput('enabled', 'true');
             }
 
       - name: Skip advanced CodeQL because default setup is enabled
