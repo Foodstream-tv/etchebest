@@ -1,109 +1,148 @@
 name: CodeQL
 
 on:
-    push:
-        branches: [main, dev]
-    pull_request:
-        branches: [main, dev]
-    schedule:
-        - cron: "17 3 * * 1"
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    - cron: "17 3 * * 1"
 
 permissions:
-    actions: read
-    contents: read
-    security-events: write
+  actions: read
+  contents: read
+  security-events: write
 
 env:
-    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-    analyze:
-        name: Analyze (${{ matrix.language }})
-        runs-on: ${{ matrix.runner }}
-        timeout-minutes: 75
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - language: javascript-typescript
-                      runner: ubuntu-latest
-                      build_mode: none
-                    - language: go
-                      runner: ubuntu-latest
-                      build_mode: manual
-                    - language: swift
-                      runner: macos-15
-                      build_mode: manual
-                    - language: java-kotlin
-                      runner: ubuntu-latest
-                      build_mode: manual
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            runner: ubuntu-latest
+            build_mode: none
+          - language: go
+            runner: ubuntu-latest
+            build_mode: manual
+          - language: swift
+            runner: macos-15
+            build_mode: manual
+          - language: java-kotlin
+            runner: ubuntu-latest
+            build_mode: manual
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Setup Node.js
-              if: matrix.language == 'swift' || matrix.language == 'java-kotlin'
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "20"
-                  cache: npm
-                  cache-dependency-path: mobile/package-lock.json
+      - name: Detect conflicting CodeQL default setup
+        id: default_setup
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const { data } = await github.request('GET /repos/{owner}/{repo}/code-scanning/default-setup', {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
 
-            - name: Install mobile dependencies
-              if: matrix.language == 'swift' || matrix.language == 'java-kotlin'
-              run: npm ci
-              working-directory: mobile
+              const state = data?.state ?? 'unknown';
+              const enabled = state !== 'not-configured';
 
-            - name: Setup Java
-              if: matrix.language == 'java-kotlin'
-              uses: actions/setup-java@v4
-              with:
-                  distribution: temurin
-                  java-version: "17"
+              core.setOutput('state', state);
+              core.setOutput('enabled', enabled ? 'true' : 'false');
 
-            - name: Initialize CodeQL
-              uses: github/codeql-action/init@v3
-              with:
-                  languages: ${{ matrix.language }}
-                  build-mode: ${{ matrix.build_mode }}
+              if (enabled) {
+                core.warning(
+                  'Repository CodeQL default setup is enabled. Skipping this advanced workflow to avoid SARIF upload conflicts.'
+                );
+              }
+            } catch (error) {
+              core.warning(
+                `Unable to read repository CodeQL default setup state (${error.message}). Defaulting to skip advanced workflow to avoid SARIF upload conflicts.`
+              );
+              core.setOutput('state', 'check_failed');
+              core.setOutput('enabled', 'true');
+            }
 
-            - name: Setup Go
-              if: matrix.language == 'go'
-              uses: actions/setup-go@v5
-              with:
-                  go-version: 1.25.2
-                  cache-dependency-path: backend/go.sum
+      - name: Skip advanced CodeQL because default setup is enabled
+        if: steps.default_setup.outputs.enabled == 'true'
+        run: |
+          echo "Advanced CodeQL workflow skipped because repository default setup is enabled."
+          echo "Disable default setup in Security > Code scanning if you want this advanced workflow to upload SARIF."
 
-            - name: Build Go backend
-              if: matrix.language == 'go'
-              run: go build ./...
-              working-directory: backend
+      - name: Setup Node.js
+        if: steps.default_setup.outputs.enabled != 'true' && (matrix.language == 'swift' || matrix.language == 'java-kotlin')
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
 
-            - name: Install iOS pods
-              if: matrix.language == 'swift'
-              run: pod install --project-directory=mobile/ios
+      - name: Install mobile dependencies
+        if: steps.default_setup.outputs.enabled != 'true' && (matrix.language == 'swift' || matrix.language == 'java-kotlin')
+        run: npm ci
+        working-directory: mobile
 
-            - name: Build iOS app
-              if: matrix.language == 'swift'
-              run: |
-                  xcodebuild \
-                    -workspace mobile/ios/foodstream.xcworkspace \
-                    -scheme foodstream \
-                    -configuration Debug \
-                    -sdk iphonesimulator \
-                    -destination 'generic/platform=iOS Simulator' \
-                    CODE_SIGNING_ALLOWED=NO \
-                    build
+      - name: Setup Java
+        if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-            - name: Build Android app
-              if: matrix.language == 'java-kotlin'
-              run: |
-                  cd mobile/android
-                  chmod +x ./gradlew
-                  ./gradlew assembleDebug --no-daemon -x lint -x test
+      - name: Setup Go
+        if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.2
+          cache-dependency-path: backend/go.sum
 
-            - name: Perform CodeQL analysis
-              uses: github/codeql-action/analyze@v3
-              with:
-                  category: /language:${{ matrix.language }}
+      - name: Initialize CodeQL
+        if: steps.default_setup.outputs.enabled != 'true'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build_mode }}
+
+      - name: Build Go backend
+        if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'go'
+        run: go build ./...
+        working-directory: backend
+
+      - name: Install iOS pods
+        if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'swift'
+        run: pod install
+        working-directory: mobile/ios
+
+      - name: Build iOS app
+        if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'swift'
+        run: |
+          xcodebuild \
+            -workspace mobile/ios/foodstream.xcworkspace \
+            -scheme foodstream \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build Android app
+        if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'java-kotlin'
+        run: |
+          cd mobile/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon -x lint -x test
+
+      - name: Perform CodeQL analysis
+        if: steps.default_setup.outputs.enabled != 'true'
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
