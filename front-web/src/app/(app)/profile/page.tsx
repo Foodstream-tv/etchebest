@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Mail,
   LogOut,
@@ -11,6 +11,9 @@ import {
   ShieldCheck,
   Trophy,
   Star,
+  Pencil,
+  X,
+  Save,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -49,6 +52,13 @@ type ProfileTab =
   | "Médailles & Badges"
   | "Favoris";
 
+type UpdateProfilePayload = {
+  username?: string;
+  email?: string;
+  description?: string;
+  password?: string;
+};
+
 export default function ProfilePage() {
   const { user, token, signOut, ready } = useAuth();
 
@@ -67,10 +77,27 @@ export default function ProfilePage() {
   const [youtubeConnected, setYoutubeConnected] = useState(true);
   const [xConnected, setXConnected] = useState(false);
 
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editConfirmPassword, setEditConfirmPassword] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState("");
+
   useEffect(() => {
     if (!token) return;
     apiFetch<MeProfile>("/users/me", { token }).then(setProfile).catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!user) return;
+    setEditUsername(profile?.username || user.username || "");
+    setEditEmail(user.email || "");
+    setEditDescription(profile?.description || "");
+  }, [user, profile]);
 
   const stats = useMemo(
     () => ({
@@ -119,6 +146,99 @@ export default function ProfilePage() {
   const handleSignOut = () => {
     signOut();
     window.location.href = "/signin";
+  };
+
+  const openEditModal = () => {
+    setEditUsername(profile?.username || user.username || "");
+    setEditEmail(user.email || "");
+    setEditDescription(profile?.description || "");
+    setEditPassword("");
+    setEditConfirmPassword("");
+    setEditError("");
+    setEditSuccess("");
+    setIsEditOpen(true);
+  };
+
+  const closeEditModal = () => {
+    if (editLoading) return;
+    setIsEditOpen(false);
+    setEditError("");
+    setEditSuccess("");
+    setEditPassword("");
+    setEditConfirmPassword("");
+  };
+
+  const handleUpdateProfile = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setEditError("");
+    setEditSuccess("");
+
+    if (!editUsername.trim()) {
+      setEditError("Le pseudo est obligatoire.");
+      return;
+    }
+
+    if (!editEmail.trim()) {
+      setEditError("L’email est obligatoire.");
+      return;
+    }
+
+    if (editPassword && editPassword.length < 6) {
+      setEditError("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+
+    if (editPassword !== editConfirmPassword) {
+      setEditError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    const payload: UpdateProfilePayload = {
+      username: editUsername.trim(),
+      email: editEmail.trim(),
+      description: editDescription.trim(),
+    };
+
+    if (editPassword.trim()) {
+      payload.password = editPassword.trim();
+    }
+
+    try {
+      setEditLoading(true);
+
+      await apiFetch("/users/me", {
+        method: "PATCH",
+        token,
+        body: JSON.stringify(payload),
+      });
+
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              username: editUsername.trim(),
+              description: editDescription.trim(),
+            }
+          : prev
+      );
+
+      setEditSuccess("Profil mis à jour avec succès.");
+      setEditPassword("");
+      setEditConfirmPassword("");
+
+      setTimeout(() => {
+        setIsEditOpen(false);
+        setEditSuccess("");
+      }, 700);
+    } catch (error) {
+      setEditError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de mettre à jour le profil."
+      );
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   return (
@@ -192,7 +312,12 @@ export default function ProfilePage() {
                   ) : null}
                 </div>
 
-                <button className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400">
+                <button
+                  onClick={openEditModal}
+                  className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
+                  type="button"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
                   Modifier
                 </button>
               </div>
@@ -206,6 +331,7 @@ export default function ProfilePage() {
                 <button
                   onClick={handleSignOut}
                   className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-200"
+                  type="button"
                 >
                   <LogOut className="h-4 w-4" />
                   Déco
@@ -410,6 +536,135 @@ export default function ProfilePage() {
           </section>
         </div>
       </div>
+
+      {isEditOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-neutral-950">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Modifier le profil
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Mets à jour ton pseudo, ton email, ta description et ton mot de passe.
+                </p>
+              </div>
+
+              <button
+                onClick={closeEditModal}
+                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+                type="button"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-5 px-6 py-6">
+              {editError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+                  {editError}
+                </div>
+              ) : null}
+
+              {editSuccess ? (
+                <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-300">
+                  {editSuccess}
+                </div>
+              ) : null}
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                    Pseudo
+                  </label>
+                  <input
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    type="text"
+                    placeholder="Ton pseudo"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                    Email
+                  </label>
+                  <input
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    type="email"
+                    placeholder="email@foodstream.com"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                  Description
+                </label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={5}
+                  placeholder="Parle un peu de toi, de ta cuisine, de ton univers..."
+                  className="w-full resize-none rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                />
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                    Nouveau mot de passe
+                  </label>
+                  <input
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    type="password"
+                    placeholder="Laisser vide pour ne pas changer"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                    Confirmer le mot de passe
+                  </label>
+                  <input
+                    value={editConfirmPassword}
+                    onChange={(e) => setEditConfirmPassword(e.target.value)}
+                    type="password"
+                    placeholder="Retape le nouveau mot de passe"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-5 sm:flex-row sm:justify-end dark:border-gray-800">
+                <button
+                  onClick={closeEditModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                  Annuler
+                </button>
+
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="submit"
+                  disabled={editLoading}
+                >
+                  <Save className="h-4 w-4" />
+                  {editLoading ? "Enregistrement..." : "Enregistrer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <HomeFooter />
     </main>
