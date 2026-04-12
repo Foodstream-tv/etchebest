@@ -1,7 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as GoogleAuth from 'expo-auth-session/providers/google';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
@@ -19,26 +22,37 @@ import {
 import { brandHeadlineFont, brandTheme } from '@/constants/brandTheme';
 import { LanguageProvider, useI18n } from '@/contexts/LanguageContext';
 import { createShadowStyle } from '@/utils/shadow';
+import appConfig from '../config/env';
 import apiService from '../services/api';
 import { authService } from '../services/auth';
 import { validateEmail, validatePassword } from '../utils/validation';
 
-const isGoogleSignInSupported = Platform.OS !== 'web';
-const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+const isExpoGo =
+    Platform.OS !== 'web' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const isNativeGoogleSignInSupported = Platform.OS !== 'web' && !isExpoGo;
+const googleWebClientId = appConfig.googleClientId;
+const googleAndroidClientId = appConfig.googleAndroidClientId || googleWebClientId;
+const googleIosClientId = appConfig.googleIosClientId || googleWebClientId;
+const configuredGoogleRedirectUri = appConfig.googleRedirectUri.trim().replace(/\/+$/, '');
+const defaultGoogleWebRedirectUri =
+    Platform.OS === 'web' && globalThis.window !== undefined ? globalThis.window.location.origin : '';
+const defaultGoogleNativeRedirectUri =
+    Platform.OS === 'web' ? '' : makeRedirectUri({ scheme: 'foodstream', path: 'oauthredirect' });
+const googleRedirectUri =
+    Platform.OS === 'web'
+        ? configuredGoogleRedirectUri || defaultGoogleWebRedirectUri
+        : defaultGoogleNativeRedirectUri;
 
-if (isGoogleSignInSupported && googleWebClientId) {
-    GoogleSignin.configure({
-        webClientId: googleWebClientId,
-        offlineAccess: true,
-        forceCodeForRefreshToken: true,
-    });
-}
+WebBrowser.maybeCompleteAuthSession();
 
 type LoginCopy = {
     invalidEmail: string;
     invalidPassword: string;
     unknownError: string;
     googleNotSupported: string;
+    googleExpoGoUnsupported: string;
+    googleNotConfigured: string;
+    googlePromptUnavailable: string;
     googleTokenMissing: string;
     googleCancelled: string;
     googleInProgress: string;
@@ -66,7 +80,10 @@ const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
         invalidEmail: 'Email invalide',
         invalidPassword: 'Mot de passe invalide',
         unknownError: 'Desole, une erreur inattendue est survenue.',
-        googleNotSupported: 'Connexion Google non prise en charge sur le web.',
+        googleNotSupported: 'Connexion Google indisponible sur cet appareil.',
+        googleExpoGoUnsupported: 'Connexion Google non disponible dans Expo Go. Utilisez le web ou un build de developpement.',
+        googleNotConfigured: 'Configuration Google manquante. Verifiez EXPO_PUBLIC_GOOGLE_CLIENT_ID.',
+        googlePromptUnavailable: 'Connexion Google indisponible pour le moment. Reessayez.',
         googleTokenMissing: "Impossible de recuperer le jeton d'acces Google.",
         googleCancelled: 'Connexion annulee',
         googleInProgress: 'Connexion deja en cours',
@@ -92,7 +109,10 @@ const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
         invalidEmail: 'Invalid email',
         invalidPassword: 'Invalid password',
         unknownError: 'Sorry, an unexpected error occurred.',
-        googleNotSupported: 'Google sign-in is not supported on web.',
+        googleNotSupported: 'Google sign-in is unavailable on this device.',
+        googleExpoGoUnsupported: 'Google sign-in is not available in Expo Go. Use web or a development build.',
+        googleNotConfigured: 'Google OAuth is not configured. Check EXPO_PUBLIC_GOOGLE_CLIENT_ID.',
+        googlePromptUnavailable: 'Google sign-in is not ready yet. Please try again.',
         googleTokenMissing: 'Unable to retrieve Google access token.',
         googleCancelled: 'Sign in cancelled',
         googleInProgress: 'Sign in already in progress',
@@ -141,6 +161,15 @@ function LoginScreenContent() {
     const [apiError, setApiError] = useState<string | null>(null);
 
     const router = useRouter();
+    const [googleAuthRequest, , promptGoogleAuth] = GoogleAuth.useAuthRequest({
+        clientId: googleWebClientId || undefined,
+        webClientId: googleWebClientId || undefined,
+        androidClientId: isNativeGoogleSignInSupported ? googleAndroidClientId || undefined : undefined,
+        iosClientId: isNativeGoogleSignInSupported ? googleIosClientId || undefined : undefined,
+        redirectUri: googleRedirectUri || undefined,
+        responseType: 'token',
+        scopes: ['openid', 'profile', 'email'],
+    });
 
     const handleLogin = useCallback(async () => {
         const emailValidation = validateEmail(email);
@@ -182,42 +211,150 @@ function LoginScreenContent() {
         }
     }, [email, password, router, copy]);
 
-    const handleGoogleLogin = useCallback(async () => {
-        if (!isGoogleSignInSupported) {
+    const completeGoogleLogin = useCallback(
+        async (accessToken: string) => {
+            const authRes = await apiService.loginWithGoogle(accessToken);
+            await authService.saveAuth(authRes.token, authRes.user);
+
+            try {
+                const profile = await apiService.getProfile(authRes.token);
+                await authService.saveAuth(authRes.token, {
+                    id: profile.id,
+                    email: profile.email,
+                    username: profile.username,
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    description: profile.description,
+                } as any);
+            } catch {
+                // Keep the basic auth payload if profile enrichment fails.
+            }
+
+            router.replace('/');
+        },
+        [router]
+    );
+
+    const handleWebGoogleLogin = useCallback(async () => {
+        if (!googleWebClientId) {
+            setSocialMessage(copy.googleNotConfigured);
+            return;
+        }
+
+        if (!googleAuthRequest) {
+            setSocialMessage(copy.googlePromptUnavailable);
+            return;
+        }
+
+        const webAuthResult = await promptGoogleAuth();
+
+        if (webAuthResult.type !== 'success') {
+            setSocialMessage(copy.googleCancelled);
+            return;
+        }
+
+        const accessTokenFromAuthentication =
+            'authentication' in webAuthResult ? webAuthResult.authentication?.accessToken : null;
+        const accessTokenFromParams =
+            'params' in webAuthResult && typeof webAuthResult.params?.access_token === 'string'
+                ? webAuthResult.params.access_token
+                : null;
+        const accessToken = accessTokenFromAuthentication ?? accessTokenFromParams;
+
+        if (!accessToken) {
+            setSocialMessage(copy.googleTokenMissing);
+            return;
+        }
+
+        await completeGoogleLogin(accessToken);
+    }, [completeGoogleLogin, copy, googleAuthRequest, promptGoogleAuth]);
+
+    const handleNativeGoogleLogin = useCallback(async () => {
+        if (!isNativeGoogleSignInSupported) {
             setSocialMessage(copy.googleNotSupported);
             return;
         }
 
+        let nativeGoogleModule: typeof import('@react-native-google-signin/google-signin');
+        try {
+            nativeGoogleModule = await import('@react-native-google-signin/google-signin');
+        } catch {
+            setSocialMessage(copy.googleNotSupported);
+            return;
+        }
+
+        const { GoogleSignin } = nativeGoogleModule;
+
+        GoogleSignin.configure({
+            webClientId: googleWebClientId,
+            offlineAccess: true,
+            forceCodeForRefreshToken: true,
+        });
+
+        await GoogleSignin.hasPlayServices();
+        await GoogleSignin.signIn();
+        const { accessToken } = await GoogleSignin.getTokens();
+
+        if (!accessToken) {
+            setSocialMessage(copy.googleTokenMissing);
+            return;
+        }
+
+        await completeGoogleLogin(accessToken);
+    }, [completeGoogleLogin, copy]);
+
+    const handleGoogleLoginError = useCallback(
+        async (error: any) => {
+            console.error('Google Signin Error:', error);
+
+            if (isNativeGoogleSignInSupported) {
+                const nativeGoogleStatusCodes = (await import('@react-native-google-signin/google-signin')).statusCodes;
+
+                if (nativeGoogleStatusCodes && error.code === nativeGoogleStatusCodes.SIGN_IN_CANCELLED) {
+                    setSocialMessage(copy.googleCancelled);
+                } else if (nativeGoogleStatusCodes && error.code === nativeGoogleStatusCodes.IN_PROGRESS) {
+                    setSocialMessage(copy.googleInProgress);
+                } else if (nativeGoogleStatusCodes && error.code === nativeGoogleStatusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                    setSocialMessage(copy.googlePlayServicesMissing);
+                } else {
+                    setApiError(copy.googleUnknown);
+                }
+                return;
+            }
+
+            if (error?.type === 'cancel' || error?.type === 'dismiss') {
+                setSocialMessage(copy.googleCancelled);
+                return;
+            }
+
+            setApiError(copy.googleUnknown);
+        },
+        [copy]
+    );
+
+    const handleGoogleLogin = useCallback(async () => {
         setLoading(true);
         setSocialMessage(null);
         setApiError(null);
-        try {
-            await GoogleSignin.hasPlayServices();
-            await GoogleSignin.signIn();
-            const { accessToken } = await GoogleSignin.getTokens();
 
-            if (accessToken) {
-                const authRes = await apiService.loginWithGoogle(accessToken);
-                await authService.saveAuth(authRes.token, authRes.user);
-                router.replace('/');
-            } else {
-                setSocialMessage(copy.googleTokenMissing);
+        try {
+            if (isExpoGo) {
+                setSocialMessage(copy.googleExpoGoUnsupported);
+                return;
             }
+
+            if (Platform.OS === 'web') {
+                await handleWebGoogleLogin();
+                return;
+            }
+
+            await handleNativeGoogleLogin();
         } catch (error: any) {
-            console.error('Google Signin Error:', error);
-            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-                setSocialMessage(copy.googleCancelled);
-            } else if (error.code === statusCodes.IN_PROGRESS) {
-                setSocialMessage(copy.googleInProgress);
-            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                setSocialMessage(copy.googlePlayServicesMissing);
-            } else {
-                setApiError(copy.googleUnknown);
-            }
+            await handleGoogleLoginError(error);
         } finally {
             setLoading(false);
         }
-    }, [router, copy]);
+    }, [copy, handleGoogleLoginError, handleNativeGoogleLogin, handleWebGoogleLogin]);
 
     const handleAppleLogin = useCallback(() => {
         setSocialMessage(copy.appleUnavailable);

@@ -33,7 +33,9 @@ export default function StreamView({ stream, style, objectFit = 'cover', mirror 
     if (!RTCView) {
         return (
             <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }, style]}>
-                <Text style={{ color: '#fff', fontSize: 14 }}>WebRTC non disponible dans Expo Go</Text>
+                <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 }}>
+                    {"WebRTC n'est pas disponible dans Expo Go, utilisez le development build (expo run:android / expo run:ios) pour la visio mobile."}
+                </Text>
             </View>
         );
     }

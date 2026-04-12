@@ -1,6 +1,7 @@
 package user
 
 import (
+	"errors"
 	"net/http"
 	"slices"
 	"time"
@@ -15,6 +16,8 @@ type UpdatePasswordRequest struct {
 	CurrentPassword string `json:"currentPassword" binding:"required"`
 	NewPassword     string `json:"newPassword" binding:"required,min=8"`
 }
+
+const errUserNotFound = "user not found"
 
 // GetAllUsers godoc
 // @Summary      Get all users
@@ -47,6 +50,7 @@ func GetAllUsers(db *gorm.DB) gin.HandlerFunc {
 // @Produce      json
 // @Security     BearerAuth
 // @Success      200  {object}  user.User
+// @Failure      404  {object}  map[string]string "error: User not found"
 // @Failure      500  {object}  map[string]string "error: Failed to fetch user"
 // @Router       /api/users/me [get]
 func GetMe(db *gorm.DB) gin.HandlerFunc {
@@ -55,6 +59,10 @@ func GetMe(db *gorm.DB) gin.HandlerFunc {
 
 		user, err := GetUserByID(db, currentUserId)
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": errUserNotFound})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
 			return
 		}
@@ -152,7 +160,7 @@ func UpdateCurrentUser(db *gorm.DB) gin.HandlerFunc {
 func updateUser(db *gorm.DB, c *gin.Context, userId string) {
 	existingUser, err := GetUserByID(db, userId)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": errUserNotFound})
 		return
 	}
 
@@ -190,7 +198,7 @@ func UpdateCurrentPassword(db *gorm.DB) gin.HandlerFunc {
 
 		existingUser, err := GetUserByID(db, currentUserID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": errUserNotFound})
 			return
 		}
 
