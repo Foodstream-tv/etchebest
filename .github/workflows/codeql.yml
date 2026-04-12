@@ -30,7 +30,7 @@ jobs:
                       build_mode: none
                     - language: go
                       runner: ubuntu-latest
-                      build_mode: none
+                      build_mode: manual
                     - language: swift
                       runner: macos-15
                       build_mode: manual
@@ -67,6 +67,18 @@ jobs:
               with:
                   languages: ${{ matrix.language }}
                   build-mode: ${{ matrix.build_mode }}
+
+            - name: Setup Go
+              if: matrix.language == 'go'
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.25.2
+                  cache-dependency-path: backend/go.sum
+
+            - name: Build Go backend
+              if: matrix.language == 'go'
+              run: go build ./...
+              working-directory: backend
 
             - name: Install iOS pods
               if: matrix.language == 'swift'
