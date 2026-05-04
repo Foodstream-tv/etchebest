@@ -22,9 +22,12 @@ services:
       - postgres
     build: ./backend
     env_file: ./.env
-    network_mode: "host"
+    ports:
+      - '${BACKEND_PORT}:${BACKEND_PORT}'
+    networks:
+      - back-network
     environment:
-      POSTGRES_HOST: localhost
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -33,6 +36,21 @@ services:
       BACKEND_PORT: ${BACKEND_PORT}
       STUN_SERVER_URL: ${STUN_SERVER_URL}
       WEBRTC_IP: ${WEBRTC_IP:-127.0.0.1}
+
+  frontend:
+    container_name: frontend-foodstream
+    depends_on:
+      - backend
+    build:
+      context: ./front-web
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    networks:
+      - back-network
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://backend:8081/api
+    restart: unless-stopped
 
 
 volumes:
