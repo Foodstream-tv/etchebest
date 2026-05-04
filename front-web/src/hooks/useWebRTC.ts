@@ -43,6 +43,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   const localStreamRef = useRef<MediaStream | null>(null);
   const stopLiveRef = useRef<(() => Promise<void>) | null>(null);
   const isStoppingRef = useRef(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const tokenRef = useRef<string | undefined>(token);
   useEffect(() => {
@@ -53,6 +54,75 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     setError(null);
     setRemoteStreams([]);
   }, []);
+
+  const setupWebSocketListener = useCallback(
+    (currentRoomId: string) => {
+      // Close existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
+      // Determine WebSocket URL based on current location
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/api/webrtc/offers?roomId=${encodeURIComponent(
+        currentRoomId
+      )}`;
+
+      console.log("[WebRTC] connecting to WebSocket:", wsUrl);
+
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("[WebRTC] WebSocket connected");
+        // Add auth token in the message or use query string
+        // Note: We're relying on cookie-based auth since tokens are in cookies
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log("[WebRTC] received WebSocket message:", message.type);
+
+          if (message.type === "offer" && message.offer && pcRef.current) {
+            console.log("[WebRTC] received renegotiation offer");
+            const pc = pcRef.current;
+
+            // Apply remote offer
+            await pc.setRemoteDescription(
+              new RTCSessionDescription({
+                type: "offer",
+                sdp: message.offer.sdp,
+              })
+            );
+
+            // Create and send answer
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            // Send answer back to server
+            await sendOffer(currentRoomId, answer.sdp || "", tokenRef.current);
+            console.log("[WebRTC] sent renegotiation answer");
+          }
+        } catch (err) {
+          console.error("[WebRTC] WebSocket message handling error:", err);
+        }
+      };
+
+      ws.onerror = (event) => {
+        console.warn("[WebRTC] WebSocket error:", event);
+      };
+
+      ws.onclose = () => {
+        console.log("[WebRTC] WebSocket closed");
+        wsRef.current = null;
+      };
+
+      wsRef.current = ws;
+    },
+    []
+  );
 
   const getLocalMedia = useCallback(async (): Promise<MediaStream> => {
     if (!navigator?.mediaDevices?.getUserMedia) {
@@ -232,6 +302,17 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     }
   }, []);
 
+  const cleanupWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch (err) {
+        console.warn("[WebRTC] websocket cleanup failed:", err);
+      }
+      wsRef.current = null;
+    }
+  }, []);
+
   const cleanupLocalStream = useCallback(() => {
     if (localStreamRef.current) {
       try {
@@ -259,6 +340,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     cleanupPeerConnection();
     cleanupLocalStream();
+    cleanupWebSocket();
 
     roomIdRef.current = null;
     setRoomId(null);
@@ -276,7 +358,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     }
 
     isStoppingRef.current = false;
-  }, [cleanupLocalStream, cleanupPeerConnection]);
+  }, [cleanupLocalStream, cleanupPeerConnection, cleanupWebSocket]);
 
   const startLive = useCallback(
     async (roomName: string): Promise<void> => {
@@ -297,13 +379,16 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         const stream = await getLocalMedia();
         const pc = createPeerConnection(stream, newRoomId);
         await negotiate(pc, newRoomId);
+        
+        // Setup WebSocket for renegotiation offers
+        setupWebSocketListener(newRoomId);
       } catch (err: any) {
         console.error("[WebRTC] startLive failed:", err);
         setError(err?.message || "Failed to start live");
         setState("error");
       }
     },
-    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive]
+    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive, setupWebSocketListener]
   );
 
   const hostExistingRoom = useCallback(
@@ -322,13 +407,16 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         const stream = await getLocalMedia();
         const pc = createPeerConnection(stream, existingRoomId);
         await negotiate(pc, existingRoomId);
+        
+        // Setup WebSocket for renegotiation offers
+        setupWebSocketListener(existingRoomId);
       } catch (err: any) {
         console.error("[WebRTC] hostExistingRoom failed:", err);
         setError(err?.message || "Failed to host stream");
         setState("error");
       }
     },
-    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive]
+    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive, setupWebSocketListener]
   );
 
   const joinAsCoStreamer = useCallback(
@@ -351,13 +439,16 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         const stream = await getLocalMedia();
         const pc = createPeerConnection(stream, targetRoomId);
         await negotiate(pc, targetRoomId);
+        
+        // Setup WebSocket for renegotiation offers
+        setupWebSocketListener(targetRoomId);
       } catch (err: any) {
         console.error("[WebRTC] joinAsCoStreamer failed:", err);
         setError(err?.message || "Failed to join stream");
         setState("error");
       }
     },
-    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive]
+    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive, setupWebSocketListener]
   );
 
   useEffect(() => {
