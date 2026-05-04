@@ -67,48 +67,79 @@ export default function WatchRoomPage() {
     if (!isSafari && Hls.isSupported()) {
       setPlayerMode("hlsjs");
 
-      const hls = new Hls({
-        lowLatencyMode: true,
-        backBufferLength: 30,
-      });
+      let retryAttempts = 0;
+      const maxRetries = 10;
+      let retryTimer: NodeJS.Timeout | null = null;
 
-      hlsRef.current = hls;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
+      const loadHLS = () => {
+        const hls = new Hls({
+          lowLatencyMode: true,
+          backBufferLength: 30,
+        });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLoading(false);
-        video.play().catch(() => {});
-      });
+        hlsRef.current = hls;
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
 
-      hls.on(Hls.Events.ERROR, (_evt, data) => {
-        if (data?.fatal) {
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLoading(false);
+          setError(null);
+          if (retryTimer) clearTimeout(retryTimer);
+          video.play().catch(() => {});
+        });
 
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            hls.startLoad();
-            setError("Erreur réseau HLS.");
-            return;
+        hls.on(Hls.Events.ERROR, (_evt, data) => {
+          if (data?.fatal) {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              // Retry with exponential backoff for 404 errors
+              if (retryAttempts < maxRetries) {
+                retryAttempts++;
+                const delay = Math.min(500 * retryAttempts, 5000);
+                setError(`En attente du HLS... (tentative ${retryAttempts}/${maxRetries})`);
+                
+                try {
+                  hls.destroy();
+                } catch {}
+                hlsRef.current = null;
+
+                retryTimer = setTimeout(() => {
+                  loadHLS();
+                }, delay);
+                return;
+              } else {
+                setLoading(false);
+                setError("Erreur réseau HLS - dépassement des tentatives.");
+                try {
+                  hls.destroy();
+                } catch {}
+                hlsRef.current = null;
+                return;
+              }
+            }
+
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+              setError("Erreur média HLS.");
+              return;
+            }
+
+            setLoading(false);
+            setError(`Impossible de lire le stream HLS (${data.details || "fatal"}).`);
+
+            try {
+              hls.destroy();
+            } catch {}
+            hlsRef.current = null;
           }
+        });
+      };
 
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-            setError("Erreur média HLS.");
-            return;
-          }
-
-          setError(`Impossible de lire le stream HLS (${data.details || "fatal"}).`);
-
-          try {
-            hls.destroy();
-          } catch {}
-          hlsRef.current = null;
-        }
-      });
+      loadHLS();
 
       return () => {
+        if (retryTimer) clearTimeout(retryTimer);
         try {
-          hls.destroy();
+          hlsRef.current?.destroy();
         } catch {}
         hlsRef.current = null;
       };
