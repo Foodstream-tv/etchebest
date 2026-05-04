@@ -49,3 +49,4 @@ coverage/
 .idea
 commands.txt
 etchebest
+nginx.local.conf
