@@ -22,13 +22,13 @@ export function middleware(req: NextRequest) {
 
   if (isProtected && !isLoggedIn) {
     const url = req.nextUrl.clone();
-    url.pathname = "/sign-in";
+    url.pathname = "/signin";
     return NextResponse.redirect(url);
   }
 
   if (isAuth && isLoggedIn) {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/home";
     return NextResponse.redirect(url);
   }
 
