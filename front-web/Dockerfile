@@ -10,6 +10,10 @@ RUN npm install -g pnpm && pnpm install
 
 COPY . .
 
+# Build avec les args passés en variable d'env
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
 RUN pnpm run build && mkdir -p /app/public
 
 # Runtime stage

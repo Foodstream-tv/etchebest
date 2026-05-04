@@ -42,9 +42,9 @@ services:
     build:
       context: ./front-web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://${VM_IP}:8081/api
     network_mode: "host"
-    environment:
-      NEXT_PUBLIC_API_BASE_URL: http://${VM_IP}:8081/api
     restart: unless-stopped
 
 
