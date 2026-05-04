@@ -19,7 +19,8 @@ services:
   backend:
     container_name: backend-foodstream
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     build: ./backend
     env_file: ./.env
     network_mode: "host"
