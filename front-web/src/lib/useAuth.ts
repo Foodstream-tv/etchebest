@@ -55,8 +55,15 @@ export function useAuth() {
   }, []);
 
   const setAuth = (a: AuthState | null) => {
-    if (a) localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
-    else localStorage.removeItem(STORAGE_KEY);
+    if (a) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
+      // Save token to cookies for middleware authentication
+      document.cookie = `token=${a.token}; path=/; secure; samesite=strict`;
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+      // Clear token from cookies on logout
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    }
     setAuthState(a);
   };
 
