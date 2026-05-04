@@ -61,8 +61,9 @@ export default function SignInPage() {
             setAuth({ token: login.token, user });
 
             router.replace("/home");
-          } catch {
-
+          } catch (err) {
+            console.error("Login error:", err);
+            setError("Une erreur est survenue lors de la connexion.");
           }
         }}
         className="space-y-4"

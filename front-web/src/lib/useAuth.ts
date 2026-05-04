@@ -58,11 +58,11 @@ export function useAuth() {
     if (a) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
       // Save token to cookies for middleware authentication
-      document.cookie = `token=${a.token}; path=/; secure; samesite=strict`;
+      document.cookie = `token=${a.token}; path=/; max-age=86400; samesite=lax`;
     } else {
       localStorage.removeItem(STORAGE_KEY);
       // Clear token from cookies on logout
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+      document.cookie = "token=; path=/; max-age=0";
     }
     setAuthState(a);
   };
