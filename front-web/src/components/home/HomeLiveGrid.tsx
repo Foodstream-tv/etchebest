@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Flame, PlayCircle, Star, Radio, Eye, Users } from "lucide-react";
+import {
+  CalendarDays,
+  Flame,
+  PlayCircle,
+  Star,
+  Radio,
+  Eye,
+  Users,
+} from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { getRooms, RoomInfo } from "@/services/streaming";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
@@ -60,8 +68,11 @@ export default function HomeLiveGrid() {
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { token, ready } = useAuth();
+  const { token, ready, user } = useAuth();
   const didInit = useRef(false);
+
+  const authorName =
+    user?.username || user?.email?.split("@")[0] || "Utilisateur";
 
   const refreshRooms = async () => {
     if (!token) {
@@ -98,11 +109,11 @@ export default function HomeLiveGrid() {
       id: room.id,
       badge: "Live",
       title: room.name || "Live sans titre",
-      author: "Vous",
+      author: authorName,
       viewers: room.viewers ?? 0,
       isLive: true,
     }));
-  }, [rooms]);
+  }, [rooms, authorName]);
 
   const items = useMemo(() => {
     switch (tab) {
@@ -146,7 +157,7 @@ export default function HomeLiveGrid() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
           {loading ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               {Array.from({ length: 4 }).map((_, i) => (
