@@ -30,7 +30,7 @@ type RequestRegister struct {
 	FirstName          string `json:"firstName" binding:"required,min=2" example:"John"`
 	LastName           string `json:"lastName" binding:"required,min=2" example:"Doe"`
 	Username           string `json:"username" binding:"required,min=2" example:"JohnDoe23"`
-	ProfileImage       []byte `json:"profileImage" binding:"required"`
+	ProfileImage       []byte `json:"profileImage"`
 	Description        string `json:"description" binding:"required,min=10" example:"I like eating sushi"`
 	CountryNumberPhone int    `json:"countryNumberPhone" binding:"required,min=1" example:"33"`
 	NumberPhone        string `json:"numberPhone" binding:"required,min=1" example:"123456"`

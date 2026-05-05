@@ -1,13 +1,14 @@
 package room
 
 import (
-	"github.com/lib/pq"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lib/pq"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/utils"
@@ -214,10 +215,16 @@ func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnect
 	if getPeerConnectionByUser(room, userID) != pc {
 		return
 	}
-	if room.PendingOfferByUser == nil {
-		room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
+
+	// Send offer via WebSocket if connection exists
+	if !sendOfferToUser(room.ID, userID, local) {
+		// Fallback to polling if WebSocket not available
+		if room.PendingOfferByUser == nil {
+			room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
+		}
+		room.PendingOfferByUser[userID] = *local
+		log.Printf("WebSocket send failed for %s, storing offer for polling", userID)
 	}
-	room.PendingOfferByUser[userID] = *local
 }
 
 // closePeerConnection safely removes senders and closes the underlying PeerConnection.
