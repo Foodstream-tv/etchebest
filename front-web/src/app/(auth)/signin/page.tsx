@@ -32,11 +32,13 @@ export default function SignInPage() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackError = params.get("error");
+
   const { setAuth } = useAuth();
   const { submit, loading, error, setError } = useAuthSubmit<LoginResponse>();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   const canSubmit = useMemo(() => {
     return isValidEmail(email) && password.length >= 1;
@@ -79,13 +81,18 @@ export default function SignInPage() {
         return;
       }
 
-      setAuth({
-        token: login.token,
-        user,
-      });
+      setAuth(
+        {
+          token: login.token,
+          user,
+        },
+        rememberMe
+      );
 
       router.replace("/home");
-    } catch {
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Une erreur est survenue lors de la connexion.");
     }
   }
 
@@ -119,11 +126,22 @@ export default function SignInPage() {
           disabled={loading}
         />
 
-        {error || callbackError ? (
+        <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            disabled={loading}
+            className="h-4 w-4 rounded border-gray-300 accent-amber-500"
+          />
+          <span>Rester connecté</span>
+        </label>
+
+        {(error || callbackError) && (
           <p className="text-sm font-medium text-red-500">
             {error || "Connexion externe impossible."}
           </p>
-        ) : null}
+        )}
 
         <button
           type="submit"

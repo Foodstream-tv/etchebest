@@ -47,7 +47,6 @@ export default function WatchRoomPage() {
   const [likeCount, setLikeCount] = useState(942);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   const hlsUrl = useMemo(() => {
@@ -57,6 +56,7 @@ export default function WatchRoomPage() {
   const liveTitle = "Foodstream Live Session";
   const hostName =
     user?.username || user?.email?.split("@")[0] || "Foodstream Creator";
+
   const liveDescription =
     "Regarde le live en direct et échange avec la communauté.";
 
@@ -85,51 +85,96 @@ export default function WatchRoomPage() {
     if (!isSafari && Hls.isSupported()) {
       setPlayerMode("hlsjs");
 
-      const hls = new Hls({
-        lowLatencyMode: true,
-        backBufferLength: 30,
-      });
+      let retryAttempts = 0;
+      const maxRetries = 10;
+      let retryTimer: NodeJS.Timeout | null = null;
 
-      hlsRef.current = hls;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
+      const loadHLS = () => {
+        const hls = new Hls({
+          lowLatencyMode: true,
+          backBufferLength: 30,
+        });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLoading(false);
-        video.play().catch(() => {});
-      });
+        hlsRef.current = hls;
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
 
-      hls.on(Hls.Events.ERROR, (_evt, data) => {
-        if (data?.fatal) {
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLoading(false);
+          setError(null);
+
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+          }
+
+          video.play().catch(() => {});
+        });
+
+        hls.on(Hls.Events.ERROR, (_evt, data) => {
+          if (!data?.fatal) return;
 
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            hls.startLoad();
-            setError("Erreur réseau HLS.");
+            if (retryAttempts < maxRetries) {
+              retryAttempts += 1;
+
+              const delay = Math.min(500 * retryAttempts, 5000);
+
+              setError(
+                `En attente du stream... (${retryAttempts}/${maxRetries})`
+              );
+
+              try {
+                hls.destroy();
+              } catch {}
+
+              hlsRef.current = null;
+
+              retryTimer = setTimeout(() => {
+                loadHLS();
+              }, delay);
+
+              return;
+            }
+
+            setLoading(false);
+            setError("Stream indisponible.");
+
+            try {
+              hls.destroy();
+            } catch {}
+
+            hlsRef.current = null;
             return;
           }
 
           if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
             hls.recoverMediaError();
-            setError("Erreur média HLS.");
+            setError("Erreur média.");
             return;
           }
-          console.log("HLS URL =", hlsUrl);
-          setError(
-            `Impossible de lire le stream HLS (${data.details || "fatal"}).`
-          );
+
+          setLoading(false);
+          setError("Erreur lecture stream.");
 
           try {
             hls.destroy();
           } catch {}
+
           hlsRef.current = null;
-        }
-      });
+        });
+      };
+
+      loadHLS();
 
       return () => {
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+        }
+
         try {
-          hls.destroy();
+          hlsRef.current?.destroy();
         } catch {}
+
         hlsRef.current = null;
       };
     }
@@ -145,7 +190,7 @@ export default function WatchRoomPage() {
 
       const onVideoError = () => {
         setLoading(false);
-        setError("Impossible de charger le stream HLS.");
+        setError("Impossible de charger le stream.");
       };
 
       video.addEventListener("loadedmetadata", onLoaded);
@@ -159,7 +204,7 @@ export default function WatchRoomPage() {
 
     setPlayerMode("unsupported");
     setLoading(false);
-    setError("HLS non supporté sur ce navigateur.");
+    setError("Navigateur non supporté.");
   }, [roomId, hlsUrl, reloadKey]);
 
   useEffect(() => {
@@ -175,6 +220,7 @@ export default function WatchRoomPage() {
 
   const fetchChat = useCallback(async () => {
     if (!roomId) return;
+
     try {
       const msgs = await getChatMessages(roomId, token);
       setChatMessages(msgs ?? []);
@@ -183,19 +229,21 @@ export default function WatchRoomPage() {
 
   useEffect(() => {
     fetchChat();
+
     const interval = setInterval(fetchChat, 5000);
     return () => clearInterval(interval);
   }, [fetchChat]);
 
   useEffect(() => {
     if (!chatScrollRef.current) return;
+
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
   }, [chatMessages]);
 
   const onRetry = () => {
     setError(null);
     setLoading(true);
-    setReloadKey((k) => k + 1);
+    setReloadKey((key) => key + 1);
   };
 
   const onLike = () => {
@@ -208,6 +256,7 @@ export default function WatchRoomPage() {
 
   const onSendMessage = async () => {
     const trimmed = message.trim();
+
     if (!trimmed || !token || !roomId || sending) return;
 
     setMessage("");
@@ -234,6 +283,7 @@ export default function WatchRoomPage() {
           text: "Regarde ce live",
           url: shareUrl,
         });
+
         return;
       }
 
@@ -248,7 +298,7 @@ export default function WatchRoomPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/watch"
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
               Retour
@@ -271,7 +321,7 @@ export default function WatchRoomPage() {
 
             <button
               onClick={onRetry}
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
               type="button"
             >
               <RefreshCcw className="h-4 w-4" />
@@ -307,6 +357,7 @@ export default function WatchRoomPage() {
                     <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50 sm:text-3xl">
                       {liveTitle}
                     </h1>
+
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       par{" "}
                       <span className="font-semibold text-orange-600 dark:text-orange-300">
@@ -318,7 +369,7 @@ export default function WatchRoomPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={onLike}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                       type="button"
                     >
                       <Heart
@@ -331,7 +382,7 @@ export default function WatchRoomPage() {
 
                     <button
                       onClick={onShare}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                       type="button"
                     >
                       <Share2 className="h-4 w-4" />
@@ -348,9 +399,11 @@ export default function WatchRoomPage() {
                   <InfoPill icon={<Eye className="h-4 w-4" />}>
                     {viewerCount} viewers
                   </InfoPill>
+
                   <InfoPill icon={<Radio className="h-4 w-4" />}>
                     Mode: {playerMode}
                   </InfoPill>
+
                   <InfoPill icon={<Users className="h-4 w-4" />}>
                     Chat actif
                   </InfoPill>
@@ -390,6 +443,7 @@ export default function WatchRoomPage() {
                       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
                         <MessageCircle className="h-5 w-5 text-gray-400" />
                       </div>
+
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Aucun message pour l’instant.
                       </p>
@@ -402,7 +456,9 @@ export default function WatchRoomPage() {
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {msg.username}
                     </span>
+
                     <span className="text-gray-400"> : </span>
+
                     <span className="text-gray-600 dark:text-gray-300">
                       {msg.message}
                     </span>
@@ -435,7 +491,7 @@ export default function WatchRoomPage() {
                       <button
                         onClick={onSendMessage}
                         style={{ background: ORANGE_GRADIENT_CSS }}
-                        className="inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:opacity-95 hover:shadow-[0_14px_32px_rgba(249,115,22,0.38)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                         type="button"
                         disabled={sending}
                       >
@@ -448,7 +504,7 @@ export default function WatchRoomPage() {
                 <div className="border-t border-black/8 px-4 py-4 text-center dark:border-white/10">
                   <Link
                     href="/signin"
-                    className="text-sm font-semibold text-orange-600 underline underline-offset-4 dark:text-orange-300"
+                    className="text-sm font-semibold text-orange-600 underline underline-offset-4 transition-colors duration-200 hover:text-orange-700 dark:text-orange-300 dark:hover:text-orange-200"
                   >
                     Connectez-vous pour chatter
                   </Link>

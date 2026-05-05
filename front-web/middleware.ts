@@ -4,6 +4,26 @@ import type { NextRequest } from "next/server";
 const PROTECTED_PREFIXES = ["/profile", "/home", "/studio", "/stream"];
 const AUTH_ROUTES = ["/signin", "/signup"];
 
+function isTokenValid(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+
+    const payload = JSON.parse(
+      Buffer.from(parts[1], "base64").toString("utf-8")
+    );
+
+    if (payload.exp) {
+      const expirationTime = payload.exp * 1000;
+      return Date.now() < expirationTime;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -12,7 +32,19 @@ export function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get("token")?.value;
-  const isLoggedIn = Boolean(token);
+  const isLoggedIn = token ? isTokenValid(token) : false;
+
+  if (pathname === "/" || pathname === "") {
+    if (!isLoggedIn) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/signin";
+      return NextResponse.redirect(url);
+    } else {
+      const url = req.nextUrl.clone();
+      url.pathname = "/home";
+      return NextResponse.redirect(url);
+    }
+  }
 
   const isProtected = PROTECTED_PREFIXES.some((p) =>
     pathname === p || pathname.startsWith(p + "/")
@@ -22,13 +54,13 @@ export function middleware(req: NextRequest) {
 
   if (isProtected && !isLoggedIn) {
     const url = req.nextUrl.clone();
-    url.pathname = "/sign-in";
+    url.pathname = "/signin";
     return NextResponse.redirect(url);
   }
 
   if (isAuth && isLoggedIn) {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/home";
     return NextResponse.redirect(url);
   }
 
