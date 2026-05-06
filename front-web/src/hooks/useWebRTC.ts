@@ -57,13 +57,11 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
   const setupWebSocketListener = useCallback(
     (currentRoomId: string) => {
-      // Close existing connection
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
 
-      // Determine WebSocket URL based on current location
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host;
       const wsUrl = `${protocol}//${host}/api/webrtc/offers?roomId=${encodeURIComponent(
@@ -76,8 +74,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
       ws.onopen = () => {
         console.log("[WebRTC] WebSocket connected");
-        // Add auth token in the message or use query string
-        // Note: We're relying on cookie-based auth since tokens are in cookies
       };
 
       ws.onmessage = async (event) => {
@@ -89,7 +85,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
             console.log("[WebRTC] received renegotiation offer");
             const pc = pcRef.current;
 
-            // Apply remote offer
             await pc.setRemoteDescription(
               new RTCSessionDescription({
                 type: "offer",
@@ -97,11 +92,9 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
               })
             );
 
-            // Create and send answer
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            // Send answer back to server
             await sendOffer(currentRoomId, answer.sdp || "", tokenRef.current);
             console.log("[WebRTC] sent renegotiation answer");
           }
@@ -161,12 +154,10 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
       console.log("[WebRTC] creating peer connection for room =", currentRoomId);
 
-      // Add local tracks
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
 
-      // Force H264 for video when available
       const capabilities = RTCRtpSender.getCapabilities?.("video");
       const codecs = capabilities?.codecs ?? [];
 
@@ -380,7 +371,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         const pc = createPeerConnection(stream, newRoomId);
         await negotiate(pc, newRoomId);
         
-        // Setup WebSocket for renegotiation offers
         setupWebSocketListener(newRoomId);
       } catch (err: any) {
         console.error("[WebRTC] startLive failed:", err);
@@ -408,7 +398,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         const pc = createPeerConnection(stream, existingRoomId);
         await negotiate(pc, existingRoomId);
         
-        // Setup WebSocket for renegotiation offers
         setupWebSocketListener(existingRoomId);
       } catch (err: any) {
         console.error("[WebRTC] hostExistingRoom failed:", err);
@@ -440,7 +429,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         const pc = createPeerConnection(stream, targetRoomId);
         await negotiate(pc, targetRoomId);
         
-        // Setup WebSocket for renegotiation offers
         setupWebSocketListener(targetRoomId);
       } catch (err: any) {
         console.error("[WebRTC] joinAsCoStreamer failed:", err);

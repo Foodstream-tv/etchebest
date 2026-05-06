@@ -43,12 +43,20 @@ export default function AppTopNav() {
       <div className="mx-auto w-full px-4 sm:px-6 lg:max-w-[1400px] xl:max-w-[1600px]">
         <div className="flex h-16 items-center gap-3">
           {/* LOGO */}
-          <Link href="/home" className="flex items-center gap-2 group">
-            <div className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-xl bg-orange-500/10 ring-1 ring-orange-500/20 transition group-hover:scale-105">
-              <Image src="/logo.png" alt="Foodstream" width={22} height={22} />
+          <Link href="/home" className="flex items-center gap-3 group">
+            <div className="relative grid h-16 w-16 place-items-center overflow-hidden rounded-2xlgroup-hover:shadow-lg">
+              <Image
+                src="/logo.png"
+                alt="Foodstream"
+                fill
+                className="object-contain p-2"
+              />
             </div>
-            <div className="leading-tight">
-            </div>
+
+            {/* TEXTE (optionnel mais fortement recommandé) */}
+            <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent hidden sm:block">
+              Foodstream
+            </span>
           </Link>
 
           {/* NAV */}
