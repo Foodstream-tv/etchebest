@@ -9,6 +9,9 @@ export const config = {
 
   // Google OAuth
   googleClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '180195435704-86emi3b8kkgprqsc8d92sgcan08r7ni4.apps.googleusercontent.com',
+  googleAndroidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '',
+  googleIosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
+  googleRedirectUri: process.env.EXPO_PUBLIC_GOOGLE_REDIRECT_URI || '',
 } as const;
 
 export default config;

@@ -10,11 +10,11 @@ import {
     sendRenegotiationAnswer,
 } from '../services/streaming';
 import {
+    isNativeWebRTC,
     mediaDevices,
+    MediaStream,
     RTCPeerConnection,
     RTCSessionDescription,
-    MediaStream,
-    isNativeWebRTC,
 } from '../utils/webrtc';
 
 const ICE_SERVERS = {
@@ -46,7 +46,7 @@ function preferH264(sdp: string): string {
             }
         }
     }
-    
+
     if (!targetPt) return sdp;
 
     const videoPts = new Set<string>();
@@ -143,7 +143,7 @@ export function useWebRTC(): UseWebRTCReturn {
     const ensureNativeWebRTC = useCallback(() => {
         if (Platform.OS !== 'web' && !isNativeWebRTC) {
             throw new Error(
-                'WebRTC n\'est pas disponible dans Expo Go. Utilise un development build (expo run:android / expo run:ios) pour la visio mobile.'
+                'WebRTC n\'est pas disponible dans Expo Go, utilisez le development build (expo run:android / expo run:ios) pour la visio mobile.'
             );
         }
     }, []);
@@ -222,7 +222,7 @@ export function useWebRTC(): UseWebRTCReturn {
             }
 
             throw new Error(
-                'La caméra n\'est pas disponible. Le streaming nécessite un build natif (npx expo run:android). Expo Go ne supporte pas react-native-webrtc.'
+                'La caméra n\'est pas disponible. WebRTC n\'est pas disponible dans Expo Go, utilisez le development build (expo run:android / expo run:ios) pour la visio mobile.'
             );
         }
 

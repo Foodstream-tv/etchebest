@@ -146,6 +146,8 @@ export default function WatchRoomPage() {
             hlsRef.current = null;
             return;
           }
+        });
+      };
 
           if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
             hls.recoverMediaError();
