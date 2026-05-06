@@ -4,22 +4,8 @@ import Hls from "hls.js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Eye,
-  Heart,
-  MessageCircle,
-  Radio,
-  RefreshCcw,
-  Share2,
-  Users,
-} from "lucide-react";
-import {
-  getHLSUrl,
-  getChatMessages,
-  postChatMessage,
-  ChatMessage,
-} from "@/services/streaming";
+import { ArrowLeft, Eye, Heart, MessageCircle, Radio, RefreshCcw, Share2, Users } from "lucide-react";
+import { getHLSUrl, getChatMessages, postChatMessage, getRooms, ChatMessage, RoomInfo } from "@/services/streaming";
 import { useAuth } from "@/lib/useAuth";
 import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
@@ -31,20 +17,21 @@ const MAX_MSG = 500;
 export default function WatchRoomPage() {
   const routeParams = useParams<{ roomId: string }>();
   const roomId = routeParams?.roomId;
-  const { token, user } = useAuth();
+  const { token } = useAuth();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const [room, setRoom] = useState<RoomInfo | null>(null);
+  const [roomLoading, setRoomLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [playerMode, setPlayerMode] = useState<PlayerMode>("hlsjs");
 
-  const [viewerCount, setViewerCount] = useState(128);
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(942);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -53,12 +40,41 @@ export default function WatchRoomPage() {
     return roomId ? getHLSUrl(roomId) : "";
   }, [roomId]);
 
-  const liveTitle = "Foodstream Live Session";
-  const hostName =
-    user?.username || user?.email?.split("@")[0] || "Foodstream Creator";
+  const liveTitle = room?.name || "Live en direct";
+  const viewers = room?.viewers ?? null;
+  const participants = room?.participants?.length ?? null;
+  const maxParticipants = room?.maxParticipants ?? null;
 
   const liveDescription =
     "Regarde le live en direct et échange avec la communauté.";
+
+  const fetchRoom = useCallback(async () => {
+    if (!roomId || !token) {
+      setRoomLoading(false);
+      return;
+    }
+
+    try {
+      setRoomLoading(true);
+      const rooms = await getRooms(token);
+      const currentRoom = rooms?.find((item) => item.id === roomId) ?? null;
+      setRoom(currentRoom);
+    } catch (err) {
+      console.error("Fetch room error:", err);
+      setRoom(null);
+    } finally {
+      setRoomLoading(false);
+    }
+  }, [roomId, token]);
+
+  useEffect(() => {
+    fetchRoom();
+
+    if (!roomId || !token) return;
+
+    const interval = setInterval(fetchRoom, 10_000);
+    return () => clearInterval(interval);
+  }, [roomId, token, fetchRoom]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -87,7 +103,7 @@ export default function WatchRoomPage() {
 
       let retryAttempts = 0;
       const maxRetries = 10;
-      let retryTimer: NodeJS.Timeout | null = null;
+      let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
       const loadHLS = () => {
         const hls = new Hls({
@@ -116,7 +132,6 @@ export default function WatchRoomPage() {
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
             if (retryAttempts < maxRetries) {
               retryAttempts += 1;
-
               const delay = Math.min(500 * retryAttempts, 5000);
 
               setError(
@@ -128,11 +143,7 @@ export default function WatchRoomPage() {
               } catch {}
 
               hlsRef.current = null;
-
-              retryTimer = setTimeout(() => {
-                loadHLS();
-              }, delay);
-
+              retryTimer = setTimeout(loadHLS, delay);
               return;
             }
 
@@ -207,36 +218,28 @@ export default function WatchRoomPage() {
     setError("Navigateur non supporté.");
   }, [roomId, hlsUrl, reloadKey]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setViewerCount((prev) => {
-        const delta = Math.floor(Math.random() * 5) - 2;
-        return Math.max(1, prev + delta);
-      });
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const fetchChat = useCallback(async () => {
-    if (!roomId) return;
+    if (!roomId || !token) return;
 
     try {
       const msgs = await getChatMessages(roomId, token);
       setChatMessages(msgs ?? []);
-    } catch {}
+    } catch (err) {
+      console.error("Fetch chat error:", err);
+    }
   }, [roomId, token]);
 
   useEffect(() => {
+    if (!roomId || !token) return;
+
     fetchChat();
 
     const interval = setInterval(fetchChat, 5000);
     return () => clearInterval(interval);
-  }, [fetchChat]);
+  }, [roomId, token, fetchChat]);
 
   useEffect(() => {
     if (!chatScrollRef.current) return;
-
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
   }, [chatMessages]);
 
@@ -244,14 +247,12 @@ export default function WatchRoomPage() {
     setError(null);
     setLoading(true);
     setReloadKey((key) => key + 1);
+    fetchRoom();
+    fetchChat();
   };
 
   const onLike = () => {
-    setIsLiked((prev) => {
-      const next = !prev;
-      setLikeCount((count) => (next ? count + 1 : Math.max(0, count - 1)));
-      return next;
-    });
+    setIsLiked((prev) => !prev);
   };
 
   const onSendMessage = async () => {
@@ -309,9 +310,11 @@ export default function WatchRoomPage() {
               En direct
             </div>
 
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {viewerCount} spectateurs
-            </div>
+            {viewers !== null && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {viewers} spectateurs
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -355,14 +358,11 @@ export default function WatchRoomPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50 sm:text-3xl">
-                      {liveTitle}
+                      {roomLoading ? "Chargement du live..." : liveTitle}
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      par{" "}
-                      <span className="font-semibold text-orange-600 dark:text-orange-300">
-                        {hostName}
-                      </span>
+                      Diffusion FoodStream
                     </p>
                   </div>
 
@@ -377,7 +377,7 @@ export default function WatchRoomPage() {
                           isLiked ? "fill-red-500 text-red-500" : ""
                         }`}
                       />
-                      {likeCount}
+                      {isLiked ? "Aimé" : "J’aime"}
                     </button>
 
                     <button
@@ -396,17 +396,21 @@ export default function WatchRoomPage() {
                 </p>
 
                 <div className="flex flex-wrap gap-2">
-                  <InfoPill icon={<Eye className="h-4 w-4" />}>
-                    {viewerCount} viewers
-                  </InfoPill>
+                  {viewers !== null && (
+                    <InfoPill icon={<Eye className="h-4 w-4" />}>
+                      {viewers} viewers
+                    </InfoPill>
+                  )}
 
                   <InfoPill icon={<Radio className="h-4 w-4" />}>
                     Mode: {playerMode}
                   </InfoPill>
 
-                  <InfoPill icon={<Users className="h-4 w-4" />}>
-                    Chat actif
-                  </InfoPill>
+                  {participants !== null && maxParticipants !== null && (
+                    <InfoPill icon={<Users className="h-4 w-4" />}>
+                      {participants}/{maxParticipants} streamers
+                    </InfoPill>
+                  )}
                 </div>
 
                 {error && (

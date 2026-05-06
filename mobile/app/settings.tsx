@@ -246,9 +246,28 @@ function SettingsScreenContent() {
           description: profile.description || previousUser?.description,
         }));
         setPasswordUpdatedAt(profile.passwordUpdatedAt ?? null);
-      } catch {
-        if (isMounted) {
-          setPasswordUpdatedAt(null);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setPasswordUpdatedAt(null);
+
+        const message = error instanceof Error ? error.message.toLowerCase() : '';
+        const shouldResetSession =
+          message.includes('user not found') ||
+          message.includes('unauthorized') ||
+          message.includes('missing or invalid token');
+
+        if (!shouldResetSession) {
+          return;
+        }
+
+        try {
+          await authService.logout();
+        } finally {
+          setUser(null);
+          router.replace('/login' as any);
         }
       }
     };
@@ -258,7 +277,7 @@ function SettingsScreenContent() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   const notSetValue = tr('Non renseigne', 'Not set');
   const displayName =
