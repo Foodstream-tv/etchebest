@@ -23,84 +23,85 @@ export type AuthState = {
 };
 
 const STORAGE_KEY = "fs_auth";
+const COOKIE_MAX_AGE_30_DAYS = 60 * 60 * 24 * 30;
 
-function readStoredAuth(): AuthState | null {
+function readAuth(): AuthState | null {
   if (typeof window === "undefined") return null;
 
   try {
-    const raw =
-      localStorage.getItem(STORAGE_KEY) ||
-      sessionStorage.getItem(STORAGE_KEY);
+    const local = localStorage.getItem(STORAGE_KEY);
+    if (local) return JSON.parse(local) as AuthState;
 
-    return raw ? (JSON.parse(raw) as AuthState) : null;
+    const session = sessionStorage.getItem(STORAGE_KEY);
+    if (session) return JSON.parse(session) as AuthState;
+
+    return null;
   } catch {
     return null;
   }
 }
 
-function clearStoredAuth() {
+function saveAuth(auth: AuthState, rememberMe: boolean) {
+  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
+
+  if (rememberMe) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
+
+    document.cookie = `token=${auth.token}; path=/; max-age=${COOKIE_MAX_AGE_30_DAYS}; samesite=lax`;
+  } else {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
+
+    document.cookie = `token=${auth.token}; path=/; samesite=lax`;
+  }
+}
+
+function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
   document.cookie = "token=; path=/; max-age=0; samesite=lax";
 }
 
-function saveStoredAuth(auth: AuthState, rememberMe: boolean) {
-  localStorage.removeItem(STORAGE_KEY);
-  sessionStorage.removeItem(STORAGE_KEY);
-
-  const storage = rememberMe ? localStorage : sessionStorage;
-  storage.setItem(STORAGE_KEY, JSON.stringify(auth));
-
-  const maxAge = rememberMe ? 60 * 60 * 24 * 30 : undefined;
-
-  document.cookie = [
-    `token=${auth.token}`,
-    "path=/",
-    "samesite=lax",
-    ...(maxAge ? [`max-age=${maxAge}`] : []),
-  ].join("; ");
-}
-
 export function useAuth() {
-  const [auth, setAuthState] = useState<AuthState | null>(() => readStoredAuth());
+  const [auth, setAuthState] = useState<AuthState | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setAuthState(readStoredAuth());
+    setAuthState(readAuth());
     setReady(true);
 
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY) return;
-
-      try {
-        setAuthState(e.newValue ? (JSON.parse(e.newValue) as AuthState) : null);
-      } catch {
-        setAuthState(null);
-      }
+    const onStorage = () => {
+      setAuthState(readAuth());
     };
 
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const setAuth = (nextAuth: AuthState | null, rememberMe = true) => {
-    if (nextAuth) {
-      saveStoredAuth(nextAuth, rememberMe);
-      setAuthState(nextAuth);
-    } else {
-      clearStoredAuth();
+    if (!nextAuth) {
+      clearAuth();
       setAuthState(null);
+      return;
     }
+
+    saveAuth(nextAuth, rememberMe);
+    setAuthState(nextAuth);
   };
 
-  const signOut = () => setAuth(null);
+  const signOut = () => {
+    setAuth(null);
+  };
 
   return {
     auth,
     token: auth?.token ?? null,
     user: auth?.user ?? null,
+    ready,
     setAuth,
     signOut,
-    ready,
   };
 }
