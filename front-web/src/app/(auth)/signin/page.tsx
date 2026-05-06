@@ -126,23 +126,7 @@ export default function SignInPage() {
           disabled={loading}
         />
 
-            if (!user?.id) {
-              console.error("ME bad response:", user);
-              setError("Impossible de récupérer votre profil.");
-              return;
-            }
-            setAuth({ token: login.token, user });
-
-            router.replace("/home");
-          } catch (err) {
-            console.error("Login error:", err);
-            setError("Une erreur est survenue lors de la connexion.");
-          }
-        }}
-        className="space-y-4"
-      >
-        <div className="field focus-within:ring-2 focus-within:ring-amber-400">
-          <Mail className="h-5 w-5 text-gray-600" />
+        <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
           <input
             type="checkbox"
             checked={rememberMe}
