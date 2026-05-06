@@ -8,11 +8,37 @@ import getBroadcastEmptyStateMessage from "@/components/broadcast/getBroadcastEm
 import getBroadcastStatusMeta, {
   type BroadcastState,
 } from "@/components/broadcast/getBroadcastStatusMeta";
+
+import {
+  getChatMessages,
+  postChatMessage,
+  type ChatMessage,
+} from "@/services/streaming";
+
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useAuth } from "@/lib/useAuth";
+
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useParams,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  MessageCircle,
+  SendHorizonal,
+} from "lucide-react";
+
+const MAX_MSG = 500;
 
 export default function BroadcastRoomPage() {
   const router = useRouter();
@@ -38,13 +64,21 @@ export default function BroadcastRoomPage() {
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
+
   const autoJoinRoomRef = useRef<string | null>(null);
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!ready) return;
     if (!token) return;
     if (!roomIdFromUrl) return;
     if (isHost) return;
+
     if (autoJoinRoomRef.current === roomIdFromUrl) return;
 
     autoJoinRoomRef.current = roomIdFromUrl;
@@ -54,20 +88,33 @@ export default function BroadcastRoomPage() {
         autoJoinRoomRef.current = null;
       }
     });
-  }, [ready, token, isHost, roomIdFromUrl, joinAsCoStreamer]);
-
-  const displayRoom = roomId ?? roomIdFromUrl;
-  const viewerHref = displayRoom ? `/watch/${encodeURIComponent(displayRoom)}` : null;
-
-  const { label: statusLabel, dotClassName } = getBroadcastStatusMeta(
-    state as BroadcastState
-  );
-
-  const emptyStateMessage = getBroadcastEmptyStateMessage(
+  }, [
     ready,
     token,
+    isHost,
+    roomIdFromUrl,
+    joinAsCoStreamer,
+  ]);
+
+  const displayRoom = roomId ?? roomIdFromUrl;
+
+  const viewerHref = displayRoom
+    ? `/watch/${encodeURIComponent(displayRoom)}`
+    : null;
+
+  const {
+    label: statusLabel,
+    dotClassName,
+  } = getBroadcastStatusMeta(
     state as BroadcastState
   );
+
+  const emptyStateMessage =
+    getBroadcastEmptyStateMessage(
+      ready,
+      token,
+      state as BroadcastState
+    );
 
   const handleBack = async () => {
     await stopLive();
@@ -76,11 +123,77 @@ export default function BroadcastRoomPage() {
 
   const handleLaunchLive = async () => {
     if (!ready || !token || !roomIdFromUrl) return;
+
     setHasStarted(true);
+
     await hostExistingRoom(roomIdFromUrl);
   };
 
-  const canLaunch = ready && !!token && !!roomIdFromUrl;
+  const canLaunch =
+    ready &&
+    !!token &&
+    !!roomIdFromUrl;
+
+  const fetchChat = useCallback(async () => {
+    if (!displayRoom) return;
+
+    try {
+      const msgs = await getChatMessages(
+        displayRoom,
+        token
+      );
+
+      setChatMessages(msgs ?? []);
+    } catch (err) {
+      console.warn("[CHAT] fetch failed:", err);
+    }
+  }, [displayRoom, token]);
+
+  useEffect(() => {
+    fetchChat();
+
+    const interval = setInterval(fetchChat, 3000);
+
+    return () => clearInterval(interval);
+  }, [fetchChat]);
+
+  useEffect(() => {
+    if (!chatScrollRef.current) return;
+
+    chatScrollRef.current.scrollTop =
+      chatScrollRef.current.scrollHeight;
+  }, [chatMessages]);
+
+  const onSendMessage = async () => {
+    const trimmed = message.trim();
+
+    if (
+      !trimmed ||
+      !displayRoom ||
+      !token ||
+      sending
+    ) {
+      return;
+    }
+
+    setSending(true);
+    setMessage("");
+
+    try {
+      await postChatMessage(
+        displayRoom,
+        trimmed,
+        token
+      );
+
+      await fetchChat();
+    } catch (err) {
+      console.warn("[CHAT] send failed:", err);
+      setMessage(trimmed);
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <main className="min-h-screen">
@@ -94,7 +207,10 @@ export default function BroadcastRoomPage() {
               ← Retour
             </button>
 
-            <BroadcastStatusPill label={statusLabel} dotClassName={dotClassName} />
+            <BroadcastStatusPill
+              label={statusLabel}
+              dotClassName={dotClassName}
+            />
 
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {isHost ? "Host" : "Co-streamer"}
@@ -103,7 +219,10 @@ export default function BroadcastRoomPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Room: {displayRoom ? `${displayRoom.slice(0, 8)}…` : "—"}
+              Room:{" "}
+              {displayRoom
+                ? `${displayRoom.slice(0, 8)}…`
+                : "—"}
             </div>
 
             {viewerHref ? (
@@ -117,25 +236,13 @@ export default function BroadcastRoomPage() {
           </div>
         </header>
 
-        {!ready ? (
-          <div className="rounded-2xl border border-black/8 bg-white/72 px-4 py-3 text-sm text-gray-500 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-400">
-            Chargement de la session…
-          </div>
-        ) : null}
-
-        {ready && !token ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
-            Non authentifié. Connecte-toi pour lancer ou rejoindre un live.
-          </div>
-        ) : null}
-
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
             {error}
           </div>
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
           <section className="min-w-0">
             <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/8 px-4 py-4 dark:border-white/10">
@@ -143,8 +250,9 @@ export default function BroadcastRoomPage() {
                   <div className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
                     Studio live
                   </div>
+
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Prévisualisation de ton flux principal
+                    Prévisualisation du live
                   </div>
                 </div>
 
@@ -159,7 +267,8 @@ export default function BroadcastRoomPage() {
                     </button>
                   ) : null}
 
-                  {state === "live" || state === "connecting" ? (
+                  {state === "live" ||
+                  state === "connecting" ? (
                     <button
                       onClick={async () => {
                         await stopLive();
@@ -174,7 +283,10 @@ export default function BroadcastRoomPage() {
 
               <div className="h-[56vw] min-h-[220px] max-h-[72vh] bg-black lg:h-[560px]">
                 {localStream ? (
-                  <StreamView stream={localStream} muted />
+                  <StreamView
+                    stream={localStream}
+                    muted
+                  />
                 ) : (
                   <BroadcastEmptyState
                     title="Caméra non active"
@@ -185,15 +297,15 @@ export default function BroadcastRoomPage() {
             </div>
           </section>
 
-          <aside className="min-w-0">
-            <div className="grid gap-3 rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-              <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+          <aside className="grid gap-4">
+            <div className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+              <div className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-50">
                 Co-streamers
               </div>
 
               {remoteStreams.length === 0 ? (
                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Aucun co-streamer pour l’instant
+                  Aucun co-streamer
                 </div>
               ) : (
                 <div className="grid gap-3">
@@ -206,6 +318,78 @@ export default function BroadcastRoomPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+              <div className="flex items-center gap-2 border-b border-black/8 px-4 py-4 dark:border-white/10">
+                <MessageCircle className="h-4 w-4 text-orange-500" />
+
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+                  Chat live
+                </div>
+              </div>
+
+              <div
+                ref={chatScrollRef}
+                className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
+              >
+                {chatMessages.length === 0 ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Aucun message
+                  </div>
+                ) : (
+                  chatMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className="text-sm"
+                    >
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {msg.username}
+                      </span>
+
+                      <span className="text-gray-400">
+                        {" "}
+                        :{" "}
+                      </span>
+
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {msg.message}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-black/8 p-4 dark:border-white/10">
+                <div className="flex gap-2">
+                  <input
+                    value={message}
+                    onChange={(e) =>
+                      setMessage(
+                        e.target.value.slice(
+                          0,
+                          MAX_MSG
+                        )
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        onSendMessage();
+                      }
+                    }}
+                    placeholder="Message..."
+                    className="flex-1 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#1b140e] dark:text-white"
+                  />
+
+                  <button
+                    onClick={onSendMessage}
+                    disabled={sending}
+                    className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 text-white transition hover:bg-orange-400 disabled:opacity-50"
+                  >
+                    <SendHorizonal className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </aside>
         </div>
