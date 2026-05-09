@@ -9,6 +9,7 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
+	"github.com/Foodstream-io/etchebest/internal/modules/search"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -80,6 +81,11 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.DELETE(usersMePath, user.DeleteCurrentUser(db))
 	api.POST("/users/follow/:userId", user.FollowUser(db))
 	api.POST("/users/unfollow/:userId", user.UnfollowUser(db))
+	api.GET("/users/:userId/is-following", user.IsFollowingUser(db))
+	api.GET("/users/:userId/followers", user.GetUserFollowers(db))
+	api.GET("/users/:userId/following", user.GetUserFollowing(db))
+	api.GET("/search", search.GlobalSearch(db))
+	api.GET("/users/:userId", user.GetUserById(db))
 
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))
