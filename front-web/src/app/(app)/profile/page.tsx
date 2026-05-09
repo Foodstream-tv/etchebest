@@ -22,6 +22,8 @@ import FollowListModal from "@/components/profile/FollowListModal";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { getMyActivities } from "@/lib/activity";
+import { usePathname } from "next/navigation";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 
 type MeProfile = {
   id: string;
@@ -54,6 +56,9 @@ type UpdateProfilePayload = {
 
 export default function ProfilePage() {
   const { user, token, signOut, ready } = useAuth();
+
+  const pathname = usePathname();
+  const { pushNotification } = useNotifications();
 
   const [tab, setTab] = useState<ProfileTab>("Préférences");
   const [profile, setProfile] = useState<MeProfile | null>(null);
@@ -129,8 +134,27 @@ export default function ProfilePage() {
       (activity) => !readActivityIds.includes(activity.id)
     );
 
-    setNotificationCount(unreadActivities.length);
-    setNewFollowerNotification(unreadActivities.length > 0);
+    if (pathname !== "/profile" && unreadActivities.length > 0) {
+      unreadActivities.forEach((activity) => {
+        pushNotification({
+          title: "Nouvelle activité",
+          message: activity.text,
+          href: "/profile",
+        });
+      });
+
+      localStorage.setItem(
+        getReadActivityStorageKey(),
+        JSON.stringify(
+          backendActivities.map((activity) => activity.id)
+        )
+      );
+    }
+
+    if (pathname === "/profile") {
+      setNotificationCount(unreadActivities.length);
+      setNewFollowerNotification(unreadActivities.length > 0);
+    }
 
     setProfile(freshProfile);
   };
@@ -142,7 +166,7 @@ export default function ProfilePage() {
 
     const interval = window.setInterval(() => {
       refreshProfile().catch(() => {});
-    }, 10000);
+    }, 3000);
 
     return () => window.clearInterval(interval);
   }, [token]);

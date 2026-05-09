@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { Inter } from "next/font/google";
 import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
 import AppBackground from "@/components/layout/AppBackground";
+import { NotificationProvider } from "@/components/notifications/NotificationProvider";
+import NotificationPoller from "@/components/notifications/NotificationPoller";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -32,7 +34,10 @@ export default async function RootLayout({
     >
       <body className="min-h-screen text-gray-900 dark:text-gray-50">
         <ThemeProvider initialTheme={initialTheme}>
-          <AppBackground>{children}</AppBackground>
+          <NotificationProvider>
+            <NotificationPoller />
+            <AppBackground>{children}</AppBackground>
+          </NotificationProvider>
         </ThemeProvider>
       </body>
     </html>
