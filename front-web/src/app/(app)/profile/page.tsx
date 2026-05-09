@@ -2,21 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import {
-  Mail,
-  LogOut,
-  Settings,
-  Bell,
-  ShieldCheck,
-  Trophy,
-  Star,
-  Pencil,
-  X,
-  Save,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {  Mail, LogOut, Settings, Bell, ShieldCheck, Trophy, Star, Pencil, X, Save, BellRing } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
+import { getUserFollowers, getUserFollowing, type UserSummary } from "@/lib/users";
 import HomeFooter from "@/components/home/HomeFooter";
 import ProfileCard from "@/components/profile/ProfileCard";
 import ProfilePill from "@/components/profile/ProfilePill";
@@ -27,6 +17,8 @@ import ProfileConnectedRow from "@/components/profile/ProfileConnectedRow";
 import ProfileStatMiniCard from "@/components/profile/ProfileStatMiniCard";
 import ProfileProgressRow from "@/components/profile/ProfileProgressRow";
 import ProfileActivityRow from "@/components/profile/ProfileActivityRow";
+import FollowStats from "@/components/profile/FollowStats";
+import FollowListModal from "@/components/profile/FollowListModal";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useTheme } from "@/components/theme/ThemeProvider";
 
@@ -65,6 +57,25 @@ export default function ProfilePage() {
   const [tab, setTab] = useState<ProfileTab>("Préférences");
   const [profile, setProfile] = useState<MeProfile | null>(null);
 
+  const [followersCount, setFollowersCount] = useState(0);
+  const [newFollowerNotification, setNewFollowerNotification] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  const [activities, setActivities] = useState<
+    {
+      id: string;
+      text: string;
+    }[]
+  >([]);
+  const lastFollowersCountRef = useRef<number | null>(null);
+  const knownFollowerIdsRef = useRef<string[] | null>(null);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followModalType, setFollowModalType] = useState<
+    "followers" | "following" | null
+  >(null);
+  const [followModalUsers, setFollowModalUsers] = useState<UserSummary[]>([]);
+  const [followModalLoading, setFollowModalLoading] = useState(false);
+
   const { theme, setTheme } = useTheme();
   const themeChoice: ThemeChoice = theme === "dark" ? "Sombre" : "Clair";
   const [lang, setLang] = useState<"FR" | "EN">("FR");
@@ -87,10 +98,74 @@ export default function ProfilePage() {
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState("");
 
+  const refreshProfile = async () => {
+    if (!token) return;
+
+    const freshProfile = await apiFetch<MeProfile>("/users/me", {
+      token,
+      cache: "no-store",
+    });
+
+    const followerIds = freshProfile.followersIds ?? [];
+    const previousFollowerIds = knownFollowerIdsRef.current;
+
+    if (previousFollowerIds !== null) {
+      const newFollowerIds = followerIds.filter(
+        (id) => !previousFollowerIds.includes(id)
+      );
+
+      if (newFollowerIds.length > 0) {
+        setNewFollowerNotification(true);
+        setNotificationCount((prev) => prev + newFollowerIds.length);
+
+        const followersRes = await getUserFollowers(
+          freshProfile.id,
+          token
+        );
+
+        const newFollowers = (followersRes.followers ?? []).filter((follower) =>
+          newFollowerIds.includes(follower.id)
+        );
+
+        setActivities((prev) => [
+          ...newFollowers.map((follower) => ({
+            id: `${follower.id}-${Date.now()}`,
+            text: `${follower.username || follower.email || "Quelqu’un"} a commencé à vous suivre.`,
+          })),
+          ...prev,
+        ]);
+      }
+    }
+
+    knownFollowerIdsRef.current = followerIds;
+    lastFollowersCountRef.current = followerIds.length;
+
+    setProfile(freshProfile);
+  };
+
   useEffect(() => {
     if (!token) return;
-    apiFetch<MeProfile>("/users/me", { token }).then(setProfile).catch(() => {});
+
+    refreshProfile().catch(() => {});
+
+    const interval = window.setInterval(() => {
+      refreshProfile().catch(() => {});
+    }, 10000);
+
+    return () => window.clearInterval(interval);
   }, [token]);
+
+  useEffect(() => {
+    if (!profile) return;
+
+    setFollowersCount(
+      profile.followersIds?.length ??
+        profile.followerCount ??
+        0
+    );
+
+    setFollowingCount(profile.followingIds?.length ?? 0);
+  }, [profile]);
 
   useEffect(() => {
     if (!user) return;
@@ -146,6 +221,38 @@ export default function ProfilePage() {
   const handleSignOut = () => {
     signOut();
     window.location.href = "/signin";
+  };
+
+  const openFollowers = async () => {
+    if (!token || !profile) return;
+
+    setFollowModalType("followers");
+    setFollowModalUsers([]);
+    setFollowModalLoading(true);
+
+    try {
+      const res = await getUserFollowers(profile.id, token);
+      setFollowModalUsers(res.followers ?? []);
+      setFollowersCount(res.count);
+    } finally {
+      setFollowModalLoading(false);
+    }
+  };
+
+  const openFollowing = async () => {
+    if (!token || !profile) return;
+
+    setFollowModalType("following");
+    setFollowModalUsers([]);
+    setFollowModalLoading(true);
+
+    try {
+      const res = await getUserFollowing(profile.id, token);
+      setFollowModalUsers(res.following ?? []);
+      setFollowingCount(res.count);
+    } finally {
+      setFollowModalLoading(false);
+    }
   };
 
   const openEditModal = () => {
@@ -295,19 +402,13 @@ export default function ProfilePage() {
                   ) : null}
 
                   {profile ? (
-                    <div className="mt-2 flex gap-3 text-[11px] text-gray-500 dark:text-gray-400">
-                      <span>
-                        <strong className="text-gray-800 dark:text-gray-200">
-                          {profile.followerCount}
-                        </strong>{" "}
-                        abonnés
-                      </span>
-                      <span>
-                        <strong className="text-gray-800 dark:text-gray-200">
-                          {profile.followingIds?.length ?? 0}
-                        </strong>{" "}
-                        abonnements
-                      </span>
+                    <div className="mt-2">
+                      <FollowStats
+                        followersCount={followersCount}
+                        followingCount={followingCount}
+                        onOpenFollowers={openFollowers}
+                        onOpenFollowing={openFollowing}
+                      />
                     </div>
                   ) : null}
                 </div>
@@ -384,9 +485,24 @@ export default function ProfilePage() {
                   <ProfileTabButton
                     key={item}
                     active={tab === item}
-                    onClick={() => setTab(item)}
+                    onClick={() => {
+                      setTab(item);
+
+                      if (item === "Activité") {
+                        setNewFollowerNotification(false);
+                        setNotificationCount(0);
+                      }
+                    }}
                   >
-                    {item}
+                    <span className="relative inline-flex items-center">
+                      {item}
+
+                      {item === "Activité" && notificationCount > 0 && (
+                        <span className="absolute -right-4 -top-3 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow">
+                          {notificationCount}
+                        </span>
+                      )}
+                    </span>
                   </ProfileTabButton>
                 ))}
               </div>
@@ -525,11 +641,26 @@ export default function ProfilePage() {
 
             {tab === "Activité" && (
               <ProfileCard>
-                <div className="mb-4 text-sm font-semibold">Activité récente</div>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="text-sm font-semibold">
+                    Activité récente
+                  </div>
+                </div>
+
                 <div className="space-y-3">
-                  <ProfileActivityRow text='A rejoint "Ramen Tonkotsu"' />
-                  <ProfileActivityRow text='A sauvegardé "Bao buns moelleux"' />
-                  <ProfileActivityRow text='A suivi le chef "Camille Dupont"' />
+                  {activities.length === 0 ? (
+                    <ProfileActivityRow
+                      empty
+                      text="Aucune activité récente sur les 30 derniers jours."
+                    />
+                  ) : (
+                    activities.map((activity) => (
+                      <ProfileActivityRow
+                        key={activity.id}
+                        text={activity.text}
+                      />
+                    ))
+                  )}
                 </div>
               </ProfileCard>
             )}
@@ -665,6 +796,14 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      <FollowListModal
+        open={followModalType !== null}
+        title={followModalType === "followers" ? "Followers" : "Suivis"}
+        users={followModalUsers}
+        loading={followModalLoading}
+        onClose={() => setFollowModalType(null)}
+      />
 
       <HomeFooter />
     </main>
