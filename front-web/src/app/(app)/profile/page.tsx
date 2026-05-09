@@ -21,6 +21,7 @@ import FollowStats from "@/components/profile/FollowStats";
 import FollowListModal from "@/components/profile/FollowListModal";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useTheme } from "@/components/theme/ThemeProvider";
+import { getMyActivities } from "@/lib/activity";
 
 type MeProfile = {
   id: string;
@@ -65,10 +66,9 @@ export default function ProfilePage() {
     {
       id: string;
       text: string;
+      createdAt?: string;
     }[]
   >([]);
-  const lastFollowersCountRef = useRef<number | null>(null);
-  const knownFollowerIdsRef = useRef<string[] | null>(null);
   const [followingCount, setFollowingCount] = useState(0);
   const [followModalType, setFollowModalType] = useState<
     "followers" | "following" | null
@@ -98,6 +98,10 @@ export default function ProfilePage() {
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState("");
 
+  const getReadActivityStorageKey = () => {
+    return `readActivityIds:${user?.id ?? "unknown"}`;
+  };
+
   const refreshProfile = async () => {
     if (!token) return;
 
@@ -106,39 +110,27 @@ export default function ProfilePage() {
       cache: "no-store",
     });
 
-    const followerIds = freshProfile.followersIds ?? [];
-    const previousFollowerIds = knownFollowerIdsRef.current;
+    const activitiesRes = await getMyActivities(token ?? undefined);
+    const backendActivities = activitiesRes.activities ?? [];
 
-    if (previousFollowerIds !== null) {
-      const newFollowerIds = followerIds.filter(
-        (id) => !previousFollowerIds.includes(id)
-      );
+    setActivities(
+      backendActivities.map((activity) => ({
+        id: activity.id,
+        text: activity.text,
+        createdAt: activity.created_at,
+      }))
+    );
 
-      if (newFollowerIds.length > 0) {
-        setNewFollowerNotification(true);
-        setNotificationCount((prev) => prev + newFollowerIds.length);
+    const readActivityIds = JSON.parse(
+      localStorage.getItem(getReadActivityStorageKey()) || "[]"
+    ) as string[];
 
-        const followersRes = await getUserFollowers(
-          freshProfile.id,
-          token
-        );
+    const unreadActivities = backendActivities.filter(
+      (activity) => !readActivityIds.includes(activity.id)
+    );
 
-        const newFollowers = (followersRes.followers ?? []).filter((follower) =>
-          newFollowerIds.includes(follower.id)
-        );
-
-        setActivities((prev) => [
-          ...newFollowers.map((follower) => ({
-            id: `${follower.id}-${Date.now()}`,
-            text: `${follower.username || follower.email || "Quelqu’un"} a commencé à vous suivre.`,
-          })),
-          ...prev,
-        ]);
-      }
-    }
-
-    knownFollowerIdsRef.current = followerIds;
-    lastFollowersCountRef.current = followerIds.length;
+    setNotificationCount(unreadActivities.length);
+    setNewFollowerNotification(unreadActivities.length > 0);
 
     setProfile(freshProfile);
   };
@@ -489,6 +481,13 @@ export default function ProfilePage() {
                       setTab(item);
 
                       if (item === "Activité") {
+                        const currentActivityIds = activities.map((activity) => activity.id);
+
+                        localStorage.setItem(
+                          getReadActivityStorageKey(),
+                          JSON.stringify(currentActivityIds)
+                        );
+
                         setNewFollowerNotification(false);
                         setNotificationCount(0);
                       }

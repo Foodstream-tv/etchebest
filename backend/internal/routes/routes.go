@@ -10,6 +10,7 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/Foodstream-io/etchebest/internal/modules/search"
+	"github.com/Foodstream-io/etchebest/internal/modules/activity"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -86,6 +87,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.GET("/users/:userId/following", user.GetUserFollowing(db))
 	api.GET("/search", search.GlobalSearch(db))
 	api.GET("/users/:userId", user.GetUserById(db))
+	api.GET("/users/me/activities", activity.GetMyActivities(db))
 
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))

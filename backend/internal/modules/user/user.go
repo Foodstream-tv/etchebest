@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Foodstream-io/etchebest/internal/utils"
+	"github.com/Foodstream-io/etchebest/internal/modules/activity"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -287,6 +288,21 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}
+
+		actorName := currentUser.Username
+
+		if actorName == "" {
+			actorName = currentUser.Email
+		}
+
+		if actorName == "" {
+			actorName = "Quelqu’un"
+		}
+
+		if err := activity.CreateFollowActivity(db, userToFollow.ID, currentUser.ID, actorName); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create activity"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "user followed successfully"})
 	}
 }
@@ -343,6 +359,10 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 		}
 		if err := SaveUser(db, currentUser); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
+			return
+		}
+		if err := activity.DeleteFollowActivity(db, userToUnfollow.ID, currentUser.ID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete activity"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "user unfollowed successfully"})
