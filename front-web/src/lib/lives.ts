@@ -32,7 +32,9 @@ export type LiveDTO = {
 export type GetLivesParams = {
   q?: string;
   tag?: string;
-  status?: "all" | "scheduled" | "live";
+  status?: "all" | "scheduled" | "live" | "ended";
+  page?: number;
+  limit?: number;
 };
 
 export async function getLives(params: GetLivesParams = {}, token?: string) {
@@ -40,8 +42,17 @@ export async function getLives(params: GetLivesParams = {}, token?: string) {
 
   if (params.q) searchParams.set("q", params.q);
   if (params.tag && params.tag !== "Tout") searchParams.set("tag", params.tag);
+
   if (params.status && params.status !== "all") {
     searchParams.set("status", params.status);
+  }
+
+  if (params.page) {
+    searchParams.set("page", String(params.page));
+  }
+
+  if (params.limit) {
+    searchParams.set("limit", String(params.limit));
   }
 
   const query = searchParams.toString();
