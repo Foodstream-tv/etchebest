@@ -13,6 +13,14 @@ import (
 func AuthMiddleware(jwtKey []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
+
+		if authHeader == "" {
+			queryToken := c.Query("token")
+			if queryToken != "" {
+				authHeader = "Bearer " + queryToken
+			}
+		}
+
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid token"})
 			c.Abort()

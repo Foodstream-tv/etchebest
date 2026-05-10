@@ -92,3 +92,25 @@ func GetLives(db *gorm.DB) gin.HandlerFunc {
 		})
 	}
 }
+
+func GetLiveByRoomID(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomID := c.Param("roomId")
+
+		var live Live
+
+		if err := db.
+			Preload("User").
+			Preload("Tags").
+			Where("room_id = ?", roomID).
+			First(&live).Error; err != nil {
+
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "live not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, LiveToDTO(live))
+	}
+}

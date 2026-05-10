@@ -128,20 +128,25 @@ func removeLiveRoom(id string) {
 	delete(liveRooms, id)
 }
 
-func markLiveAsEndedByRoomID(db *gorm.DB, roomID string) {
+func markLiveAsEndedByRoomID(db *gorm.DB, roomID string, replayURL string) {
 	now := time.Now()
+
+	updates := map[string]any{
+		"status":   "ended",
+		"ended_at": now,
+	}
+
+	if replayURL != "" {
+		updates["has_replay"] = true
+		updates["replay_url"] = replayURL
+	}
 
 	if err := db.Model(&liveModule.Live{}).
 		Where("room_id = ? AND status != ?", roomID, "ended").
-		Updates(map[string]any{
-			"status":   "ended",
-			"ended_at": now,
-		}).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		log.Printf("failed to mark live as ended for room %s: %v", roomID, err)
-		return
 	}
-
-	log.Printf("live linked to room %s marked as ended", roomID)
+	log.Printf("[LIVE END] room=%s updates=%+v", roomID, updates)
 }
 
 func getPeerConnectionByUser(room *Room, userID string) *webrtc.PeerConnection {
@@ -589,14 +594,18 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		copy(conns, room.Connections)
 
 		// Tear down room state
-		hls.StopStream(roomId)
+		replayURL, replayErr := hls.StopStream(roomId)
+		log.Printf("[DISCONNECT] room=%s replayURL=%q replayErr=%v", roomId, replayURL, replayErr)
+		if replayErr != nil {
+			log.Printf("failed to generate replay for room %s: %v", roomId, replayErr)
+		}
 		room.Connections = nil
 		room.Tracks = nil
 		room.HostPeerCon = nil
 		room.HLSWriter = nil
 		removeLiveRoom(roomId)
 
-		markLiveAsEndedByRoomID(db, roomId)
+		markLiveAsEndedByRoomID(db, roomId, replayURL)
 
 		if err := DeleteRoomById(db, roomId); err != nil {
 			log.Printf("HandleDisconnect: failed to delete room %s: %v", roomId, err)
@@ -1259,11 +1268,14 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 
 	empty := len(room.Connections) == 0
 	if empty {
-		hls.StopStream(roomID)
+		replayURL, replayErr := hls.StopStream(roomID)
+		if replayErr != nil {
+			log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
+		}
 		room.Tracks = nil
 		removeLiveRoom(roomID)
 
-		markLiveAsEndedByRoomID(db, roomID)
+		markLiveAsEndedByRoomID(db, roomID, replayURL)
 
 		if err := DeleteRoomById(db, roomID); err != nil {
 			log.Printf("failed to delete room %s: %v", roomID, err)

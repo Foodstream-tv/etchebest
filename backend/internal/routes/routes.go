@@ -117,6 +117,8 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.GET("/api/discover/categories", discover.GetCategories(db))
 	r.GET("/api/discover/categories/:id/lives", discover.GetCategoryLives(db))
 	r.GET("/api/lives", live.GetLives(db))
+	r.GET("/api/lives/:roomId", live.GetLiveByRoomID(db))
+	r.Static("/replays-storage", "./storage/replays")
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {
