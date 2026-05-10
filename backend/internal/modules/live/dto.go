@@ -11,6 +11,8 @@ import (
 type LiveDTO struct {
 	ID          uint   `json:"id"`
 	Title       string `json:"title"`
+	RoomID 		string `json:"room_id"`
+	DishName 	string `json:"dish_name"`
 	Description string `json:"description,omitempty"`
 	Status      string `json:"status"`
 

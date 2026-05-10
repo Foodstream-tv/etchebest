@@ -32,7 +32,7 @@ export default async function RootLayout({
       lang="fr"
       className={`${inter.variable} ${initialTheme === "dark" ? "dark" : ""}`}
     >
-      <body className="min-h-screen text-gray-900 dark:text-gray-50">
+      <body  suppressHydrationWarning className="min-h-screen text-gray-900 dark:text-gray-50">
         <ThemeProvider initialTheme={initialTheme}>
           <NotificationProvider>
             <NotificationPoller />

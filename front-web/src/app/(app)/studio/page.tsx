@@ -12,6 +12,8 @@ import {
   FileText,
   Upload,
   X,
+  ChevronDown,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -23,13 +25,56 @@ import StudioPreviewCard from "@/components/studio/StudioPreviewCard";
 type Level = "Débutant" | "Intermédiaire" | "Avancé";
 type Visibility = "Public" | "Non listé" | "Privé";
 
-const CUISINES = [
-  "Asiatique",
-  "Pâtisserie",
-  "Street food",
-  "Healthy",
-  "BBQ",
-  "Végétarien",
+const TAG_GROUPS = [
+  {
+    title: "Cuisine",
+    tags: [
+      "Asiatique",
+      "Africain",
+      "Américain",
+      "Européen",
+      "Français",
+      "Italien",
+      "Mexicain",
+      "Japonais",
+      "Coréen",
+      "Chinois",
+      "Indien",
+      "Méditerranéen",
+    ],
+  },
+  {
+    title: "Type de plat",
+    tags: [
+      "Pâtisserie",
+      "Dessert",
+      "Végétarien",
+      "Vegan",
+      "Healthy",
+      "Street food",
+      "BBQ",
+      "Petit-déjeuner",
+      "Apéro",
+      "Plat familial",
+      "Snack",
+      "Boisson",
+    ],
+  },
+  {
+    title: "Format du live",
+    tags: [
+      "Recette rapide",
+      "Pas à pas",
+      "Débutant friendly",
+      "Meal prep",
+      "Batch cooking",
+      "Challenge",
+      "Cuisine économique",
+      "Sans four",
+      "Air fryer",
+      "Fait maison",
+    ],
+  },
 ];
 
 type CreateRoomRes = { roomId: string };
@@ -77,6 +122,9 @@ export default function StudioPage() {
   const [status, setStatus] = useState<"idle" | "creating" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  const [openTagGroup, setOpenTagGroup] = useState<string>("Cuisine");
+  const [customTag, setCustomTag] = useState("");
+
   useEffect(() => {
     if (!ready) return;
     if (!token || !user) router.replace("/signin");
@@ -97,7 +145,10 @@ export default function StudioPage() {
   }, [thumbnailFile]);
 
   const previewTitle = title.trim() || "Ramen Tonkotsu en 30 minutes";
-  const previewTags = useMemo(() => [tags[0] || "Asiatique", level], [tags, level]);
+  const previewTags = useMemo(
+    () => [...tags.slice(0, 3), level],
+    [tags, level]
+  );
 
   const safeImage =
     thumbnailPreview || imageUrl?.trim() || "/images/live-fallback.jpg";
@@ -106,7 +157,24 @@ export default function StudioPage() {
   const canSchedule = canCreate && !!date && !!time;
 
   const toggleTag = (tag: string) => {
-    setTags([tag]);
+    setTags((prev) =>
+      prev.includes(tag)
+        ? prev.filter((item) => item !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  const addCustomTag = () => {
+    const cleaned = customTag.trim();
+
+    if (!cleaned) return;
+    if (tags.includes(cleaned)) {
+      setCustomTag("");
+      return;
+    }
+
+    setTags((prev) => [...prev, cleaned]);
+    setCustomTag("");
   };
 
   const buildScheduledAt = (): string | null => {
@@ -354,16 +422,88 @@ export default function StudioPage() {
               </Field>
 
               <div className="grid gap-5 md:grid-cols-2">
-                <Field label="Cuisine / catégorie">
-                  <div className="flex flex-wrap gap-2">
-                    {CUISINES.map((tag) => (
-                      <Chip
-                        key={tag}
-                        active={tags.includes(tag)}
-                        onClick={() => toggleTag(tag)}
-                        label={tag}
+                <Field label="Tags du live">
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {tags.length === 0 ? (
+                        <span className="text-xs text-gray-400 dark:text-white/35">
+                          Aucun tag sélectionné
+                        </span>
+                      ) : (
+                        tags.map((tag) => (
+                          <Chip
+                            key={tag}
+                            active
+                            onClick={() => toggleTag(tag)}
+                            label={tag}
+                          />
+                        ))
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {TAG_GROUPS.map((group) => {
+                        const open = openTagGroup === group.title;
+
+                        return (
+                          <div
+                            key={group.title}
+                            className="rounded-xl border border-black/5 bg-white/70 dark:border-white/10 dark:bg-white/[0.03]"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setOpenTagGroup(open ? "" : group.title)}
+                              className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-white/45"
+                            >
+                              {group.title}
+
+                              <ChevronDown
+                                className={`h-4 w-4 transition ${
+                                  open ? "rotate-180" : ""
+                                }`}
+                              />
+                            </button>
+
+                            {open && (
+                              <div className="flex flex-wrap gap-2 border-t border-black/5 px-3 py-3 dark:border-white/10">
+                                {group.tags.map((tag) => (
+                                  <Chip
+                                    key={tag}
+                                    active={tags.includes(tag)}
+                                    onClick={() => toggleTag(tag)}
+                                    label={tag}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        value={customTag}
+                        onChange={(e) => setCustomTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addCustomTag();
+                          }
+                        }}
+                        placeholder="Ajouter un tag personnalisé"
+                        className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                       />
-                    ))}
+
+                      <button
+                        type="button"
+                        onClick={addCustomTag}
+                        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Ajouter
+                      </button>
+                    </div>
                   </div>
                 </Field>
 

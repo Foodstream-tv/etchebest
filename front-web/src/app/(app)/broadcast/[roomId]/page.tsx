@@ -135,7 +135,7 @@ export default function BroadcastRoomPage() {
     !!roomIdFromUrl;
 
   const fetchChat = useCallback(async () => {
-    if (!displayRoom) return;
+    if (!displayRoom || !token) return;
 
     try {
       const msgs = await getChatMessages(
@@ -150,12 +150,14 @@ export default function BroadcastRoomPage() {
   }, [displayRoom, token]);
 
   useEffect(() => {
+    if (!ready || !token || !displayRoom) return;
+
     fetchChat();
 
-    const interval = setInterval(fetchChat, 3000);
+    const interval = window.setInterval(fetchChat, 3000);
 
-    return () => clearInterval(interval);
-  }, [fetchChat]);
+    return () => window.clearInterval(interval);
+  }, [ready, token, displayRoom, fetchChat]);
 
   useEffect(() => {
     if (!chatScrollRef.current) return;

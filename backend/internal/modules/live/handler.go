@@ -1,0 +1,94 @@
+package live
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+type GetLivesResponse struct {
+	Lives []LiveDTO `json:"lives"`
+	Total int64     `json:"total"`
+	Page  int       `json:"page"`
+	Limit int       `json:"limit"`
+}
+
+func GetLives(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		q := c.Query("q")
+		tagName := c.Query("tag")
+		status := c.Query("status")
+
+		page := 1
+		limit := 20
+
+		if p, err := strconv.Atoi(c.Query("page")); err == nil && p > 0 {
+			page = p
+		}
+
+		if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+
+		offset := (page - 1) * limit
+
+		query := db.Model(&Live{}).
+			Preload("User").
+			Preload("Dish").
+			Preload("Country").
+			Preload("Tags")
+
+		if status != "" && status != "all" {
+			query = query.Where("status = ?", status)
+		} else {
+			query = query.Where("status IN ?", []string{"scheduled", "live"})
+		}
+
+		if q != "" {
+			like := "%" + q + "%"
+			query = query.Where(
+				"title ILIKE ? OR description ILIKE ? OR dish_name ILIKE ?",
+				like,
+				like,
+				like,
+			)
+		}
+
+		if tagName != "" && tagName != "Tout" {
+			query = query.
+				Joins("JOIN live_tags ON live_tags.live_id = lives.id").
+				Joins("JOIN tags ON tags.id = live_tags.tag_id").
+				Where("tags.name = ?", tagName)
+		}
+
+		var total int64
+		if err := query.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count lives"})
+			return
+		}
+
+		var lives []Live
+		if err := query.
+			Order("created_at DESC").
+			Limit(limit).
+			Offset(offset).
+			Find(&lives).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch lives"})
+			return
+		}
+
+		liveDTOs := make([]LiveDTO, 0, len(lives))
+		for _, item := range lives {
+			liveDTOs = append(liveDTOs, LiveToDTO(item))
+		}
+
+		c.JSON(http.StatusOK, GetLivesResponse{
+			Lives: liveDTOs,
+			Total: total,
+			Page:  page,
+			Limit: limit,
+		})
+	}
+}

@@ -12,6 +12,9 @@ import (
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/utils"
+	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
+	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
+	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pion/rtcp"
@@ -21,7 +24,16 @@ import (
 )
 
 type Request struct {
-	Name string `json:"name" binding:"required" example:"My Cooking Stream"`
+	Name            string   `json:"name"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	Tags            []string `json:"tags"`
+	Level           string   `json:"level"`
+	DurationMinutes int      `json:"durationMinutes"`
+	Visibility      string   `json:"visibility"`
+	ThumbnailURL    string   `json:"thumbnailUrl"`
+	Status          string   `json:"status"`
+	ScheduledAt     *string  `json:"scheduledAt"`
 }
 
 type AddParticipantReq struct {
@@ -325,6 +337,13 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
+
+		currentUser, err := userModule.GetUserByID(db, currentUserId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get current user"})
+			return
+		}
+
 		room := Room{
 			ID:              uuid.New().String(),
 			Name:            req.Name,
@@ -334,9 +353,78 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			MaxParticipants: 10,
 		}
 
-		err := CreateRoom(db, &room)
-		if err != nil {
+		if err := CreateRoom(db, &room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
+			return
+		}
+
+		resolvedTags := make([]tagModule.Tag, 0, len(req.Tags))
+
+		for _, tagName := range req.Tags {
+			cleanName := strings.TrimSpace(tagName)
+			if cleanName == "" {
+				continue
+			}
+
+			slug := strings.ToLower(cleanName)
+			slug = strings.ReplaceAll(slug, " ", "-")
+
+			var existingTag tagModule.Tag
+			if err := db.Where("slug = ?", slug).First(&existingTag).Error; err != nil {
+				existingTag = tagModule.Tag{
+					Name:     cleanName,
+					Slug:     slug,
+					IsActive: true,
+				}
+
+				if err := db.Create(&existingTag).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create tag"})
+					return
+				}
+			}
+
+			resolvedTags = append(resolvedTags, existingTag)
+		}
+
+		status := req.Status
+		if status == "" {
+			status = "scheduled"
+		}
+
+		dishName := ""
+		if len(req.Tags) > 0 {
+			dishName = req.Tags[0]
+		}
+
+		var startedAt *time.Time
+		if status == "live" {
+			now := time.Now()
+			startedAt = &now
+		}
+
+		title := strings.TrimSpace(req.Title)
+		if title == "" {
+			title = req.Name
+		}
+
+		newLive := liveModule.Live{
+			RoomID:         room.ID,
+			Title:          title,
+			Description:    req.Description,
+			DishName:       dishName,
+			UserID:         currentUser.ID,
+			Status:         status,
+			ThumbnailURL:   req.ThumbnailURL,
+			Duration:       req.DurationMinutes * 60,
+			CurrentViewers: 0,
+			ViewCount:      0,
+			LikeCount:      0,
+			StartedAt:      startedAt,
+			Tags:           resolvedTags,
+		}
+
+		if err := db.Create(&newLive).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create live"})
 			return
 		}
 
@@ -344,7 +432,11 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		liveRooms[room.ID] = &room
 		mu.Unlock()
 
-		c.JSON(http.StatusOK, gin.H{"roomId": room.ID, "message": "room created"})
+		c.JSON(http.StatusOK, gin.H{
+			"roomId":  room.ID,
+			"liveId":  newLive.ID,
+			"message": "room and live created",
+		})
 	}
 }
 

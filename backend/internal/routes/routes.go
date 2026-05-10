@@ -11,6 +11,7 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/Foodstream-io/etchebest/internal/modules/search"
 	"github.com/Foodstream-io/etchebest/internal/modules/activity"
+	"github.com/Foodstream-io/etchebest/internal/modules/live"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -115,6 +116,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.GET("/api/discover", discover.GetDiscover(db))
 	r.GET("/api/discover/categories", discover.GetCategories(db))
 	r.GET("/api/discover/categories/:id/lives", discover.GetCategoryLives(db))
+	r.GET("/api/lives", live.GetLives(db))
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {
