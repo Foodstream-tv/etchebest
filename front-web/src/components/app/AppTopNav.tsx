@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Accueil", href: "/home" },
   { label: "Lives", href: "/watch" },
   { label: "Studio", href: "/studio" },
+  { label: "Replays", href: "/replays" },
 ];
 
 function cx(...classes: Array<string | false | undefined>) {
@@ -119,7 +120,7 @@ export default function AppTopNav() {
                   onFocus={() => {
                     if (results) setSearchOpen(true);
                   }}
-                  placeholder="Rechercher un chef, un plat…"
+                  placeholder="Rechercher un chef"
                   className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                 />
               </form>

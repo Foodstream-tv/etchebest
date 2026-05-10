@@ -101,7 +101,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSearch();
                 }}
-                placeholder="Chercher une recette, un chef, une cuisine..."
+                placeholder="Chercher une recette, une cuisine..."
                 className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
               />
             </div>
@@ -182,18 +182,6 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
               </div>
             </div>
           )}
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-          <span className="inline-flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-            Lives en cours
-          </span>
-
-          <span className="inline-flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-black/20 dark:bg-white/20" />
-            Replays disponibles
-          </span>
         </div>
       </div>
 
