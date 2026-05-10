@@ -62,11 +62,21 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         wsRef.current = null;
       }
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/api/webrtc/offers?roomId=${encodeURIComponent(
-        currentRoomId
-      )}`;
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+
+      const WS_BASE = API_BASE
+        .replace(/^http/, "ws")
+        .replace(/\/api\/?$/, "");
+
+        const params = new URLSearchParams({
+          roomId: currentRoomId,
+        });
+
+        if (tokenRef.current) {
+          params.set("token", tokenRef.current);
+        }
+
+        const wsUrl = `${WS_BASE}/api/webrtc/offers?${params.toString()}`;
 
       console.log("[WebRTC] connecting to WebSocket:", wsUrl);
 

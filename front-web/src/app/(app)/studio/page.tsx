@@ -151,7 +151,7 @@ export default function StudioPage() {
   );
 
   const safeImage =
-    thumbnailPreview || imageUrl?.trim() || "/images/live-fallback.jpg";
+    thumbnailPreview || imageUrl?.trim() || "/images/live-fallback.png";
 
   const canCreate = title.trim().length > 0;
   const canSchedule = canCreate && !!date && !!time;

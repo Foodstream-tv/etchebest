@@ -86,7 +86,7 @@ export default function WatchTagSection({
           );
 
           const thumbnail =
-            live.thumbnail_url || "/images/live-fallback.jpg";
+            live.thumbnail_url || "/images/live-fallback.png";
 
           return (
             <article

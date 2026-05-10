@@ -27,6 +27,8 @@ export type LiveDTO = {
   tags?: LiveTag[];
   user?: LiveUser;
   created_at: string;
+  replay_url?: string;
+  has_replay?: boolean;
 };
 
 export type GetLivesParams = {
@@ -63,6 +65,13 @@ export async function getLives(params: GetLivesParams = {}, token?: string) {
     page: number;
     limit: number;
   }>(`/lives${query ? `?${query}` : ""}`, {
+    token,
+    cache: "no-store",
+  });
+}
+
+export async function getLiveByRoomId(roomId: string, token?: string) {
+  return apiFetch<LiveDTO>(`/lives/${encodeURIComponent(roomId)}`, {
     token,
     cache: "no-store",
   });
