@@ -1,306 +1,296 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Eye,
-  Radio,
-  RefreshCw,
-  Users,
-  Video,
-  PlusCircle,
-  ArrowRight,
-} from "lucide-react";
-import { useAuth } from "@/lib/useAuth";
-import { getRooms, RoomInfo } from "@/services/streaming";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Flame, Radio, Search, Star, Video } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import HomeFooter from "@/components/home/HomeFooter";
-import StatCard from "@/components/home/watch/StatCard";
-import InfoPill from "@/components/home/watch/InfoPill";
+import { getLives, type LiveDTO } from "@/lib/lives";
+import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import WatchTagSection from "@/components/watch/WatchTagSection";
+
+type TabKey = "all" | "live" | "scheduled" | "ended";
+
+const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+  { key: "all", label: "Tous", icon: <Star className="h-4 w-4" /> },
+  { key: "live", label: "En direct", icon: <Flame className="h-4 w-4" /> },
+  { key: "scheduled", label: "Planifiés", icon: <CalendarDays className="h-4 w-4" />,
+  },
+];
+
+const TAGS = [
+  "Tout",
+  "Asiatique",
+  "Africain",
+  "Européen",
+  "Américain",
+  "Français",
+  "Italien",
+  "Coréen",
+  "Japonais",
+  "Végétarien",
+  "Pâtisserie",
+  "Street Food",
+  "BBQ",
+  "Healthy",
+];
 
 export default function WatchListPage() {
-  const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const searchParams = useSearchParams();
+
+  const initialQ = searchParams.get("q") ?? "";
+  const initialTag = searchParams.get("tag") ?? "Tout";
+
+  const [q, setQ] = useState(initialQ);
+  const [tag, setTag] = useState(initialTag);
+  const [tab, setTab] = useState<TabKey>("all");
+
+  const [lives, setLives] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { token, ready } = useAuth();
-  const didInit = useRef(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 12;
 
-  const refresh = async () => {
-    if (!token) {
-      setError("Utilisateur non authentifié");
-      setRooms([]);
-      setLoading(false);
-      return;
-    }
-
+  const refresh = async (targetPage = page) => {
     try {
       setError(null);
       setLoading(true);
-      const data = await getRooms(token);
-      setRooms(data ?? []);
+
+      const res = await getLives({
+        q,
+        tag,
+        status: tab === "all" ? "all" : tab,
+        page: targetPage,
+        limit,
+      });
+
+      setLives((prev) =>
+        targetPage === 1 ? res.lives ?? [] : [...prev, ...(res.lives ?? [])]
+      );
+
+      setTotal(res.total ?? 0);
     } catch (e: any) {
       setError(e?.message ?? "Impossible de charger les lives");
-      setRooms([]);
+      if (targetPage === 1) setLives([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!ready) return;
-    if (didInit.current) return;
-    didInit.current = true;
-
     refresh();
 
-    const t = setInterval(refresh, 10_000);
-    return () => clearInterval(t);
-  }, [ready, token]);
+    const t = window.setInterval(refresh, 10_000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, tag, tab]);
 
-  const hasRooms = useMemo(() => rooms.length > 0, [rooms]);
+  const liveCount = useMemo(
+    () => lives.filter((live) => live.status === "live").length,
+    [lives]
+    );
 
-  const totalViewers = useMemo(() => {
-    return rooms.reduce((sum, room) => sum + (room.viewers ?? 0), 0);
-  }, [rooms]);
+    const scheduledCount = useMemo(
+      () => lives.filter((live) => live.status === "scheduled").length,
+      [lives]
+    );
 
-  const totalParticipants = useMemo(() => {
-    return rooms.reduce((sum, room) => sum + (room.participants?.length ?? 0), 0);
-  }, [rooms]);
+    const totalViewers = useMemo(
+      () => lives.reduce((sum, live) => sum + (live.current_viewers ?? 0), 0),
+      [lives]
+    );
+
+    const creatorsCount = useMemo(() => {
+      return new Set(lives.map((live) => live.user?.id).filter(Boolean)).size;
+    }, [lives]);
+
+    const hasLives = lives.length > 0;
+
+    const livesByTag = useMemo(() => {
+    const map = new Map<string, LiveDTO[]>();
+
+    lives.forEach((live) => {
+      if (!live.tags || live.tags.length === 0) {
+        const existing = map.get("Autres") ?? [];
+        map.set("Autres", [...existing, live]);
+        return;
+      }
+
+      live.tags.forEach((tag) => {
+        const existing = map.get(tag.name) ?? [];
+        map.set(tag.name, [...existing, live]);
+      });
+    });
+
+    return Array.from(map.entries()).map(([tagName, tagLives]) => ({
+      tagName,
+      lives: tagLives,
+    }));
+  }, [lives]);
 
   return (
     <main className="min-h-screen">
       <div className="mx-auto w-full max-w-7xl px-6 py-8 md:py-10">
         <div className="space-y-8">
-          <section className="rounded-[32px] border border-black/8 bg-white/68 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/58 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-8">
+          <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/70 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/58 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
                   <Radio className="h-4 w-4" />
-                  Lives Foodstream
+                  Catalogue Foodstream
                 </div>
 
                 <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 md:text-4xl">
-                  Découvre les lives en cours
+                  Trouve le live qui te donne faim
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-600 dark:text-gray-400 md:text-base">
-                  Regarde un live, rejoins une room existante s’il reste de la place,
-                  ou lance ton propre live en quelques secondes.
+                  Explore les lives en direct, les lives planifiés par cuisine, plat ou créateur.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={refresh}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-3 text-sm font-semibold text-gray-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                >
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  Actualiser
-                </button>
+              {lives.length < total && (
+                <div className="flex justify-center pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => prev + 1)}
+                    disabled={loading}
+                    className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-white shadow-[0_10px_30px_rgba(249,115,22,0.25)] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loading ? "Chargement..." : "Voir plus"}
+                  </button>
+                </div>
+              )}
+            </div>
 
-                <Link
-                  href="/studio"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Créer un live
-                </Link>
+            <div className="mt-7 rounded-[28px] border border-black/8 bg-white/75 p-3 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Rechercher un live, un plat..."
+                    className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+                  {TABS.map((item, index) => {
+                    const active = tab === item.key;
+
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => setTab(item.key)}
+                        className={[
+                          "inline-flex items-center gap-2 px-3 py-2 text-xs font-bold transition",
+                          index !== 0 ? "border-l border-black/8 dark:border-white/10" : "",
+                          active
+                            ? "text-white"
+                            : "text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-300 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
+                        ].join(" ")}
+                        style={active ? { background: ORANGE_GRADIENT_CSS } : undefined}
+                      >
+                        {item.icon}
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10">
+                {TAGS.map((item) => {
+                  const active = tag === item;
+
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => setTag(item)}
+                      className={[
+                        "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                        active
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : "bg-white text-gray-700 ring-1 ring-black/5 hover:bg-orange-50 hover:text-orange-700 dark:bg-white/5 dark:text-gray-200 dark:ring-white/10 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
+                      ].join(" ")}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </section>
 
-          {loading && (
+          {!loading && error && (
+            <section className="rounded-[28px] border border-red-200 bg-red-50/80 p-5 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10">
+              <h2 className="text-base font-semibold text-red-700 dark:text-red-200">
+                Impossible de charger les lives
+              </h2>
+              <p className="mt-1 text-sm text-red-600 dark:text-red-200/80">
+                {error}
+              </p>
+            </section>
+          )}
+
+          {loading ? (
             <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+                  className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
                 >
                   <div className="h-44 animate-pulse bg-black/[0.05] dark:bg-white/10" />
                   <div className="space-y-3 p-5">
                     <div className="h-4 w-24 animate-pulse rounded bg-black/[0.06] dark:bg-white/10" />
                     <div className="h-5 w-3/4 animate-pulse rounded bg-black/[0.06] dark:bg-white/10" />
                     <div className="h-4 w-1/2 animate-pulse rounded bg-black/[0.06] dark:bg-white/10" />
-                    <div className="h-11 w-full animate-pulse rounded-2xl bg-black/[0.06] dark:bg-white/10" />
                   </div>
                 </div>
               ))}
             </section>
-          )}
-
-          {!loading && error && (
-            <section className="rounded-[28px] border border-red-200 bg-red-50/80 p-5 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-red-700 dark:text-red-200">
-                    Impossible de charger les lives
-                  </h2>
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-200/80">
-                    {error}
-                  </p>
-                </div>
-
-                <button
-                  onClick={refresh}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Réessayer
-                </button>
-              </div>
-            </section>
-          )}
-
-          {!loading && !error && !hasRooms && (
-            <section className="rounded-[28px] border border-black/8 bg-white/72 p-10 text-center shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+          ) : !error && !hasLives ? (
+            <section className="rounded-[28px] border border-black/8 bg-white/72 p-10 text-center shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
               <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
                 <Video className="h-8 w-8" />
               </div>
 
               <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                Aucun live en cours
+                Aucun contenu trouvé
               </h2>
 
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-gray-600 dark:text-gray-400">
-                Il n’y a pas encore de live actif pour le moment. Lance le premier et
-                commence à cuisiner en direct.
+                Essaie une autre recherche, un autre tag ou un autre onglet.
               </p>
-
-              <div className="mt-6">
-                <Link
-                  href="/studio"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Lancer un live
-                </Link>
-              </div>
             </section>
+          ) : (
+           <div className="space-y-10">
+            {livesByTag.map((section) => (
+              <WatchTagSection
+                key={section.tagName}
+                tagName={section.tagName}
+                lives={section.lives}
+              />
+            ))}
+          </div>
           )}
-
-          {!loading && !error && hasRooms && (
-            <>
-              <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                <StatCard
-                  label="Lives actifs"
-                  value={String(rooms.length)}
-                  icon={<Radio className="h-5 w-5" />}
-                />
-                <StatCard
-                  label="Spectateurs cumulés"
-                  value={String(totalViewers)}
-                  icon={<Eye className="h-5 w-5" />}
-                />
-                <StatCard
-                  label="Participants cumulés"
-                  value={String(totalParticipants)}
-                  icon={<Users className="h-5 w-5" />}
-                />
-              </section>
-
-              <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {rooms.map((room) => {
-                  const participants = room.participants?.length ?? 0;
-                  const maxParticipants = room.maxParticipants ?? 0;
-                  const viewers = room.viewers ?? 0;
-                  const spotsLeft = Math.max(maxParticipants - participants, 0);
-                  const rid = encodeURIComponent(room.id);
-
-                  return (
-                    <article
-                      key={room.id}
-                      className="group overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
-                    >
-                      <div className="relative h-44 bg-gradient-to-br from-orange-400 via-orange-500 to-red-500 p-4 text-white">
-                        <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_top_right,white,transparent_35%),radial-gradient(circle_at_bottom_left,white,transparent_30%)]" />
-
-                        <div className="relative flex h-full flex-col justify-between">
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur">
-                              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-                              EN DIRECT
-                            </span>
-
-                            <span className="rounded-full bg-black/20 px-3 py-1 text-xs font-semibold backdrop-blur">
-                              Room #{room.id.slice(0, 6)}
-                            </span>
-                          </div>
-
-                          <div>
-                            <p className="line-clamp-2 text-lg font-semibold tracking-tight">
-                              {room.name || "Live sans titre"}
-                            </p>
-                            <p className="mt-1 text-sm text-white/85">
-                              Rejoins ce live et regarde la diffusion en direct.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4 p-5">
-                        <div className="grid grid-cols-2 gap-3">
-                          <InfoPill
-                            icon={<Users className="h-4 w-4" />}
-                            text={`${participants}/${maxParticipants} streamers`}
-                          />
-                          <InfoPill
-                            icon={<Eye className="h-4 w-4" />}
-                            text={`${viewers} spectateurs`}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                            <span>Places restantes</span>
-                            <span>{spotsLeft}</span>
-                          </div>
-
-                          <div className="h-2 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
-                            <div
-                              className="h-full rounded-full bg-orange-500 transition-all"
-                              style={{
-                                width:
-                                  maxParticipants > 0
-                                    ? `${(participants / maxParticipants) * 100}%`
-                                    : "0%",
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                          <Link
-                            href={`/watch/${rid}`}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-                          >
-                            Regarder
-                            <ArrowRight className="h-4 w-4" />
-                          </Link>
-
-                          {spotsLeft > 0 ? (
-                            <Link
-                              href={`/broadcast/${rid}?mode=join`}
-                              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-200 dark:hover:bg-orange-500/15"
-                            >
-                              Rejoindre ({spotsLeft})
-                            </Link>
-                          ) : (
-                            <div className="inline-flex flex-1 items-center justify-center rounded-2xl border border-black/8 bg-black/[0.04] px-4 py-2.5 text-sm font-semibold text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/35">
-                              Complet
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </section>
-            </>
+          {lives.length < total && (
+            <div className="flex justify-center pt-6">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={loading}
+                className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-white shadow-[0_10px_30px_rgba(249,115,22,0.25)] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Chargement..." : "Voir plus"}
+              </button>
+            </div>
           )}
         </div>
       </div>
-
       <HomeFooter />
     </main>
   );

@@ -4,7 +4,9 @@ import { useState } from "react";
 
 import PageContainer from "@/components/app/PageContainer";
 import HomeHero from "@/components/home/HomeHero";
-import HomeLiveGrid from "@/components/home/HomeLiveGrid";
+import HomeFeaturedLives from "@/components/home/HomeFeaturedLives";
+import HomeCuisineCategories from "@/components/home/HomeCuisineCategories";
+import HomePopularCreators from "@/components/home/HomePopularCreators";
 import HomeFooter from "@/components/home/HomeFooter";
 
 export default function HomePage() {
@@ -25,10 +27,11 @@ export default function HomePage() {
           }}
         />
 
-        <HomeLiveGrid
-          query={filters.q}
-          tag={filters.tag}
-        />
+        <HomeFeaturedLives query={filters.q} tag={filters.tag} />
+
+        <HomeCuisineCategories />
+
+        <HomePopularCreators />
       </PageContainer>
 
       <HomeFooter />
