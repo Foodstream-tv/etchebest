@@ -326,10 +326,14 @@ export default function StudioPage() {
   };
 
   const onGoLiveNow = async () => {
+    if (status !== "idle") return;
+
     try {
       setError(null);
       setStatus("creating");
+
       const id = await createRoom("live");
+
       setStatus("idle");
       router.push(`/broadcast/${encodeURIComponent(id)}?mode=host`);
     } catch (e: any) {

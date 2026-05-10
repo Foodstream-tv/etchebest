@@ -128,6 +128,22 @@ func removeLiveRoom(id string) {
 	delete(liveRooms, id)
 }
 
+func markLiveAsEndedByRoomID(db *gorm.DB, roomID string) {
+	now := time.Now()
+
+	if err := db.Model(&liveModule.Live{}).
+		Where("room_id = ? AND status != ?", roomID, "ended").
+		Updates(map[string]any{
+			"status":   "ended",
+			"ended_at": now,
+		}).Error; err != nil {
+		log.Printf("failed to mark live as ended for room %s: %v", roomID, err)
+		return
+	}
+
+	log.Printf("live linked to room %s marked as ended", roomID)
+}
+
 func getPeerConnectionByUser(room *Room, userID string) *webrtc.PeerConnection {
 	for _, conn := range room.Connections {
 		if conn.UserID == userID {
@@ -341,6 +357,17 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		currentUser, err := userModule.GetUserByID(db, currentUserId)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get current user"})
+			return
+		}
+
+		var existingLive liveModule.Live
+
+		if err := db.
+			Where("user_id = ? AND status IN ?", currentUser.ID, []string{"live", "scheduled"}).
+			First(&existingLive).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "you already have an active or scheduled live",
+			})
 			return
 		}
 
@@ -568,6 +595,8 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		room.HostPeerCon = nil
 		room.HLSWriter = nil
 		removeLiveRoom(roomId)
+
+		markLiveAsEndedByRoomID(db, roomId)
 
 		if err := DeleteRoomById(db, roomId); err != nil {
 			log.Printf("HandleDisconnect: failed to delete room %s: %v", roomId, err)
@@ -1233,6 +1262,9 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 		hls.StopStream(roomID)
 		room.Tracks = nil
 		removeLiveRoom(roomID)
+
+		markLiveAsEndedByRoomID(db, roomID)
+
 		if err := DeleteRoomById(db, roomID); err != nil {
 			log.Printf("failed to delete room %s: %v", roomID, err)
 		} else {
