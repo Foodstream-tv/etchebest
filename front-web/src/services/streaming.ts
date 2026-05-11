@@ -109,7 +109,7 @@ export async function sendICECandidate(
 
 export function getHLSUrl(roomId: string): string {
   const rid = encodeURIComponent(roomId);
-  return `${MEDIA_BASE_URL}/api/hls/${rid}/index.m3u8`;
+  return `${MEDIA_BASE_URL}/hls/${rid}/master.m3u8`;
 }
 
 // ---------- Chat ----------

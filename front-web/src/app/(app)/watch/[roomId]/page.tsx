@@ -4,13 +4,34 @@ import Hls from "hls.js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Eye, Heart, MessageCircle, Radio, RefreshCcw, Share2, Users } from "lucide-react";
-import { getHLSUrl, getChatMessages, postChatMessage, getRooms, ChatMessage, RoomInfo } from "@/services/streaming";
+import {
+  ArrowLeft,
+  Eye,
+  Heart,
+  MessageCircle,
+  Radio,
+  RefreshCcw,
+  Share2,
+  Users,
+} from "lucide-react";
+import {
+  getHLSUrl,
+  getChatMessages,
+  postChatMessage,
+  getRooms,
+  ChatMessage,
+  RoomInfo,
+} from "@/services/streaming";
 import { useAuth } from "@/lib/useAuth";
 import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
+
+type QualityOption = {
+  label: string;
+  value: string;
+};
 
 const MAX_MSG = 500;
 
@@ -30,6 +51,11 @@ export default function WatchRoomPage() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [playerMode, setPlayerMode] = useState<PlayerMode>("hlsjs");
+
+  const [qualities, setQualities] = useState<QualityOption[]>([
+    { label: "Auto", value: "auto" },
+  ]);
+  const [selectedQuality, setSelectedQuality] = useState("auto");
 
   const [isLiked, setIsLiked] = useState(false);
   const [message, setMessage] = useState("");
@@ -67,6 +93,28 @@ export default function WatchRoomPage() {
     }
   }, [roomId, token]);
 
+  const applyQuality = useCallback((value: string, hlsInstance?: Hls | null) => {
+    const hls = hlsInstance ?? hlsRef.current;
+    if (!hls) return;
+
+    if (value === "auto") {
+      hls.currentLevel = -1;
+      return;
+    }
+
+    const height = Number(value);
+    const levelIndex = hls.levels.findIndex((level) => level.height === height);
+
+    if (levelIndex !== -1) {
+      hls.currentLevel = levelIndex;
+    }
+  }, []);
+
+  const handleQualityChange = (value: string) => {
+    setSelectedQuality(value);
+    applyQuality(value);
+  };
+
   useEffect(() => {
     fetchRoom();
 
@@ -82,6 +130,8 @@ export default function WatchRoomPage() {
 
     setLoading(true);
     setError(null);
+    setQualities([{ label: "Auto", value: "auto" }]);
+    setSelectedQuality("auto");
 
     if (hlsRef.current) {
       try {
@@ -116,6 +166,24 @@ export default function WatchRoomPage() {
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          const levels = hls.levels
+            .map((level) => level.height)
+            .filter((height): height is number => Boolean(height));
+
+          const uniqueLevels = Array.from(new Set(levels)).sort(
+            (a, b) => b - a
+          );
+
+          setQualities([
+            { label: "Auto", value: "auto" },
+            ...uniqueLevels.map((height) => ({
+              label: `${height}p`,
+              value: String(height),
+            })),
+          ]);
+
+          applyQuality(selectedQuality, hls);
+
           setLoading(false);
           setError(null);
 
@@ -216,7 +284,7 @@ export default function WatchRoomPage() {
     setPlayerMode("unsupported");
     setLoading(false);
     setError("Navigateur non supporté.");
-  }, [roomId, hlsUrl, reloadKey]);
+  }, [roomId, hlsUrl, reloadKey, applyQuality, selectedQuality]);
 
   const fetchChat = useCallback(async () => {
     if (!roomId || !token) return;
@@ -345,6 +413,20 @@ export default function WatchRoomPage() {
                   className="block h-[260px] w-full bg-black sm:h-[380px] lg:h-[520px]"
                 />
 
+                {playerMode === "hlsjs" && qualities.length > 1 && (
+                  <select
+                    value={selectedQuality}
+                    onChange={(e) => handleQualityChange(e.target.value)}
+                    className="absolute right-3 top-3 z-20 rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md outline-none"
+                  >
+                    {qualities.map((quality) => (
+                      <option key={quality.value} value={quality.value}>
+                        {quality.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
                 {loading && (
                   <div className="absolute inset-0 grid place-items-center bg-black/40">
                     <div className="rounded-2xl bg-black/40 px-4 py-3 text-sm font-semibold text-white backdrop-blur">
@@ -404,6 +486,13 @@ export default function WatchRoomPage() {
 
                   <InfoPill icon={<Radio className="h-4 w-4" />}>
                     Mode: {playerMode}
+                  </InfoPill>
+
+                  <InfoPill icon={<Radio className="h-4 w-4" />}>
+                    Qualité:{" "}
+                    {selectedQuality === "auto"
+                      ? "Auto"
+                      : `${selectedQuality}p`}
                   </InfoPill>
 
                   {participants !== null && maxParticipants !== null && (
