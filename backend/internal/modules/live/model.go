@@ -10,14 +10,15 @@ import (
 
 type Live struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
+	RoomID 		string `gorm:"size:100;index" json:"room_id"`
 	Title       string `gorm:"size:200;not null" json:"title"`
 	Description string `gorm:"type:text" json:"description"`
 	DishName    string `gorm:"size:200;index" json:"dish_name"`
 
 	// Foreign keys
-	UserID    uint `gorm:"not null;index" json:"user_id"`
-	CountryID uint `gorm:"not null;index:idx_live_country_status" json:"country_id"`
-	DishID    uint `gorm:"not null;index" json:"dish_id"`
+	UserID		string `gorm:"not null;index" json:"user_id"`
+	CountryID 	uint `gorm:"index:idx_live_country_status" json:"country_id"`
+	DishID    	uint `gorm:"index" json:"dish_id"`
 
 	// Relationships
 	User    user.User       `gorm:"foreignKey:UserID" json:"user,omitempty"`

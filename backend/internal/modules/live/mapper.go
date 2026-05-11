@@ -11,6 +11,8 @@ func LiveToDTO(live Live) LiveDTO {
 	dtoLive := LiveDTO{
 		ID:             live.ID,
 		Title:          live.Title,
+		RoomID:   		live.RoomID,
+		DishName: 		live.DishName,
 		Description:    live.Description,
 		Status:         live.Status,
 		ViewCount:      live.ViewCount,

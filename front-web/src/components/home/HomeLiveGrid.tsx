@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Flame,
@@ -11,13 +11,18 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
-import { getRooms, RoomInfo } from "@/services/streaming";
+import { getLives, type LiveDTO } from "@/lib/lives";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import LiveGridCard from "@/components/home/live/LiveGridCard";
 import UpcomingCard from "@/components/home/live/UpcomingCard";
 import FeaturedCreatorRow from "@/components/home/live/FeaturedCreatorRow";
 
 type TabKey = "live" | "popular" | "replays" | "planned";
+
+type HomeLiveGridProps = {
+  query?: string;
+  tag?: string;
+};
 
 type CardItem = {
   id: string;
@@ -27,6 +32,7 @@ type CardItem = {
   viewers?: number;
   when?: string;
   isLive?: boolean;
+  imageUrl?: string;
 };
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
@@ -63,72 +69,84 @@ const CREATORS = [
   { id: "c3", name: "Luis Ortega", tag: "Street Food" },
 ];
 
-export default function HomeLiveGrid() {
+function liveToCardItem(live: LiveDTO): CardItem {
+  return {
+    id: live.room_id || String(live.id),
+    badge: live.status === "live" ? "Live" : live.status === "scheduled" ? "Planifié" : "Replay",
+    title: live.title || "Live sans titre",
+    author: live.user?.username || "Chef FoodStream",
+    viewers: live.current_viewers ?? 0,
+    isLive: live.status === "live",
+    imageUrl: live.thumbnail_url,
+  };
+}
+
+export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridProps) {
   const [tab, setTab] = useState<TabKey>("live");
-  const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [lives, setLives] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { token, ready, user } = useAuth();
-  const didInit = useRef(false);
+  const { token } = useAuth();
 
-  const authorName =
-    user?.username || user?.email?.split("@")[0] || "Utilisateur";
-
-  const refreshRooms = async () => {
-    if (!token) {
-      setRooms([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const data = await getRooms(token);
-      setRooms(data ?? []);
-    } catch (error) {
-      console.error("Impossible de charger les rooms :", error);
-      setRooms([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const status = useMemo(() => {
+    if (tab === "live") return "live";
+    if (tab === "planned") return "scheduled";
+    if (tab === "replays") return "ended";
+    return "all";
+  }, [tab]);
 
   useEffect(() => {
-    if (!ready) return;
-    if (didInit.current) return;
-    didInit.current = true;
+    let mounted = true;
 
-    refreshRooms();
+    async function loadLives() {
+      try {
+        setLoading(true);
 
-    const timer = setInterval(refreshRooms, 10_000);
-    return () => clearInterval(timer);
-  }, [ready, token]);
+        const res = await getLives(
+          {
+            q: query,
+            tag,
+            status: status as "all" | "scheduled" | "live",
+          },
+          token ?? undefined
+        );
+
+        if (!mounted) return;
+        setLives(res.lives ?? []);
+      } catch (error) {
+        console.error("Impossible de charger les lives :", error);
+        if (mounted) setLives([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadLives();
+
+    const timer = window.setInterval(loadLives, 10_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [query, tag, status, token]);
 
   const liveItems = useMemo<CardItem[]>(() => {
-    return rooms.map((room) => ({
-      id: room.id,
-      badge: "Live",
-      title: room.name || "Live sans titre",
-      author: authorName,
-      viewers: room.viewers ?? 0,
-      isLive: true,
-    }));
-  }, [rooms, authorName]);
+    return lives.map(liveToCardItem);
+  }, [lives]);
 
   const items = useMemo(() => {
     switch (tab) {
-      case "live":
-        return liveItems;
       case "popular":
         return [...liveItems].sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0));
-      case "replays":
-        return [];
-      case "planned":
-        return [];
       default:
         return liveItems;
     }
   }, [tab, liveItems]);
+
+  const totalViewers = lives.reduce((sum, live) => sum + (live.current_viewers ?? 0), 0);
+  const liveCount = lives.filter((live) => live.status === "live").length;
+  const uniqueCreators = new Set(lives.map((live) => live.user?.id).filter(Boolean)).size;
 
   return (
     <section className="pb-14 pt-8">
@@ -175,13 +193,13 @@ export default function HomeLiveGrid() {
             </div>
           ) : items.length > 0 ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
                   <div className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
                     <Radio className="h-4 w-4" />
                   </div>
                   <div className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                    {rooms.length}
+                    {liveCount}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     Lives actifs
@@ -193,7 +211,7 @@ export default function HomeLiveGrid() {
                     <Eye className="h-4 w-4" />
                   </div>
                   <div className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                    {rooms.reduce((sum, room) => sum + (room.viewers ?? 0), 0)}
+                    {totalViewers}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     Spectateurs
@@ -205,13 +223,10 @@ export default function HomeLiveGrid() {
                     <Users className="h-4 w-4" />
                   </div>
                   <div className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                    {rooms.reduce(
-                      (sum, room) => sum + (room.participants?.length ?? 0),
-                      0
-                    )}
+                    {uniqueCreators}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Participants
+                    Créateurs
                   </div>
                 </div>
               </div>
@@ -224,7 +239,7 @@ export default function HomeLiveGrid() {
             </>
           ) : (
             <div className="rounded-[28px] border border-black/8 bg-white/72 p-6 text-sm text-gray-600 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-300">
-              Aucun contenu disponible pour cet onglet.
+              Aucun contenu trouvé pour ces filtres.
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Foodstream-io/etchebest/internal/utils"
+	"github.com/Foodstream-io/etchebest/internal/modules/activity"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -287,6 +288,21 @@ func FollowUser(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}
+
+		actorName := currentUser.Username
+
+		if actorName == "" {
+			actorName = currentUser.Email
+		}
+
+		if actorName == "" {
+			actorName = "Quelqu’un"
+		}
+
+		if err := activity.CreateFollowActivity(db, userToFollow.ID, currentUser.ID, actorName); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create activity"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "user followed successfully"})
 	}
 }
@@ -330,7 +346,12 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 		currentUser.FollowingIDS = append(currentUser.FollowingIDS[:indexUserToUnfollow], currentUser.FollowingIDS[indexUserToUnfollow+1:]...)
 
 		indexFollowerToRemove := slices.Index(userToUnfollow.FollowersIDS, currentUser.ID)
-		userToUnfollow.FollowersIDS = append(userToUnfollow.FollowersIDS[:indexFollowerToRemove], userToUnfollow.FollowersIDS[indexFollowerToRemove+1:]...)
+		if indexFollowerToRemove >= 0 {
+			userToUnfollow.FollowersIDS = append(
+				userToUnfollow.FollowersIDS[:indexFollowerToRemove],
+				userToUnfollow.FollowersIDS[indexFollowerToRemove+1:]...,
+			)
+		}
 
 		if err := SaveUser(db, userToUnfollow); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save user to db"})
@@ -340,6 +361,112 @@ func UnfollowUser(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save current user to db"})
 			return
 		}
+		if err := activity.DeleteFollowActivity(db, userToUnfollow.ID, currentUser.ID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete activity"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "user unfollowed successfully"})
+	}
+}
+
+func IsFollowingUser(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		targetUserId := c.Param("userId")
+		currentUserId := utils.GetContextString(c, "userId")
+
+		currentUser, err := GetUserByID(db, currentUserId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "failed to get current user"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"is_following": slices.Contains(currentUser.FollowingIDS, targetUserId),
+		})
+	}
+}
+
+func GetUserFollowers(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId := c.Param("userId")
+
+		targetUser, err := GetUserByID(db, userId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": errUserNotFound})
+			return
+		}
+
+		followerIds := []string(targetUser.FollowersIDS)
+
+		var followers []User
+		if len(followerIds) > 0 {
+			if err := db.Where("id IN ?", followerIds).Find(&followers).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":  "failed to fetch followers",
+					"detail": err.Error(),
+				})
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"count":     len(followerIds),
+			"followers": followers,
+		})
+	}
+}
+
+func GetUserFollowing(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId := c.Param("userId")
+
+		targetUser, err := GetUserByID(db, userId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": errUserNotFound})
+			return
+		}
+
+		followingIds := []string(targetUser.FollowingIDS)
+
+		var following []User
+		if len(followingIds) > 0 {
+			if err := db.Where("id IN ?", followingIds).Find(&following).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":  "failed to fetch following",
+					"detail": err.Error(),
+				})
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"count":     len(followingIds),
+			"following": following,
+		})
+	}
+}
+
+// GetUserById godoc
+// @Summary      Get user by ID
+// @Description  Retrieve a public user profile by ID
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        userId path string true "User ID"
+// @Success      200  {object}  user.User
+// @Failure      404  {object}  map[string]string "error: User not found"
+// @Router       /api/users/{userId} [get]
+func GetUserById(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId := c.Param("userId")
+
+		foundUser, err := GetUserByID(db, userId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": errUserNotFound})
+			return
+		}
+
+		c.JSON(http.StatusOK, foundUser)
 	}
 }

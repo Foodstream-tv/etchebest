@@ -10,6 +10,7 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/tag"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
+	"github.com/Foodstream-io/etchebest/internal/modules/activity"
 	"log"
 	"os"
 
@@ -74,6 +75,7 @@ func main() {
 		&live.Live{},
 		&tag.Tag{},
 		&chat.Chat{},
+		&activity.Activity{},
 	}
 
 	if err := db.AutoMigrate(migrateModels...); err != nil {

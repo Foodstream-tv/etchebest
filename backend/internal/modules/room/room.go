@@ -12,6 +12,9 @@ import (
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/utils"
+	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
+	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
+	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pion/rtcp"
@@ -21,7 +24,16 @@ import (
 )
 
 type Request struct {
-	Name string `json:"name" binding:"required" example:"My Cooking Stream"`
+	Name            string   `json:"name"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	Tags            []string `json:"tags"`
+	Level           string   `json:"level"`
+	DurationMinutes int      `json:"durationMinutes"`
+	Visibility      string   `json:"visibility"`
+	ThumbnailURL    string   `json:"thumbnailUrl"`
+	Status          string   `json:"status"`
+	ScheduledAt     *string  `json:"scheduledAt"`
 }
 
 type AddParticipantReq struct {
@@ -114,6 +126,27 @@ func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
 
 func removeLiveRoom(id string) {
 	delete(liveRooms, id)
+}
+
+func markLiveAsEndedByRoomID(db *gorm.DB, roomID string, replayURL string) {
+	now := time.Now()
+
+	updates := map[string]any{
+		"status":   "ended",
+		"ended_at": now,
+	}
+
+	if replayURL != "" {
+		updates["has_replay"] = true
+		updates["replay_url"] = replayURL
+	}
+
+	if err := db.Model(&liveModule.Live{}).
+		Where("room_id = ? AND status != ?", roomID, "ended").
+		Updates(updates).Error; err != nil {
+		log.Printf("failed to mark live as ended for room %s: %v", roomID, err)
+	}
+	log.Printf("[LIVE END] room=%s updates=%+v", roomID, updates)
 }
 
 func getPeerConnectionByUser(room *Room, userID string) *webrtc.PeerConnection {
@@ -325,6 +358,24 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
+
+		currentUser, err := userModule.GetUserByID(db, currentUserId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get current user"})
+			return
+		}
+
+		var existingLive liveModule.Live
+
+		if err := db.
+			Where("user_id = ? AND status IN ?", currentUser.ID, []string{"live", "scheduled"}).
+			First(&existingLive).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "you already have an active or scheduled live",
+			})
+			return
+		}
+
 		room := Room{
 			ID:              uuid.New().String(),
 			Name:            req.Name,
@@ -334,9 +385,78 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			MaxParticipants: 10,
 		}
 
-		err := CreateRoom(db, &room)
-		if err != nil {
+		if err := CreateRoom(db, &room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
+			return
+		}
+
+		resolvedTags := make([]tagModule.Tag, 0, len(req.Tags))
+
+		for _, tagName := range req.Tags {
+			cleanName := strings.TrimSpace(tagName)
+			if cleanName == "" {
+				continue
+			}
+
+			slug := strings.ToLower(cleanName)
+			slug = strings.ReplaceAll(slug, " ", "-")
+
+			var existingTag tagModule.Tag
+			if err := db.Where("slug = ?", slug).First(&existingTag).Error; err != nil {
+				existingTag = tagModule.Tag{
+					Name:     cleanName,
+					Slug:     slug,
+					IsActive: true,
+				}
+
+				if err := db.Create(&existingTag).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create tag"})
+					return
+				}
+			}
+
+			resolvedTags = append(resolvedTags, existingTag)
+		}
+
+		status := req.Status
+		if status == "" {
+			status = "scheduled"
+		}
+
+		dishName := ""
+		if len(req.Tags) > 0 {
+			dishName = req.Tags[0]
+		}
+
+		var startedAt *time.Time
+		if status == "live" {
+			now := time.Now()
+			startedAt = &now
+		}
+
+		title := strings.TrimSpace(req.Title)
+		if title == "" {
+			title = req.Name
+		}
+
+		newLive := liveModule.Live{
+			RoomID:         room.ID,
+			Title:          title,
+			Description:    req.Description,
+			DishName:       dishName,
+			UserID:         currentUser.ID,
+			Status:         status,
+			ThumbnailURL:   req.ThumbnailURL,
+			Duration:       req.DurationMinutes * 60,
+			CurrentViewers: 0,
+			ViewCount:      0,
+			LikeCount:      0,
+			StartedAt:      startedAt,
+			Tags:           resolvedTags,
+		}
+
+		if err := db.Create(&newLive).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create live"})
 			return
 		}
 
@@ -344,7 +464,11 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		liveRooms[room.ID] = &room
 		mu.Unlock()
 
-		c.JSON(http.StatusOK, gin.H{"roomId": room.ID, "message": "room created"})
+		c.JSON(http.StatusOK, gin.H{
+			"roomId":  room.ID,
+			"liveId":  newLive.ID,
+			"message": "room and live created",
+		})
 	}
 }
 
@@ -470,12 +594,18 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		copy(conns, room.Connections)
 
 		// Tear down room state
-		hls.StopStream(roomId)
+		replayURL, replayErr := hls.StopStream(roomId)
+		log.Printf("[DISCONNECT] room=%s replayURL=%q replayErr=%v", roomId, replayURL, replayErr)
+		if replayErr != nil {
+			log.Printf("failed to generate replay for room %s: %v", roomId, replayErr)
+		}
 		room.Connections = nil
 		room.Tracks = nil
 		room.HostPeerCon = nil
 		room.HLSWriter = nil
 		removeLiveRoom(roomId)
+
+		markLiveAsEndedByRoomID(db, roomId, replayURL)
 
 		if err := DeleteRoomById(db, roomId); err != nil {
 			log.Printf("HandleDisconnect: failed to delete room %s: %v", roomId, err)
@@ -1138,9 +1268,15 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 
 	empty := len(room.Connections) == 0
 	if empty {
-		hls.StopStream(roomID)
+		replayURL, replayErr := hls.StopStream(roomID)
+		if replayErr != nil {
+			log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
+		}
 		room.Tracks = nil
 		removeLiveRoom(roomID)
+
+		markLiveAsEndedByRoomID(db, roomID, replayURL)
+
 		if err := DeleteRoomById(db, roomID); err != nil {
 			log.Printf("failed to delete room %s: %v", roomID, err)
 		} else {

@@ -40,6 +40,36 @@ func getFreePort() (int, error) {
 	return port, nil
 }
 
+func getFreeRTPPort() (int, error) {
+	for i := 0; i < 50; i++ {
+		port, err := getFreePort()
+		if err != nil {
+			return 0, err
+		}
+
+		rtcpPort := port + 1
+
+		addr, err := net.ResolveUDPAddr(
+			"udp4",
+			fmt.Sprintf("127.0.0.1:%d", rtcpPort),
+		)
+		if err != nil {
+			continue
+		}
+
+		l, err := net.ListenUDP("udp4", addr)
+		if err != nil {
+			continue
+		}
+
+		l.Close()
+
+		return port, nil
+	}
+
+	return 0, fmt.Errorf("could not find free RTP/RTCP port pair")
+}
+
 // buildSDP builds a minimal SDP string for FFmpeg with the given codecs and ports.
 func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) string {
 	sdp := "v=0\n"
@@ -81,11 +111,17 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 	}
 
 	// ---- pick two free UDP ports ----
-	audioPort, err := getFreePort()
+	audioPort, err := getFreeRTPPort()
 	if err != nil {
 		return nil, nil, fmt.Errorf("find audio port: %w", err)
 	}
-	videoPort, err := getFreePort()
+	videoPort, err := getFreeRTPPort()
+	for videoPort == audioPort || videoPort == audioPort+1 || videoPort+1 == audioPort {
+		videoPort, err = getFreeRTPPort()
+		if err != nil {
+			return nil, nil, fmt.Errorf("find video port: %w", err)
+		}
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("find video port: %w", err)
 	}
@@ -168,8 +204,8 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", "1",
-		"-hls_list_size", "3",
-		"-hls_flags", "delete_segments+omit_endlist+independent_segments",
+		"-hls_list_size", "0",
+		"-hls_flags", "omit_endlist+independent_segments",
 		filepath.Join(hlsDir, "index.m3u8"),
 	)
 
@@ -204,8 +240,13 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 	stop := func() {
 		audioConn.Close()
 		videoConn.Close()
+
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			if err := cmd.Process.Kill(); err != nil {
+				log.Printf("[HLS] failed to kill ffmpeg for room %s: %v", roomID, err)
+			}
+
+			_, _ = cmd.Process.Wait()
 		}
 	}
 
