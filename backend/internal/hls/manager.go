@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"path/filepath"
+	"time"
 )
 
 type Stream struct {
@@ -33,28 +35,44 @@ func RegisterToStream(roomID string, stop func()) {
 	}
 }
 
-func finalizePlaylist(roomID string) {
-	playlistPath := "./hls/" + roomID + "/index.m3u8"
+func finalizePlaylist(roomID string) error {
+	playlists := []string{
+		filepath.Join("./hls", roomID, "master.m3u8"),
+		filepath.Join("./hls", roomID, "1080p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "720p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "480p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "360p", "index.m3u8"),
+	}
 
-	data, err := os.ReadFile(playlistPath)
+	for _, playlistPath := range playlists {
+		if err := finalizeOnePlaylist(playlistPath); err != nil {
+			return err
+		}
+	}
+
+	log.Printf("[HLS] playlists finalized for room %s", roomID)
+
+	return nil
+}
+
+func finalizeOnePlaylist(path string) error {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("[HLS] cannot finalize playlist for room %s: %v", roomID, err)
-		return
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
 
 	content := string(data)
+
 	if strings.Contains(content, "#EXT-X-ENDLIST") {
-		return
+		return nil
 	}
 
 	content += "\n#EXT-X-ENDLIST\n"
 
-	if err := os.WriteFile(playlistPath, []byte(content), 0644); err != nil {
-		log.Printf("[HLS] cannot write finalized playlist for room %s: %v", roomID, err)
-		return
-	}
-
-	log.Printf("[HLS] playlist finalized for room %s", roomID)
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 func StopStream(roomID string) (string, error) {
@@ -68,10 +86,12 @@ func StopStream(roomID string) (string, error) {
 
 	delete(streams, roomID)
 	mu.Unlock()
-
+	time.Sleep(2 * time.Second)
 	stream.Stop()
 
-	finalizePlaylist(roomID)
+	if err := finalizePlaylist(roomID); err != nil {
+		log.Printf("[HLS] failed to finalize playlists for room %s: %v", roomID, err)
+	}
 
 	replayURL, err := GenerateReplay(roomID)
 	if err != nil {
@@ -80,7 +100,7 @@ func StopStream(roomID string) (string, error) {
 		log.Printf("[REPLAY] replay generated: %s", replayURL)
 	}
 
-	if err := os.RemoveAll("./hls/" + roomID); err != nil {
+	if err := os.RemoveAll(filepath.Join("./hls", roomID)); err != nil {
 		log.Printf("[HLS] cleanup failed for room %s: %v", roomID, err)
 	}
 
