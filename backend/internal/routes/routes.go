@@ -6,12 +6,12 @@ import (
 
 	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 
-	"github.com/Foodstream-io/etchebest/internal/modules/discover"
-	"github.com/Foodstream-io/etchebest/internal/modules/room"
-	"github.com/Foodstream-io/etchebest/internal/modules/user"
-	"github.com/Foodstream-io/etchebest/internal/modules/search"
 	"github.com/Foodstream-io/etchebest/internal/modules/activity"
+	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/live"
+	"github.com/Foodstream-io/etchebest/internal/modules/room"
+	"github.com/Foodstream-io/etchebest/internal/modules/search"
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -60,6 +60,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// OAuth endpoints (public access)
 	if googleClientID != "" && googleClientSecret != "" && googleRedirectURI != "" {
+		r.GET("/api/auth/google", auth.GoogleStartAuth(googleClientID, googleRedirectURI))
 		r.GET("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
 		r.POST("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
 	}
