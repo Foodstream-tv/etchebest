@@ -4,7 +4,7 @@
 # Run this script ONCE on your VM before starting nginx
 
 DOMAIN="foodstream.tv"
-EMAIL="your-email@example.com"  # Change this to your email
+EMAIL="arthaud.poupard@epitech.eu"  # Change this to your email
 
 echo "🔐 Setting up SSL certificates for $DOMAIN"
 
