@@ -14,6 +14,18 @@ if ! command -v certbot &> /dev/null; then
     sudo apt update && sudo apt install -y certbot python3-certbot-nginx
 fi
 
+# Stop nginx to free port 80
+echo "⏹️  Stopping nginx/services to free port 80..."
+if sudo systemctl is-active --quiet nginx; then
+    sudo systemctl stop nginx
+    NGINX_WAS_RUNNING=true
+elif command -v docker &> /dev/null && sudo docker ps | grep -q nginx; then
+    sudo docker stop nginx
+    DOCKER_WAS_RUNNING=true
+fi
+
+sleep 2
+
 # Generate certificate
 echo "🔄 Generating Let's Encrypt certificate..."
 sudo certbot certonly --standalone \
@@ -22,6 +34,15 @@ sudo certbot certonly --standalone \
     -m $EMAIL \
     --agree-tos \
     --non-interactive
+
+# Restart nginx/services
+if [ "$NGINX_WAS_RUNNING" = true ]; then
+    echo "▶️  Restarting nginx..."
+    sudo systemctl start nginx
+elif [ "$DOCKER_WAS_RUNNING" = true ]; then
+    echo "▶️  Restarting Docker nginx..."
+    sudo docker start nginx
+fi
 
 if [ $? -eq 0 ]; then
     echo "✅ Certificate generated successfully!"
