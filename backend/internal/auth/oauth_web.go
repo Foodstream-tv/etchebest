@@ -170,28 +170,47 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		result := db.Where("google_id = ?", userInfo.ID).First(&existingUser)
 
 		if result.Error == gorm.ErrRecordNotFound {
-			// Create new user
-			newUser := user.User{
-				ID:              uuid.New().String(),
-				Email:           userInfo.Email,
-				FirstName:       userInfo.FirstName,
-				LastName:        userInfo.LastName,
-				Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-				ProfileImageURL: userInfo.Picture,
-				GoogleID:        &userInfo.ID,
-				OAuthProvider:   strPtr("google"),
-				Password:        uuid.New().String(), // Random password for OAuth users
-			}
-
-			if err := db.Create(&newUser).Error; err != nil {
-				if callbackRedirect != "" {
-					c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_create_user")
-				} else {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+			// Check if user exists by email
+			emailResult := db.Where("email = ?", userInfo.Email).First(&existingUser)
+			if emailResult.Error == nil {
+				// Link Google account to existing user
+				existingUser.GoogleID = &userInfo.ID
+				existingUser.OAuthProvider = strPtr("google")
+				if existingUser.ProfileImageURL == "" {
+					existingUser.ProfileImageURL = userInfo.Picture
 				}
-				return
+				if err := db.Save(&existingUser).Error; err != nil {
+					if callbackRedirect != "" {
+						c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_link_account")
+					} else {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link account"})
+					}
+					return
+				}
+			} else {
+				// Create new user
+				newUser := user.User{
+					ID:              uuid.New().String(),
+					Email:           userInfo.Email,
+					FirstName:       userInfo.FirstName,
+					LastName:        userInfo.LastName,
+					Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
+					ProfileImageURL: userInfo.Picture,
+					GoogleID:        &userInfo.ID,
+					OAuthProvider:   strPtr("google"),
+					Password:        uuid.New().String(), // Random password for OAuth users
+				}
+
+				if err := db.Create(&newUser).Error; err != nil {
+					if callbackRedirect != "" {
+						c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_create_user")
+					} else {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+					}
+					return
+				}
+				existingUser = newUser
 			}
-			existingUser = newUser
 		} else if result.Error != nil {
 			if callbackRedirect != "" {
 				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=database_error")
