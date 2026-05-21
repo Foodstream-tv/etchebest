@@ -27,26 +27,6 @@ type GoogleUserInfo struct {
 	Picture   string `json:"picture"`
 }
 
-type FacebookTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-}
-
-type FacebookUserInfo struct {
-	ID        string `json:"id"`
-	Email     string `json:"email"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Picture   struct {
-		Data struct {
-			Height int    `json:"height"`
-			Width  int    `json:"width"`
-			URL    string `json:"url"`
-		} `json:"data"`
-	} `json:"picture"`
-}
-
 // GoogleStartAuth initiates Google OAuth flow
 // @Summary      Start Google OAuth Flow
 // @Description  Generates Google OAuth URL and redirects user to Google consent screen
@@ -136,7 +116,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		resp, err := http.PostForm(tokenURL, convertMapToURLValues(data))
 		if err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_exchange_token")
+				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_exchange_token")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to exchange code for token"})
 			}
@@ -147,7 +127,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		var tokenResp GoogleTokenResponse
 		if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=invalid_token_response")
+				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=invalid_token_response")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode token response"})
 			}
@@ -158,7 +138,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		userInfo, err := getGoogleUserInfo(tokenResp.AccessToken)
 		if err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_get_user_info")
+				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_get_user_info")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info from Google"})
 			}
@@ -181,7 +161,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 				}
 				if err := db.Save(&existingUser).Error; err != nil {
 					if callbackRedirect != "" {
-						c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_link_account")
+						c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_link_account")
 					} else {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link account"})
 					}
@@ -203,7 +183,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 
 				if err := db.Create(&newUser).Error; err != nil {
 					if callbackRedirect != "" {
-						c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_create_user")
+						c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_create_user")
 					} else {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 					}
@@ -213,7 +193,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 			}
 		} else if result.Error != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=database_error")
+				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=database_error")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			}
@@ -224,7 +204,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		token, err := GenerateJWT(&existingUser, jwtKey)
 		if err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_generate_token")
+				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_generate_token")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 			}
@@ -237,7 +217,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 
 		// If there's a callback redirect, redirect with token
 		if callbackRedirect != "" {
-			redirectURL := fmt.Sprintf("%s?token=%s&userId=%s", callbackRedirect, token, existingUser.ID)
+			redirectURL := fmt.Sprintf("%s?token=%s&userId=%s", getCallbackPath(callbackRedirect), token, existingUser.ID)
 			c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		} else {
 			// Otherwise return JSON (for API/mobile usage)
@@ -246,99 +226,24 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 	}
 }
 
-// FacebookCallback handles Facebook OAuth callback
-// @Summary      Facebook OAuth Callback
-// @Description  Handle Facebook OAuth callback and authenticate user
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        code query string true "Authorization code from Facebook"
-// @Success      200  {object}  map[string]string "token: JWT token string"
-// @Failure      400  {object}  map[string]string "error: Invalid request"
-// @Failure      500  {object}  map[string]string "error: Internal server error"
-// @Router       /api/auth/facebook/callback [post]
-func FacebookCallback(db *gorm.DB, jwtKey []byte, facebookAppID string, facebookAppSecret string, redirectURI string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		code := c.Query("code")
-		if code == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "authorization code not provided"})
-			return
-		}
+// Helper functions
 
-		// Exchange code for token
-		tokenURL := fmt.Sprintf(
-			"https://graph.facebook.com/v18.0/oauth/access_token?client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
-			facebookAppID,
-			facebookAppSecret,
-			redirectURI,
-			code,
-		)
-
-		resp, err := http.Get(tokenURL)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to exchange code for token"})
-			return
-		}
-		defer resp.Body.Close()
-
-		var tokenResp FacebookTokenResponse
-		if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode token response"})
-			return
-		}
-
-		// Get user info
-		userInfo, err := getFacebookUserInfo(tokenResp.AccessToken)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info from Facebook"})
-			return
-		}
-
-		// Check if user exists by Facebook ID
-		var existingUser user.User
-		result := db.Where("facebook_id = ?", userInfo.ID).First(&existingUser)
-
-		if result.Error == gorm.ErrRecordNotFound {
-			// Create new user
-			pictureURL := ""
-			if userInfo.Picture.Data.URL != "" {
-				pictureURL = userInfo.Picture.Data.URL
-			}
-
-			newUser := user.User{
-				ID:              uuid.New().String(),
-				Email:           userInfo.Email,
-				FirstName:       userInfo.FirstName,
-				LastName:        userInfo.LastName,
-				Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-				ProfileImageURL: pictureURL,
-				FacebookID:      &userInfo.ID,
-				OAuthProvider:   strPtr("facebook"),
-				Password:        uuid.New().String(), // Random password for OAuth users
-			}
-
-			if err := db.Create(&newUser).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
-				return
-			}
-			existingUser = newUser
-		} else if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
-			return
-		}
-
-		// Generate JWT token
-		token, err := GenerateJWT(&existingUser, jwtKey)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"token": token, "userId": existingUser.ID})
+// getCallbackPath extracts the path from a full URL (e.g., "https://example.com/auth/callback" -> "/auth/callback")
+func getCallbackPath(callbackURL string) string {
+	if callbackURL == "" {
+		return ""
 	}
+
+	u, err := url.Parse(callbackURL)
+	if err != nil {
+		// If parsing fails, return as-is (might already be a relative path)
+		return callbackURL
+	}
+
+	// Return just the path
+	return u.Path
 }
 
-// Helper functions
 func getGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
 	url := fmt.Sprintf("https://www.googleapis.com/oauth2/v2/userinfo?access_token=%s", accessToken)
 	resp, err := http.Get(url)
@@ -348,25 +253,6 @@ func getGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
 	defer resp.Body.Close()
 
 	var userInfo GoogleUserInfo
-	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		return nil, err
-	}
-
-	return &userInfo, nil
-}
-
-func getFacebookUserInfo(accessToken string) (*FacebookUserInfo, error) {
-	url := fmt.Sprintf(
-		"https://graph.facebook.com/me?fields=id,email,first_name,last_name,picture.width(200).height(200)&access_token=%s",
-		accessToken,
-	)
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var userInfo FacebookUserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
 		return nil, err
 	}
