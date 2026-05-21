@@ -517,6 +517,20 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Notify existing participants to renegotiate (so they can receive the new participant's stream)
+		mu.Lock()
+		liveRoom, getRoomErr := getLiveRoom(db, roomId)
+		if getRoomErr == nil && liveRoom != nil {
+			log.Printf("[RESERVE_ROOM] triggering renegotiation for new participant %s in room %s", currentUserId, roomId)
+			for _, conn := range liveRoom.Connections {
+				// Skip the new participant themselves
+				if conn.UserID != currentUserId && conn.PeerCon != nil {
+					go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
+				}
+			}
+		}
+		mu.Unlock()
+
 		c.JSON(http.StatusOK, gin.H{"message": "reserved successfully"})
 	}
 }
@@ -559,6 +573,20 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
 			return
 		}
+
+		// Notify existing participants to renegotiate (so they can receive the new participant's stream)
+		mu.Lock()
+		liveRoom, getRoomErr := getLiveRoom(db, req.RoomId)
+		if getRoomErr == nil && liveRoom != nil {
+			log.Printf("[ADD_PARTICIPANT] triggering renegotiation for new participant %s in room %s", req.UserId, req.RoomId)
+			for _, conn := range liveRoom.Connections {
+				// Skip the new participant themselves
+				if conn.UserID != req.UserId && conn.PeerCon != nil {
+					go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
+				}
+			}
+		}
+		mu.Unlock()
 
 		c.JSON(http.StatusOK, gin.H{"status": "participant added"})
 	}
