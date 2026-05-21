@@ -116,7 +116,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		resp, err := http.PostForm(tokenURL, convertMapToURLValues(data))
 		if err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_exchange_token")
+				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_exchange_token")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to exchange code for token"})
 			}
@@ -127,7 +127,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		var tokenResp GoogleTokenResponse
 		if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=invalid_token_response")
+				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=invalid_token_response")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode token response"})
 			}
@@ -138,7 +138,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		userInfo, err := getGoogleUserInfo(tokenResp.AccessToken)
 		if err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_get_user_info")
+				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_get_user_info")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user info from Google"})
 			}
@@ -161,7 +161,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 				}
 				if err := db.Save(&existingUser).Error; err != nil {
 					if callbackRedirect != "" {
-						c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_link_account")
+						c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_link_account")
 					} else {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link account"})
 					}
@@ -183,7 +183,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 
 				if err := db.Create(&newUser).Error; err != nil {
 					if callbackRedirect != "" {
-						c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_create_user")
+						c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_create_user")
 					} else {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 					}
@@ -193,7 +193,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 			}
 		} else if result.Error != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=database_error")
+				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=database_error")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			}
@@ -204,7 +204,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		token, err := GenerateJWT(&existingUser, jwtKey)
 		if err != nil {
 			if callbackRedirect != "" {
-				c.Redirect(http.StatusTemporaryRedirect, getCallbackPath(callbackRedirect)+"?error=failed_to_generate_token")
+				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_generate_token")
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 			}
@@ -217,7 +217,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 
 		// If there's a callback redirect, redirect with token
 		if callbackRedirect != "" {
-			redirectURL := fmt.Sprintf("%s?token=%s&userId=%s", getCallbackPath(callbackRedirect), token, existingUser.ID)
+			redirectURL := fmt.Sprintf("%s?token=%s&userId=%s", callbackRedirect, token, existingUser.ID)
 			c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		} else {
 			// Otherwise return JSON (for API/mobile usage)
@@ -227,23 +227,6 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 }
 
 // Helper functions
-
-// getCallbackPath extracts the path from a full URL (e.g., "https://example.com/auth/callback" -> "/auth/callback")
-func getCallbackPath(callbackURL string) string {
-	if callbackURL == "" {
-		return ""
-	}
-
-	u, err := url.Parse(callbackURL)
-	if err != nil {
-		// If parsing fails, return as-is (might already be a relative path)
-		return callbackURL
-	}
-
-	// Return just the path
-	return u.Path
-}
-
 func getGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
 	url := fmt.Sprintf("https://www.googleapis.com/oauth2/v2/userinfo?access_token=%s", accessToken)
 	resp, err := http.Get(url)
