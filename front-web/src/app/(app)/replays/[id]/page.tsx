@@ -1,7 +1,8 @@
 "use client";
 
+import Hls from "hls.js";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -15,13 +16,36 @@ import {
 import HomeFooter from "@/components/home/HomeFooter";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 
+type QualityOption = {
+  label: string;
+  value: string;
+};
+
+function getPublicMediaUrl(path: string) {
+  if (path.startsWith("http")) return path;
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, "");
+
+  return `${baseUrl}${path}`;
+}
+
 export default function ReplayDetailPage() {
   const params = useParams<{ id: string }>();
   const replayId = params?.id;
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
   const [replay, setReplay] = useState<LiveDTO | null>(null);
   const [loading, setLoading] = useState(true);
+  const [videoLoading, setVideoLoading] = useState(false);
   const [error, setError] = useState("");
+  const [videoError, setVideoError] = useState("");
+
+  const [qualities, setQualities] = useState<QualityOption[]>([
+    { label: "Auto", value: "auto" },
+  ]);
+  const [selectedQuality, setSelectedQuality] = useState("auto");
 
   useEffect(() => {
     async function loadReplay() {
@@ -32,9 +56,7 @@ export default function ReplayDetailPage() {
         setError("");
 
         const data = await getLiveByRoomId(replayId);
-        console.log("REPLAY DATA:", data);
         setReplay(data);
-        console.log("REPLAY DATA:", data);
       } catch (err: any) {
         setError(err?.message || "Impossible de charger le replay.");
         setReplay(null);
@@ -45,6 +67,143 @@ export default function ReplayDetailPage() {
 
     loadReplay();
   }, [replayId]);
+
+  const replayUrl = useMemo(() => {
+    if (!replay?.replay_url) return "";
+    return getPublicMediaUrl(replay.replay_url);
+  }, [replay]);
+
+  const isHlsReplay = useMemo(() => {
+    return replayUrl.endsWith(".m3u8");
+  }, [replayUrl]);
+
+  const applyQuality = useCallback((value: string, hlsInstance?: Hls | null) => {
+    const hls = hlsInstance ?? hlsRef.current;
+    if (!hls) return;
+
+    if (value === "auto") {
+      hls.currentLevel = -1;
+      return;
+    }
+
+    const height = Number(value);
+    const levelIndex = hls.levels.findIndex((level) => level.height === height);
+
+    if (levelIndex !== -1) {
+      hls.currentLevel = levelIndex;
+    }
+  }, []);
+
+  const handleQualityChange = (value: string) => {
+    setSelectedQuality(value);
+    applyQuality(value);
+  };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !replayUrl) return;
+
+    setVideoError("");
+    setVideoLoading(true);
+    setQualities([{ label: "Auto", value: "auto" }]);
+    setSelectedQuality("auto");
+
+    if (hlsRef.current) {
+      try {
+        hlsRef.current.destroy();
+      } catch {}
+      hlsRef.current = null;
+    }
+
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+
+    if (isHlsReplay && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+      });
+
+      hlsRef.current = hls;
+      hls.loadSource(replayUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const levels = hls.levels
+          .map((level) => level.height)
+          .filter((height): height is number => Boolean(height));
+
+        const uniqueLevels = Array.from(new Set(levels)).sort((a, b) => b - a);
+
+        setQualities([
+          { label: "Auto", value: "auto" },
+          ...uniqueLevels.map((height) => ({
+            label: `${height}p`,
+            value: String(height),
+          })),
+        ]);
+
+        applyQuality(selectedQuality, hls);
+        setVideoLoading(false);
+      });
+
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (!data?.fatal) return;
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          return;
+        }
+
+        setVideoLoading(false);
+        setVideoError("Impossible de lire ce replay.");
+      });
+
+      return () => {
+        try {
+          hls.destroy();
+        } catch {}
+
+        hlsRef.current = null;
+      };
+    }
+
+    if (video.canPlayType("application/vnd.apple.mpegurl") && isHlsReplay) {
+      video.src = replayUrl;
+
+      const onLoaded = () => setVideoLoading(false);
+      const onError = () => {
+        setVideoLoading(false);
+        setVideoError("Impossible de lire ce replay.");
+      };
+
+      video.addEventListener("loadedmetadata", onLoaded);
+      video.addEventListener("error", onError);
+
+      return () => {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        video.removeEventListener("error", onError);
+      };
+    }
+
+    video.src = replayUrl;
+
+    const onLoaded = () => setVideoLoading(false);
+    const onError = () => {
+      setVideoLoading(false);
+      setVideoError("Impossible de lire ce replay.");
+    };
+
+    video.addEventListener("loadedmetadata", onLoaded);
+    video.addEventListener("error", onError);
+
+    return () => {
+      video.removeEventListener("loadedmetadata", onLoaded);
+      video.removeEventListener("error", onError);
+    };
+  }, [replayUrl, isHlsReplay, applyQuality, selectedQuality]);
 
   const dateLabel = useMemo(() => {
     if (!replay?.created_at) return "Date inconnue";
@@ -95,40 +254,69 @@ export default function ReplayDetailPage() {
 
         <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/72 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
           <div className="relative aspect-video bg-black">
-                {replay.replay_url ? (
-                    <video
-                    src={
-                        replay.replay_url.startsWith("http")
-                            ? replay.replay_url
-                            : `${process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, "")}${replay.replay_url}`
-                        }
-                    controls
-                    autoPlay={false}
-                    className="h-full w-full object-cover"
-                    />
-                ) : (
-                    <>
-                    <img
-                        src={thumbnail}
-                        alt={replay.title}
-                        className="h-full w-full object-cover opacity-80"
-                    />
+            {replay.replay_url ? (
+              <>
+                <video
+                  ref={videoRef}
+                  controls
+                  autoPlay={false}
+                  playsInline
+                  className="h-full w-full bg-black object-contain"
+                />
 
-                    <div className="absolute inset-0 bg-black/35" />
-
-                    <div className="absolute inset-0 grid place-items-center">
-                        <div className="rounded-full bg-white/95 px-5 py-3 text-sm font-bold text-gray-950 shadow-2xl">
-                        Replay en préparation
-                        </div>
-                    </div>
-                    </>
+                {isHlsReplay && qualities.length > 1 && (
+                  <select
+                    value={selectedQuality}
+                    onChange={(e) => handleQualityChange(e.target.value)}
+                    className="absolute right-5 top-5 z-20 rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md outline-none"
+                  >
+                    {qualities.map((quality) => (
+                      <option key={quality.value} value={quality.value}>
+                        {quality.label}
+                      </option>
+                    ))}
+                  </select>
                 )}
 
+                {videoLoading && (
+                  <div className="absolute inset-0 grid place-items-center bg-black/40">
+                    <div className="rounded-2xl bg-black/50 px-4 py-3 text-sm font-semibold text-white backdrop-blur">
+                      Chargement du replay…
+                    </div>
+                  </div>
+                )}
+
+                {videoError && (
+                  <div className="absolute inset-0 grid place-items-center bg-black/50 px-6">
+                    <div className="rounded-2xl border border-red-400/40 bg-red-500/15 px-5 py-4 text-center text-sm font-semibold text-red-100 backdrop-blur">
+                      {videoError}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <img
+                  src={thumbnail}
+                  alt={replay.title}
+                  className="h-full w-full object-cover opacity-80"
+                />
+
+                <div className="absolute inset-0 bg-black/35" />
+
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="rounded-full bg-white/95 px-5 py-3 text-sm font-bold text-gray-950 shadow-2xl">
+                    Replay en préparation
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-gray-900 px-3 py-1.5 text-xs font-bold text-white dark:bg-white dark:text-neutral-900">
-                <PlayCircle className="h-3.5 w-3.5" />
-                REPLAY
+              <PlayCircle className="h-3.5 w-3.5" />
+              REPLAY
             </div>
-            </div>
+          </div>
 
           <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:p-8">
             <div>
@@ -176,7 +364,8 @@ export default function ReplayDetailPage() {
                   Vues
                 </div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {replay.view_count ?? 0} vue{(replay.view_count ?? 0) > 1 ? "s" : ""}
+                  {replay.view_count ?? 0} vue
+                  {(replay.view_count ?? 0) > 1 ? "s" : ""}
                 </p>
               </div>
 

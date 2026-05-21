@@ -49,8 +49,8 @@ export default function BroadcastRoomPage() {
 
   const { token, ready } = useAuth();
 
-  const mode = searchParams.get("mode") ?? "host";
-  const isHost = mode !== "join";
+  const mode = searchParams.get("mode");
+  const isHost = mode === "host";
   const roomIdFromUrl = useMemo(() => params?.roomId, [params]);
 
   const {
@@ -62,6 +62,7 @@ export default function BroadcastRoomPage() {
     hostExistingRoom,
     joinAsCoStreamer,
     stopLive,
+    leaveLive,
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
@@ -69,11 +70,8 @@ export default function BroadcastRoomPage() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
-  const [liveEnded, setLiveEnded] = useState(false);
-  
   const autoJoinRoomRef = useRef<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
-
 
   useEffect(() => {
     if (!ready || !token || !roomIdFromUrl || isHost) return;
@@ -89,6 +87,7 @@ export default function BroadcastRoomPage() {
   }, [ready, token, isHost, roomIdFromUrl, joinAsCoStreamer]);
 
   const displayRoom = roomId ?? roomIdFromUrl;
+
   const viewerHref = displayRoom
     ? `/watch/${encodeURIComponent(displayRoom)}`
     : null;
@@ -105,9 +104,15 @@ export default function BroadcastRoomPage() {
 
   const canLaunch = ready && !!token && !!roomIdFromUrl;
   const isStreaming = state === "live" || state === "connecting";
+  const isDisconnected = state === "disconnected";
 
   const handleBack = async () => {
-    await stopLive();
+    if (isHost) {
+      await stopLive();
+    } else {
+      await leaveLive();
+    }
+
     router.back();
   };
 
@@ -119,8 +124,8 @@ export default function BroadcastRoomPage() {
   };
 
   const handleStopLive = async () => {
-    setLiveEnded(true);
     await stopLive();
+    router.replace("/home");
   };
 
   const fetchChat = useCallback(async () => {
@@ -147,6 +152,14 @@ export default function BroadcastRoomPage() {
     if (!chatScrollRef.current) return;
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (isHost) return;
+
+    if (state === "disconnected") {
+      router.replace("/home");
+    }
+  }, [state, isHost, router]);
 
   const onSendMessage = async () => {
     const trimmed = message.trim();
@@ -230,7 +243,7 @@ export default function BroadcastRoomPage() {
                 </button>
               ) : null}
 
-              {isStreaming ? (
+              {isStreaming && isHost ? (
                 <button
                   onClick={handleStopLive}
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(239,68,68,0.25)] transition hover:bg-red-400"
@@ -270,7 +283,7 @@ export default function BroadcastRoomPage() {
                   <Users className="h-4 w-4" />
                 </div>
                 <div className="text-2xl font-bold text-gray-950 dark:text-white">
-                  {remoteStreams.length}
+                  {remoteStreams.length}/5
                 </div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   Co-streamers
@@ -305,24 +318,23 @@ export default function BroadcastRoomPage() {
                   {localStream ? "Flux local actif" : "En attente caméra"}
                 </div>
               </div>
-        
+
               <div className="relative aspect-video min-h-[260px] bg-black">
-                {liveEnded ? (
+                {isDisconnected ? (
                   <div className="absolute left-4 top-4 z-20 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-lg">
                     LIVE TERMINÉ
                   </div>
                 ) : null}
+
                 {localStream ? (
                   <StreamView stream={localStream} muted />
                 ) : (
                   <BroadcastEmptyState
                     title={
-                      liveEnded
-                        ? "Live terminé"
-                        : "Caméra non active"
+                      isDisconnected ? "Live terminé" : "Caméra non active"
                     }
                     message={
-                      liveEnded
+                      isDisconnected
                         ? "Le live est maintenant hors ligne."
                         : emptyStateMessage
                     }
@@ -352,7 +364,7 @@ export default function BroadcastRoomPage() {
                 </div>
 
                 <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-                  {remoteStreams.length}
+                  {remoteStreams.length}/5
                 </span>
               </div>
 
@@ -401,7 +413,10 @@ export default function BroadcastRoomPage() {
                   </div>
                 ) : (
                   chatMessages.map((msg) => (
-                    <div key={msg.id} className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm dark:bg-white/[0.04]">
+                    <div
+                      key={msg.id}
+                      className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm dark:bg-white/[0.04]"
+                    >
                       <div className="mb-0.5 font-semibold text-gray-900 dark:text-gray-100">
                         {msg.username}
                       </div>
@@ -417,7 +432,9 @@ export default function BroadcastRoomPage() {
                 <div className="flex gap-2">
                   <input
                     value={message}
-                    onChange={(e) => setMessage(e.target.value.slice(0, MAX_MSG))}
+                    onChange={(e) =>
+                      setMessage(e.target.value.slice(0, MAX_MSG))
+                    }
                     onKeyDown={(e) => {
                       if (e.key === "Enter") onSendMessage();
                     }}
