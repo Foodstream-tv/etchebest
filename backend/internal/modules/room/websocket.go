@@ -14,9 +14,9 @@ import (
 
 // WSMessage represents messages sent over WebSocket
 type WSMessage struct {
-	Type    string                     `json:"type"`
-	Offer   *webrtc.SessionDescription `json:"offer,omitempty"`
-	Error   string                     `json:"error,omitempty"`
+	Type  string                     `json:"type"`
+	Offer *webrtc.SessionDescription `json:"offer,omitempty"`
+	Error string                     `json:"error,omitempty"`
 }
 
 // WSClientConn stores WebSocket connection per user
@@ -30,7 +30,7 @@ type WSClientConn struct {
 
 // wsConnections maps roomId -> userId -> *WSClientConn
 var (
-	wsConnMu     sync.RWMutex
+	wsConnMu      sync.RWMutex
 	wsConnections = make(map[string]map[string]*WSClientConn)
 )
 
@@ -80,7 +80,7 @@ func HandleWebSocketOffer(db *gorm.DB) gin.HandlerFunc {
 
 		// Verify user is in this room
 		if !isUserInRoom(room, userID) {
-			log.Printf("[WS] user %s NOT in room %s. Connections: %v", userID, roomID, 
+			log.Printf("[WS] user %s NOT in room %s. Connections: %v", userID, roomID,
 				func(conns []PeerConnection) []string {
 					var userIDs []string
 					for _, c := range conns {
