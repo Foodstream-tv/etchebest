@@ -156,7 +156,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 				// Link Google account to existing user
 				existingUser.GoogleID = &userInfo.ID
 				existingUser.OAuthProvider = strPtr("google")
-				if existingUser.ProfileImageURL == "" {
+				if existingUser.ProfileImageURL == "" && userInfo.Picture != "" {
 					existingUser.ProfileImageURL = userInfo.Picture
 				}
 				if err := db.Save(&existingUser).Error; err != nil {
@@ -169,13 +169,18 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 				}
 			} else {
 				// Create new user
+				// Only set ProfileImageURL if Google provided a picture
+				profileImageURL := ""
+				if userInfo.Picture != "" {
+					profileImageURL = userInfo.Picture
+				}
 				newUser := user.User{
 					ID:              uuid.New().String(),
 					Email:           userInfo.Email,
 					FirstName:       userInfo.FirstName,
 					LastName:        userInfo.LastName,
 					Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-					ProfileImageURL: userInfo.Picture,
+					ProfileImageURL: profileImageURL,
 					GoogleID:        &userInfo.ID,
 					OAuthProvider:   strPtr("google"),
 					Password:        uuid.New().String(), // Random password for OAuth users
