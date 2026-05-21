@@ -36,6 +36,8 @@ export default function AppTopNav() {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [failedProfileImage, setFailedProfileImage] = useState(false);
+  const [failedSearchImages, setFailedSearchImages] = useState<Set<string>>(new Set());
   const pathname = usePathname();
   const { user, ready, token } = useAuth();
 
@@ -142,12 +144,15 @@ export default function AppTopNav() {
                           className="flex items-center gap-3 rounded-2xl px-3 py-2 transition hover:bg-orange-50 dark:hover:bg-white/5"
                         >
                           <div className="relative h-10 w-10 overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
-                            {chef.profileImageUrl ? (
+                            {chef.profileImageUrl && !failedSearchImages.has(chef.id) ? (
                               <Image
                                 src={chef.profileImageUrl}
                                 alt={chef.username}
                                 fill
                                 className="object-cover"
+                                onError={() => {
+                                  setFailedSearchImages((prev) => new Set([...prev, chef.id]));
+                                }}
                               />
                             ) : (
                               <div className="grid h-full w-full place-items-center text-sm font-bold">
@@ -240,12 +245,13 @@ export default function AppTopNav() {
               <div className="relative h-10 w-10 overflow-hidden rounded-full ring-1 ring-black/10 transition group-hover:ring-orange-500/40 dark:ring-white/10">
                 {!ready ? (
                   <div className="h-full w-full animate-pulse bg-gray-200 dark:bg-white/10" />
-                ) : user?.profileImageUrl ? (
+                ) : user?.profileImageUrl && !failedProfileImage ? (
                   <Image
                     src={user.profileImageUrl}
                     alt={user.username || user.email || "Profil"}
                     fill
                     className="object-cover"
+                    onError={() => setFailedProfileImage(true)}
                   />
                 ) : (
                   <div className="grid h-full w-full place-items-center bg-gray-200 text-sm font-bold text-gray-700 dark:bg-white/10 dark:text-gray-200">
