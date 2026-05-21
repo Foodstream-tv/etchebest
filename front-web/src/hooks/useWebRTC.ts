@@ -5,6 +5,7 @@ import {
   reserveRoom,
   sendICECandidate,
   sendOffer,
+  sendRenegotiationAnswer,
 } from "@/services/streaming";
 
 const ICE_SERVERS: RTCConfiguration = {
@@ -105,7 +106,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            await sendOffer(currentRoomId, answer.sdp || "", tokenRef.current);
+            await sendRenegotiationAnswer(currentRoomId, answer.sdp || "", tokenRef.current);
             console.log("[WebRTC] sent renegotiation answer");
           }
         } catch (err) {
