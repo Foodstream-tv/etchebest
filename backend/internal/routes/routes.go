@@ -103,7 +103,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.POST("/rooms/:roomId/chat", chat.CreateNewChat(db))
 	admin.DELETE("/rooms/:roomId/chats/:chatId", chat.DeleteChat(db))
 
-	// WebRTC
+	// WebRTC - WebSocket must be on /api (so it gets token from query param via middleware)
 	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
 	api.GET("/webrtc/offers", room.HandleWebSocketOffer(db))
 	api.GET("/webrtc/offers/next", room.PollRenegotiationOffer(db))
