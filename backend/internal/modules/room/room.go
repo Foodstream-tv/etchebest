@@ -382,7 +382,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: 10,
+			MaxParticipants: 6,
 		}
 
 		if err := CreateRoom(db, &room); err != nil {
@@ -579,13 +579,21 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
+		currentUserID := utils.GetContextString(c, "userId")
 
 		mu.Lock()
 		room, err := getLiveRoom(db, roomId)
 		if err != nil {
-			// Room is already gone (deleted by a concurrent disconnect) — idempotent.
 			mu.Unlock()
 			c.JSON(http.StatusOK, gin.H{"message": "disconnected successfully"})
+			return
+		}
+
+		if room.Host != currentUserID {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "only the host can end this live",
+			})
 			return
 		}
 
