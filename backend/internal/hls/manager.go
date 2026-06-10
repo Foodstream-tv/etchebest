@@ -3,8 +3,10 @@ package hls
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Stream struct {
@@ -31,30 +33,87 @@ func RegisterToStream(roomID string, stop func()) {
 		RoomID: roomID,
 		Stop:   stop,
 	}
+	
+	// Log segment generation progress every 2 seconds
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		
+		for range ticker.C {
+			mu.Lock()
+			_, exists := streams[roomID]
+			mu.Unlock()
+			
+			if !exists {
+				return // Stream stopped
+			}
+			
+			logSegmentStatus(roomID)
+		}
+	}()
 }
 
-func finalizePlaylist(roomID string) {
-	playlistPath := "./hls/" + roomID + "/index.m3u8"
+func logSegmentStatus(roomID string) {
+	qualities := []string{"1080p", "720p", "480p", "360p"}
+	
+	for _, quality := range qualities {
+		indexPath := filepath.Join("./hls", roomID, quality, "index.m3u8")
+		data, err := os.ReadFile(indexPath)
+		if err != nil {
+			continue
+		}
+		
+		// Count segments in the playlist
+		lines := strings.Split(string(data), "\n")
+		segmentCount := 0
+		for _, line := range lines {
+			if strings.HasPrefix(line, "segment_") {
+				segmentCount++
+			}
+		}
+		
+		log.Printf("[HLS] %s: %d segments ready", quality, segmentCount)
+	}
+}
 
-	data, err := os.ReadFile(playlistPath)
+func finalizePlaylist(roomID string) error {
+	playlists := []string{
+		filepath.Join("./hls", roomID, "master.m3u8"),
+		filepath.Join("./hls", roomID, "1080p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "720p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "480p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "360p", "index.m3u8"),
+	}
+
+	for _, playlistPath := range playlists {
+		if err := finalizeOnePlaylist(playlistPath); err != nil {
+			return err
+		}
+	}
+
+	log.Printf("[HLS] playlists finalized for room %s", roomID)
+
+	return nil
+}
+
+func finalizeOnePlaylist(path string) error {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("[HLS] cannot finalize playlist for room %s: %v", roomID, err)
-		return
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
 
 	content := string(data)
+
 	if strings.Contains(content, "#EXT-X-ENDLIST") {
-		return
+		return nil
 	}
 
 	content += "\n#EXT-X-ENDLIST\n"
 
-	if err := os.WriteFile(playlistPath, []byte(content), 0644); err != nil {
-		log.Printf("[HLS] cannot write finalized playlist for room %s: %v", roomID, err)
-		return
-	}
-
-	log.Printf("[HLS] playlist finalized for room %s", roomID)
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 func StopStream(roomID string) (string, error) {
@@ -68,10 +127,12 @@ func StopStream(roomID string) (string, error) {
 
 	delete(streams, roomID)
 	mu.Unlock()
-
+	time.Sleep(2 * time.Second)
 	stream.Stop()
 
-	finalizePlaylist(roomID)
+	if err := finalizePlaylist(roomID); err != nil {
+		log.Printf("[HLS] failed to finalize playlists for room %s: %v", roomID, err)
+	}
 
 	replayURL, err := GenerateReplay(roomID)
 	if err != nil {
@@ -80,9 +141,13 @@ func StopStream(roomID string) (string, error) {
 		log.Printf("[REPLAY] replay generated: %s", replayURL)
 	}
 
-	if err := os.RemoveAll("./hls/" + roomID); err != nil {
+	if err := os.RemoveAll(filepath.Join("./hls", roomID)); err != nil {
 		log.Printf("[HLS] cleanup failed for room %s: %v", roomID, err)
 	}
+
+	mu.Lock()
+	delete(tokens, roomID)
+	mu.Unlock()
 
 	return replayURL, err
 }

@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useCallback,
   useState,
   ReactNode,
 } from "react";
@@ -35,7 +36,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const STORAGE_KEY = "foodstream-cart";
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -55,10 +56,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const openCart = () => setIsOpen(true);
-  const closeCart = () => setIsOpen(false);
+  const openCart = useCallback(() => setIsOpen(true), []);
+  const closeCart = useCallback(() => setIsOpen(false), []);
 
-  const addToCart = (item: Omit<CartItem, "quantity">) => {
+  const addToCart = useCallback((item: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
       const existing = prev.find((p) => p.id === item.id);
 
@@ -72,13 +73,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
 
     setIsOpen(true);
-  };
+  }, []);
 
-  const removeFromCart = (id: string) => {
+  const removeFromCart = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  }, []);
 
-  const decreaseQuantity = (id: string) => {
+  const decreaseQuantity = useCallback((id: string) => {
     setItems((prev) =>
       prev
         .map((item) =>
@@ -86,9 +87,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         )
         .filter((item) => item.quantity > 0)
     );
-  };
+  }, []);
 
-  const clearCart = () => setItems([]);
+  const clearCart = useCallback(() => setItems([]), []);
 
   const totalItems = useMemo(
     () => items.reduce((sum, item) => sum + item.quantity, 0),
@@ -100,21 +101,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items]
   );
 
+  const contextValue = useMemo(
+    () => ({
+      items,
+      isOpen,
+      openCart,
+      closeCart,
+      addToCart,
+      removeFromCart,
+      decreaseQuantity,
+      clearCart,
+      totalItems,
+      totalPrice,
+    }),
+    [
+      items,
+      isOpen,
+      openCart,
+      closeCart,
+      addToCart,
+      removeFromCart,
+      decreaseQuantity,
+      clearCart,
+      totalItems,
+      totalPrice,
+    ]
+  );
+
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        isOpen,
-        openCart,
-        closeCart,
-        addToCart,
-        removeFromCart,
-        decreaseQuantity,
-        clearCart,
-        totalItems,
-        totalPrice,
-      }}
-    >
+    <CartContext.Provider value={contextValue}>
       {children}
     </CartContext.Provider>
   );

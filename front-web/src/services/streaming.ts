@@ -67,6 +67,21 @@ export async function sendOffer(roomId: string,sdp: string,token?: string): Prom
   return res.json();
 }
 
+export async function sendRenegotiationAnswer(
+  roomId: string,
+  sdp: string,
+  token?: string
+): Promise<void> {
+  const rid = encodeURIComponent(roomId);
+
+  const res = await fetch(`${API_BASE_URL}/webrtc/answer?roomId=${rid}`, {
+    method: "POST",
+    headers: await authHeaders(token),
+    body: JSON.stringify({ type: "answer", sdp }),
+  });
+  if (!res.ok) throw new Error(`Renegotiation answer failed (${res.status})`);
+}
+// Removed duplicate sendRenegotiationAnswer function
 export async function sendICECandidate(
   roomId: string,
   candidate: RTCIceCandidateInit,
@@ -109,7 +124,7 @@ export async function sendICECandidate(
 
 export function getHLSUrl(roomId: string): string {
   const rid = encodeURIComponent(roomId);
-  return `${MEDIA_BASE_URL}/api/hls/${rid}/index.m3u8`;
+  return `${MEDIA_BASE_URL}/api/hls/${rid}/master.m3u8`;
 }
 
 // ---------- Chat ----------

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
@@ -104,23 +103,24 @@ export default function StudioPage() {
   });
 
   const [duration, setDuration] = useState<number>(60);
-  const [visibility, setVisibility] = useState<Visibility>("Public");
+  const [visibility] = useState<Visibility>("Public");
   const [imageUrl, setImageUrl] = useState<string>("");
 
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
 
-  const [latency, setLatency] = useState<"Normale" | "Faible">("Normale");
-  const [quality, setQuality] = useState<"Auto (1080p)" | "720p" | "480p">(
+  const [latency] = useState<"Normale" | "Faible">("Normale");
+  const [quality] = useState<"Auto (1080p)" | "720p" | "480p">(
     "Auto (1080p)"
   );
-  const [replays, setReplays] = useState<boolean>(true);
-  const [chatActive, setChatActive] = useState(true);
-  const [slowMode, setSlowMode] = useState(false);
-  const [subsOnly, setSubsOnly] = useState(false);
+  const [replays] = useState<boolean>(true);
+  const [chatActive] = useState(true);
+  const [slowMode] = useState(false);
+  const [subsOnly] = useState(false);
 
   const [status, setStatus] = useState<"idle" | "creating" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [endingLive, setEndingLive] = useState(false);
 
   const [openTagGroup, setOpenTagGroup] = useState<string>("Cuisine");
   const [customTag, setCustomTag] = useState("");
@@ -339,6 +339,29 @@ export default function StudioPage() {
     } catch (e: any) {
       setStatus("error");
       setError(e?.message || "Erreur");
+    }
+  };
+
+  const onForceEndLive = async () => {
+    if (!token || !user) return;
+    try {
+      setEndingLive(true);
+      setError(null);
+      const res = await apiFetch<{ lives: any[] }>("/lives", { token });
+      const myLive = res.lives?.find((live) => live.user?.id === user.id);
+      if (!myLive) {
+        throw new Error("Aucun live actif ou planifié trouvé pour votre compte.");
+      }
+      await apiFetch(`/rooms/${encodeURIComponent(myLive.room_id)}/disconnect`, {
+        method: "POST",
+        token,
+      });
+      setError(null);
+      setStatus("idle");
+    } catch (e: any) {
+      setError(e?.message || "Impossible de couper le live en cours.");
+    } finally {
+      setEndingLive(false);
     }
   };
 
@@ -670,9 +693,9 @@ export default function StudioPage() {
                   disabled={status !== "idle" || !canSchedule}
                   className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:opacity-50"
                   title={
-                    !canSchedule
-                      ? "Choisis une date et une heure pour planifier"
-                      : undefined
+                    canSchedule
+                      ? undefined
+                      : "Choisis une date et une heure pour planifier"
                   }
                 >
                   Planifier le live
@@ -689,9 +712,19 @@ export default function StudioPage() {
               </div>
 
               {error ? (
-                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
-                  {error}
-                </p>
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                  <p>{error}</p>
+                  {error.includes("you already have an active or scheduled live") && (
+                    <button
+                      type="button"
+                      onClick={onForceEndLive}
+                      disabled={endingLive}
+                      className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {endingLive ? "Arrêt en cours..." : "Arrêter le live en cours"}
+                    </button>
+                  )}
+                </div>
               ) : null}
             </div>
           </section>

@@ -377,6 +377,7 @@ export default function ProfilePage() {
                       src={(profile?.profileImageUrl || user.profileImageUrl)!}
                       alt={displayName}
                       fill
+                      sizes="64px"
                       className="object-cover"
                     />
                   ) : (

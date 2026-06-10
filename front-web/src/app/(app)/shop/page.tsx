@@ -8,6 +8,7 @@ type Category = {
   description: string;
   image: string;
   href: string;
+  priority?: boolean;
 };
 
 const categories: Category[] = [
@@ -17,6 +18,7 @@ const categories: Category[] = [
     image:
       "https://images.unsplash.com/photo-1514986888952-8cd320577b68?auto=format&fit=crop&w=1400&q=80",
     href: "/shop/ustensiles",
+    priority: true,
   },
   {
     title: "Matériel Live",
@@ -24,6 +26,7 @@ const categories: Category[] = [
     image:
       "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1400&q=80",
     href: "/shop/live",
+    priority: true,
   },
   {
     title: "Nourriture",
@@ -31,10 +34,11 @@ const categories: Category[] = [
     image:
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1400&q=80",
     href: "/shop/food",
+    priority: true,
   },
 ];
 
-function CategoryCard({ category }: { category: Category }) {
+function CategoryCard({ category }: Readonly<{ category: Category }>) {
   return (
     <Link
       href={category.href}
@@ -44,6 +48,8 @@ function CategoryCard({ category }: { category: Category }) {
         src={category.image}
         alt={category.title}
         fill
+        sizes="(max-width: 768px) 100vw, 33vw"
+        priority={category.priority}
         className="object-cover transition duration-500 group-hover:scale-110"
       />
 

@@ -2,6 +2,7 @@ package room
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -11,10 +12,10 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
-	"github.com/Foodstream-io/etchebest/internal/utils"
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
 	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
 	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
+	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pion/rtcp"
@@ -221,6 +222,13 @@ func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnect
 		return
 	}
 
+	log.Printf("Generated renegotiation offer for user %s, has %d senders currently", userID, len(pc.GetSenders()))
+	for i, sender := range pc.GetSenders() {
+		if sender != nil && sender.Track() != nil {
+			log.Printf("  Sender %d: %s track (id=%s)", i, sender.Track().Kind(), sender.Track().ID())
+		}
+	}
+
 	gatherComplete := webrtc.GatheringCompletePromise(pc)
 	if err := pc.SetLocalDescription(offer); err != nil {
 		log.Printf("SetLocalDescription (renegotiation) failed for user %s: %v", userID, err)
@@ -382,7 +390,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: 10,
+			MaxParticipants: 6,
 		}
 
 		if err := CreateRoom(db, &room); err != nil {
@@ -517,6 +525,20 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Notify existing participants to renegotiate (so they can receive the new participant's stream)
+		mu.Lock()
+		liveRoom, getRoomErr := getLiveRoom(db, roomId)
+		if getRoomErr == nil && liveRoom != nil {
+			log.Printf("[RESERVE_ROOM] triggering renegotiation for new participant %s in room %s", currentUserId, roomId)
+			for _, conn := range liveRoom.Connections {
+				// Skip the new participant themselves
+				if conn.UserID != currentUserId && conn.PeerCon != nil {
+					go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
+				}
+			}
+		}
+		mu.Unlock()
+
 		c.JSON(http.StatusOK, gin.H{"message": "reserved successfully"})
 	}
 }
@@ -560,6 +582,20 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Notify existing participants to renegotiate (so they can receive the new participant's stream)
+		mu.Lock()
+		liveRoom, getRoomErr := getLiveRoom(db, req.RoomId)
+		if getRoomErr == nil && liveRoom != nil {
+			log.Printf("[ADD_PARTICIPANT] triggering renegotiation for new participant %s in room %s", req.UserId, req.RoomId)
+			for _, conn := range liveRoom.Connections {
+				// Skip the new participant themselves
+				if conn.UserID != req.UserId && conn.PeerCon != nil {
+					go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
+				}
+			}
+		}
+		mu.Unlock()
+
 		c.JSON(http.StatusOK, gin.H{"status": "participant added"})
 	}
 }
@@ -579,13 +615,21 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
+		currentUserID := utils.GetContextString(c, "userId")
 
 		mu.Lock()
 		room, err := getLiveRoom(db, roomId)
 		if err != nil {
-			// Room is already gone (deleted by a concurrent disconnect) — idempotent.
 			mu.Unlock()
 			c.JSON(http.StatusOK, gin.H{"message": "disconnected successfully"})
+			return
+		}
+
+		if room.Host != currentUserID {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "only the host can end this live",
+			})
 			return
 		}
 
@@ -876,6 +920,9 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 		if ti.PeerPT == nil {
 			ti.PeerPT = make(map[*webrtc.PeerConnection]uint8)
 		}
+		if ti.SendersByPeer == nil {
+			ti.SendersByPeer = make(map[*webrtc.PeerConnection]*webrtc.RTPSender)
+		}
 		cap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
 		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
 		if err != nil {
@@ -890,6 +937,7 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 		startRTCPDrain(sender)
 		ti.LocalTracks[pc] = lt
 		ti.PeerPT[pc] = pt
+		ti.SendersByPeer[pc] = sender
 		ti.Senders = append(ti.Senders, sender)
 
 		// Request a keyframe immediately so this new peer can decode the video
@@ -935,6 +983,7 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 		log.Printf("[HLS] skip start for room %s: codec %s (WebRTC relay stays prioritized)", roomID, h.video.CodecName)
 		return
 	}
+	// log.Println("starting HLS stream for room", roomID)
 	log.Println("starting HLS stream for room", roomID)
 	writer, _, err := hls.Start(roomID, h.audio, h.video)
 	if err != nil {
@@ -954,6 +1003,11 @@ type renegotiationTarget struct {
 
 func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConnection) []renegotiationTarget {
 	targetByUser := make(map[string]*webrtc.PeerConnection)
+
+	// Initialize SendersByPeer if not already done
+	if ti.SendersByPeer == nil {
+		ti.SendersByPeer = make(map[*webrtc.PeerConnection]*webrtc.RTPSender)
+	}
 
 	for _, other := range room.Connections {
 		if other.PeerCon == sourcePc {
@@ -981,6 +1035,7 @@ func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConne
 
 		ti.LocalTracks[other.PeerCon] = lt
 		ti.PeerPT[other.PeerCon] = pt
+		ti.SendersByPeer[other.PeerCon] = sender
 		ti.Senders = append(ti.Senders, sender)
 		targetByUser[other.UserID] = other.PeerCon
 	}
@@ -998,7 +1053,9 @@ func requestKeyframeBurst(pc *webrtc.PeerConnection, ssrc uint32) {
 		return
 	}
 	go func() {
-		for i := 0; i < 4; i++ {
+		// Request keyframes aggressively: 10 attempts, short delays
+		// to maximize chances of receiving H.264 SPS/PPS at FFmpeg
+		for i := 0; i < 10; i++ {
 			_ = pc.WriteRTCP([]rtcp.Packet{
 				&rtcp.PictureLossIndication{MediaSSRC: ssrc},
 				&rtcp.FullIntraRequest{MediaSSRC: ssrc},
@@ -1097,6 +1154,197 @@ func isVP8Keyframe(payload []byte) bool {
 	return payload[offset]&0x01 == 0
 }
 
+// isH264KeyframeWithParams checks if an H264 RTP payload contains SPS/PPS or IDR frame.
+// H264 NAL unit types: 1=non-IDR, 5=IDR, 7=SPS, 8=PPS
+// For HLS, we need at least an IDR frame to start encoding.
+func isH264KeyframeWithParams(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+
+	// H264 RTP payload format (RFC 3984):
+	// Byte 0: F(1) | NRI(2) | Type(5)
+	nalType := payload[0] & 0x1f
+
+	// Single NAL unit packet - check for IDR (5), SPS (7), or PPS (8)
+	if nalType > 0 && nalType < 24 {
+		return nalType == 5 || nalType == 7 || nalType == 8
+	}
+
+	// STAP-A aggregated packet (type 24) - may contain SPS/PPS
+	if nalType == 24 && len(payload) > 2 {
+		return true
+	}
+
+	// FU-A fragmented mode (type 28)
+	if nalType == 28 && len(payload) > 1 {
+		fragStart := payload[1]&0x80 != 0
+		if fragStart {
+			fragType := payload[1] & 0x1f
+			return fragType == 5 || fragType == 7 || fragType == 8
+		}
+	}
+
+	return false
+}
+
+// isH264CodecParams checks if an H264 RTP payload contains codec parameters only (SPS/PPS).
+// These must always be forwarded to FFmpeg, even if the slice-data gate is closed.
+// H264 NAL unit types: 7=SPS, 8=PPS, 24=STAP-A (aggregated)
+func isH264CodecParams(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+
+	nalType := payload[0] & 0x1f
+
+	// Single NAL unit - SPS or PPS
+	if nalType == 7 || nalType == 8 {
+		return true
+	}
+
+	// STAP-A aggregated packet (type 24) - may contain multiple NAL units including SPS/PPS
+	if nalType == 24 && len(payload) > 2 {
+		return true
+	}
+
+	return false
+}
+
+// extractAndSendAllSTAPAUnits takes a STAP-A packet and sends each NAL unit
+// as a separate RTP packet to FFmpeg. Returns true if any units were sent.
+func extractAndSendAllSTAPAUnits(payload []byte, writer net.Conn, originalPkt *rtp.Packet) bool {
+	if len(payload) < 1 {
+		return false
+	}
+
+	nalType := payload[0] & 0x1f
+	if nalType != 24 { // Not STAP-A
+		return false
+	}
+
+	if len(payload) <= 2 {
+		return false
+	}
+
+	sentAny := false
+	units := []struct {
+		offset int
+		size   int
+	}{}
+
+	// Collect all NAL units in the STAP-A
+	offset := 1
+	for offset < len(payload)-1 {
+		size := (int(payload[offset]) << 8) | int(payload[offset+1])
+		offset += 2
+		if offset+size > len(payload) {
+			break
+		}
+		if size > 0 {
+			units = append(units, struct {
+				offset int
+				size   int
+			}{offset, size})
+		}
+		offset += size
+	}
+
+	// Send each unit with CONSECUTIVE sequence numbers to ensure RTP ordering.
+	// This forces FFmpeg to process NAL units (SPS, PPS, slice) in the correct order,
+	// preventing "non-existing PPS 0 referenced" errors. Only last unit has marker bit.
+	for i, unit := range units {
+		newPkt := *originalPkt
+		newPkt.Payload = make([]byte, unit.size)
+		copy(newPkt.Payload, payload[unit.offset:unit.offset+unit.size])
+
+		// Assign consecutive sequence numbers: if STAP-A had seqNum=1000 and 3 units,
+		// units get 1000, 1001, 1002 to enforce proper ordering in FFmpeg's reordering buffer
+		newPkt.SequenceNumber = originalPkt.SequenceNumber + uint16(i)
+		newPkt.Marker = (i == len(units)-1)
+
+		// Marshal and send
+		data, err := newPkt.Marshal()
+		if err == nil && writer != nil {
+			_, _ = writer.Write(data)
+			sentAny = true
+		}
+	}
+
+	return sentAny
+}
+
+// isH264SPS checks if payload is an SPS (Sequence Parameter Set) NAL unit (type 7)
+// Also checks inside STAP-A packets (type 24) which may contain aggregated SPS/PPS
+func isH264SPS(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+	nalType := payload[0] & 0x1f
+
+	// Direct SPS
+	if nalType == 7 {
+		return true
+	}
+
+	// STAP-A aggregated packet - parse to find type 7 SPS
+	if nalType == 24 && len(payload) > 2 {
+		offset := 1
+		for offset < len(payload)-1 {
+			size := (int(payload[offset]) << 8) | int(payload[offset+1])
+			offset += 2
+			if offset+size > len(payload) {
+				break
+			}
+			if size > 0 && (payload[offset]&0x1f) == 7 {
+				return true
+			}
+			offset += size
+		}
+	}
+	return false
+}
+
+// isH264PPS checks if payload is a PPS (Picture Parameter Set) NAL unit (type 8)
+// Also checks inside STAP-A packets (type 24) which may contain aggregated SPS/PPS
+func isH264PPS(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+	nalType := payload[0] & 0x1f
+
+	// Direct PPS
+	if nalType == 8 {
+		return true
+	}
+
+	// STAP-A aggregated packet - parse to find type 8 PPS
+	if nalType == 24 && len(payload) > 2 {
+		offset := 1
+		for offset < len(payload)-1 {
+			size := (int(payload[offset]) << 8) | int(payload[offset+1])
+			offset += 2
+			if offset+size > len(payload) {
+				break
+			}
+			if size > 0 && (payload[offset]&0x1f) == 8 {
+				return true
+			}
+			offset += size
+		}
+	}
+	return false
+}
+
+// isH264SliceData checks if payload is slice data (types 1, 5) that requires params
+func isH264SliceData(payload []byte) bool {
+	if len(payload) < 1 {
+		return false
+	}
+	nalType := payload[0] & 0x1f
+	return nalType == 1 || nalType == 5 // NAL type 1=non-IDR, 5=IDR
+}
+
 // startTrackRelay reads RTP packets from the source track and fans them out to
 // every subscribed peer (rewriting the PT) and, when isHLSSource is true,
 // to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
@@ -1109,6 +1357,11 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 	isAudio := track.Kind() == webrtc.RTPCodecTypeAudio
 	hlsGotKeyframe := false
 	pliLastPkt := 0
+	hlsKeyframeTime := time.Time{}       // Track when first video keyframe arrived
+	pliSentCount := 0                    // Count PLI requests sent during startup gate
+	hlsReceivedSPS := false              // Track if we've received and forwarded SPS
+	hlsReceivedPPS := false              // Track if we've received and forwarded PPS
+	hlsParamsGateOpenTime := time.Time{} // Time when we started waiting for params
 
 	// Request a keyframe immediately so that both HLS and all WebRTC
 	// receiving peers get a clean start for the video feed.
@@ -1168,6 +1421,7 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 		if !isHLSSource || cachedWriter == nil {
 			continue
 		}
+
 		if isAudio && cachedWriter.AudioConn != nil {
 			_, _ = cachedWriter.AudioConn.Write(buf[:n])
 		} else if !isAudio && cachedWriter.VideoConn != nil {
@@ -1185,28 +1439,127 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 				}})
 			}
 
-			// Gate: only forward video to FFmpeg from the first keyframe onwards.
-			// Interframes before a keyframe cause FFmpeg's VP8 decoder to spam
-			// "Discarding interframe without a prior keyframe" and never produce
-			// HLS segments.
-			// H264 is excluded from the gate because it uses copy mode (no
-			// decoding) and FFmpeg needs every packet — especially SPS/PPS
-			// (NAL types 7/8) which arrive before IDR frames.
-			if !hlsGotKeyframe && !strings.Contains(mimeType, "h264") {
-				var isKF bool
-				switch {
-				case strings.Contains(mimeType, "vp8"):
-					isKF = isVP8Keyframe(pkt.Payload)
-				default:
-					isKF = true
+			// H264-specific: Gate that ensures SPS and PPS arrive at FFmpeg BEFORE any slice data.
+			// This prevents "non-existing PPS 0 referenced" errors.
+			//
+			// Strategy:
+			// 1. When we detect a keyframe (IDR), send PLI bursts to request SPS/PPS from sender
+			// 2. ALWAYS forward SPS/PPS immediately when received
+			// 3. HOLD slice data (types 1, 5) until we've seen both SPS and PPS
+			// 4. Once both params are received, open the gate and forward everything
+			if strings.Contains(mimeType, "h264") {
+				isSPS := isH264SPS(pkt.Payload)
+				isPPS := isH264PPS(pkt.Payload)
+				isSlice := isH264SliceData(pkt.Payload)
+
+				// Log codec params when detected (for debugging gate)
+				if (isSPS || isPPS) && len(pkt.Payload) > 0 {
+					nalType := pkt.Payload[0] & 0x1f
+					log.Printf("[HLS] Codec param detected: type=%d SPS=%v PPS=%v", nalType, isSPS, isPPS)
 				}
-				if !isKF {
+
+				// Update param tracking when we receive them
+				if isSPS && !hlsReceivedSPS {
+					hlsReceivedSPS = true
+					log.Printf("[HLS] SPS received for room, starting params gate window")
+					if hlsParamsGateOpenTime.IsZero() {
+						hlsParamsGateOpenTime = time.Now()
+					}
+				}
+				if isPPS && !hlsReceivedPPS {
+					hlsReceivedPPS = true
+					log.Printf("[HLS] PPS received for room")
+					if hlsParamsGateOpenTime.IsZero() {
+						hlsParamsGateOpenTime = time.Now()
+					}
+				}
+
+				// When we see a keyframe and haven't started the gate yet, request params
+				isKF := isH264KeyframeWithParams(pkt.Payload)
+				if isKF && hlsKeyframeTime.IsZero() {
+					hlsKeyframeTime = time.Now()
+					hlsParamsGateOpenTime = time.Now()
+					log.Printf("[HLS] keyframe detected for room, requesting codec params with PLI burst")
+					// Send aggressive burst of PLI to force params resend
+					for i := 0; i < 5; i++ {
+						err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
+							MediaSSRC: uint32(track.SSRC()),
+						}})
+						if err != nil {
+							log.Printf("[HLS] failed to send PLI: %v", err)
+						}
+						pliSentCount++
+					}
+				}
+
+				// Periodic PLI every 150ms during first 2 seconds if we still haven't got params
+				if !hlsParamsGateOpenTime.IsZero() && (!hlsReceivedSPS || !hlsReceivedPPS) {
+					elapsed := time.Since(hlsParamsGateOpenTime)
+					if elapsed > 0 && int(elapsed.Milliseconds())%150 == 0 && pliSentCount < 15 {
+						err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
+							MediaSSRC: uint32(track.SSRC()),
+						}})
+						if err == nil {
+							pliSentCount++
+						}
+					}
+					// Fallback: if 2 seconds elapsed without params, open gate anyway
+					if elapsed >= 2000*time.Millisecond && !hlsGotKeyframe {
+						hlsGotKeyframe = true
+						log.Printf("[HLS] timeout on params gate (waited 2s, SPS=%v PPS=%v), opening gate anyway",
+							hlsReceivedSPS, hlsReceivedPPS)
+					}
+				}
+
+				// Once we have both SPS and PPS, mark gate as open
+				if hlsReceivedSPS && hlsReceivedPPS && !hlsGotKeyframe {
+					hlsGotKeyframe = true
+					elapsed := time.Since(hlsParamsGateOpenTime)
+					log.Printf("[HLS] codec params ready for room (SPS+PPS received in %dms), sent %d PLI requests, starting video stream",
+						elapsed.Milliseconds(), pliSentCount)
+				}
+
+				// Gate logic:
+				// - ALWAYS forward SPS/PPS (they have params in them)
+				// - Only forward slice data if gate is open OR we have both params
+				if isSlice && !hlsGotKeyframe {
+					// Skip slice data until we have both SPS and PPS
 					continue
 				}
-				hlsGotKeyframe = true
-				log.Printf("[HLS] first keyframe received for room (codec=%s), video feed started", track.Codec().MimeType)
+			} else {
+				// For VP8 or other codecs, simpler logic: just wait for first keyframe
+				var isKF bool
+				if strings.Contains(mimeType, "vp8") {
+					isKF = isVP8Keyframe(pkt.Payload)
+				} else {
+					isKF = true // default
+				}
+
+				if isKF && hlsKeyframeTime.IsZero() {
+					hlsKeyframeTime = time.Now()
+					hlsGotKeyframe = true
+					log.Printf("[HLS] keyframe detected for room (codec=%s), video feed started", track.Codec().MimeType)
+				}
+
+				if !hlsGotKeyframe {
+					continue // hold all video until first keyframe
+				}
 			}
 
+			// If this is a STAP-A with multiple NAL units, extract and send each one separately
+			// This ensures FFmpeg receives individual NAL units, not an aggregated packet
+			if strings.Contains(mimeType, "h264") && len(pkt.Payload) > 0 {
+				nalType := pkt.Payload[0] & 0x1f
+				if nalType == 24 { // STAP-A - deserialize into separate RTP packets
+					if extractAndSendAllSTAPAUnits(pkt.Payload, cachedWriter.VideoConn, &pkt) {
+						log.Printf("[HLS] Deserialized STAP-A packet (skipping aggregated form)")
+						// Successfully extracted and sent all units - skip the original STAP-A
+						continue
+					}
+				}
+			}
+
+			// Send the packet (single NAL unit packets, or STAP-A if extraction failed)
 			_, _ = cachedWriter.VideoConn.Write(buf[:n])
 		}
 	}
@@ -1237,6 +1590,20 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	log.Printf("peer disconnected from room %s", roomID)
 	room.Connections = updated
 	if disconnectedUserID != "" {
+		// Remove participant from the participants list
+		updatedParticipants := make(pq.StringArray, 0, len(room.Participants))
+		for _, p := range room.Participants {
+			if p != disconnectedUserID {
+				updatedParticipants = append(updatedParticipants, p)
+			}
+		}
+		room.Participants = updatedParticipants
+
+		// Save the updated participants list to the database
+		if err := SaveRoom(db, room); err != nil {
+			log.Printf("failed to save room after removing participant: %v", err)
+		}
+
 		if room.PendingICEByUser != nil {
 			delete(room.PendingICEByUser, disconnectedUserID)
 		}
@@ -1256,13 +1623,53 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 		room.HostPeerCon = nil
 	}
 
-	// Remove per-peer LocalTracks for the disconnecting peer
+	// Remove per-peer LocalTracks for the disconnecting peer AND remove TrackInfos sourced from this peer
+	updatedTracks := make([]*TrackInfo, 0, len(room.Tracks))
 	for _, ti := range room.Tracks {
+		// If this track came from the disconnecting peer, remove it completely
+		// and also remove the senders from all other peers
+		if ti.SourcePC == pc {
+			// Remove senders from all peers that were receiving this track
+			if ti.SendersByPeer != nil {
+				log.Printf("Removing track from %d receiving peers", len(ti.SendersByPeer))
+				for otherPc, sender := range ti.SendersByPeer {
+					if otherPc != nil && sender != nil {
+						err := otherPc.RemoveTrack(sender)
+						if err != nil {
+							log.Printf("RemoveTrack failed: %v", err)
+						} else {
+							log.Printf("RemoveTrack succeeded for peer")
+						}
+					}
+				}
+			}
+			log.Printf("Skipping track from disconnected peer (track will be removed from room)")
+			continue
+		}
+
+		// Otherwise, remove this peer's LocalTrack from the track (if any)
 		if ti.LocalTracks != nil {
 			delete(ti.LocalTracks, pc)
 		}
 		if ti.PeerPT != nil {
 			delete(ti.PeerPT, pc)
+		}
+		if ti.SendersByPeer != nil {
+			delete(ti.SendersByPeer, pc)
+		}
+		updatedTracks = append(updatedTracks, ti)
+	}
+	room.Tracks = updatedTracks
+	log.Printf("After cleanup: room has %d tracks", len(room.Tracks))
+
+	// Prepare renegotiation targets for remaining peers
+	var renegotiationTargets []renegotiationTarget
+	for _, conn := range room.Connections {
+		if conn.PeerCon != nil {
+			renegotiationTargets = append(renegotiationTargets, renegotiationTarget{
+				userID: conn.UserID,
+				pc:     conn.PeerCon,
+			})
 		}
 	}
 
@@ -1284,6 +1691,11 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 		}
 	}
 	mu.Unlock()
+
+	// Trigger renegotiation for remaining peers outside the lock
+	for _, target := range renegotiationTargets {
+		go requestRenegotiationOffer(room, target.userID, target.pc)
+	}
 
 	// Close the peer connection itself (outside the lock to avoid deadlocks).
 	// Ignore errors — the PC may already be closed.
@@ -1443,11 +1855,12 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 
 			// Create TrackInfo and fan out to all existing peers
 			ti := &TrackInfo{
-				LocalTracks: make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP),
-				PeerPT:      make(map[*webrtc.PeerConnection]uint8),
-				Senders:     []*webrtc.RTPSender{},
-				Track:       track,
-				SourcePC:    peerConnection,
+				LocalTracks:   make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP),
+				PeerPT:        make(map[*webrtc.PeerConnection]uint8),
+				SendersByPeer: make(map[*webrtc.PeerConnection]*webrtc.RTPSender),
+				Senders:       []*webrtc.RTPSender{},
+				Track:         track,
+				SourcePC:      peerConnection,
 			}
 			var renegotiationTargets []renegotiationTarget
 			mu.Lock()

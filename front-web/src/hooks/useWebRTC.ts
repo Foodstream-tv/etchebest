@@ -5,6 +5,7 @@ import {
   reserveRoom,
   sendICECandidate,
   sendOffer,
+  sendRenegotiationAnswer,
 } from "@/services/streaming";
 
 const ICE_SERVERS: RTCConfiguration = {
@@ -29,6 +30,7 @@ interface UseWebRTCReturn {
   hostExistingRoom: (existingRoomId: string) => Promise<void>;
   joinAsCoStreamer: (targetRoomId: string) => Promise<void>;
   stopLive: () => Promise<void>;
+  leaveLive: () => Promise<void>;
 }
 
 export function useWebRTC(token?: string): UseWebRTCReturn {
@@ -41,44 +43,156 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const roomIdRef = useRef<string | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const stopLiveRef = useRef<(() => Promise<void>) | null>(null);
   const isStoppingRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const streamTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const tokenRef = useRef<string | undefined>(token);
+
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
+
+  const monitorStreamTimeout = useCallback((stream: MediaStream) => {
+    const streamId = stream.id;
+    
+    // Clear any existing timeout for this stream
+    if (streamTimeoutsRef.current?.has(streamId)) {
+      clearTimeout(streamTimeoutsRef.current.get(streamId));
+      streamTimeoutsRef.current.delete(streamId);
+    }
+
+    // Set a 5-second timeout - if no data received, the stream is orphaned
+    const timeout = setTimeout(() => {
+      console.log(`[WebRTC] stream ${streamId} timeout (no data for 5s), removing orphaned stream`);
+      setRemoteStreams((prev) => {
+        const filtered = prev.filter((s) => s.id !== streamId);
+        console.log(`[WebRTC] filtered orphaned streams from ${prev.length} to ${filtered.length}`);
+        return filtered;
+      });
+      streamTimeoutsRef.current?.delete(streamId);
+    }, 5000);
+
+    streamTimeoutsRef.current?.set(streamId, timeout);
+  }, []);
 
   const resetStateForStart = useCallback(() => {
     setError(null);
     setRemoteStreams([]);
   }, []);
 
-  const setupWebSocketListener = useCallback(
-    (currentRoomId: string) => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+  const cleanupPeerConnection = useCallback(() => {
+    if (pcRef.current) {
+      try {
+        pcRef.current.onicecandidate = null;
+        pcRef.current.ontrack = null;
+        pcRef.current.onconnectionstatechange = null;
+        pcRef.current.oniceconnectionstatechange = null;
+        pcRef.current.onsignalingstatechange = null;
+        pcRef.current.close();
+      } catch (err) {
+        console.warn("[WebRTC] peer cleanup failed:", err);
       }
 
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+      pcRef.current = null;
+    }
+  }, []);
 
-      const WS_BASE = API_BASE
-        .replace(/^http/, "ws")
-        .replace(/\/api\/?$/, "");
+  const cleanupWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch (err) {
+        console.warn("[WebRTC] websocket cleanup failed:", err);
+      }
 
-        const params = new URLSearchParams({
-          roomId: currentRoomId,
+      wsRef.current = null;
+    }
+  }, []);
+
+  const cleanupLocalStream = useCallback(() => {
+    if (localStreamRef.current) {
+      try {
+        localStreamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {}
         });
+      } catch (err) {
+        console.warn("[WebRTC] local stream cleanup failed:", err);
+      }
+    }
 
-        if (tokenRef.current) {
-          params.set("token", tokenRef.current);
-        }
+    localStreamRef.current = null;
+    setLocalStream(null);
+  }, []);
 
-        const wsUrl = `${WS_BASE}/api/webrtc/offers?${params.toString()}`;
+  const cleanupLocalState = useCallback(() => {
+    cleanupPeerConnection();
+    cleanupLocalStream();
+    cleanupWebSocket();
 
-      console.log("[WebRTC] connecting to WebSocket:", wsUrl);
+    // Clear any pending stream timeouts
+    streamTimeoutsRef.current?.forEach((timeout) => clearTimeout(timeout));
+    streamTimeoutsRef.current?.clear();
+
+    roomIdRef.current = null;
+    setRoomId(null);
+    setRemoteStreams([]);
+    setError(null);
+  }, [cleanupLocalStream, cleanupPeerConnection, cleanupWebSocket]);
+
+  const leaveLive = useCallback(async (): Promise<void> => {
+    cleanupLocalState();
+    setState("idle");
+  }, [cleanupLocalState]);
+
+  const stopLive = useCallback(async (): Promise<void> => {
+    if (isStoppingRef.current) return;
+
+    isStoppingRef.current = true;
+
+    const rid = roomIdRef.current;
+
+    console.log("[WebRTC] stopping live for room =", rid);
+
+    cleanupLocalState();
+    setState("idle");
+
+    if (rid) {
+      try {
+        await disconnectRoom(rid, tokenRef.current);
+        console.log("[WebRTC] room disconnected =", rid);
+      } catch (err) {
+        console.warn("[WebRTC] disconnect call failed:", err);
+      }
+    }
+
+    isStoppingRef.current = false;
+  }, [cleanupLocalState]);
+
+  const setupWebSocketListener = useCallback((currentRoomId: string) => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    const API_BASE =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+
+    const WS_BASE = API_BASE.replace(/^http/, "ws").replace(/\/api\/?$/, "");
+
+    const params = new URLSearchParams({
+      roomId: currentRoomId,
+    });
+
+    if (tokenRef.current) {
+      params.set("token", tokenRef.current);
+    }
+
+    const wsUrl = `${WS_BASE}/api/webrtc/offers?${params.toString()}`;
+
+    console.log("[WebRTC] connecting to WebSocket:", wsUrl);
 
       const ws = new WebSocket(wsUrl);
 
@@ -92,8 +206,9 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
           console.log("[WebRTC] received WebSocket message:", message.type);
 
           if (message.type === "offer" && message.offer && pcRef.current) {
-            console.log("[WebRTC] received renegotiation offer");
             const pc = pcRef.current;
+            console.log("[WebRTC] received renegotiation offer");
+            console.log("[WebRTC] offer SDP preview:", message.offer.sdp?.split('\n').slice(0, 20).join('\n'));
 
             await pc.setRemoteDescription(
               new RTCSessionDescription({
@@ -101,11 +216,13 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
                 sdp: message.offer.sdp,
               })
             );
+            
+            console.log("[WebRTC] setRemoteDescription completed");
 
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            await sendOffer(currentRoomId, answer.sdp || "", tokenRef.current);
+            await sendRenegotiationAnswer(currentRoomId, answer.sdp || "", tokenRef.current);
             console.log("[WebRTC] sent renegotiation answer");
           }
         } catch (err) {
@@ -135,20 +252,20 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: {
-      facingMode: "user",
-      width: 854,
-      height: 480,
-      frameRate: 24,
-    }
+        facingMode: "user",
+        width: 854,
+        height: 480,
+        frameRate: 24,
+      },
     });
 
     console.log(
       "[WebRTC] local tracks =",
-      stream.getTracks().map((t) => ({
-        kind: t.kind,
-        enabled: t.enabled,
-        readyState: t.readyState,
-        label: t.label,
+      stream.getTracks().map((track) => ({
+        kind: track.kind,
+        enabled: track.enabled,
+        readyState: track.readyState,
+        label: track.label,
       }))
     );
 
@@ -205,9 +322,11 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         console.log("[WebRTC] local ICE payload =", payload);
 
-        sendICECandidate(currentRoomId, payload, tokenRef.current).catch((err) => {
-          console.warn("[WebRTC] ICE send failed:", err);
-        });
+        sendICECandidate(currentRoomId, payload, tokenRef.current).catch(
+          (err) => {
+            console.warn("[WebRTC] ICE send failed:", err);
+          }
+        );
       };
 
       pc.ontrack = (event) => {
@@ -216,9 +335,56 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         console.log("[WebRTC] remote stream received =", incomingStream.id);
 
+        const track = event.track;
+        console.log(`[WebRTC] ontrack: received ${track.kind} track id=${track.id} from stream ${incomingStream.id}`);
+        
+        // Monitor the stream for orphaned status (no data for 5 seconds)
+        monitorStreamTimeout(incomingStream);
+
+        // Track activity to reset the orphan timeout
+        track.onmute = () => {
+          console.log(`[WebRTC] track muted id=${track.id}, resetting timeout`);
+          monitorStreamTimeout(incomingStream);
+        };
+
+        track.onunmute = () => {
+          console.log(`[WebRTC] track unmuted id=${track.id}, clearing timeout`);
+          if (streamTimeoutsRef.current?.has(incomingStream.id)) {
+            clearTimeout(streamTimeoutsRef.current.get(incomingStream.id));
+            streamTimeoutsRef.current.delete(incomingStream.id);
+          }
+        };
+        
+        const handleTrackEnded = () => {
+          console.log(`[WebRTC] *** TRACK ENDED *** id=${track.id} kind=${track.kind}, removing stream ${incomingStream.id}`);
+          if (streamTimeoutsRef.current?.has(incomingStream.id)) {
+            clearTimeout(streamTimeoutsRef.current.get(incomingStream.id));
+            streamTimeoutsRef.current.delete(incomingStream.id);
+          }
+          setRemoteStreams((prev) => {
+            const filtered = prev.filter((s) => s.id !== incomingStream.id);
+            console.log(`[WebRTC] filtered streams from ${prev.length} to ${filtered.length}`);
+            return filtered;
+          });
+        };
+
+        // Listen for track end to clean up frozen previews
+        if (typeof track.addEventListener === 'function') {
+          console.log(`[WebRTC] attaching ended listener via addEventListener`);
+          track.addEventListener('ended', handleTrackEnded);
+        } else {
+          console.log(`[WebRTC] attaching ended listener via onended property`);
+          track.onended = handleTrackEnded;
+        }
+
         setRemoteStreams((prev) => {
-          const exists = prev.some((s) => s.id === incomingStream.id);
-          return exists ? prev : [...prev, incomingStream];
+          const exists = prev.some((stream) => stream.id === incomingStream.id);
+          if (exists) {
+            console.log(`[WebRTC] stream ${incomingStream.id} already exists`);
+            return prev;
+          }
+          console.log(`[WebRTC] adding new stream ${incomingStream.id}`);
+          return [...prev, incomingStream];
         });
       };
 
@@ -247,6 +413,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
       };
 
       pcRef.current = pc;
+
       return pc;
     },
     []
@@ -271,9 +438,18 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
       );
 
       console.log("[WebRTC] answer received");
-      console.log("[WebRTC] answer SDP contains candidate =", answerSdp.includes("a=candidate:"));
-      console.log("[WebRTC] answer SDP contains ice-ufrag =", answerSdp.includes("a=ice-ufrag:"));
-      console.log("[WebRTC] answer SDP contains ice-pwd =", answerSdp.includes("a=ice-pwd:"));
+      console.log(
+        "[WebRTC] answer SDP contains candidate =",
+        answerSdp.includes("a=candidate:")
+      );
+      console.log(
+        "[WebRTC] answer SDP contains ice-ufrag =",
+        answerSdp.includes("a=ice-ufrag:")
+      );
+      console.log(
+        "[WebRTC] answer SDP contains ice-pwd =",
+        answerSdp.includes("a=ice-pwd:")
+      );
 
       await pc.setRemoteDescription(
         new RTCSessionDescription({
@@ -287,89 +463,19 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     []
   );
 
-  const cleanupPeerConnection = useCallback(() => {
-    if (pcRef.current) {
-      try {
-        pcRef.current.onicecandidate = null;
-        pcRef.current.ontrack = null;
-        pcRef.current.onconnectionstatechange = null;
-        pcRef.current.oniceconnectionstatechange = null;
-        pcRef.current.onsignalingstatechange = null;
-        pcRef.current.close();
-      } catch (err) {
-        console.warn("[WebRTC] peer cleanup failed:", err);
-      }
-      pcRef.current = null;
-    }
-  }, []);
-
-  const cleanupWebSocket = useCallback(() => {
-    if (wsRef.current) {
-      try {
-        wsRef.current.close();
-      } catch (err) {
-        console.warn("[WebRTC] websocket cleanup failed:", err);
-      }
-      wsRef.current = null;
-    }
-  }, []);
-
-  const cleanupLocalStream = useCallback(() => {
-    if (localStreamRef.current) {
-      try {
-        localStreamRef.current.getTracks().forEach((track) => {
-          try {
-            track.stop();
-          } catch {}
-        });
-      } catch (err) {
-        console.warn("[WebRTC] local stream cleanup failed:", err);
-      }
-    }
-
-    localStreamRef.current = null;
-    setLocalStream(null);
-  }, []);
-
-  const stopLive = useCallback(async (): Promise<void> => {
-    if (isStoppingRef.current) return;
-    isStoppingRef.current = true;
-
-    const rid = roomIdRef.current;
-
-    console.log("[WebRTC] stopping live for room =", rid);
-
-    cleanupPeerConnection();
-    cleanupLocalStream();
-    cleanupWebSocket();
-
-    roomIdRef.current = null;
-    setRoomId(null);
-    setRemoteStreams([]);
-    setState("idle");
-    setError(null);
-
-    if (rid) {
-      try {
-        await disconnectRoom(rid, tokenRef.current);
-        console.log("[WebRTC] room disconnected =", rid);
-      } catch (err) {
-        console.warn("[WebRTC] disconnect call failed:", err);
-      }
-    }
-
-    isStoppingRef.current = false;
-  }, [cleanupLocalStream, cleanupPeerConnection, cleanupWebSocket]);
-
   const startLive = useCallback(
     async (roomName: string): Promise<void> => {
       try {
-        await stopLive();
+        await leaveLive();
 
         setState("creating");
         resetStateForStart();
 
-        const { roomId: newRoomId } = await createRoom(roomName, tokenRef.current);
+        const { roomId: newRoomId } = await createRoom(
+          roomName,
+          tokenRef.current
+        );
+
         console.log("[WebRTC] room created =", newRoomId);
 
         setRoomId(newRoomId);
@@ -379,8 +485,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         const stream = await getLocalMedia();
         const pc = createPeerConnection(stream, newRoomId);
+
         await negotiate(pc, newRoomId);
-        
         setupWebSocketListener(newRoomId);
       } catch (err: any) {
         console.error("[WebRTC] startLive failed:", err);
@@ -388,13 +494,20 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         setState("error");
       }
     },
-    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive, setupWebSocketListener]
+    [
+      createPeerConnection,
+      getLocalMedia,
+      leaveLive,
+      negotiate,
+      resetStateForStart,
+      setupWebSocketListener,
+    ]
   );
 
   const hostExistingRoom = useCallback(
     async (existingRoomId: string): Promise<void> => {
       try {
-        await stopLive();
+        await leaveLive();
 
         setState("connecting");
         resetStateForStart();
@@ -406,8 +519,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         const stream = await getLocalMedia();
         const pc = createPeerConnection(stream, existingRoomId);
+
         await negotiate(pc, existingRoomId);
-        
         setupWebSocketListener(existingRoomId);
       } catch (err: any) {
         console.error("[WebRTC] hostExistingRoom failed:", err);
@@ -415,13 +528,20 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         setState("error");
       }
     },
-    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive, setupWebSocketListener]
+    [
+      createPeerConnection,
+      getLocalMedia,
+      leaveLive,
+      negotiate,
+      resetStateForStart,
+      setupWebSocketListener,
+    ]
   );
 
   const joinAsCoStreamer = useCallback(
     async (targetRoomId: string): Promise<void> => {
       try {
-        await stopLive();
+        await leaveLive();
 
         setState("creating");
         resetStateForStart();
@@ -437,8 +557,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         const stream = await getLocalMedia();
         const pc = createPeerConnection(stream, targetRoomId);
+
         await negotiate(pc, targetRoomId);
-        
         setupWebSocketListener(targetRoomId);
       } catch (err: any) {
         console.error("[WebRTC] joinAsCoStreamer failed:", err);
@@ -446,18 +566,23 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         setState("error");
       }
     },
-    [createPeerConnection, getLocalMedia, negotiate, resetStateForStart, stopLive, setupWebSocketListener]
+    [
+      createPeerConnection,
+      getLocalMedia,
+      leaveLive,
+      negotiate,
+      resetStateForStart,
+      setupWebSocketListener,
+    ]
   );
 
   useEffect(() => {
-    stopLiveRef.current = stopLive;
-  }, [stopLive]);
-
-  useEffect(() => {
     return () => {
-      stopLiveRef.current?.();
+      cleanupPeerConnection();
+      cleanupLocalStream();
+      cleanupWebSocket();
     };
-  }, []);
+  }, [cleanupLocalStream, cleanupPeerConnection, cleanupWebSocket]);
 
   return {
     state,
@@ -469,5 +594,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     hostExistingRoom,
     joinAsCoStreamer,
     stopLive,
+    leaveLive,
   };
 }

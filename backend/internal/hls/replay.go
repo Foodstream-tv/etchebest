@@ -1,59 +1,93 @@
 package hls
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
+	"io"
 	"path/filepath"
-	"time"
 )
 
-func GenerateReplay(roomID string) (string, error) {
-	hlsDir := filepath.Join("./hls", roomID)
-	playlistPath := filepath.Join(hlsDir, "index.m3u8")
-
-	if _, err := os.Stat(playlistPath); err != nil {
-		return "", fmt.Errorf("playlist not found for room %s: %w", roomID, err)
+func copyDir(src string, dst string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
 	}
 
-	replayDir := "./storage/replays"
-	if err := os.MkdirAll(replayDir, 0755); err != nil {
-		return "", fmt.Errorf("create replay dir: %w", err)
+	if !srcInfo.IsDir() {
+		return fmt.Errorf("%s is not a directory", src)
 	}
 
-	outputPath := filepath.Join(replayDir, roomID+".mp4")
-
-	args := []string{
-		"-y",
-		"-loglevel", "warning",
-		"-i", playlistPath,
-		"-c", "copy",
-		"-movflags", "+faststart",
-		outputPath,
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
 
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
 
-	log.Printf("[REPLAY] generating replay for room %s", roomID)
-
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("generate replay timeout after 30s")
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+			continue
 		}
 
-		return "", fmt.Errorf("generate replay: %w", err)
+		if err := copyFile(srcPath, dstPath); err != nil {
+			return err
+		}
 	}
 
-	publicURL := "/replays-storage/" + roomID + ".mp4"
+	return nil
+}
 
-	log.Printf("[REPLAY] replay generated for room %s: %s", roomID, publicURL)
+func copyFile(src string, dst string) error {
+	input, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	info, err := input.Stat()
+	if err != nil {
+		return err
+	}
+
+	output, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	_, err = io.Copy(output, input)
+	return err
+}
+
+func GenerateReplay(roomID string) (string, error) {
+	sourceDir := filepath.Join("./hls", roomID)
+	replayDir := filepath.Join("./storage/replays", roomID)
+
+	masterPath := filepath.Join(sourceDir, "master.m3u8")
+	if _, err := os.Stat(masterPath); err != nil {
+		return "", fmt.Errorf("master playlist not found for room %s: %w", roomID, err)
+	}
+
+	if err := os.RemoveAll(replayDir); err != nil {
+		return "", fmt.Errorf("clean replay dir: %w", err)
+	}
+
+	if err := copyDir(sourceDir, replayDir); err != nil {
+		return "", fmt.Errorf("copy hls replay: %w", err)
+	}
+
+	publicURL := "/replays-storage/" + roomID + "/master.m3u8"
+
+	log.Printf("[REPLAY] HLS replay generated for room %s: %s", roomID, publicURL)
 
 	return publicURL, nil
 }

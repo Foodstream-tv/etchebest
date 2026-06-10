@@ -304,6 +304,13 @@ export function useWebRTC(): UseWebRTCReturn {
                     setRemoteStreams([...streams]);
                 };
 
+                const handleTrackEnded = () => {
+                    console.log(`[WebRTC track ended] id=${track.id}, removing from remoteStreams`);
+                    remoteStreamsRef.current.delete(remoteKey);
+                    const streams = getRenderableStreams();
+                    setRemoteStreams([...streams]);
+                };
+
                 // Initial check
                 handleTrackStateChange();
 
@@ -311,9 +318,11 @@ export function useWebRTC(): UseWebRTCReturn {
                 if (typeof track.addEventListener === 'function') {
                     track.addEventListener('unmute', handleTrackStateChange);
                     track.addEventListener('mute', handleTrackStateChange);
+                    track.addEventListener('ended', handleTrackEnded);
                 } else {
                     track.onunmute = handleTrackStateChange;
                     track.onmute = handleTrackStateChange;
+                    track.onended = handleTrackEnded;
                 }
             };            // Connection state changes
             pc.onconnectionstatechange = () => {

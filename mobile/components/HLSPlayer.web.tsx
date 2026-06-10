@@ -32,10 +32,13 @@ export default function HLSPlayer({ uri, onLoad, onError, style }: HLSPlayerProp
             const hls = new Hls({
                 enableWorker: true,
                 lowLatencyMode: true,
-                maxBufferLength: 10,
-                maxMaxBufferLength: 20,
-                liveSyncDurationCount: 3,
-                liveMaxLatencyDurationCount: 6,
+                maxBufferLength: 6,
+                maxMaxBufferLength: 12,
+                liveSyncDurationCount: 2,
+                liveMaxLatencyDurationCount: 4,
+                startPosition: -1,
+                maxBufferHole: 0.5,
+                segmentLoadingTimeout: 10000,
             });
             hlsRef.current = hls;
 
@@ -43,10 +46,13 @@ export default function HLSPlayer({ uri, onLoad, onError, style }: HLSPlayerProp
             hls.attachMedia(video);
 
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                setLoading(false);
-                setError(null);
-                video.play().catch(() => { });
-                onLoad?.();
+                // Delay to ensure all variants have generated synchronized segments
+                setTimeout(() => {
+                    setLoading(false);
+                    setError(null);
+                    video.play().catch(() => { });
+                    onLoad?.();
+                }, 1200);
             });
 
             hls.on(Hls.Events.ERROR, (_event, data) => {
