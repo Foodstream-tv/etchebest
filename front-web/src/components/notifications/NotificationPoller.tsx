@@ -20,11 +20,14 @@ export default function NotificationPoller() {
   useEffect(() => {
     if (!ready || !user || !token) return;
 
+    let cancelled = false;
     const storageKey = `readActivityIds:${user.id}`;
 
     const checkActivities = async () => {
       try {
-        const res = await getMyActivities(token ?? undefined);
+        const res = await getMyActivities(token);
+        if (cancelled) return;
+
         const activities: Activity[] = res.activities ?? [];
 
         const readActivityIds = JSON.parse(
@@ -50,16 +53,19 @@ export default function NotificationPoller() {
           );
         }
       } catch {
-        // silencieux pour éviter de spam console
+        // silencieux
       }
     };
 
     checkActivities();
 
-    const interval = window.setInterval(checkActivities, 3000);
+    const interval = window.setInterval(checkActivities, 30_000);
 
-    return () => window.clearInterval(interval);
-  }, [ready, user, token, pathname, pushNotification]);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [ready, user?.id, token, pathname, pushNotification]);
 
   return null;
 }

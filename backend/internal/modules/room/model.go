@@ -11,10 +11,11 @@ type TrackInfo struct {
 	// One LocalTrack per destination peer so each gets its own negotiated codec/PT
 	LocalTracks map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP
 	// PeerPT stores the negotiated payload type for each destination peer
-	PeerPT   map[*webrtc.PeerConnection]uint8
-	Senders  []*webrtc.RTPSender // kept for cleanup
-	Track    *webrtc.TrackRemote
-	SourcePC *webrtc.PeerConnection
+	PeerPT        map[*webrtc.PeerConnection]uint8
+	SendersByPeer map[*webrtc.PeerConnection]*webrtc.RTPSender // Map senders to peers for cleanup
+	Senders       []*webrtc.RTPSender                          // kept for cleanup
+	Track         *webrtc.TrackRemote
+	SourcePC      *webrtc.PeerConnection
 }
 
 type PeerConnection struct {

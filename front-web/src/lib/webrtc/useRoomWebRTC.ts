@@ -64,6 +64,20 @@ export function useRoomWebRTC(token: string | null) {
       pc.ontrack = (ev) => {
         const stream = ev.streams?.[0];
         if (!stream) return;
+        
+        const track = ev.track;
+        const handleTrackEnded = () => {
+          console.log(`[WebRTC track ended] id=${track.id}, removing stream ${stream.id}`);
+          setRemoteStreams((prev) => prev.filter((s) => s.id !== stream.id));
+        };
+        
+        // Listen for track end to clean up frozen previews
+        if (typeof track.addEventListener === 'function') {
+          track.addEventListener('ended', handleTrackEnded);
+        } else {
+          track.onended = handleTrackEnded;
+        }
+        
         setRemoteStreams((prev) => {
           if (prev.some((s) => s.id === stream.id)) return prev;
           return [...prev, stream];

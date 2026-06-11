@@ -26,7 +26,7 @@ function isTokenValid(token: string): boolean {
   }
 }
 
-export function middleware(req: NextRequest) {
+export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/_next") || pathname.startsWith("/api")) {

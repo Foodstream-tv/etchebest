@@ -2,6 +2,7 @@ package hls
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -19,10 +20,10 @@ type HLSWriter struct {
 // CodecInfo describes the negotiated codec for one media stream.
 type CodecInfo struct {
 	PayloadType uint8
-	CodecName   string // e.g. "opus", "VP8", "H264"
+	CodecName   string
 	ClockRate   uint32
-	Channels    uint16 // only for audio
-	FmtpLine    string // optional, e.g. "minptime=10;useinbandfec=1"
+	Channels    uint16
+	FmtpLine    string
 }
 
 // getFreePort finds a free UDP port by briefly binding then closing.
@@ -31,13 +32,14 @@ func getFreePort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	l, err := net.ListenUDP("udp4", addr)
 	if err != nil {
 		return 0, err
 	}
-	port := l.LocalAddr().(*net.UDPAddr).Port
-	l.Close()
-	return port, nil
+	defer l.Close()
+
+	return l.LocalAddr().(*net.UDPAddr).Port, nil
 }
 
 func getFreeRTPPort() (int, error) {
@@ -49,10 +51,7 @@ func getFreeRTPPort() (int, error) {
 
 		rtcpPort := port + 1
 
-		addr, err := net.ResolveUDPAddr(
-			"udp4",
-			fmt.Sprintf("127.0.0.1:%d", rtcpPort),
-		)
+		addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("127.0.0.1:%d", rtcpPort))
 		if err != nil {
 			continue
 		}
@@ -63,7 +62,6 @@ func getFreeRTPPort() (int, error) {
 		}
 
 		l.Close()
-
 		return port, nil
 	}
 
@@ -73,9 +71,9 @@ func getFreeRTPPort() (int, error) {
 // buildSDP builds a minimal SDP string for FFmpeg with the given codecs and ports.
 func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) string {
 	sdp := "v=0\n"
-	sdp += "o=- 0 0 IN IP4 127.0.0.1\n"
+	sdp += "o=- 0 0 IN IP4 0.0.0.0\n"
 	sdp += "s=WebRTC to HLS\n"
-	sdp += "c=IN IP4 127.0.0.1\n"
+	sdp += "c=IN IP4 0.0.0.0\n"
 	sdp += "t=0 0\n"
 
 	if audio != nil {
@@ -83,8 +81,10 @@ func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) 
 		if audio.Channels > 1 {
 			channels = fmt.Sprintf("/%d", audio.Channels)
 		}
+
 		sdp += fmt.Sprintf("m=audio %d RTP/AVP %d\n", audioPort, audio.PayloadType)
 		sdp += fmt.Sprintf("a=rtpmap:%d %s/%d%s\n", audio.PayloadType, audio.CodecName, audio.ClockRate, channels)
+
 		if audio.FmtpLine != "" {
 			sdp += fmt.Sprintf("a=fmtp:%d %s\n", audio.PayloadType, audio.FmtpLine)
 		}
@@ -93,6 +93,7 @@ func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) 
 	if video != nil {
 		sdp += fmt.Sprintf("m=video %d RTP/AVP %d\n", videoPort, video.PayloadType)
 		sdp += fmt.Sprintf("a=rtpmap:%d %s/%d\n", video.PayloadType, video.CodecName, video.ClockRate)
+
 		if video.FmtpLine != "" {
 			sdp += fmt.Sprintf("a=fmtp:%d %s\n", video.PayloadType, video.FmtpLine)
 		}
@@ -102,19 +103,19 @@ func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) 
 }
 
 // Start launches an FFmpeg process that reads RTP audio+video from two local
-// UDP ports and produces an HLS stream.  It returns an HLSWriter so callers
-// can push RTP packets, and a stop function to tear everything down.
+// UDP ports and produces an adaptive HLS stream.
 func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(), error) {
-	hlsDir := "./hls/" + roomID
+	hlsDir := filepath.Join("./hls", roomID)
+
 	if err := os.MkdirAll(hlsDir, 0755); err != nil {
 		return nil, nil, err
 	}
 
-	// ---- pick two free UDP ports ----
 	audioPort, err := getFreeRTPPort()
 	if err != nil {
 		return nil, nil, fmt.Errorf("find audio port: %w", err)
 	}
+
 	videoPort, err := getFreeRTPPort()
 	for videoPort == audioPort || videoPort == audioPort+1 || videoPort+1 == audioPort {
 		videoPort, err = getFreeRTPPort()
@@ -122,95 +123,131 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 			return nil, nil, fmt.Errorf("find video port: %w", err)
 		}
 	}
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("find video port: %w", err)
 	}
 
-	log.Printf("[HLS] audio UDP port=%d  video UDP port=%d  audio_codec=%v video_codec=%v",
-		audioPort, videoPort,
-		codecSummary(audio), codecSummary(video))
+	log.Printf("[HLS] audio UDP port=%d video UDP port=%d audio_codec=%v video_codec=%v",
+		audioPort, videoPort, codecSummary(audio), codecSummary(video))
 
-	// ---- write SDP file for FFmpeg ----
 	sdpContent := buildSDP(audioPort, audio, videoPort, video)
 	sdpPath := filepath.Join(hlsDir, "stream.sdp")
+
 	if err := os.WriteFile(sdpPath, []byte(sdpContent), 0644); err != nil {
 		return nil, nil, fmt.Errorf("write sdp: %w", err)
 	}
+
 	log.Printf("[HLS] SDP written to %s:\n%s", sdpPath, sdpContent)
 
-	// ---- build FFmpeg args dynamically based on codecs ----
-	// If the source is already H264, just copy (no re-encode → much less CPU).
-	// For VP8/VP9/AV1 we need to transcode to H264 for HLS compatibility.
-	isH264 := video != nil && (video.CodecName == "H264" || video.CodecName == "h264")
+	for _, quality := range []string{"1080p", "720p", "480p", "360p"} {
+		if err := os.MkdirAll(filepath.Join(hlsDir, quality), 0755); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	args := []string{
 		"-loglevel", "warning",
+		"-rtbufsize", "5000k",
 		"-fflags", "+genpts+discardcorrupt+nobuffer+flush_packets",
-		"-max_delay", "100000", // 100ms max reorder buffer
-		// analyzeduration=0: FFmpeg finishes its probe phase before the 500ms
-		// sleep below sends the first packet, so the keyframe lands directly in
-		// the decoder (not the probe buffer). Without this, the keyframe is
-		// consumed by the probe and only interframes reach the decoder, causing
-		// "Discarding interframe without a prior keyframe" indefinitely.
-		"-analyzeduration", "0",
-		"-probesize", "500000",
+		"-use_wallclock_as_timestamps", "1",
+		"-max_delay", "3000000",
+		"-analyzeduration", "10000000",
+		"-probesize", "2000000",
 		"-protocol_whitelist", "file,udp,rtp",
-	}
 
-	if video != nil && !isH264 {
-		// Force single-threaded input decoding for VP8/VP9/AV1.
-		// FFmpeg's frame-parallel VP8 decoder allocates one VP8Context per
-		// CPU thread. Only thread-0 ever receives the initial keyframe via
-		// the RTP pipe; all other threads have uninitialised state and discard
-		// every subsequent frame with "Discarding interframe without a prior
-		// keyframe!". -threads MUST be placed before -i to affect the decoder
-		// (after -i it only controls the output encoder thread count).
-		args = append(args, "-threads", "1")
-	}
+		"-i", sdpPath,
 
-	args = append(args, "-i", sdpPath)
+		"-fps_mode", "cfr",
 
-	if audio != nil {
-		// audio → aac
-		args = append(args,
-			"-c:a", "aac",
-			"-b:a", "128k",
-			"-ar", "48000",
-			"-ac", "2",
-		)
-	}
+		"-filter_complex",
+		"[0:v]fps=30,split=4[v1080][v720][v480][v360];" +
+			"[v1080]scale=w=1920:h=1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[v1080out];" +
+			"[v720]scale=w=1280:h=720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[v720out];" +
+			"[v480]scale=w=854:h=480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2[v480out];" +
+			"[v360]scale=w=640:h=360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2[v360out]",
 
-	if isH264 {
-		args = append(args,
-			"-c:v", "copy",
-			"-bsf:v", "h264_mp4toannexb",
-		)
-		log.Println("[HLS] video codec is H264, using copy mode (no re-encode)")
-	} else if video != nil {
-		args = append(args,
-			"-c:v", "libx264",
-			"-preset", "ultrafast",
-			"-tune", "zerolatency",
-			"-g", "30",
-			"-sc_threshold", "0",
-			"-b:v", "1500k",
-			"-maxrate", "1500k",
-			"-bufsize", "3000k",
-			"-pix_fmt", "yuv420p",
-		)
-		log.Printf("[HLS] video codec is %s, transcoding to H264", video.CodecName)
-	}
+		"-af", "aresample=async=1:first_pts=0",
 
-	args = append(args,
+		"-map", "[v1080out]",
+		"-map", "0:a?",
+		"-c:v:0", "libx264",
+		"-preset:v:0", "veryfast",
+		"-tune:v:0", "zerolatency",
+		"-b:v:0", "5000k",
+		"-maxrate:v:0", "5500k",
+		"-bufsize:v:0", "10000k",
+		"-g:v:0", "30",
+		"-keyint_min:v:0", "30",
+		"-sc_threshold:v:0", "0",
+		"-level:v:0", "4.2",
+		"-c:a:0", "aac",
+		"-b:a:0", "128k",
+
+		"-map", "[v720out]",
+		"-map", "0:a?",
+		"-c:v:1", "libx264",
+		"-preset:v:1", "veryfast",
+		"-tune:v:1", "zerolatency",
+		"-b:v:1", "2800k",
+		"-maxrate:v:1", "3200k",
+		"-bufsize:v:1", "5600k",
+		"-g:v:1", "30",
+		"-keyint_min:v:1", "30",
+		"-sc_threshold:v:1", "0",
+		"-level:v:1", "4.0",
+		"-c:a:1", "aac",
+		"-b:a:1", "128k",
+
+		"-map", "[v480out]",
+		"-map", "0:a?",
+		"-c:v:2", "libx264",
+		"-preset:v:2", "veryfast",
+		"-tune:v:2", "zerolatency",
+		"-b:v:2", "1200k",
+		"-maxrate:v:2", "1400k",
+		"-bufsize:v:2", "2400k",
+		"-g:v:2", "30",
+		"-keyint_min:v:2", "30",
+		"-sc_threshold:v:2", "0",
+		"-level:v:2", "3.1",
+		"-c:a:2", "aac",
+		"-b:a:2", "96k",
+
+		"-map", "[v360out]",
+		"-map", "0:a?",
+		"-c:v:3", "libx264",
+		"-preset:v:3", "veryfast",
+		"-tune:v:3", "zerolatency",
+		"-b:v:3", "700k",
+		"-maxrate:v:3", "900k",
+		"-bufsize:v:3", "1400k",
+		"-g:v:3", "30",
+		"-keyint_min:v:3", "30",
+		"-sc_threshold:v:3", "0",
+		"-level:v:3", "3.0",
+		"-c:a:3", "aac",
+		"-b:a:3", "64k",
+
+		"-force_key_frames", "expr:floor(t/2)*2",
+
 		"-f", "hls",
-		"-hls_time", "1",
+		"-hls_time", "2",
 		"-hls_list_size", "0",
-		"-hls_flags", "omit_endlist+independent_segments",
-		filepath.Join(hlsDir, "index.m3u8"),
-	)
+		"-hls_playlist_type", "event",
+		"-hls_flags", "append_list+independent_segments",
+		"-master_pl_name", "master.m3u8",
+		"-var_stream_map", "v:0,a:0,name:1080p v:1,a:1,name:720p v:2,a:2,name:480p v:3,a:3,name:360p",
+		"-hls_segment_filename", filepath.Join(hlsDir, "%v", "segment_%03d.ts"),
+		filepath.Join(hlsDir, "%v", "index.m3u8"),
+	}
 
-	// ---- launch FFmpeg ----
 	cmd := exec.Command("ffmpeg", args...)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("ffmpeg stdin pipe: %w", err)
+	}
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -218,46 +255,110 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 	if err := cmd.Start(); err != nil {
 		return nil, nil, fmt.Errorf("start ffmpeg: %w", err)
 	}
-	log.Printf("[HLS] FFmpeg started (PID %d) for room %s", cmd.Process.Pid, roomID)
 
-	// Give FFmpeg a moment to bind the UDP ports from the SDP before we
-	// start sending packets. Without this, the initial keyframes can be
-	// lost and FFmpeg never detects the video stream parameters.
-	time.Sleep(500 * time.Millisecond)
+	log.Printf("[HLS] FFmpeg started PID=%d room=%s", cmd.Process.Pid, roomID)
 
-	audioConn, err := net.Dial("udp4", fmt.Sprintf("127.0.0.1:%d", audioPort))
-	if err != nil {
-		cmd.Process.Kill()
-		return nil, nil, fmt.Errorf("dial audio udp: %w", err)
+	// Retry UDP connection with exponential backoff
+	var audioConn, videoConn net.Conn
+	const maxRetries = 10
+	const initialDelay = 200 * time.Millisecond
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			delay := initialDelay * time.Duration(1<<uint(attempt-1)) // exponential backoff
+			if delay > 5*time.Second {
+				delay = 5 * time.Second
+			}
+			log.Printf("[HLS] retry %d/%d for room %s, waiting %v", attempt, maxRetries, roomID, delay)
+			time.Sleep(delay)
+		}
+
+		var audioErr, videoErr error
+		audioConn, audioErr = net.Dial("udp4", fmt.Sprintf("127.0.0.1:%d", audioPort))
+		if audioErr != nil {
+			log.Printf("[HLS] audio dial attempt %d failed: %v", attempt+1, audioErr)
+			continue
+		}
+
+		videoConn, videoErr = net.Dial("udp4", fmt.Sprintf("127.0.0.1:%d", videoPort))
+		if videoErr != nil {
+			log.Printf("[HLS] video dial attempt %d failed: %v", attempt+1, videoErr)
+			_ = audioConn.Close()
+			continue
+		}
+
+		log.Printf("[HLS] UDP connections established after %d attempts for room %s", attempt+1, roomID)
+		break
 	}
-	videoConn, err := net.Dial("udp4", fmt.Sprintf("127.0.0.1:%d", videoPort))
-	if err != nil {
-		audioConn.Close()
-		cmd.Process.Kill()
-		return nil, nil, fmt.Errorf("dial video udp: %w", err)
+
+	if audioConn == nil || videoConn == nil {
+		gracefulStopFFmpeg(roomID, cmd, stdin)
+		return nil, nil, fmt.Errorf("dial udp timeout after %d attempts", maxRetries)
 	}
 
 	stop := func() {
-		audioConn.Close()
-		videoConn.Close()
+		_ = audioConn.Close()
+		_ = videoConn.Close()
 
-		if cmd.Process != nil {
-			if err := cmd.Process.Kill(); err != nil {
-				log.Printf("[HLS] failed to kill ffmpeg for room %s: %v", roomID, err)
-			}
-
-			_, _ = cmd.Process.Wait()
-		}
+		gracefulStopFFmpeg(roomID, cmd, stdin)
 	}
 
 	RegisterToStream(roomID, stop)
 
-	return &HLSWriter{AudioConn: audioConn, VideoConn: videoConn}, stop, nil
+	// Wait a moment for FFmpeg to create initial playlists, then log status
+	go func() {
+		time.Sleep(3 * time.Second)
+		masterPath := filepath.Join("./hls", roomID, "master.m3u8")
+		if data, err := os.ReadFile(masterPath); err == nil {
+			log.Printf("[HLS] master.m3u8 created for room %s:\n%s", roomID, string(data))
+		} else {
+			log.Printf("[HLS] ERROR: master.m3u8 not found for room %s: %v", roomID, err)
+		}
+	}()
+
+	return &HLSWriter{
+		AudioConn: audioConn,
+		VideoConn: videoConn,
+	}, stop, nil
+}
+
+func gracefulStopFFmpeg(roomID string, cmd *exec.Cmd, stdin io.WriteCloser) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+
+	_, _ = stdin.Write([]byte("q\n"))
+	_ = stdin.Close()
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			log.Printf("[HLS] ffmpeg stopped for room %s with error: %v", roomID, err)
+		} else {
+			log.Printf("[HLS] ffmpeg stopped gracefully for room %s", roomID)
+		}
+
+	case <-time.After(5 * time.Second):
+		log.Printf("[HLS] ffmpeg graceful stop timeout, killing room %s", roomID)
+
+		if err := cmd.Process.Kill(); err != nil {
+			log.Printf("[HLS] failed to kill ffmpeg for room %s: %v", roomID, err)
+		}
+
+		<-done
+	}
 }
 
 func codecSummary(c *CodecInfo) string {
 	if c == nil {
 		return "<nil>"
 	}
+
 	return fmt.Sprintf("PT=%d %s/%d", c.PayloadType, c.CodecName, c.ClockRate)
 }

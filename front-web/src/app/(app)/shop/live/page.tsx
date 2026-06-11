@@ -54,7 +54,7 @@ function ProductCard({ product }: { product: Product }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 dark:bg-neutral-900">
       <div className="relative h-56 w-full">
-        <Image src={product.image} alt={product.name} fill className="object-cover" />
+        <Image src={product.image} alt={product.name} fill sizes="(max-width: 768px) 100vw, 300px" className="object-cover" />
       </div>
 
       <div className="p-4">

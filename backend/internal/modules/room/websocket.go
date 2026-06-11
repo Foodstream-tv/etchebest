@@ -14,9 +14,9 @@ import (
 
 // WSMessage represents messages sent over WebSocket
 type WSMessage struct {
-	Type    string                     `json:"type"`
-	Offer   *webrtc.SessionDescription `json:"offer,omitempty"`
-	Error   string                     `json:"error,omitempty"`
+	Type  string                     `json:"type"`
+	Offer *webrtc.SessionDescription `json:"offer,omitempty"`
+	Error string                     `json:"error,omitempty"`
 }
 
 // WSClientConn stores WebSocket connection per user
@@ -30,7 +30,7 @@ type WSClientConn struct {
 
 // wsConnections maps roomId -> userId -> *WSClientConn
 var (
-	wsConnMu     sync.RWMutex
+	wsConnMu      sync.RWMutex
 	wsConnections = make(map[string]map[string]*WSClientConn)
 )
 
@@ -55,33 +55,48 @@ func HandleWebSocketOffer(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
 		if roomID == "" {
+			log.Printf("[WS] roomId missing from query params")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "roomId required"})
 			return
 		}
+		log.Printf("[WS] WebSocket connection attempt for room %s", roomID)
 
 		userID := c.GetString("userId")
 		if userID == "" {
+			log.Printf("[WS] userID not found in context (auth failed?)")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 			return
 		}
+		log.Printf("[WS] authenticated as user %s", userID)
 
 		// Verify room exists and user is connected to it
 		room, err := getLiveRoom(db, roomID)
 		if err != nil {
+			log.Printf("[WS] room %s not found: %v", roomID, err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
 		}
+		log.Printf("[WS] room %s found, has %d connections", roomID, len(room.Connections))
 
 		// Verify user is in this room
 		if !isUserInRoom(room, userID) {
+			log.Printf("[WS] user %s NOT in room %s. Connections: %v", userID, roomID,
+				func(conns []PeerConnection) []string {
+					var userIDs []string
+					for _, c := range conns {
+						userIDs = append(userIDs, c.UserID)
+					}
+					return userIDs
+				}(room.Connections))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not in room"})
 			return
 		}
+		log.Printf("[WS] user %s verified in room %s", userID, roomID)
 
 		// Upgrade HTTP connection to WebSocket
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			log.Printf("WebSocket upgrade failed: %v", err)
+			log.Printf("[WS] upgrade failed: %v", err)
 			return
 		}
 

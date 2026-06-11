@@ -170,5 +170,5 @@ export async function sendRenegotiationAnswer(roomId: string, sdp: string): Prom
 // ---------- HLS ----------
 
 export function getHLSUrl(roomId: string): string {
-    return `${BASE_URL}/hls/${roomId}/index.m3u8`;
+    return `${BASE_URL}/hls/${roomId}/master.m3u8`;
 }

@@ -21,7 +21,7 @@ type MeResponse = {
   username?: string;
   firstName?: string;
   lastName?: string;
-  profileImage?: string;
+  profileImageUrl?: string;
 };
 
 function isValidEmail(value: string) {

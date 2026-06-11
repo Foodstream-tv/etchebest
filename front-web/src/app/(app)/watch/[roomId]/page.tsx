@@ -4,15 +4,45 @@ import Hls from "hls.js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Eye, Heart, MessageCircle, Radio, RefreshCcw, Share2, Users } from "lucide-react";
-import { getHLSUrl, getChatMessages, postChatMessage, getRooms, ChatMessage, RoomInfo } from "@/services/streaming";
+import {
+  ArrowLeft,
+  Eye,
+  Heart,
+  MessageCircle,
+  Radio,
+  RefreshCcw,
+  Share2,
+  Users,
+} from "lucide-react";
+import {
+  getHLSUrl,
+  getChatMessages,
+  postChatMessage,
+  getRooms,
+  ChatMessage,
+  RoomInfo,
+} from "@/services/streaming";
 import { useAuth } from "@/lib/useAuth";
 import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
 
+type QualityOption = {
+  label: string;
+  value: string;
+};
+
 const MAX_MSG = 500;
+
+const mapLevelToHeight = (level: any) => level.height;
+const filterValidHeight = (height: any): height is number => Boolean(height);
+const sortDesc = (a: number, b: number) => b - a;
+const formatQualityOption = (height: number): QualityOption => ({
+  label: `${height}p`,
+  value: String(height),
+});
+const noop = () => {};
 
 export default function WatchRoomPage() {
   const routeParams = useParams<{ roomId: string }>();
@@ -22,6 +52,8 @@ export default function WatchRoomPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const retryAttemptsRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [room, setRoom] = useState<RoomInfo | null>(null);
   const [roomLoading, setRoomLoading] = useState(true);
@@ -30,6 +62,14 @@ export default function WatchRoomPage() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [playerMode, setPlayerMode] = useState<PlayerMode>("hlsjs");
+
+  const [qualities, setQualities] = useState<QualityOption[]>([
+    { label: "Auto", value: "auto" },
+  ]);
+  const [selectedQuality, setSelectedQuality] = useState("auto");
+  const [userSelectedQuality, setUserSelectedQuality] = useState<string | null>(
+    null
+  );
 
   const [isLiked, setIsLiked] = useState(false);
   const [message, setMessage] = useState("");
@@ -48,14 +88,16 @@ export default function WatchRoomPage() {
   const liveDescription =
     "Regarde le live en direct et échange avec la communauté.";
 
-  const fetchRoom = useCallback(async () => {
+  const fetchRoom = useCallback(async (isInitial = false) => {
     if (!roomId || !token) {
       setRoomLoading(false);
       return;
     }
 
     try {
-      setRoomLoading(true);
+      if (isInitial) {
+        setRoomLoading(true);
+      }
       const rooms = await getRooms(token);
       const currentRoom = rooms?.find((item) => item.id === roomId) ?? null;
       setRoom(currentRoom);
@@ -63,16 +105,76 @@ export default function WatchRoomPage() {
       console.error("Fetch room error:", err);
       setRoom(null);
     } finally {
-      setRoomLoading(false);
+      if (isInitial) {
+        setRoomLoading(false);
+      }
     }
   }, [roomId, token]);
 
+  const applyQuality = useCallback((value: string, hlsInstance?: Hls | null) => {
+    const hls = hlsInstance ?? hlsRef.current;
+    if (!hls) return;
+
+    if (value === "auto") {
+      hls.currentLevel = -1;
+      return;
+    }
+
+    const height = Number(value);
+    const levelIndex = hls.levels.findIndex((level) => level.height === height);
+
+    if (levelIndex !== -1) {
+      hls.currentLevel = levelIndex;
+    }
+  }, []);
+
+  const handleQualityChange = (value: string) => {
+    setUserSelectedQuality(value);
+    setSelectedQuality(value);
+    applyQuality(value);
+  };
+
+  const handleManifestParsed = useCallback(() => {
+    const hls = hlsRef.current;
+    const video = videoRef.current;
+    if (!hls || !video) return;
+
+    const levels = hls.levels
+      .map(mapLevelToHeight)
+      .filter(filterValidHeight);
+
+    const uniqueLevels = Array.from(new Set(levels)).sort(sortDesc);
+
+    setQualities([
+      { label: "Auto", value: "auto" },
+      ...uniqueLevels.map(formatQualityOption),
+    ]);
+
+    const qualityToApply = userSelectedQuality || selectedQuality;
+    applyQuality(qualityToApply, hls);
+
+    const playVideo = () => {
+      setLoading(false);
+      setError(null);
+      video.play().catch(noop);
+    };
+
+    setTimeout(playVideo, 1200);
+
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  }, [userSelectedQuality, selectedQuality, applyQuality, setQualities, setLoading, setError]);
+
   useEffect(() => {
-    fetchRoom();
+    fetchRoom(true);
 
     if (!roomId || !token) return;
 
-    const interval = setInterval(fetchRoom, 10_000);
+    const interval = setInterval(() => {
+      fetchRoom(false);
+    }, 10_000);
     return () => clearInterval(interval);
   }, [roomId, token, fetchRoom]);
 
@@ -82,6 +184,14 @@ export default function WatchRoomPage() {
 
     setLoading(true);
     setError(null);
+    setQualities([{ label: "Auto", value: "auto" }]);
+    setUserSelectedQuality(null);
+    setSelectedQuality("auto");
+    retryAttemptsRef.current = 0;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
 
     if (hlsRef.current) {
       try {
@@ -101,85 +211,82 @@ export default function WatchRoomPage() {
     if (!isSafari && Hls.isSupported()) {
       setPlayerMode("hlsjs");
 
-      let retryAttempts = 0;
       const maxRetries = 10;
-      let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-      const loadHLS = () => {
-        const hls = new Hls({
-          lowLatencyMode: true,
-          backBufferLength: 30,
-        });
+      const handleHlsError = (_evt: any, data: any) => {
+        if (!data?.fatal) return;
 
-        hlsRef.current = hls;
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(video);
+        const hls = hlsRef.current;
+        if (!hls) return;
 
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setLoading(false);
-          setError(null);
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          if (retryAttemptsRef.current < maxRetries) {
+            retryAttemptsRef.current += 1;
+            const delay = Math.min(500 * retryAttemptsRef.current, 5000);
 
-          if (retryTimer) {
-            clearTimeout(retryTimer);
-          }
-
-          video.play().catch(() => {});
-        });
-
-        hls.on(Hls.Events.ERROR, (_evt, data) => {
-          if (!data?.fatal) return;
-
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            if (retryAttempts < maxRetries) {
-              retryAttempts += 1;
-              const delay = Math.min(500 * retryAttempts, 5000);
-
-              setError(
-                `En attente du stream... (${retryAttempts}/${maxRetries})`
-              );
-
-              try {
-                hls.destroy();
-              } catch {}
-
-              hlsRef.current = null;
-              retryTimer = setTimeout(loadHLS, delay);
-              return;
-            }
-
-            setLoading(false);
-            setError("Stream indisponible.");
+            setError(
+              `En attente du stream... (${retryAttemptsRef.current}/${maxRetries})`
+            );
 
             try {
               hls.destroy();
             } catch {}
 
             hlsRef.current = null;
-            return;
-          }
-
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-            setError("Erreur média.");
+            retryTimerRef.current = setTimeout(loadHLS, delay);
             return;
           }
 
           setLoading(false);
-          setError("Erreur lecture stream.");
+          setError("Stream indisponible.");
 
           try {
             hls.destroy();
           } catch {}
 
           hlsRef.current = null;
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          setError("Erreur média.");
+          return;
+        }
+
+        setLoading(false);
+        setError("Erreur lecture stream.");
+
+        try {
+          hls.destroy();
+        } catch {}
+
+        hlsRef.current = null;
+      };
+
+      const loadHLS = () => {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 900,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 90,
         });
+
+        hlsRef.current = hls;
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
+        hls.on(Hls.Events.ERROR, handleHlsError);
       };
 
       loadHLS();
 
       return () => {
-        if (retryTimer) {
-          clearTimeout(retryTimer);
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
         }
 
         try {
@@ -196,7 +303,7 @@ export default function WatchRoomPage() {
 
       const onLoaded = () => {
         setLoading(false);
-        video.play().catch(() => {});
+        video.play().catch(noop);
       };
 
       const onVideoError = () => {
@@ -216,7 +323,7 @@ export default function WatchRoomPage() {
     setPlayerMode("unsupported");
     setLoading(false);
     setError("Navigateur non supporté.");
-  }, [roomId, hlsUrl, reloadKey]);
+  }, [roomId, hlsUrl, reloadKey, applyQuality, handleManifestParsed]);
 
   const fetchChat = useCallback(async () => {
     if (!roomId || !token) return;
@@ -247,7 +354,7 @@ export default function WatchRoomPage() {
     setError(null);
     setLoading(true);
     setReloadKey((key) => key + 1);
-    fetchRoom();
+    fetchRoom(true);
     fetchChat();
   };
 
@@ -275,7 +382,7 @@ export default function WatchRoomPage() {
 
   const onShare = async () => {
     const shareUrl =
-      typeof window !== "undefined" ? window.location.href : hlsUrl || "";
+      globalThis.window === undefined ? hlsUrl || "" : globalThis.location.href;
 
     try {
       if (navigator.share) {
@@ -307,7 +414,7 @@ export default function WatchRoomPage() {
 
             <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-bold text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
               <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
-              En direct
+              <span>En direct</span>
             </div>
 
             {viewers !== null && (
@@ -343,7 +450,23 @@ export default function WatchRoomPage() {
                   controls
                   playsInline
                   className="block h-[260px] w-full bg-black sm:h-[380px] lg:h-[520px]"
-                />
+                >
+                  <track kind="captions" />
+                </video>
+
+                {playerMode === "hlsjs" && qualities.length > 1 && (
+                  <select
+                    value={selectedQuality}
+                    onChange={(e) => handleQualityChange(e.target.value)}
+                    className="absolute right-3 top-3 z-20 rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md outline-none"
+                  >
+                    {qualities.map((quality) => (
+                      <option key={quality.value} value={quality.value}>
+                        {quality.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
                 {loading && (
                   <div className="absolute inset-0 grid place-items-center bg-black/40">
@@ -404,6 +527,13 @@ export default function WatchRoomPage() {
 
                   <InfoPill icon={<Radio className="h-4 w-4" />}>
                     Mode: {playerMode}
+                  </InfoPill>
+
+                  <InfoPill icon={<Radio className="h-4 w-4" />}>
+                    Qualité:{" "}
+                    {selectedQuality === "auto"
+                      ? "Auto"
+                      : `${selectedQuality}p`}
                   </InfoPill>
 
                   {participants !== null && maxParticipants !== null && (
@@ -527,10 +657,10 @@ export default function WatchRoomPage() {
 function InfoPill({
   children,
   icon,
-}: {
+}: Readonly<{
   children: React.ReactNode;
   icon: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-black/[0.03] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
       {icon}

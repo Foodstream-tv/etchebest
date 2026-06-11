@@ -19,9 +19,11 @@ export default function CartDrawer() {
 
   return (
     <>
-      <div
+      <button
+        type="button"
         onClick={closeCart}
-        className={`fixed inset-0 z-40 bg-black/40 transition ${
+        aria-label="Fermer le panier"
+        className={`fixed inset-0 z-40 border-0 bg-black/40 transition outline-none cursor-default ${
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
@@ -82,11 +84,10 @@ export default function CartDrawer() {
                         src={item.image}
                         alt={item.name}
                         fill
-                        className="object-cover"
+                        sizes="80px"
                       />
                     </div>
-
-                    <div className="min-w-0 flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium uppercase tracking-wide text-orange-600 dark:text-orange-300">
                         {item.category}
                       </p>

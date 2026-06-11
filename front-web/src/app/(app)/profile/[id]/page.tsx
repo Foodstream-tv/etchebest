@@ -152,6 +152,7 @@ export default function PublicProfilePage() {
                       src={avatar}
                       alt={displayName}
                       fill
+                      sizes="96px"
                       className="object-cover"
                     />
                   ) : (

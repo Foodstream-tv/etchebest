@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-export default function StreamView({ stream, muted }: { stream: MediaStream | null; muted?: boolean }) {
+export default function StreamView({ stream, muted }: Readonly<{ stream: MediaStream | null; muted?: boolean }>) {
   const ref = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -18,6 +18,8 @@ export default function StreamView({ stream, muted }: { stream: MediaStream | nu
       playsInline
       muted={!!muted}
       style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 12, background: "#000" }}
-    />
+    >
+      <track kind="captions" />
+    </video>
   );
 }
