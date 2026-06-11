@@ -1213,7 +1213,7 @@ func isH264CodecParams(payload []byte) bool {
 
 // extractAndSendAllSTAPAUnits takes a STAP-A packet and sends each NAL unit
 // as a separate RTP packet to FFmpeg. Returns true if any units were sent.
-func extractAndSendAllSTAPAUnits(payload []byte, writer net.Conn, originalPkt *rtp.Packet) bool {
+func extractAndSendAllSTAPAUnits(payload []byte, writer net.Conn, originalPkt *rtp.Packet, seqNum *uint16) bool {
 	if len(payload) < 1 {
 		return false
 	}
@@ -1258,9 +1258,9 @@ func extractAndSendAllSTAPAUnits(payload []byte, writer net.Conn, originalPkt *r
 		newPkt.Payload = make([]byte, unit.size)
 		copy(newPkt.Payload, payload[unit.offset:unit.offset+unit.size])
 
-		// Assign consecutive sequence numbers: if STAP-A had seqNum=1000 and 3 units,
-		// units get 1000, 1001, 1002 to enforce proper ordering in FFmpeg's reordering buffer
-		newPkt.SequenceNumber = originalPkt.SequenceNumber + uint16(i)
+		// Assign consecutive sequence numbers using the monotonic seqNum
+		newPkt.SequenceNumber = *seqNum
+		*seqNum++
 		newPkt.Marker = (i == len(units)-1)
 
 		// Marshal and send
@@ -1362,6 +1362,7 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 	hlsReceivedSPS := false              // Track if we've received and forwarded SPS
 	hlsReceivedPPS := false              // Track if we've received and forwarded PPS
 	hlsParamsGateOpenTime := time.Time{} // Time when we started waiting for params
+	var ffmpegVideoSeqNum uint16 = 0
 
 	// Request a keyframe immediately so that both HLS and all WebRTC
 	// receiving peers get a clean start for the video feed.
@@ -1551,7 +1552,7 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 			if strings.Contains(mimeType, "h264") && len(pkt.Payload) > 0 {
 				nalType := pkt.Payload[0] & 0x1f
 				if nalType == 24 { // STAP-A - deserialize into separate RTP packets
-					if extractAndSendAllSTAPAUnits(pkt.Payload, cachedWriter.VideoConn, &pkt) {
+					if extractAndSendAllSTAPAUnits(pkt.Payload, cachedWriter.VideoConn, &pkt, &ffmpegVideoSeqNum) {
 						log.Printf("[HLS] Deserialized STAP-A packet (skipping aggregated form)")
 						// Successfully extracted and sent all units - skip the original STAP-A
 						continue
@@ -1560,7 +1561,12 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 			}
 
 			// Send the packet (single NAL unit packets, or STAP-A if extraction failed)
-			_, _ = cachedWriter.VideoConn.Write(buf[:n])
+			pkt.SequenceNumber = ffmpegVideoSeqNum
+			ffmpegVideoSeqNum++
+			data, err := pkt.Marshal()
+			if err == nil {
+				_, _ = cachedWriter.VideoConn.Write(data)
+			}
 		}
 	}
 }
