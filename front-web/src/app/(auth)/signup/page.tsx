@@ -54,6 +54,8 @@ export default function SignUpPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]);
 
+  const errorId = error ? "signup-error" : undefined;
+
   const canSubmit = useMemo(() => {
     return (
       isValidEmail(email) &&
@@ -139,6 +141,7 @@ export default function SignUpPage() {
           autoComplete="email"
           required
           disabled={loading}
+          aria-describedby={errorId}
         />
 
         <TextField
@@ -149,6 +152,7 @@ export default function SignUpPage() {
           autoComplete="given-name"
           required
           disabled={loading}
+          aria-describedby={errorId}
         />
 
         <TextField
@@ -159,6 +163,7 @@ export default function SignUpPage() {
           autoComplete="family-name"
           required
           disabled={loading}
+          aria-describedby={errorId}
         />
 
         <TextField
@@ -169,6 +174,7 @@ export default function SignUpPage() {
           autoComplete="nickname"
           required
           disabled={loading}
+          aria-describedby={errorId}
         />
 
         <PasswordField
@@ -177,6 +183,7 @@ export default function SignUpPage() {
           placeholder="Mot de passe"
           autoComplete="new-password"
           disabled={loading}
+          aria-describedby={errorId}
         />
 
         <PhoneField
@@ -185,6 +192,7 @@ export default function SignUpPage() {
           phone={phoneNumber}
           onPhoneChange={setPhoneNumber}
           disabled={loading}
+          aria-describedby={errorId}
         />
 
         <TextAreaField
@@ -195,9 +203,18 @@ export default function SignUpPage() {
           required
           disabled={loading}
           maxLength={500}
+          aria-describedby={errorId}
         />
 
-        {error ? <p className="text-sm font-medium text-red-500">{error}</p> : null}
+        {error ? (
+          <p
+            id="signup-error"
+            role="alert"
+            className="text-sm font-medium text-red-500"
+          >
+            {error}
+          </p>
+        ) : null}
 
         <button
           type="submit"

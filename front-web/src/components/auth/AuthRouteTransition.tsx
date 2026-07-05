@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { usePathname } from "next/navigation";
 
 const ROUTE_ORDER: Record<string, number> = {
@@ -9,15 +15,17 @@ const ROUTE_ORDER: Record<string, number> = {
   "/signup": 2,
 };
 
-function getRouteIndex(pathname: string) {
+type AuthRouteTransitionProps = Readonly<{
+  children: ReactNode;
+}>;
+
+function getRouteIndex(pathname: string): number {
   return ROUTE_ORDER[pathname] ?? 0;
 }
 
 export default function AuthRouteTransition({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: AuthRouteTransitionProps) {
   const pathname = usePathname();
   const previousPathRef = useRef(pathname);
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
@@ -26,14 +34,14 @@ export default function AuthRouteTransition({
   useEffect(() => {
     const previousPath = previousPathRef.current;
 
-    if (previousPath !== pathname) {
-      const previousIndex = getRouteIndex(previousPath);
-      const nextIndex = getRouteIndex(pathname);
+    if (previousPath === pathname) return;
 
-      setDirection(nextIndex >= previousIndex ? "forward" : "backward");
-      setTransitionKey((prev) => prev + 1);
-      previousPathRef.current = pathname;
-    }
+    const previousIndex = getRouteIndex(previousPath);
+    const nextIndex = getRouteIndex(pathname);
+
+    setDirection(nextIndex >= previousIndex ? "forward" : "backward");
+    setTransitionKey((prev) => prev + 1);
+    previousPathRef.current = pathname;
   }, [pathname]);
 
   const animationClass = useMemo(() => {
@@ -44,16 +52,16 @@ export default function AuthRouteTransition({
 
   return (
     <div className="relative">
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-visible">
+      <div
+        className="pointer-events-none absolute inset-0 z-0 overflow-visible"
+        aria-hidden="true"
+      >
         <span className="steam-line steam-line-1" />
         <span className="steam-line steam-line-2" />
         <span className="steam-line steam-line-3" />
       </div>
 
-      <div
-        key={transitionKey}
-        className={`relative z-10 ${animationClass}`}
-      >
+      <div key={transitionKey} className={`relative z-10 ${animationClass}`}>
         {children}
       </div>
     </div>

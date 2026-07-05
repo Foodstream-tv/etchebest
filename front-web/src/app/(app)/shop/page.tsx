@@ -42,24 +42,36 @@ function CategoryCard({ category }: Readonly<{ category: Category }>) {
   return (
     <Link
       href={category.href}
+      aria-label={`Explorer la catégorie ${category.title}`}
       className="group relative h-[420px] overflow-hidden rounded-3xl"
     >
       <Image
         src={category.image}
-        alt={category.title}
+        alt=""
         fill
         sizes="(max-width: 768px) 100vw, 33vw"
         priority={category.priority}
         className="object-cover transition duration-500 group-hover:scale-110"
       />
 
-      <div className="absolute inset-0 bg-black/40 transition group-hover:bg-black/50" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-black/40 transition group-hover:bg-black/50"
+      />
 
       <div className="absolute bottom-0 p-6 text-white">
-        <h2 className="text-2xl font-extrabold">{category.title}</h2>
-        <p className="mt-2 text-sm text-gray-200">{category.description}</p>
+        <h2 className="text-2xl font-extrabold">
+          {category.title}
+        </h2>
 
-        <div className="mt-4 inline-block rounded-full bg-white/20 px-4 py-2 text-sm font-semibold backdrop-blur">
+        <p className="mt-2 text-sm text-gray-200">
+          {category.description}
+        </p>
+
+        <div
+          aria-hidden="true"
+          className="mt-4 inline-block rounded-full bg-white/20 px-4 py-2 text-sm font-semibold backdrop-blur"
+        >
           Explorer →
         </div>
       </div>
@@ -69,10 +81,20 @@ function CategoryCard({ category }: Readonly<{ category: Category }>) {
 
 export default function ShopPage() {
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-10">
+    <main
+      id="main-content"
+      className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-10"
+    >
       <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-orange-50 via-white to-amber-50 p-8 dark:border-gray-800 dark:from-neutral-900 dark:via-neutral-950 dark:to-neutral-900">
-        <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-orange-300/30 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-orange-200/20 blur-3xl" />
+        <div
+          aria-hidden="true"
+          className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-orange-300/30 blur-3xl"
+        />
+
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-orange-200/20 blur-3xl"
+        />
 
         <div className="relative z-10">
           <p className="text-sm font-semibold uppercase tracking-widest text-orange-600 dark:text-orange-300">
@@ -90,15 +112,15 @@ export default function ShopPage() {
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
-              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
               type="button"
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
             >
               Voir les tendances
             </button>
 
             <button
-              className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold transition hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-neutral-800"
               type="button"
+              className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold transition hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-neutral-800"
             >
               Produits populaires
             </button>
@@ -106,7 +128,14 @@ export default function ShopPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-3">
+      <section
+        aria-labelledby="shop-categories-title"
+        className="grid gap-6 md:grid-cols-3"
+      >
+        <h2 id="shop-categories-title" className="sr-only">
+          Catégories de la boutique
+        </h2>
+
         {categories.map((cat) => (
           <CategoryCard key={cat.href} category={cat} />
         ))}

@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Mail, ShieldCheck, Star, Trophy } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
-import { getUserById, getUserFollowers, getUserFollowing, type UserSummary } from "@/lib/users";
+import {
+  getUserById,
+  getUserFollowers,
+  getUserFollowing,
+  type UserSummary,
+} from "@/lib/users";
 import ProfileCard from "@/components/profile/ProfileCard";
 import FollowButton from "@/components/profile/FollowButton";
 import FollowStats from "@/components/profile/FollowStats";
@@ -92,8 +97,12 @@ export default function PublicProfilePage() {
 
   if (!ready || loading) {
     return (
-      <main className="grid min-h-[60vh] place-items-center">
-        <p className="text-sm text-gray-500 dark:text-gray-300">
+      <main id="main-content" className="grid min-h-[60vh] place-items-center">
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-sm text-gray-500 dark:text-gray-300"
+        >
           Chargement du profil…
         </p>
       </main>
@@ -102,11 +111,15 @@ export default function PublicProfilePage() {
 
   if (!token) {
     return (
-      <main className="grid min-h-[60vh] place-items-center">
+      <main id="main-content" className="grid min-h-[60vh] place-items-center">
         <div className="text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+          <p
+            role="alert"
+            className="text-sm text-gray-600 dark:text-gray-300"
+          >
             Connecte-toi pour voir ce profil.
           </p>
+
           <Link
             href="/signin"
             className="mt-3 inline-block rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
@@ -120,8 +133,11 @@ export default function PublicProfilePage() {
 
   if (!profile) {
     return (
-      <main className="grid min-h-[60vh] place-items-center">
-        <p className="text-sm text-gray-500 dark:text-gray-300">
+      <main id="main-content" className="grid min-h-[60vh] place-items-center">
+        <p
+          role="alert"
+          className="text-sm text-gray-500 dark:text-gray-300"
+        >
           Profil introuvable.
         </p>
       </main>
@@ -132,31 +148,34 @@ export default function PublicProfilePage() {
   const avatar = profile.profileImageUrl || profile.profile_image_url || "";
 
   return (
-    <main className="min-h-screen">
+    <main id="main-content" className="min-h-screen">
       <div className="mx-auto max-w-5xl px-6 py-8">
         <Link
           href="/watch"
           className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-orange-500 dark:text-gray-300"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           Retour aux lives
         </Link>
 
         <div className="grid gap-6 md:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-6">
+          <aside className="space-y-6" aria-label="Informations du profil">
             <ProfileCard>
               <div className="flex flex-col items-center text-center">
                 <div className="relative h-24 w-24 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
                   {avatar ? (
                     <Image
                       src={avatar}
-                      alt={displayName}
+                      alt={`Photo de profil de ${displayName}`}
                       fill
                       sizes="96px"
                       className="object-cover"
                     />
                   ) : (
-                    <div className="grid h-full w-full place-items-center text-2xl font-bold">
+                    <div
+                      aria-label={`Initiales de ${displayName}`}
+                      className="grid h-full w-full place-items-center text-2xl font-bold"
+                    >
                       {initialsOf(profile.username, profile.email)}
                     </div>
                   )}
@@ -167,18 +186,18 @@ export default function PublicProfilePage() {
                     {displayName}
                   </h1>
 
-                  {profile.username && (
+                  {profile.username ? (
                     <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-500/20 dark:text-orange-300">
                       @{profile.username}
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
-                {profile.description && (
+                {profile.description ? (
                   <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
                     {profile.description}
                   </p>
-                )}
+                ) : null}
 
                 <div className="mt-5">
                   <FollowStats
@@ -213,17 +232,23 @@ export default function PublicProfilePage() {
 
             <ProfileCard>
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-50">
-                <ShieldCheck className="h-4 w-4 text-orange-500" />
+                <ShieldCheck
+                  aria-hidden="true"
+                  className="h-4 w-4 text-orange-500"
+                />
                 Informations
               </h2>
 
               <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
-                {profile.email && (
+                {profile.email ? (
                   <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-gray-400" />
+                    <Mail
+                      aria-hidden="true"
+                      className="h-4 w-4 text-gray-400"
+                    />
                     <span className="truncate">{profile.email}</span>
                   </div>
-                )}
+                ) : null}
 
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Profil public FoodStream.
@@ -232,10 +257,10 @@ export default function PublicProfilePage() {
             </ProfileCard>
           </aside>
 
-          <section className="space-y-6">
+          <section className="space-y-6" aria-label="Contenu public du profil">
             <ProfileCard>
               <div className="mb-4 flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-orange-500" />
+                <Trophy aria-hidden="true" className="h-4 w-4 text-orange-500" />
                 <h2 className="text-sm font-semibold">Badges publics</h2>
               </div>
 
@@ -250,10 +275,7 @@ export default function PublicProfilePage() {
                   subtitle="Curieux"
                   meta="Suit des chefs"
                 />
-                <ProfileBadgeCard
-                  title="Fidèle"
-                  meta="Profil actif"
-                />
+                <ProfileBadgeCard title="Fidèle" meta="Profil actif" />
                 <ProfileBadgeCard
                   title="Explorateur"
                   meta="Découvre des lives"
@@ -263,7 +285,7 @@ export default function PublicProfilePage() {
 
             <ProfileCard>
               <div className="mb-4 flex items-center gap-2">
-                <Star className="h-4 w-4 text-orange-500" />
+                <Star aria-hidden="true" className="h-4 w-4 text-orange-500" />
                 <h2 className="text-sm font-semibold">Lives & Replays</h2>
               </div>
 
@@ -271,8 +293,10 @@ export default function PublicProfilePage() {
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
                   Aucun live affiché pour le moment.
                 </p>
+
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  On pourra bientôt afficher ici ses lives en cours, planifiés et ses replays.
+                  On pourra bientôt afficher ici ses lives en cours, planifiés et
+                  ses replays.
                 </p>
               </div>
             </ProfileCard>

@@ -63,9 +63,18 @@ export default function ForgotPasswordPage() {
             autoComplete="email"
             required
             disabled={loading}
+            aria-describedby={error ? "forgot-password-error" : undefined}
           />
 
-          {error ? <p className="text-sm font-medium text-red-500">{error}</p> : null}
+          {error ? (
+            <p
+              id="forgot-password-error"
+              role="alert"
+              className="text-sm font-medium text-red-500"
+            >
+              {error}
+            </p>
+          ) : null}
 
           <button
             type="submit"
@@ -76,7 +85,11 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
       ) : (
-        <div className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300"
+        >
           Un email de réinitialisation a été envoyé.
         </div>
       )}

@@ -400,7 +400,7 @@ export default function WatchRoomPage() {
   };
 
   return (
-    <main className="min-h-screen">
+    <main id="main-content" className="min-h-screen">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -408,7 +408,7 @@ export default function WatchRoomPage() {
               href="/watch"
               className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Retour
             </Link>
 
@@ -434,7 +434,7 @@ export default function WatchRoomPage() {
               className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
               type="button"
             >
-              <RefreshCcw className="h-4 w-4" />
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
               Réessayer
             </button>
           </div>
@@ -469,7 +469,11 @@ export default function WatchRoomPage() {
                 )}
 
                 {loading && (
-                  <div className="absolute inset-0 grid place-items-center bg-black/40">
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="absolute inset-0 grid place-items-center bg-black/40"
+                  >
                     <div className="rounded-2xl bg-black/40 px-4 py-3 text-sm font-semibold text-white backdrop-blur">
                       Préparation du stream…
                     </div>
@@ -492,6 +496,8 @@ export default function WatchRoomPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={onLike}
+                      aria-pressed={isLiked}
+                      aria-label={isLiked ? "Retirer le j’aime" : "Aimer ce live"}
                       className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                       type="button"
                     >
@@ -505,6 +511,7 @@ export default function WatchRoomPage() {
 
                     <button
                       onClick={onShare}
+                      aria-label="Partager ce live"
                       className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                       type="button"
                     >
@@ -544,7 +551,10 @@ export default function WatchRoomPage() {
                 </div>
 
                 {error && (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                  <div
+                    role="alert"
+                    className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+                  >
                     {error}
                   </div>
                 )}
@@ -569,6 +579,8 @@ export default function WatchRoomPage() {
 
               <div
                 ref={chatScrollRef}
+                aria-live="polite"
+                aria-label="Messages du chat"
                 className="flex h-[360px] flex-1 flex-col gap-3 overflow-y-auto bg-black/[0.02] px-4 py-4 dark:bg-white/[0.03]"
               >
                 {chatMessages.length === 0 && (
@@ -605,6 +617,7 @@ export default function WatchRoomPage() {
                   <div className="space-y-3">
                     <input
                       value={message}
+                      aria-label="Écrire un message dans le chat"
                       onChange={(e) =>
                         setMessage(e.target.value.slice(0, MAX_MSG))
                       }

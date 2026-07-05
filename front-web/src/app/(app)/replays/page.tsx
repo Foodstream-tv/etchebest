@@ -6,7 +6,6 @@ import { PlayCircle, RefreshCw, Search, Video } from "lucide-react";
 
 import HomeFooter from "@/components/home/HomeFooter";
 import { getLives, type LiveDTO } from "@/lib/lives";
-import WatchTagSection from "@/components/watch/WatchTagSection";
 import ReplayCarouselSection from "@/components/watch/ReplayCarouselSection";
 
 const TAGS = [
@@ -83,14 +82,14 @@ export default function ReplaysPage() {
   }, [replays]);
 
   return (
-    <main className="min-h-screen">
+    <main id="main-content" className="min-h-screen">
       <div className="mx-auto w-full max-w-7xl px-6 py-8 md:py-10">
         <div className="space-y-8">
           <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/70 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/58 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-                  <PlayCircle className="h-4 w-4" />
+                  <PlayCircle aria-hidden="true" className="h-4 w-4" />
                   Replays Foodstream
                 </div>
 
@@ -99,21 +98,26 @@ export default function ReplaysPage() {
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-600 dark:text-gray-400 md:text-base">
-                  Retrouve les lives terminés, les recettes à revoir et les moments culinaires que tu as manqués.{" "}
+                  Retrouve les lives terminés, les recettes à revoir et les
+                  moments culinaires que tu as manqués.{" "}
                   <span className="font-semibold text-gray-900 dark:text-gray-100">
-                    {replays.length} replay{replays.length > 1 ? "s" : ""} disponible
-                    {replays.length > 1 ? "s" : ""}.
+                    {replays.length} replay{replays.length > 1 ? "s" : ""}{" "}
+                    disponible{replays.length > 1 ? "s" : ""}.
                   </span>
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
                 <button
+                  type="button"
                   onClick={refresh}
                   disabled={loading}
                   className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-3 text-sm font-semibold text-gray-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                 >
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                  />
                   Actualiser
                 </button>
 
@@ -121,7 +125,7 @@ export default function ReplaysPage() {
                   href="/watch"
                   className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
                 >
-                  <Video className="h-4 w-4" />
+                  <Video aria-hidden="true" className="h-4 w-4" />
                   Voir les lives
                 </Link>
               </div>
@@ -129,24 +133,34 @@ export default function ReplaysPage() {
 
             <div className="mt-7 rounded-[28px] border border-black/8 bg-white/75 p-3 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                />
 
                 <input
+                  type="search"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Rechercher un replay, une recette"
+                  aria-label="Rechercher un replay ou une recette"
                   className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                 />
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10">
+              <div
+                className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10"
+                aria-label="Filtrer les replays par catégorie"
+              >
                 {TAGS.map((item) => {
                   const active = tag === item;
 
                   return (
                     <button
                       key={item}
+                      type="button"
                       onClick={() => setTag(item)}
+                      aria-pressed={active}
                       className={[
                         "rounded-full px-3 py-1.5 text-xs font-semibold transition",
                         active
@@ -162,26 +176,39 @@ export default function ReplaysPage() {
             </div>
           </section>
 
-          {!loading && error && (
-            <section className="rounded-[28px] border border-red-200 bg-red-50/80 p-5 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10">
+          {!loading && error ? (
+            <section
+              role="alert"
+              className="rounded-[28px] border border-red-200 bg-red-50/80 p-5 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10"
+            >
               <h2 className="text-base font-semibold text-red-700 dark:text-red-200">
                 Impossible de charger les replays
               </h2>
+
               <p className="mt-1 text-sm text-red-600 dark:text-red-200/80">
                 {error}
               </p>
             </section>
-          )}
+          ) : null}
 
           {loading ? (
-            <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <section
+              role="status"
+              aria-live="polite"
+              aria-label="Chargement des replays"
+              className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
+            >
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
                   className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
                 >
-                  <div className="h-44 animate-pulse bg-black/[0.05] dark:bg-white/10" />
-                  <div className="space-y-3 p-5">
+                  <div
+                    aria-hidden="true"
+                    className="h-44 animate-pulse bg-black/[0.05] dark:bg-white/10"
+                  />
+
+                  <div className="space-y-3 p-5" aria-hidden="true">
                     <div className="h-4 w-24 animate-pulse rounded bg-black/[0.06] dark:bg-white/10" />
                     <div className="h-5 w-3/4 animate-pulse rounded bg-black/[0.06] dark:bg-white/10" />
                     <div className="h-4 w-1/2 animate-pulse rounded bg-black/[0.06] dark:bg-white/10" />
@@ -192,7 +219,7 @@ export default function ReplaysPage() {
           ) : !error && replays.length === 0 ? (
             <section className="rounded-[28px] border border-black/8 bg-white/72 p-10 text-center shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
               <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                <PlayCircle className="h-8 w-8" />
+                <PlayCircle aria-hidden="true" className="h-8 w-8" />
               </div>
 
               <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
@@ -207,11 +234,11 @@ export default function ReplaysPage() {
             <div className="space-y-10">
               {replaysByTag.map((section) => (
                 <ReplayCarouselSection
-                    key={section.tagName}
-                    title={section.tagName}
-                    replays={section.lives}
+                  key={section.tagName}
+                  title={section.tagName}
+                  replays={section.lives}
                 />
-                ))}
+              ))}
             </div>
           )}
         </div>

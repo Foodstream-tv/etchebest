@@ -1,8 +1,8 @@
 import Link from "next/link";
-import React from "react";
+import type { ReactNode } from "react";
 import { Flame } from "lucide-react";
 
-type AuthCardProps = {
+type AuthCardProps = Readonly<{
   label: string;
   title: string;
   subtitle?: string;
@@ -10,8 +10,8 @@ type AuthCardProps = {
   bottomLinkHref?: string;
   bottomLinkLabel?: string;
   showForgotPassword?: boolean;
-  children: React.ReactNode;
-};
+  children: ReactNode;
+}>;
 
 export default function AuthCard({
   label,
@@ -24,19 +24,32 @@ export default function AuthCard({
   children,
 }: AuthCardProps) {
   return (
-    <div className="mx-auto w-full max-w-md">
+    <section
+      aria-labelledby="auth-card-title"
+      className="mx-auto w-full max-w-md"
+    >
       <div className="relative overflow-hidden rounded-[32px] border border-black/8 bg-white/78 p-6 shadow-[0_20px_70px_rgba(0,0,0,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/72 dark:shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:p-8">
-        <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.03)_26%,transparent_58%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_26%,transparent_58%)]" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.03)_26%,transparent_58%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_26%,transparent_58%)]"
+        />
 
         <div className="relative z-10 mb-6">
           <div className="flex items-center gap-2">
-            <Flame className="h-4 w-4 text-orange-500 dark:text-orange-400" />
+            <Flame
+              className="h-4 w-4 text-orange-500 dark:text-orange-400"
+              aria-hidden="true"
+            />
+
             <p className="text-xs font-semibold uppercase tracking-[0.26em] text-orange-500 dark:text-orange-400">
               {label}
             </p>
           </div>
 
-          <h1 className="mt-3 text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-gray-900 dark:text-gray-50">
+          <h1
+            id="auth-card-title"
+            className="mt-3 text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-gray-900 dark:text-gray-50"
+          >
             {title}
           </h1>
 
@@ -62,18 +75,19 @@ export default function AuthCard({
           ) : null}
 
           {bottomText && bottomLinkHref && bottomLinkLabel ? (
-            <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
               <span>{bottomText} </span>
+
               <Link
                 href={bottomLinkHref}
                 className="font-semibold uppercase tracking-wide text-orange-500 transition hover:text-orange-400"
               >
                 {bottomLinkLabel}
               </Link>
-            </div>
+            </p>
           ) : null}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

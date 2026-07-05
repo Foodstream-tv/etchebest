@@ -87,6 +87,7 @@ export default function StudioPage() {
   const [desc, setDesc] = useState("");
   const [tags, setTags] = useState<string[]>(["Asiatique"]);
   const [level, setLevel] = useState<Level>("Débutant");
+
   const [date, setDate] = useState<string>(() => {
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -145,6 +146,7 @@ export default function StudioPage() {
   }, [thumbnailFile]);
 
   const previewTitle = title.trim() || "Ramen Tonkotsu en 30 minutes";
+
   const previewTags = useMemo(
     () => [...tags.slice(0, 3), level],
     [tags, level]
@@ -168,6 +170,7 @@ export default function StudioPage() {
     const cleaned = customTag.trim();
 
     if (!cleaned) return;
+
     if (tags.includes(cleaned)) {
       setCustomTag("");
       return;
@@ -179,8 +182,11 @@ export default function StudioPage() {
 
   const buildScheduledAt = (): string | null => {
     if (!date || !time) return null;
+
     const dt = new Date(`${date}T${time}:00`);
+
     if (Number.isNaN(dt.getTime())) return null;
+
     return dt.toISOString();
   };
 
@@ -237,14 +243,17 @@ export default function StudioPage() {
 
     if (!res.ok) {
       let message = "Impossible d’uploader l’image";
+
       try {
         const data = await res.json();
         message = data?.message || data?.error || message;
       } catch {}
+
       throw new Error(message);
     }
 
     const data: UploadImageRes = await res.json();
+
     if (!data?.url) {
       throw new Error("Aucune URL retournée après l’upload de l’image.");
     }
@@ -344,18 +353,23 @@ export default function StudioPage() {
 
   const onForceEndLive = async () => {
     if (!token || !user) return;
+
     try {
       setEndingLive(true);
       setError(null);
+
       const res = await apiFetch<{ lives: any[] }>("/lives", { token });
       const myLive = res.lives?.find((live) => live.user?.id === user.id);
+
       if (!myLive) {
         throw new Error("Aucun live actif ou planifié trouvé pour votre compte.");
       }
+
       await apiFetch(`/rooms/${encodeURIComponent(myLive.room_id)}/disconnect`, {
         method: "POST",
         token,
       });
+
       setError(null);
       setStatus("idle");
     } catch (e: any) {
@@ -367,28 +381,35 @@ export default function StudioPage() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen">
-        <div className="mx-auto w-full max-w-7xl px-6 py-10">Chargement…</div>
-      </main>
+      <div className="min-h-screen">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto w-full max-w-7xl px-6 py-10"
+        >
+          Chargement…
+        </div>
+      </div>
     );
   }
 
   if (!token || !user) return null;
 
   return (
-    <main className="min-h-screen">
+    <div className="min-h-screen">
       <div className="mx-auto w-full max-w-7xl px-6 py-8 md:py-10">
         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_380px]">
           <section className="rounded-[32px] border border-black/8 bg-white/72 p-5 text-gray-900 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md md:p-7 dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-100 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <div className="mb-7 flex items-center gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-2xl bg-orange-500 shadow-[0_10px_24px_rgba(249,115,22,0.28)]">
-                <Radio className="h-5 w-5 text-white" />
+                <Radio aria-hidden="true" className="h-5 w-5 text-white" />
               </div>
 
               <div className="leading-tight">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-500 dark:text-orange-400">
                   Foodstream Studio
                 </p>
+
                 <h1 className="mt-1 text-2xl font-semibold tracking-tight">
                   Créer un nouveau live
                 </h1>
@@ -399,6 +420,7 @@ export default function StudioPage() {
               <Field label="Titre du live">
                 <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                   <input
+                    aria-label="Titre du live"
                     className="w-full rounded-xl border border-black/8 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 md:text-lg dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
                     placeholder="Ex. : Ramen Tonkotsu en 30 minutes"
                     value={title}
@@ -411,7 +433,7 @@ export default function StudioPage() {
                 <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/75">
-                      <FileText className="h-4 w-4" />
+                      <FileText aria-hidden="true" className="h-4 w-4" />
                       <span>Présentation du live</span>
                     </div>
 
@@ -421,6 +443,7 @@ export default function StudioPage() {
                   </div>
 
                   <textarea
+                    aria-label="Description du live"
                     className="w-full min-h-[180px] resize-y rounded-xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
                     placeholder="Présente ton live : ce que tu vas cuisiner, les étapes, le niveau, les ingrédients ou le matériel nécessaire…"
                     value={desc}
@@ -471,6 +494,9 @@ export default function StudioPage() {
                     <div className="space-y-2">
                       {TAG_GROUPS.map((group) => {
                         const open = openTagGroup === group.title;
+                        const panelId = `tag-group-${group.title
+                          .toLowerCase()
+                          .replace(/\s+/g, "-")}`;
 
                         return (
                           <div
@@ -479,20 +505,28 @@ export default function StudioPage() {
                           >
                             <button
                               type="button"
-                              onClick={() => setOpenTagGroup(open ? "" : group.title)}
+                              aria-expanded={open}
+                              aria-controls={panelId}
+                              onClick={() =>
+                                setOpenTagGroup(open ? "" : group.title)
+                              }
                               className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-white/45"
                             >
                               {group.title}
 
                               <ChevronDown
+                                aria-hidden="true"
                                 className={`h-4 w-4 transition ${
                                   open ? "rotate-180" : ""
                                 }`}
                               />
                             </button>
 
-                            {open && (
-                              <div className="flex flex-wrap gap-2 border-t border-black/5 px-3 py-3 dark:border-white/10">
+                            {open ? (
+                              <div
+                                id={panelId}
+                                className="flex flex-wrap gap-2 border-t border-black/5 px-3 py-3 dark:border-white/10"
+                              >
                                 {group.tags.map((tag) => (
                                   <Chip
                                     key={tag}
@@ -502,7 +536,7 @@ export default function StudioPage() {
                                   />
                                 ))}
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         );
                       })}
@@ -510,6 +544,7 @@ export default function StudioPage() {
 
                     <div className="mt-3 flex gap-2">
                       <input
+                        aria-label="Ajouter un tag personnalisé"
                         value={customTag}
                         onChange={(e) => setCustomTag(e.target.value)}
                         onKeyDown={(e) => {
@@ -527,7 +562,7 @@ export default function StudioPage() {
                         onClick={addCustomTag}
                         className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus aria-hidden="true" className="h-4 w-4" />
                         Ajouter
                       </button>
                     </div>
@@ -536,14 +571,16 @@ export default function StudioPage() {
 
                 <Field label="Niveau">
                   <div className="flex flex-wrap gap-2">
-                    {(["Débutant", "Intermédiaire", "Avancé"] as Level[]).map((item) => (
-                      <Chip
-                        key={item}
-                        active={level === item}
-                        onClick={() => setLevel(item)}
-                        label={item}
-                      />
-                    ))}
+                    {(["Débutant", "Intermédiaire", "Avancé"] as Level[]).map(
+                      (item) => (
+                        <Chip
+                          key={item}
+                          active={level === item}
+                          onClick={() => setLevel(item)}
+                          label={item}
+                        />
+                      )
+                    )}
                   </div>
                 </Field>
               </div>
@@ -551,9 +588,14 @@ export default function StudioPage() {
               <div className="grid gap-5 md:grid-cols-2">
                 <Field label="Date">
                   <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-                    <Calendar className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
+                    <Calendar
+                      aria-hidden="true"
+                      className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
+                    />
+
                     <input
                       type="date"
+                      aria-label="Date du live"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                       className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
@@ -563,9 +605,14 @@ export default function StudioPage() {
 
                 <Field label="Heure (heure locale)">
                   <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-                    <Clock className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
+                    <Clock
+                      aria-hidden="true"
+                      className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
+                    />
+
                     <input
                       type="time"
+                      aria-label="Heure du live"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
                       className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
@@ -578,6 +625,7 @@ export default function StudioPage() {
                 <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-sm font-semibold">Durée</span>
+
                     <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-gray-900 ring-1 ring-black/5 dark:bg-[#120b05]/80 dark:text-white dark:ring-white/10">
                       {duration} min
                     </span>
@@ -585,6 +633,7 @@ export default function StudioPage() {
 
                   <input
                     type="range"
+                    aria-label="Durée du live en minutes"
                     min={10}
                     max={180}
                     step={5}
@@ -609,18 +658,24 @@ export default function StudioPage() {
               <Field label="Image du live">
                 <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/70">
-                    <ImageIcon className="h-4 w-4" />
+                    <ImageIcon aria-hidden="true" className="h-4 w-4" />
                     <span>Miniature du live</span>
                   </div>
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 rounded-xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#120b05]/80">
-                      <ImageIcon className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
+                      <ImageIcon
+                        aria-hidden="true"
+                        className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
+                      />
+
                       <input
+                        aria-label="URL de la miniature du live"
                         placeholder="https://mon-site.com/miniature-live.jpg"
                         value={imageUrl}
                         onChange={(e) => {
                           setImageUrl(e.target.value);
+
                           if (e.target.value.trim()) {
                             setThumbnailFile(null);
                           }
@@ -642,7 +697,7 @@ export default function StudioPage() {
                         htmlFor="thumbnail-file"
                         className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400"
                       >
-                        <Upload className="h-4 w-4" />
+                        <Upload aria-hidden="true" className="h-4 w-4" />
                         Choisir une image depuis mon fichier
                       </label>
 
@@ -656,6 +711,7 @@ export default function StudioPage() {
                             <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
                               {thumbnailFile.name}
                             </p>
+
                             <p className="text-xs text-gray-500 dark:text-white/45">
                               {(thumbnailFile.size / 1024 / 1024).toFixed(2)} Mo
                             </p>
@@ -663,10 +719,11 @@ export default function StudioPage() {
 
                           <button
                             type="button"
+                            aria-label="Supprimer l'image sélectionnée"
                             onClick={removeSelectedFile}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-700 ring-1 ring-black/5 transition hover:bg-gray-100 dark:bg-white/10 dark:text-white dark:ring-white/10 dark:hover:bg-white/15"
                           >
-                            <X className="h-4 w-4" />
+                            <X aria-hidden="true" className="h-4 w-4" />
                           </button>
                         </div>
                       ) : null}
@@ -674,13 +731,15 @@ export default function StudioPage() {
                   </div>
 
                   <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-                    Tu peux soit coller une URL, soit importer une image depuis ton appareil.
+                    Tu peux soit coller une URL, soit importer une image depuis
+                    ton appareil.
                   </p>
                 </div>
               </Field>
 
               <div className="flex flex-wrap gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={onSaveDraft}
                   disabled={status !== "idle" || !canCreate}
                   className="rounded-2xl border border-black/8 bg-white px-5 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-black/[0.03] disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
@@ -689,6 +748,7 @@ export default function StudioPage() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={onSchedule}
                   disabled={status !== "idle" || !canSchedule}
                   className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:opacity-50"
@@ -702,28 +762,37 @@ export default function StudioPage() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={onGoLiveNow}
                   disabled={status !== "idle" || !canCreate}
                   className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                 >
-                  <Video className="h-4 w-4" />
+                  <Video aria-hidden="true" className="h-4 w-4" />
                   Démarrer maintenant
                 </button>
               </div>
 
               {error ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                <div
+                  role="alert"
+                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                >
                   <p>{error}</p>
-                  {error.includes("you already have an active or scheduled live") && (
+
+                  {error.includes(
+                    "you already have an active or scheduled live"
+                  ) ? (
                     <button
                       type="button"
                       onClick={onForceEndLive}
                       disabled={endingLive}
                       className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
                     >
-                      {endingLive ? "Arrêt en cours..." : "Arrêter le live en cours"}
+                      {endingLive
+                        ? "Arrêt en cours..."
+                        : "Arrêter le live en cours"}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -742,6 +811,6 @@ export default function StudioPage() {
       </div>
 
       <HomeFooter />
-    </main>
+    </div>
   );
 }

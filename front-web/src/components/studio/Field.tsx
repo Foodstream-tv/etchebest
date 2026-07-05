@@ -1,18 +1,29 @@
-import React from "react";
+"use client";
+
+import React, { useId } from "react";
 
 export default function Field({
   label,
   children,
-}: {
+}: Readonly<{
   label: string;
-  children: React.ReactNode;
-}) {
+  children: React.ReactElement<{ id?: string }>;
+}>) {
+  const id = useId();
+
   return (
     <div className="space-y-2.5">
-      <label className="block text-sm font-semibold text-gray-800 dark:text-white/80">
+      <label
+        htmlFor={id}
+        className="block text-sm font-semibold text-gray-800 dark:text-white/80"
+      >
         {label}
       </label>
-      {children}
+
+      {React.cloneElement(children, {
+        id: children.props.id ?? id,
+      })}
     </div>
   );
 }
+

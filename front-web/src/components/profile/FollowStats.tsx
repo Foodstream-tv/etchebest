@@ -1,11 +1,11 @@
 "use client";
 
-type FollowStatsProps = {
+type FollowStatsProps = Readonly<{
   followersCount: number;
   followingCount: number;
   onOpenFollowers: () => void;
   onOpenFollowing: () => void;
-};
+}>;
 
 export default function FollowStats({
   followersCount,
@@ -14,27 +14,42 @@ export default function FollowStats({
   onOpenFollowing,
 }: FollowStatsProps) {
   return (
-    <div className="flex items-center gap-4">
+    <div
+      className="flex items-center gap-4"
+      aria-label="Statistiques d'abonnement"
+    >
       <button
         type="button"
         onClick={onOpenFollowers}
+        aria-label={`Afficher les ${followersCount} follower${
+          followersCount > 1 ? "s" : ""
+        }`}
         className="rounded-xl px-3 py-2 text-left transition hover:bg-orange-50 dark:hover:bg-white/5"
       >
-        <p className="text-base font-bold text-gray-950 dark:text-white">
+        <span className="block text-base font-bold text-gray-950 dark:text-white">
           {followersCount}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Followers</p>
+        </span>
+
+        <span className="block text-xs text-gray-500 dark:text-gray-400">
+          Followers
+        </span>
       </button>
 
       <button
         type="button"
         onClick={onOpenFollowing}
+        aria-label={`Afficher les ${followingCount} profil${
+          followingCount > 1 ? "s" : ""
+        } suivi${followingCount > 1 ? "s" : ""}`}
         className="rounded-xl px-3 py-2 text-left transition hover:bg-orange-50 dark:hover:bg-white/5"
       >
-        <p className="text-base font-bold text-gray-950 dark:text-white">
+        <span className="block text-base font-bold text-gray-950 dark:text-white">
           {followingCount}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Suivis</p>
+        </span>
+
+        <span className="block text-xs text-gray-500 dark:text-gray-400">
+          Suivis
+        </span>
       </button>
     </div>
   );

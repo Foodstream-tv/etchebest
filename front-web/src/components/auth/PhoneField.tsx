@@ -1,7 +1,7 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Phone } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 
 export type CountryCode = {
   code: string;
@@ -26,13 +26,13 @@ const COUNTRY_CODES: CountryCode[] = [
   { code: "+216", country: "Tunisie", flag: "🇹🇳", value: 216 },
 ];
 
-type PhoneFieldProps = {
+type PhoneFieldProps = Readonly<{
   country: CountryCode;
   onCountryChange: (country: CountryCode) => void;
   phone: string;
   onPhoneChange: (value: string) => void;
   disabled?: boolean;
-};
+}>;
 
 export default function PhoneField({
   country,
@@ -43,6 +43,8 @@ export default function PhoneField({
 }: PhoneFieldProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
+  const inputId = useId();
 
   useEffect(() => {
     const handleMouseDown = (event: MouseEvent) => {
@@ -51,36 +53,63 @@ export default function PhoneField({
       }
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
     document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   return (
     <div className="relative" ref={rootRef}>
       <div className="auth-field">
-        <Phone className="auth-field-icon" />
+        <Phone className="auth-field-icon" aria-hidden="true" />
 
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-medium text-gray-800 transition hover:bg-black/5 dark:text-gray-100 dark:hover:bg-white/10"
-          aria-label="Choisir un indicatif"
+          aria-label={`Choisir un indicatif, actuellement ${country.country} ${country.code}`}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listboxId}
           disabled={disabled}
         >
-          <span className="text-base">{country.flag}</span>
+          <span className="text-base" aria-hidden="true">
+            {country.flag}
+          </span>
           <span>{country.code}</span>
-          <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
         </button>
 
-        <span className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+        <span
+          className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10"
+          aria-hidden="true"
+        />
+
+        <label htmlFor={inputId} className="sr-only">
+          Numéro de téléphone
+        </label>
 
         <input
+          id={inputId}
           className="auth-input"
           type="tel"
           inputMode="tel"
           placeholder="Numéro de téléphone"
           value={phone}
-          onChange={(e) => onPhoneChange(e.target.value)}
+          onChange={(event) => onPhoneChange(event.target.value)}
           autoComplete="tel"
           required
           disabled={disabled}
@@ -89,7 +118,12 @@ export default function PhoneField({
 
       {open ? (
         <div className="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-black/8 bg-white/95 shadow-[0_18px_50px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/92 dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
-          <div className="no-scrollbar max-h-64 overflow-auto p-1.5">
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label="Liste des indicatifs téléphoniques"
+            className="no-scrollbar max-h-64 overflow-auto p-1.5"
+          >
             {COUNTRY_CODES.map((item, index) => {
               const selected =
                 item.country === country.country &&
@@ -100,6 +134,8 @@ export default function PhoneField({
                 <button
                   key={`${item.country}-${item.code}-${index}`}
                   type="button"
+                  role="option"
+                  aria-selected={selected}
                   onClick={() => {
                     onCountryChange(item);
                     setOpen(false);
@@ -110,7 +146,9 @@ export default function PhoneField({
                       : "text-gray-800 hover:bg-black/5 dark:text-gray-100 dark:hover:bg-white/10"
                   }`}
                 >
-                  <span className="text-lg">{item.flag}</span>
+                  <span className="text-lg" aria-hidden="true">
+                    {item.flag}
+                  </span>
                   <span className="flex-1 font-medium">{item.country}</span>
                   <span className="text-xs opacity-80">{item.code}</span>
                 </button>

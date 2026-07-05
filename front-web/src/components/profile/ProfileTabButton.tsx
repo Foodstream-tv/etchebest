@@ -1,8 +1,10 @@
-type ProfileTabButtonProps = {
-  children: React.ReactNode;
+import type { ReactNode } from "react";
+
+type ProfileTabButtonProps = Readonly<{
+  children: ReactNode;
   active?: boolean;
   onClick?: () => void;
-};
+}>;
 
 export default function ProfileTabButton({
   children,
@@ -13,6 +15,8 @@ export default function ProfileTabButton({
     <button
       type="button"
       onClick={onClick}
+      aria-selected={active}
+      role="tab"
       className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${
         active
           ? "bg-orange-500 text-white"

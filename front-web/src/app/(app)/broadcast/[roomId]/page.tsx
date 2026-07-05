@@ -181,8 +181,8 @@ export default function BroadcastRoomPage() {
   };
 
   return (
-    <main className="min-h-screen">
-      <div className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 lg:py-7">
+    <main id="main-content" className="min-h-screen">
+      <div className="mx-auto w-full max-w-375 px-4 py-5 sm:px-6 lg:py-7">
         <header className="mb-5 overflow-hidden rounded-[30px] border border-black/8 bg-white/75 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
@@ -192,7 +192,7 @@ export default function BroadcastRoomPage() {
                 type="button"
                 aria-label="Retour"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft aria-hidden="true" className="h-5 w-5" />
               </button>
 
               <div className="min-w-0">
@@ -209,7 +209,10 @@ export default function BroadcastRoomPage() {
 
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <span>{isHost ? "Mode Host" : "Mode Co-streamer"}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-white/30" />
+                  <span
+                    aria-hidden="true"
+                    className="h-1 w-1 rounded-full bg-gray-300 dark:bg-white/30"
+                  />
                   <span>
                     Room{" "}
                     <strong className="font-semibold text-gray-700 dark:text-gray-200">
@@ -226,7 +229,7 @@ export default function BroadcastRoomPage() {
                   href={viewerHref}
                   className="inline-flex h-11 items-center gap-2 rounded-2xl border border-black/8 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
                 >
-                  <Eye className="h-4 w-4" />
+                  <Eye aria-hidden="true" className="h-4 w-4" />
                   Voir côté viewer
                 </Link>
               ) : null}
@@ -238,7 +241,7 @@ export default function BroadcastRoomPage() {
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
                   type="button"
                 >
-                  <Radio className="h-4 w-4" />
+                  <Radio aria-hidden="true" className="h-4 w-4" />
                   Lancer le live
                 </button>
               ) : null}
@@ -249,7 +252,7 @@ export default function BroadcastRoomPage() {
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(239,68,68,0.25)] transition hover:bg-red-400"
                   type="button"
                 >
-                  <Square className="h-4 w-4" />
+                  <Square aria-hidden="true" className="h-4 w-4" />
                   Arrêter
                 </button>
               ) : null}
@@ -258,17 +261,20 @@ export default function BroadcastRoomPage() {
         </header>
 
         {error ? (
-          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-700 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+          <div
+            role="alert"
+            className="mb-5 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-700 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+          >
             {error}
           </div>
         ) : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,860px)_380px] xl:justify-center xl:items-start">
-          <section className="min-w-0 space-y-5">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,860px)_380px] xl:items-start xl:justify-center">
+          <section className="min-w-0 space-y-5" aria-label="Diffusion vidéo">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-3xl border border-black/8 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
                 <div className="mb-2 inline-flex rounded-2xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                  <Video className="h-4 w-4" />
+                  <Video aria-hidden="true" className="h-4 w-4" />
                 </div>
                 <div className="text-2xl font-bold text-gray-950 dark:text-white">
                   {state === "live" ? "ON" : "OFF"}
@@ -280,7 +286,7 @@ export default function BroadcastRoomPage() {
 
               <div className="rounded-3xl border border-black/8 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
                 <div className="mb-2 inline-flex rounded-2xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                  <Users className="h-4 w-4" />
+                  <Users aria-hidden="true" className="h-4 w-4" />
                 </div>
                 <div className="text-2xl font-bold text-gray-950 dark:text-white">
                   {remoteStreams.length}/5
@@ -292,7 +298,7 @@ export default function BroadcastRoomPage() {
 
               <div className="rounded-3xl border border-black/8 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
                 <div className="mb-2 inline-flex rounded-2xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                  <MessageCircle className="h-4 w-4" />
+                  <MessageCircle aria-hidden="true" className="h-4 w-4" />
                 </div>
                 <div className="text-2xl font-bold text-gray-950 dark:text-white">
                   {chatMessages.length}
@@ -314,7 +320,11 @@ export default function BroadcastRoomPage() {
                   </div>
                 </div>
 
-                <div className="rounded-full bg-black/[0.04] px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-white/[0.06] dark:text-gray-300">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-full bg-black/[0.04] px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-white/[0.06] dark:text-gray-300"
+                >
                   {localStream ? "Flux local actif" : "En attente caméra"}
                 </div>
               </div>
@@ -343,7 +353,10 @@ export default function BroadcastRoomPage() {
 
                 {isStreaming ? (
                   <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 animate-pulse rounded-full bg-white"
+                    />
                     LIVE
                   </div>
                 ) : null}
@@ -351,13 +364,13 @@ export default function BroadcastRoomPage() {
             </div>
           </section>
 
-          <aside className="grid gap-5">
-            <div className="rounded-[30px] border border-black/8 bg-white/75 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
+          <aside className="grid gap-5" aria-label="Participants et chat">
+            <section className="rounded-[30px] border border-black/8 bg-white/75 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-bold text-gray-950 dark:text-white">
+                  <h2 className="text-sm font-bold text-gray-950 dark:text-white">
                     Co-streamers
-                  </div>
+                  </h2>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     Participants vidéo connectés
                   </div>
@@ -383,19 +396,25 @@ export default function BroadcastRoomPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </section>
 
-            <div className="flex h-[560px] flex-col overflow-hidden rounded-[30px] border border-black/8 bg-white/75 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
+            <section
+              className="flex h-[560px] flex-col overflow-hidden rounded-[30px] border border-black/8 bg-white/75 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)]"
+              aria-labelledby="broadcast-chat-title"
+            >
               <div className="flex items-center justify-between border-b border-black/8 px-4 py-4 dark:border-white/10">
                 <div className="flex items-center gap-2">
                   <div className="grid h-9 w-9 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300">
-                    <MessageCircle className="h-4 w-4" />
+                    <MessageCircle aria-hidden="true" className="h-4 w-4" />
                   </div>
 
                   <div>
-                    <div className="text-sm font-bold text-gray-950 dark:text-white">
+                    <h2
+                      id="broadcast-chat-title"
+                      className="text-sm font-bold text-gray-950 dark:text-white"
+                    >
                       Chat live
-                    </div>
+                    </h2>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {chatMessages.length} message(s)
                     </div>
@@ -405,6 +424,8 @@ export default function BroadcastRoomPage() {
 
               <div
                 ref={chatScrollRef}
+                aria-live="polite"
+                aria-label="Messages du chat live"
                 className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
               >
                 {chatMessages.length === 0 ? (
@@ -439,7 +460,10 @@ export default function BroadcastRoomPage() {
                       if (e.key === "Enter") onSendMessage();
                     }}
                     placeholder="Écrire un message..."
-                    className="min-w-0 flex-1 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#1b140e] dark:text-white"
+                    aria-label="Écrire un message dans le chat live"
+                    maxLength={MAX_MSG}
+                    disabled={sending}
+                    className="min-w-0 flex-1 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-[#1b140e] dark:text-white"
                   />
 
                   <button
@@ -447,8 +471,9 @@ export default function BroadcastRoomPage() {
                     disabled={sending || !message.trim()}
                     className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
                     type="button"
+                    aria-label="Envoyer le message"
                   >
-                    <SendHorizonal className="h-4 w-4" />
+                    <SendHorizonal aria-hidden="true" className="h-4 w-4" />
                   </button>
                 </div>
 
@@ -456,7 +481,7 @@ export default function BroadcastRoomPage() {
                   {message.length}/{MAX_MSG}
                 </div>
               </div>
-            </div>
+            </section>
           </aside>
         </div>
       </div>

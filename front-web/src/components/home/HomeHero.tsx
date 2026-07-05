@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
-import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+
 import LiveMomentCard from "@/components/home/hero/LiveMomentCard";
+import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 
 const TAG_GROUPS = [
   {
@@ -52,9 +53,9 @@ const TAG_GROUPS = [
   },
 ];
 
-type HomeHeroProps = {
+type HomeHeroProps = Readonly<{
   onSearch?: (params: { q: string; tag: string }) => void;
-};
+}>;
 
 export default function HomeHero({ onSearch }: HomeHeroProps) {
   const [query, setQuery] = useState("");
@@ -63,8 +64,13 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
 
   const selectedLabel = useMemo(() => {
     if (activeTag === "Tout") return "Toutes les cuisines";
+
     return activeTag;
   }, [activeTag]);
+
+  const activeGroup = useMemo(() => {
+    return TAG_GROUPS.find((group) => group.title === openGroup);
+  }, [openGroup]);
 
   const handleSearch = () => {
     onSearch?.({
@@ -74,14 +80,23 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
   };
 
   return (
-    <section className="grid gap-8 lg:grid-cols-[1.6fr_0.92fr] lg:items-start">
+    <section
+      aria-labelledby="home-hero-title"
+      className="grid gap-8 lg:grid-cols-[1.6fr_0.92fr] lg:items-start"
+    >
       <div className="pt-2">
         <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />
+          <span
+            className="h-2 w-2 rounded-full bg-orange-500"
+            aria-hidden="true"
+          />
           Foodstream
         </div>
 
-        <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-[1.02] tracking-tight text-gray-900 dark:text-gray-50 lg:text-[3.2rem]">
+        <h1
+          id="home-hero-title"
+          className="mt-4 max-w-3xl text-4xl font-semibold leading-[1.02] tracking-tight text-gray-900 dark:text-gray-50 lg:text-[3.2rem]"
+        >
           Regarde, cuisine, partage.
         </h1>
 
@@ -93,13 +108,21 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
         <div className="mt-6 rounded-[28px] border border-black/8 bg-white/75 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search
+                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                aria-hidden="true"
+              />
+
+              <label htmlFor="home-hero-search" className="sr-only">
+                Chercher une recette ou une cuisine
+              </label>
 
               <input
+                id="home-hero-search"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSearch();
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") handleSearch();
                 }}
                 placeholder="Chercher une recette, une cuisine..."
                 className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
@@ -107,6 +130,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
             </div>
 
             <button
+              type="button"
               onClick={handleSearch}
               className="h-12 shrink-0 rounded-2xl px-6 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:scale-[1.01] active:scale-[0.98]"
               style={{ background: ORANGE_GRADIENT_CSS }}
@@ -124,7 +148,10 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
               {selectedLabel}
             </span>
 
-            <div className="ml-0 flex overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:ml-2">
+            <div
+              className="ml-0 flex overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:ml-2"
+              aria-label="Groupes de filtres"
+            >
               {TAG_GROUPS.map((group, index) => {
                 const open = openGroup === group.title;
 
@@ -133,9 +160,12 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                     key={group.title}
                     type="button"
                     onClick={() => setOpenGroup(open ? "" : group.title)}
+                    aria-expanded={open}
                     className={[
                       "inline-flex items-center gap-2 px-3 py-2 text-xs font-bold transition",
-                      index !== 0 ? "border-l border-black/8 dark:border-white/10" : "",
+                      index !== 0
+                        ? "border-l border-black/8 dark:border-white/10"
+                        : "",
                       open
                         ? "bg-orange-500 text-white"
                         : "text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-300 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
@@ -143,6 +173,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                   >
                     {group.title}
                     <ChevronDown
+                      aria-hidden="true"
                       className={[
                         "h-3.5 w-3.5 transition",
                         open ? "rotate-180 text-white" : "",
@@ -154,10 +185,13 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
             </div>
           </div>
 
-          {openGroup && (
+          {activeGroup ? (
             <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50/50 p-3 dark:border-orange-500/20 dark:bg-orange-500/10">
-              <div className="flex flex-wrap gap-2">
-                {TAG_GROUPS.find((group) => group.title === openGroup)?.tags.map((tag) => (
+              <div
+                className="flex flex-wrap gap-2"
+                aria-label={`Filtres ${activeGroup.title}`}
+              >
+                {activeGroup.tags.map((tag) => (
                   <button
                     key={tag}
                     type="button"
@@ -169,6 +203,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                         tag,
                       });
                     }}
+                    aria-pressed={activeTag === tag}
                     className={[
                       "rounded-full px-3 py-1.5 text-xs font-semibold transition",
                       activeTag === tag
@@ -181,7 +216,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

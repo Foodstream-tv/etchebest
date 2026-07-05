@@ -1,16 +1,18 @@
-"use client";
+import type { ReactNode } from "react";
 
-function cx(...classes: Array<string | undefined | false>) {
+function cx(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
+
+type PageContainerProps = Readonly<{
+  children: ReactNode;
+  className?: string;
+}>;
 
 export default function PageContainer({
   children,
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+}: PageContainerProps) {
   return (
     <div
       className={cx(

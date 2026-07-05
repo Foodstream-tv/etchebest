@@ -1,8 +1,10 @@
-type ProfilePillProps = {
-  children: React.ReactNode;
+import type { ReactNode } from "react";
+
+type ProfilePillProps = Readonly<{
+  children: ReactNode;
   active?: boolean;
   onClick?: () => void;
-};
+}>;
 
 export default function ProfilePill({
   children,
@@ -13,6 +15,7 @@ export default function ProfilePill({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
         active
           ? "bg-orange-500 text-white"

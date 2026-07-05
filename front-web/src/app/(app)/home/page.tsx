@@ -16,7 +16,7 @@ export default function HomePage() {
   });
 
   return (
-    <main className="min-h-screen w-full">
+    <main id="main-content" className="min-h-screen w-full">
       <PageContainer className="py-6 lg:py-8">
         <HomeHero
           onSearch={({ q, tag }) => {

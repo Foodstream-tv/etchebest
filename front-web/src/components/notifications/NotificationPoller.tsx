@@ -2,9 +2,10 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/lib/useAuth";
+
 import { getMyActivities } from "@/lib/activity";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { useAuth } from "@/lib/useAuth";
 
 type Activity = {
   id: string;
@@ -12,13 +13,31 @@ type Activity = {
   created_at: string;
 };
 
+function getReadActivityIds(storageKey: string): string[] {
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) return [];
+
+    const parsed: unknown = JSON.parse(stored);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return [];
+  }
+}
+
 export default function NotificationPoller() {
   const pathname = usePathname();
   const { ready, user, token } = useAuth();
   const { pushNotification } = useNotifications();
 
   useEffect(() => {
-    if (!ready || !user || !token) return;
+    if (!ready || !user?.id || !token) return;
 
     let cancelled = false;
     const storageKey = `readActivityIds:${user.id}`;
@@ -26,13 +45,14 @@ export default function NotificationPoller() {
     const checkActivities = async () => {
       try {
         const res = await getMyActivities(token);
+
         if (cancelled) return;
 
-        const activities: Activity[] = res.activities ?? [];
+        const activities: Activity[] = Array.isArray(res.activities)
+          ? res.activities
+          : [];
 
-        const readActivityIds = JSON.parse(
-          localStorage.getItem(storageKey) || "[]"
-        ) as string[];
+        const readActivityIds = getReadActivityIds(storageKey);
 
         const unreadActivities = activities.filter(
           (activity) => !readActivityIds.includes(activity.id)
@@ -46,14 +66,14 @@ export default function NotificationPoller() {
               href: "/profile",
             });
           });
-
-          localStorage.setItem(
-            storageKey,
-            JSON.stringify(activities.map((activity) => activity.id))
-          );
         }
+
+        window.localStorage.setItem(
+          storageKey,
+          JSON.stringify(activities.map((activity) => activity.id))
+        );
       } catch {
-        // silencieux
+        // Échec silencieux pour éviter de gêner l'utilisateur.
       }
     };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 type OrbItem = {
@@ -9,6 +9,10 @@ type OrbItem = {
   wrapperClassName: string;
   motionClassName: string;
 };
+
+type AppBackgroundProps = Readonly<{
+  children: ReactNode;
+}>;
 
 const ORBS: OrbItem[] = [
   {
@@ -36,16 +40,14 @@ const ORBS: OrbItem[] = [
 
 const AUTH_PATHS = ["/signin", "/signup", "/forgot-password"];
 
-export default function AppBackground({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AppBackground({ children }: AppBackgroundProps) {
   const pathname = usePathname();
   const [isDark, setIsDark] = useState(true);
 
   const showOrbWords = useMemo(() => {
-    return AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+    return AUTH_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    );
   }, [pathname]);
 
   useEffect(() => {
@@ -56,12 +58,15 @@ export default function AppBackground({
     updateTheme();
 
     const observer = new MutationObserver(updateTheme);
+
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   const getOrbBackground = (id: string) => {
@@ -96,39 +101,89 @@ export default function AppBackground({
     >
       <style jsx global>{`
         @keyframes fsOrbFloatA {
-          0% { transform: translate3d(0, 0, 0) scale(1); }
-          25% { transform: translate3d(30px, -18px, 0) scale(1.05); }
-          50% { transform: translate3d(8px, -34px, 0) scale(1.08); }
-          75% { transform: translate3d(-20px, -10px, 0) scale(1.03); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
+          0% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          25% {
+            transform: translate3d(30px, -18px, 0) scale(1.05);
+          }
+          50% {
+            transform: translate3d(8px, -34px, 0) scale(1.08);
+          }
+          75% {
+            transform: translate3d(-20px, -10px, 0) scale(1.03);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
         }
 
         @keyframes fsOrbFloatB {
-          0% { transform: translate3d(0, 0, 0) scale(1); }
-          25% { transform: translate3d(-18px, 14px, 0) scale(1.03); }
-          50% { transform: translate3d(-6px, 26px, 0) scale(1.06); }
-          75% { transform: translate3d(14px, 8px, 0) scale(1.02); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
+          0% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          25% {
+            transform: translate3d(-18px, 14px, 0) scale(1.03);
+          }
+          50% {
+            transform: translate3d(-6px, 26px, 0) scale(1.06);
+          }
+          75% {
+            transform: translate3d(14px, 8px, 0) scale(1.02);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
         }
 
         @keyframes fsOrbFloatC {
-          0% { transform: translate3d(0, 0, 0) scale(1); }
-          25% { transform: translate3d(18px, -10px, 0) scale(1.04); }
-          50% { transform: translate3d(6px, -24px, 0) scale(1.07); }
-          75% { transform: translate3d(-14px, -8px, 0) scale(1.03); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
+          0% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          25% {
+            transform: translate3d(18px, -10px, 0) scale(1.04);
+          }
+          50% {
+            transform: translate3d(6px, -24px, 0) scale(1.07);
+          }
+          75% {
+            transform: translate3d(-14px, -8px, 0) scale(1.03);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
         }
 
         @keyframes fsOrbGlow {
-          0% { opacity: 0.82; filter: blur(0px); }
-          50% { opacity: 1; filter: blur(10px); }
-          100% { opacity: 0.82; filter: blur(0px); }
+          0% {
+            opacity: 0.82;
+            filter: blur(0px);
+          }
+          50% {
+            opacity: 1;
+            filter: blur(10px);
+          }
+          100% {
+            opacity: 0.82;
+            filter: blur(0px);
+          }
         }
 
-        .fs-orb-a { animation: fsOrbFloatA 14s ease-in-out infinite; }
-        .fs-orb-b { animation: fsOrbFloatB 18s ease-in-out infinite; }
-        .fs-orb-c { animation: fsOrbFloatC 16s ease-in-out infinite; }
-        .fs-orb-glow { animation: fsOrbGlow 7s ease-in-out infinite; }
+        .fs-orb-a {
+          animation: fsOrbFloatA 14s ease-in-out infinite;
+        }
+
+        .fs-orb-b {
+          animation: fsOrbFloatB 18s ease-in-out infinite;
+        }
+
+        .fs-orb-c {
+          animation: fsOrbFloatC 16s ease-in-out infinite;
+        }
+
+        .fs-orb-glow {
+          animation: fsOrbGlow 7s ease-in-out infinite;
+        }
 
         @media (prefers-reduced-motion: reduce) {
           .fs-orb-a,
@@ -140,10 +195,14 @@ export default function AppBackground({
         }
       `}</style>
 
-      <div className={`absolute inset-0 ${isDark ? "bg-[#050505]" : "bg-[#f6f2ed]"}`} />
+      <div
+        className={`absolute inset-0 ${isDark ? "bg-[#050505]" : "bg-[#f6f2ed]"}`}
+        aria-hidden="true"
+      />
 
       <div
         className="absolute inset-0"
+        aria-hidden="true"
         style={{
           background: isDark
             ? "radial-gradient(circle at center, rgba(20,20,20,1) 0%, rgba(5,5,5,1) 70%)"
@@ -151,11 +210,14 @@ export default function AppBackground({
         }}
       />
 
-      <div className="pointer-events-none absolute inset-0 z-[2]">
+      <div
+        className="pointer-events-none absolute inset-0 z-[2]"
+        aria-hidden="true"
+      >
         {ORBS.map((orb) => (
           <div
             key={orb.id}
-            className={`absolute overflow-hidden rounded-full select-none ${orb.wrapperClassName} ${orb.motionClassName}`}
+            className={`absolute select-none overflow-hidden rounded-full ${orb.wrapperClassName} ${orb.motionClassName}`}
           >
             <div
               className="fs-orb-glow absolute inset-0 rounded-full"
@@ -171,8 +233,8 @@ export default function AppBackground({
                     orb.id === "passion"
                       ? "text-2xl md:text-3xl"
                       : orb.id === "partage"
-                      ? "text-sm md:text-base"
-                      : "text-xl md:text-2xl"
+                        ? "text-sm md:text-base"
+                        : "text-xl md:text-2xl"
                   } ${isDark ? "text-white/90" : "text-black/70"}`}
                 >
                   {orb.word}
@@ -183,7 +245,12 @@ export default function AppBackground({
         ))}
       </div>
 
-      <div className={`absolute inset-0 z-[3] ${isDark ? "bg-black/10" : "bg-white/20"}`} />
+      <div
+        className={`absolute inset-0 z-[3] ${
+          isDark ? "bg-black/10" : "bg-white/20"
+        }`}
+        aria-hidden="true"
+      />
 
       <div className="relative z-[10] min-h-screen">{children}</div>
     </div>
