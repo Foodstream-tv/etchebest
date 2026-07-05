@@ -12,31 +12,12 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
-import { globalSearch } from "@/lib/search";
+import { globalSearch, type SearchResponse } from "@/lib/search";
 import { useAuth } from "@/lib/useAuth";
 
 type NavItem = {
   label: string;
   href: string;
-};
-
-type SearchUser = {
-  id: string;
-  username?: string;
-  email?: string;
-  profileImageUrl?: string;
-};
-
-type SearchLive = {
-  id: string;
-  title?: string;
-  dishName?: string;
-  thumbnailUrl?: string;
-};
-
-type SearchResults = {
-  users?: SearchUser[];
-  lives?: SearchLive[];
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -60,7 +41,7 @@ function initialsOf(name?: string, email?: string) {
 
 export default function AppTopNav() {
   const [search, setSearch] = useState("");
-  const [results, setResults] = useState<SearchResults | null>(null);
+  const [results, setResults] = useState<SearchResponse | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [failedProfileImage, setFailedProfileImage] = useState(false);
   const [failedSearchImages, setFailedSearchImages] = useState<Set<string>>(
