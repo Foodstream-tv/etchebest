@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { Check, Loader2, UserPlus } from "lucide-react";
+
 import { followUser, isFollowingUser, unfollowUser } from "@/lib/users";
 import { useAuth } from "@/lib/useAuth";
 
-type FollowButtonProps = {
+type FollowButtonProps = Readonly<{
   userId: string;
   className?: string;
   onChange?: (isFollowing: boolean) => void;
-};
+}>;
 
 export default function FollowButton({
   userId,
@@ -35,12 +36,20 @@ export default function FollowButton({
     async function loadFollowState() {
       try {
         setLoading(true);
+
         const res = await isFollowingUser(userId, token ?? undefined);
-        if (mounted) setIsFollowing(res.is_following);
+
+        if (mounted) {
+          setIsFollowing(res.is_following);
+        }
       } catch {
-        if (mounted) setIsFollowing(false);
+        if (mounted) {
+          setIsFollowing(false);
+        }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     }
 
@@ -52,7 +61,7 @@ export default function FollowButton({
   }, [token, userId, isOwnProfile]);
 
   async function handleToggleFollow() {
-    if (!token || saving || isOwnProfile) return;
+    if (!token || saving || loading || isOwnProfile) return;
 
     try {
       setSaving(true);
@@ -73,11 +82,15 @@ export default function FollowButton({
 
   if (isOwnProfile) return null;
 
+  const isBusy = loading || saving;
+
   return (
     <button
       type="button"
       onClick={handleToggleFollow}
-      disabled={loading || saving}
+      disabled={isBusy}
+      aria-pressed={isFollowing}
+      aria-busy={isBusy}
       className={[
         "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition",
         isFollowing
@@ -87,15 +100,15 @@ export default function FollowButton({
         className,
       ].join(" ")}
     >
-      {loading || saving ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+      {isBusy ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
       ) : isFollowing ? (
-        <Check className="h-4 w-4" />
+        <Check className="h-4 w-4" aria-hidden="true" />
       ) : (
-        <UserPlus className="h-4 w-4" />
+        <UserPlus className="h-4 w-4" aria-hidden="true" />
       )}
 
-      {isFollowing ? "Suivi" : "Suivre"}
+      {isBusy ? "Chargement..." : isFollowing ? "Suivi" : "Suivre"}
     </button>
   );
 }

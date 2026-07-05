@@ -1,9 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, MoreVertical, PlayCircle } from "lucide-react";
-import { useRef } from "react";
+import Link from "next/link";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
+  PlayCircle,
+} from "lucide-react";
+import { useId, useRef } from "react";
+
 import type { LiveDTO } from "@/lib/lives";
 
 type Props = {
@@ -13,6 +19,7 @@ type Props = {
 
 export default function ReplayCarouselSection({ title, replays }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
 
   const scroll = (direction: "left" | "right") => {
     scrollRef.current?.scrollBy({
@@ -23,11 +30,13 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
 
   if (!replays.length) return null;
 
+  const [firstWord, ...restTitle] = title.split(" ");
+
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-950 dark:text-white">
-        <span className="text-orange-500">{title.split(" ")[0]}</span>{" "}
-        {title.split(" ").slice(1).join(" ")}
+    <section className="space-y-4" aria-labelledby={titleId}>
+      <h2 id={titleId} className="text-xl font-bold text-gray-950 dark:text-white">
+        <span className="text-orange-500">{firstWord}</span>{" "}
+        {restTitle.join(" ")}
       </h2>
 
       <div className="relative">
@@ -36,17 +45,19 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
             <button
               type="button"
               onClick={() => scroll("left")}
+              aria-label={`Faire défiler la section ${title} vers la gauche`}
               className="absolute -left-4 top-[38%] z-20 grid h-10 w-10 place-items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur transition hover:bg-black"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </button>
 
             <button
               type="button"
               onClick={() => scroll("right")}
+              aria-label={`Faire défiler la section ${title} vers la droite`}
               className="absolute -right-4 top-[38%] z-20 grid h-10 w-10 place-items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur transition hover:bg-black"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5" aria-hidden="true" />
             </button>
           </>
         ) : null}
@@ -59,25 +70,31 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
             const thumbnail =
               replay.thumbnail_url || "/images/live-fallback.png";
 
+            const creatorName = replay.user?.username || "Chef FoodStream";
+
             return (
               <Link
                 key={replay.id}
                 href={`/replays/${encodeURIComponent(replay.room_id)}`}
+                aria-label={`Voir le replay ${replay.title} par ${creatorName}`}
                 className="group w-[310px] shrink-0"
               >
                 <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
                   <Image
                     src={thumbnail}
-                    alt={replay.title}
+                    alt={`Miniature du replay ${replay.title}`}
                     fill
                     sizes="310px"
                     className="object-cover transition duration-300 group-hover:scale-105"
                   />
 
-                  <div className="absolute inset-0 bg-black/10 transition group-hover:bg-black/25" />
+                  <div
+                    className="absolute inset-0 bg-black/10 transition group-hover:bg-black/25"
+                    aria-hidden="true"
+                  />
 
                   <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white">
-                    <PlayCircle className="h-3.5 w-3.5" />
+                    <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
                     REPLAY
                   </div>
 
@@ -92,7 +109,7 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
                     {replay.user?.profile_image_url ? (
                       <Image
                         src={replay.user.profile_image_url}
-                        alt={replay.user.username || "Créateur"}
+                        alt={`Photo de profil de ${creatorName}`}
                         width={40}
                         height={40}
                         className="h-full w-full object-cover"
@@ -106,11 +123,14 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
                         {replay.title}
                       </h3>
 
-                      <MoreVertical className="h-4 w-4 shrink-0 text-gray-400" />
+                      <MoreVertical
+                        className="h-4 w-4 shrink-0 text-gray-400"
+                        aria-hidden="true"
+                      />
                     </div>
 
                     <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
-                      {replay.user?.username || "Chef FoodStream"}
+                      {creatorName}
                     </p>
 
                     <p className="truncate text-sm text-gray-500 dark:text-gray-400">

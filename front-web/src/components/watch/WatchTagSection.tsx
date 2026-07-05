@@ -44,10 +44,13 @@ export default function WatchTagSection({
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" aria-labelledby={`tag-${tagName}`}>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+          <h2
+            id={`tag-${tagName}`}
+            className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
+          >
             {tagName}
           </h2>
 
@@ -60,17 +63,21 @@ export default function WatchTagSection({
         {displayedLives.length > 3 ? (
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => scroll("left")}
+              aria-label={`Faire défiler la section ${tagName} vers la gauche`}
               className="grid h-10 w-10 place-items-center rounded-2xl border border-black/8 bg-white/80 text-gray-900 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
 
             <button
+              type="button"
               onClick={() => scroll("right")}
+              aria-label={`Faire défiler la section ${tagName} vers la droite`}
               className="grid h-10 w-10 place-items-center rounded-2xl border border-black/8 bg-white/80 text-gray-900 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
             >
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         ) : null}
@@ -81,12 +88,9 @@ export default function WatchTagSection({
         className="flex gap-6 overflow-x-auto pb-2 scrollbar-hide"
       >
         {displayedLives.map((live) => {
-          const rid = encodeURIComponent(
-            live.room_id || String(live.id)
-          );
+          const rid = encodeURIComponent(live.room_id || String(live.id));
 
-          const thumbnail =
-            live.thumbnail_url || "/images/live-fallback.png";
+          const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
 
           return (
             <article
@@ -97,11 +101,14 @@ export default function WatchTagSection({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={thumbnail}
-                  alt={live.title}
+                  alt={`Miniature du live ${live.title}`}
                   className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-105"
                 />
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                <div
+                  className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"
+                  aria-hidden="true"
+                />
 
                 <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                   <span
@@ -115,11 +122,14 @@ export default function WatchTagSection({
                     ].join(" ")}
                   >
                     {live.status === "live" ? (
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                      <span
+                        className="h-2 w-2 animate-pulse rounded-full bg-white"
+                        aria-hidden="true"
+                      />
                     ) : live.status === "ended" ? (
-                      <PlayCircle className="h-3.5 w-3.5" />
+                      <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
                     ) : (
-                      <Radio className="h-3.5 w-3.5" />
+                      <Radio className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
 
                     {live.status === "live"
@@ -144,7 +154,7 @@ export default function WatchTagSection({
               </div>
 
               <div className="space-y-4 p-5">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2" aria-label="Tags du live">
                   {live.tags?.slice(0, 3).map((tag) => (
                     <span
                       key={tag.id}
@@ -157,12 +167,12 @@ export default function WatchTagSection({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04] dark:text-gray-300">
-                    <Eye className="mb-1 h-4 w-4" />
+                    <Eye className="mb-1 h-4 w-4" aria-hidden="true" />
                     {live.current_viewers ?? 0} spectateurs
                   </div>
 
                   <div className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04] dark:text-gray-300">
-                    <Users className="mb-1 h-4 w-4" />
+                    <Users className="mb-1 h-4 w-4" aria-hidden="true" />
                     Créateur
                   </div>
                 </div>
@@ -173,7 +183,7 @@ export default function WatchTagSection({
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                   >
                     Replay
-                    <ArrowRight className="h-4 w-4" />
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
@@ -182,7 +192,7 @@ export default function WatchTagSection({
                       className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
                       Regarder
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
 
                     {live.status === "live" ? (

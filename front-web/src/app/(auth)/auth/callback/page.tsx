@@ -58,9 +58,16 @@ export default function AuthCallbackPage() {
   }, [params, router, setAuth]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6 py-12">
+    <main
+      id="main-content"
+      className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6 py-12"
+    >
       <div className="rounded-3xl border border-black/8 bg-white/80 px-8 py-6 shadow-[0_20px_60px_rgba(0,0,0,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/72 dark:shadow-[0_24px_80px_rgba(0,0,0,0.42)]">
-        <p className="text-sm text-gray-600 dark:text-gray-300">
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-sm text-gray-600 dark:text-gray-300"
+        >
           Connexion en cours…
         </p>
       </div>

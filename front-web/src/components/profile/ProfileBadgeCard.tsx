@@ -1,27 +1,41 @@
+import { useId } from "react";
+
+type ProfileBadgeCardProps = Readonly<{
+  title: string;
+  subtitle?: string;
+  meta: string;
+}>;
+
 export default function ProfileBadgeCard({
   title,
   subtitle,
   meta,
-}: {
-  title: string;
-  subtitle?: string;
-  meta: string;
-}) {
+}: ProfileBadgeCardProps) {
+  const titleId = useId();
+
   return (
-    <div className="rounded-2xl bg-black/[0.03] p-3 text-center ring-1 ring-black/5 dark:bg-white/[0.04] dark:ring-white/10">
-      <div className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+    <article
+      aria-labelledby={titleId}
+      className="rounded-2xl bg-black/[0.03] p-3 text-center ring-1 ring-black/5 dark:bg-white/[0.04] dark:ring-white/10"
+    >
+      <h3
+        id={titleId}
+        className="text-xs font-semibold text-gray-800 dark:text-gray-200"
+      >
         {title}
-      </div>
+      </h3>
+
       {subtitle ? (
-        <div className="text-[11px] text-gray-500 dark:text-gray-400">
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">
           {subtitle}
-        </div>
+        </p>
       ) : (
-        <div className="h-4" />
+        <div className="h-4" aria-hidden="true" />
       )}
-      <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+
+      <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
         {meta}
-      </div>
-    </div>
+      </p>
+    </article>
   );
 }

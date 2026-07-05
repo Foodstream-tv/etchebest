@@ -48,43 +48,54 @@ const products: Product[] = [
   },
 ];
 
-function ProductCard({ product }: { product: Product }) {
+function ProductCard({ product }: Readonly<{ product: Product }>) {
   const { addToCart } = useCart();
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 dark:bg-neutral-900">
+    <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 dark:bg-neutral-900">
       <div className="relative h-56 w-full">
-        <Image src={product.image} alt={product.name} fill sizes="(max-width: 768px) 100vw, 300px" className="object-cover" />
+        <Image
+          src={product.image}
+          alt=""
+          fill
+          sizes="(max-width: 768px) 100vw, 300px"
+          className="object-cover"
+        />
       </div>
 
       <div className="p-4">
-        <h3 className="text-base font-bold text-gray-900 dark:text-white">
+        <h2 className="text-base font-bold text-gray-900 dark:text-white">
           {product.name}
-        </h3>
+        </h2>
+
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {product.price.toFixed(2)} €
         </p>
 
         <button
-          onClick={() => addToCart(product)}
-          className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
           type="button"
+          onClick={() => addToCart(product)}
+          aria-label={`Ajouter ${product.name} au panier`}
+          className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
         >
           Ajouter au panier
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
 export default function UstensilesPage() {
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+    <main
+      id="main-content"
+      className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8"
+    >
       <Link
         href="/shop"
         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-orange-600 dark:text-gray-300 dark:hover:text-orange-300"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         Retour à la boutique
       </Link>
 
@@ -92,13 +103,21 @@ export default function UstensilesPage() {
         <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
           Ustensiles de cuisine
         </h1>
+
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">
           Tous les essentiels pour cuisiner dans de bonnes conditions pendant tes
           lives FoodStream.
         </p>
       </section>
 
-      <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+      <section
+        aria-labelledby="products-title"
+        className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <h2 id="products-title" className="sr-only">
+          Produits de la catégorie ustensiles
+        </h2>
+
         {products.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}

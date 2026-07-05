@@ -40,6 +40,8 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
 
+  const hasError = Boolean(error || callbackError);
+
   const canSubmit = useMemo(() => {
     return isValidEmail(email) && password.length >= 1;
   }, [email, password]);
@@ -116,6 +118,7 @@ export default function SignInPage() {
           autoComplete="email"
           required
           disabled={loading}
+          aria-describedby={hasError ? "signin-error" : undefined}
         />
 
         <PasswordField
@@ -124,6 +127,7 @@ export default function SignInPage() {
           placeholder="Mot de passe"
           autoComplete="current-password"
           disabled={loading}
+          aria-describedby={hasError ? "signin-error" : undefined}
         />
 
         <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
@@ -137,11 +141,15 @@ export default function SignInPage() {
           <span>Rester connecté</span>
         </label>
 
-        {(error || callbackError) && (
-          <p className="text-sm font-medium text-red-500">
+        {hasError ? (
+          <p
+            id="signin-error"
+            role="alert"
+            className="text-sm font-medium text-red-500"
+          >
             {error || "Connexion externe impossible."}
           </p>
-        )}
+        ) : null}
 
         <button
           type="submit"

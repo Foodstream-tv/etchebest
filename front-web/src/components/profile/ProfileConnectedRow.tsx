@@ -1,21 +1,32 @@
-type ProfileConnectedRowProps = {
+import { useId } from "react";
+
+type ProfileConnectedRowProps = Readonly<{
   label: string;
   connected: boolean;
   onToggle?: () => void;
-};
+}>;
 
 export default function ProfileConnectedRow({
   label,
   connected,
   onToggle,
 }: ProfileConnectedRowProps) {
+  const id = useId();
+
   return (
     <div className="flex items-center justify-between rounded-2xl bg-black/[0.03] px-3 py-3 text-sm ring-1 ring-black/5 dark:bg-white/[0.04] dark:ring-white/10">
-      <span className="text-gray-800 dark:text-gray-200">{label}</span>
+      <span
+        id={id}
+        className="text-gray-800 dark:text-gray-200"
+      >
+        {label}
+      </span>
 
       <button
         type="button"
         onClick={onToggle}
+        aria-labelledby={id}
+        aria-pressed={connected}
         className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
           connected
             ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/30"

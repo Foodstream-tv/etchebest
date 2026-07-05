@@ -1,14 +1,19 @@
-type ChipProps = {
+type ChipProps = Readonly<{
   label: string;
   active?: boolean;
   onClick?: () => void;
-};
+}>;
 
-export default function Chip({ label, active = false, onClick }: ChipProps) {
+export default function Chip({
+  label,
+  active = false,
+  onClick,
+}: ChipProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
         active
           ? "bg-gray-900 text-white dark:bg-white dark:text-neutral-900"

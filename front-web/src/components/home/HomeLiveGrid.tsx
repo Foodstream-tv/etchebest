@@ -1,28 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CalendarDays,
+  Eye,
   Flame,
   PlayCircle,
-  Star,
   Radio,
-  Eye,
+  Star,
   Users,
 } from "lucide-react";
-import { useAuth } from "@/lib/useAuth";
-import { getLives, type LiveDTO } from "@/lib/lives";
-import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+
+import FeaturedCreatorRow from "@/components/home/live/FeaturedCreatorRow";
 import LiveGridCard from "@/components/home/live/LiveGridCard";
 import UpcomingCard from "@/components/home/live/UpcomingCard";
-import FeaturedCreatorRow from "@/components/home/live/FeaturedCreatorRow";
+import { getLives, type LiveDTO } from "@/lib/lives";
+import { useAuth } from "@/lib/useAuth";
+import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 
 type TabKey = "live" | "popular" | "replays" | "planned";
 
-type HomeLiveGridProps = {
+type HomeLiveGridProps = Readonly<{
   query?: string;
   tag?: string;
-};
+}>;
 
 type CardItem = {
   id: string;
@@ -35,11 +36,33 @@ type CardItem = {
   imageUrl?: string;
 };
 
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-  { key: "live", label: "En direct", icon: <Flame className="h-4 w-4" /> },
-  { key: "popular", label: "Populaires", icon: <Star className="h-4 w-4" /> },
-  { key: "replays", label: "Replays", icon: <PlayCircle className="h-4 w-4" /> },
-  { key: "planned", label: "Planifiés", icon: <CalendarDays className="h-4 w-4" /> },
+type TabItem = {
+  key: TabKey;
+  label: string;
+  icon: ReactNode;
+};
+
+const TABS: TabItem[] = [
+  {
+    key: "live",
+    label: "En direct",
+    icon: <Flame className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    key: "popular",
+    label: "Populaires",
+    icon: <Star className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    key: "replays",
+    label: "Replays",
+    icon: <PlayCircle className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    key: "planned",
+    label: "Planifiés",
+    icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
+  },
 ];
 
 const UPCOMING = [
@@ -72,7 +95,12 @@ const CREATORS = [
 function liveToCardItem(live: LiveDTO): CardItem {
   return {
     id: live.room_id || String(live.id),
-    badge: live.status === "live" ? "Live" : live.status === "scheduled" ? "Planifié" : "Replay",
+    badge:
+      live.status === "live"
+        ? "Live"
+        : live.status === "scheduled"
+          ? "Planifié"
+          : "Replay",
     title: live.title || "Live sans titre",
     author: live.user?.username || "Chef FoodStream",
     viewers: live.current_viewers ?? 0,
@@ -81,14 +109,17 @@ function liveToCardItem(live: LiveDTO): CardItem {
   };
 }
 
-export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridProps) {
+export default function HomeLiveGrid({
+  query = "",
+  tag = "Tout",
+}: HomeLiveGridProps) {
   const [tab, setTab] = useState<TabKey>("live");
   const [lives, setLives] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { token } = useAuth();
 
-  const status = useMemo(() => {
+  const status = useMemo<"all" | "scheduled" | "live" | "ended">(() => {
     if (tab === "live") return "live";
     if (tab === "planned") return "scheduled";
     if (tab === "replays") return "ended";
@@ -106,18 +137,24 @@ export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridP
           {
             q: query,
             tag,
-            status: status as "all" | "scheduled" | "live",
+            status,
           },
           token ?? undefined
         );
 
         if (!mounted) return;
-        setLives(res.lives ?? []);
+
+        setLives(Array.isArray(res.lives) ? res.lives : []);
       } catch (error) {
         console.error("Impossible de charger les lives :", error);
-        if (mounted) setLives([]);
+
+        if (mounted) {
+          setLives([]);
+        }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     }
 
@@ -136,28 +173,59 @@ export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridP
   }, [lives]);
 
   const items = useMemo(() => {
-    switch (tab) {
-      case "popular":
-        return [...liveItems].sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0));
-      default:
-        return liveItems;
+    if (tab === "popular") {
+      return [...liveItems].sort(
+        (a, b) => (b.viewers ?? 0) - (a.viewers ?? 0)
+      );
     }
+
+    return liveItems;
   }, [tab, liveItems]);
 
-  const totalViewers = lives.reduce((sum, live) => sum + (live.current_viewers ?? 0), 0);
-  const liveCount = lives.filter((live) => live.status === "live").length;
-  const uniqueCreators = new Set(lives.map((live) => live.user?.id).filter(Boolean)).size;
+  const stats = useMemo(() => {
+    const totalViewers = lives.reduce(
+      (sum, live) => sum + (live.current_viewers ?? 0),
+      0
+    );
+
+    const liveCount = lives.filter((live) => live.status === "live").length;
+
+    const uniqueCreators = new Set(
+      lives.map((live) => live.user?.id).filter(Boolean)
+    ).size;
+
+    return {
+      totalViewers,
+      liveCount,
+      uniqueCreators,
+    };
+  }, [lives]);
 
   return (
-    <section className="pb-14 pt-8">
+    <section
+      className="pb-14 pt-8"
+      aria-labelledby="home-live-grid-title"
+      aria-busy={loading}
+    >
+      <h2 id="home-live-grid-title" className="sr-only">
+        Lives FoodStream
+      </h2>
+
       <div className="rounded-[28px] border border-black/8 bg-white/72 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="tablist"
+          aria-label="Filtres des lives"
+        >
           {TABS.map((tabItem) => {
             const active = tabItem.key === tab;
 
             return (
               <button
                 key={tabItem.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setTab(tabItem.key)}
                 className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
                   active
@@ -177,10 +245,14 @@ export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridP
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {loading ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              role="status"
+              aria-label="Chargement des lives"
+              className="grid grid-cols-1 gap-6 sm:grid-cols-2"
+            >
+              {Array.from({ length: 4 }).map((_, index) => (
                 <div
-                  key={i}
+                  key={index}
                   className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
                 >
                   <div className="aspect-[16/9] w-full animate-pulse bg-black/[0.06] dark:bg-white/10" />
@@ -193,62 +265,101 @@ export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridP
             </div>
           ) : items.length > 0 ? (
             <>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-                  <div className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
+              <div
+                className="grid gap-3 sm:grid-cols-3"
+                aria-label="Statistiques des lives"
+              >
+                <article
+                  aria-label={`Lives actifs : ${stats.liveCount}`}
+                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                >
+                  <div
+                    className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200"
+                    aria-hidden="true"
+                  >
                     <Radio className="h-4 w-4" />
                   </div>
-                  <div className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                    {liveCount}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Lives actifs
-                  </div>
-                </div>
 
-                <div className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-                  <div className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
+                  <p className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+                    {stats.liveCount}
+                  </p>
+
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Lives actifs
+                  </p>
+                </article>
+
+                <article
+                  aria-label={`Spectateurs : ${stats.totalViewers}`}
+                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                >
+                  <div
+                    className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200"
+                    aria-hidden="true"
+                  >
                     <Eye className="h-4 w-4" />
                   </div>
-                  <div className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                    {totalViewers}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Spectateurs
-                  </div>
-                </div>
 
-                <div className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-                  <div className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
+                  <p className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+                    {stats.totalViewers}
+                  </p>
+
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Spectateurs
+                  </p>
+                </article>
+
+                <article
+                  aria-label={`Créateurs : ${stats.uniqueCreators}`}
+                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                >
+                  <div
+                    className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200"
+                    aria-hidden="true"
+                  >
                     <Users className="h-4 w-4" />
                   </div>
-                  <div className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                    {uniqueCreators}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+
+                  <p className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+                    {stats.uniqueCreators}
+                  </p>
+
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Créateurs
-                  </div>
-                </div>
+                  </p>
+                </article>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div
+                role="tabpanel"
+                className="grid grid-cols-1 gap-6 sm:grid-cols-2"
+              >
                 {items.map((item) => (
                   <LiveGridCard key={item.id} item={item} />
                 ))}
               </div>
             </>
           ) : (
-            <div className="rounded-[28px] border border-black/8 bg-white/72 p-6 text-sm text-gray-600 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-300">
+            <p
+              role="status"
+              className="rounded-[28px] border border-black/8 bg-white/72 p-6 text-sm text-gray-600 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-300"
+            >
               Aucun contenu trouvé pour ces filtres.
-            </div>
+            </p>
           )}
         </div>
 
-        <aside className="space-y-6">
-          <div className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-            <div className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-50">
+        <aside className="space-y-6" aria-label="Informations complémentaires">
+          <section
+            aria-labelledby="upcoming-lives-title"
+            className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+          >
+            <h3
+              id="upcoming-lives-title"
+              className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-50"
+            >
               À venir
-            </div>
+            </h3>
 
             <div className="space-y-3">
               {UPCOMING.map((item) => (
@@ -260,15 +371,24 @@ export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridP
                 />
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+          <section
+            aria-labelledby="featured-creators-title"
+            className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+          >
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+              <h3
+                id="featured-creators-title"
+                className="text-sm font-semibold text-gray-900 dark:text-gray-50"
+              >
                 Créateurs mis en avant
-              </div>
+              </h3>
 
-              <span className="rounded-full bg-black/[0.04] px-2 py-1 text-[11px] text-gray-600 dark:bg-white/[0.05] dark:text-gray-300">
+              <span
+                aria-hidden="true"
+                className="rounded-full bg-black/[0.04] px-2 py-1 text-[11px] text-gray-600 dark:bg-white/[0.05] dark:text-gray-300"
+              >
                 Top 10
               </span>
             </div>
@@ -282,7 +402,7 @@ export default function HomeLiveGrid({ query = "", tag = "Tout" }: HomeLiveGridP
                 />
               ))}
             </div>
-          </div>
+          </section>
         </aside>
       </div>
     </section>

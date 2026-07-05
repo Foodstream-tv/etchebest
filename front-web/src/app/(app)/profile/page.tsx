@@ -204,19 +204,29 @@ export default function ProfilePage() {
 
   if (!ready) {
     return (
-      <main className="grid min-h-[60vh] place-items-center">
-        <p className="text-sm text-gray-500 dark:text-gray-300">Chargement…</p>
+      <main id="main-content" className="grid min-h-[60vh] place-items-center">
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-sm text-gray-500 dark:text-gray-300"
+        >
+          Chargement…
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="grid min-h-[60vh] place-items-center">
+      <main id="main-content" className="grid min-h-[60vh] place-items-center">
         <div className="text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+          <p
+            role="alert"
+            className="text-sm text-gray-600 dark:text-gray-300"
+          >
             Session expirée.
           </p>
+
           <Link
             href="/signin"
             className="mt-3 inline-block rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
@@ -365,23 +375,26 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="min-h-screen">
+    <main id="main-content" className="min-h-screen">
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="grid gap-8 md:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-6">
+          <aside className="space-y-6" aria-label="Informations du profil">
             <ProfileCard>
               <div className="flex items-center gap-3">
                 <div className="relative h-16 w-16 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
                   {profile?.profileImageUrl || user.profileImageUrl ? (
                     <Image
                       src={(profile?.profileImageUrl || user.profileImageUrl)!}
-                      alt={displayName}
+                      alt={`Photo de profil de ${displayName}`}
                       fill
                       sizes="64px"
                       className="object-cover"
                     />
                   ) : (
-                    <div className="grid h-full w-full place-items-center text-lg font-bold">
+                    <div
+                      aria-label={`Initiales de ${displayName}`}
+                      className="grid h-full w-full place-items-center text-lg font-bold"
+                    >
                       {initialsOf(profile?.username || user.username, user.email)}
                     </div>
                   )}
@@ -393,17 +406,17 @@ export default function ProfilePage() {
                       {displayName}
                     </div>
 
-                    {profile?.isVerified && (
+                    {profile?.isVerified ? (
                       <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
                         Vérifié
                       </span>
-                    )}
+                    ) : null}
 
-                    {profile?.isFeaturedChef && (
+                    {profile?.isFeaturedChef ? (
                       <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
                         Chef
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   {profile?.username ? (
@@ -434,15 +447,16 @@ export default function ProfilePage() {
                   onClick={openEditModal}
                   className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
                   type="button"
+                  aria-label="Modifier le profil"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
+                  <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   Modifier
                 </button>
               </div>
 
               <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/[0.03] px-3 py-3 text-xs dark:bg-white/[0.04]">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Mail className="h-4 w-4 shrink-0" />
+                  <Mail aria-hidden="true" className="h-4 w-4 shrink-0" />
                   <span className="truncate">{user.email}</span>
                 </div>
 
@@ -450,8 +464,9 @@ export default function ProfilePage() {
                   onClick={handleSignOut}
                   className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-200"
                   type="button"
+                  aria-label="Se déconnecter"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut aria-hidden="true" className="h-4 w-4" />
                   Déco
                 </button>
               </div>
@@ -487,9 +502,9 @@ export default function ProfilePage() {
             </ProfileCard>
           </aside>
 
-          <section className="space-y-6">
+          <section className="space-y-6" aria-label="Contenu du profil">
             <ProfileCard>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2" aria-label="Onglets du profil">
                 {(
                   [
                     "Préférences",
@@ -506,7 +521,9 @@ export default function ProfilePage() {
                       setTab(item);
 
                       if (item === "Activité") {
-                        const currentActivityIds = activities.map((activity) => activity.id);
+                        const currentActivityIds = activities.map(
+                          (activity) => activity.id
+                        );
 
                         localStorage.setItem(
                           getReadActivityStorageKey(),
@@ -521,21 +538,24 @@ export default function ProfilePage() {
                     <span className="relative inline-flex items-center">
                       {item}
 
-                      {item === "Activité" && notificationCount > 0 && (
-                        <span className="absolute -right-4 -top-3 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow">
+                      {item === "Activité" && notificationCount > 0 ? (
+                        <span
+                          aria-label={`${notificationCount} nouvelle activité`}
+                          className="absolute -right-4 -top-3 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow"
+                        >
                           {notificationCount}
                         </span>
-                      )}
+                      ) : null}
                     </span>
                   </ProfileTabButton>
                 ))}
               </div>
             </ProfileCard>
 
-            {tab === "Médailles & Badges" && (
+            {tab === "Médailles & Badges" ? (
               <ProfileCard>
                 <div className="mb-4 flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-orange-500" />
+                  <Trophy aria-hidden="true" className="h-4 w-4 text-orange-500" />
                   <h2 className="text-sm font-semibold">Médailles & Badges</h2>
                 </div>
 
@@ -550,12 +570,12 @@ export default function ProfilePage() {
                   <ProfileBadgeCard title="Fidèle" meta="7 jours de suite" />
                 </div>
               </ProfileCard>
-            )}
+            ) : null}
 
-            {tab === "Favoris" && (
+            {tab === "Favoris" ? (
               <ProfileCard>
                 <div className="mb-4 flex items-center gap-2">
-                  <Star className="h-4 w-4 text-orange-500" />
+                  <Star aria-hidden="true" className="h-4 w-4 text-orange-500" />
                   <h2 className="text-sm font-semibold">Favoris</h2>
                 </div>
 
@@ -565,12 +585,12 @@ export default function ProfilePage() {
                   <ProfileFavoriteRow title="Chef Camille Dupont" meta="Chef · Abonné" />
                 </div>
               </ProfileCard>
-            )}
+            ) : null}
 
-            {tab === "Préférences" && (
+            {tab === "Préférences" ? (
               <ProfileCard>
                 <div className="mb-4 flex items-center gap-2">
-                  <Settings className="h-4 w-4 text-orange-500" />
+                  <Settings aria-hidden="true" className="h-4 w-4 text-orange-500" />
                   <h2 className="text-sm font-semibold">Préférences</h2>
                 </div>
 
@@ -579,12 +599,15 @@ export default function ProfilePage() {
                     <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                       Thème
                     </div>
+
                     <div className="flex flex-wrap gap-2">
                       {(["Clair", "Sombre"] as ThemeChoice[]).map((item) => (
                         <ProfilePill
                           key={item}
                           active={themeChoice === item}
-                          onClick={() => setTheme(item === "Sombre" ? "dark" : "light")}
+                          onClick={() =>
+                            setTheme(item === "Sombre" ? "dark" : "light")
+                          }
                         >
                           {item}
                         </ProfilePill>
@@ -594,17 +617,29 @@ export default function ProfilePage() {
 
                   <div>
                     <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      <Bell className="h-4 w-4" />
+                      <Bell aria-hidden="true" className="h-4 w-4" />
                       Notifications
                     </div>
+
                     <div className="flex flex-wrap gap-2">
-                      <ProfilePill active={notifLives} onClick={() => setNotifLives((v) => !v)}>
+                      <ProfilePill
+                        active={notifLives}
+                        onClick={() => setNotifLives((v) => !v)}
+                      >
                         Lives
                       </ProfilePill>
-                      <ProfilePill active={notifReplays} onClick={() => setNotifReplays((v) => !v)}>
+
+                      <ProfilePill
+                        active={notifReplays}
+                        onClick={() => setNotifReplays((v) => !v)}
+                      >
                         Replays
                       </ProfilePill>
-                      <ProfilePill active={notifChefs} onClick={() => setNotifChefs((v) => !v)}>
+
+                      <ProfilePill
+                        active={notifChefs}
+                        onClick={() => setNotifChefs((v) => !v)}
+                      >
                         Nouveaux chefs
                       </ProfilePill>
                     </div>
@@ -614,10 +649,12 @@ export default function ProfilePage() {
                     <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                       Langue
                     </div>
+
                     <div className="flex gap-2">
                       <ProfilePill active={lang === "FR"} onClick={() => setLang("FR")}>
                         FR
                       </ProfilePill>
+
                       <ProfilePill active={lang === "EN"} onClick={() => setLang("EN")}>
                         EN
                       </ProfilePill>
@@ -626,20 +663,21 @@ export default function ProfilePage() {
 
                   <div>
                     <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      <ShieldCheck className="h-4 w-4" />
+                      <ShieldCheck aria-hidden="true" className="h-4 w-4" />
                       Confidentialité
                     </div>
+
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Profil visible, listes publiques, etc.
                     </p>
                   </div>
                 </div>
               </ProfileCard>
-            )}
+            ) : null}
 
-            {tab === "Statistiques" && (
+            {tab === "Statistiques" ? (
               <ProfileCard>
-                <div className="mb-4 text-sm font-semibold">Statistiques</div>
+                <h2 className="mb-4 text-sm font-semibold">Statistiques</h2>
 
                 <div className="grid gap-3 sm:grid-cols-4">
                   <ProfileStatMiniCard value={`${stats.watchHours} h`} label="Temps de visionnage" />
@@ -654,6 +692,7 @@ export default function ProfilePage() {
                     value={`${stats.chefLevel}%`}
                     percent={stats.chefLevel}
                   />
+
                   <ProfileProgressRow
                     label="Objectif hebdo (5h)"
                     value={`${stats.weeklyGoal}%`}
@@ -661,14 +700,12 @@ export default function ProfilePage() {
                   />
                 </div>
               </ProfileCard>
-            )}
+            ) : null}
 
-            {tab === "Activité" && (
+            {tab === "Activité" ? (
               <ProfileCard>
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="text-sm font-semibold">
-                    Activité récente
-                  </div>
+                  <h2 className="text-sm font-semibold">Activité récente</h2>
                 </div>
 
                 <div className="space-y-3">
@@ -679,28 +716,38 @@ export default function ProfilePage() {
                     />
                   ) : (
                     activities.map((activity) => (
-                      <ProfileActivityRow
-                        key={activity.id}
-                        text={activity.text}
-                      />
+                      <ProfileActivityRow key={activity.id} text={activity.text} />
                     ))
                   )}
                 </div>
               </ProfileCard>
-            )}
+            ) : null}
           </section>
         </div>
       </div>
 
-      {isEditOpen && (
+      {isEditOpen ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-neutral-950">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-profile-title"
+            aria-describedby="edit-profile-description"
+            className="w-full max-w-2xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-neutral-950"
+          >
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                <h2
+                  id="edit-profile-title"
+                  className="text-lg font-bold text-gray-900 dark:text-white"
+                >
                   Modifier le profil
                 </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+
+                <p
+                  id="edit-profile-description"
+                  className="text-sm text-gray-500 dark:text-gray-400"
+                >
                   Mets à jour ton pseudo, ton email, ta description et ton mot de passe.
                 </p>
               </div>
@@ -709,47 +756,66 @@ export default function ProfilePage() {
                 onClick={closeEditModal}
                 className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-neutral-800 dark:hover:text-white"
                 type="button"
-                aria-label="Fermer"
+                aria-label="Fermer la fenêtre de modification du profil"
               >
-                <X className="h-5 w-5" />
+                <X aria-hidden="true" className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleUpdateProfile} className="space-y-5 px-6 py-6">
               {editError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+                <div
+                  role="alert"
+                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+                >
                   {editError}
                 </div>
               ) : null}
 
               {editSuccess ? (
-                <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-300">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-300"
+                >
                   {editSuccess}
                 </div>
               ) : null}
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                  <label
+                    htmlFor="edit-username"
+                    className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
+                  >
                     Pseudo
                   </label>
+
                   <input
+                    id="edit-username"
                     value={editUsername}
                     onChange={(e) => setEditUsername(e.target.value)}
                     type="text"
+                    autoComplete="username"
                     placeholder="Ton pseudo"
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                  <label
+                    htmlFor="edit-email"
+                    className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
+                  >
                     Email
                   </label>
+
                   <input
+                    id="edit-email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
                     type="email"
+                    autoComplete="email"
                     placeholder="email@foodstream.com"
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
@@ -757,10 +823,15 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                <label
+                  htmlFor="edit-description"
+                  className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
+                >
                   Description
                 </label>
+
                 <textarea
+                  id="edit-description"
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={5}
@@ -771,26 +842,38 @@ export default function ProfilePage() {
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                  <label
+                    htmlFor="edit-password"
+                    className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
+                  >
                     Nouveau mot de passe
                   </label>
+
                   <input
+                    id="edit-password"
                     value={editPassword}
                     onChange={(e) => setEditPassword(e.target.value)}
                     type="password"
+                    autoComplete="new-password"
                     placeholder="Laisser vide pour ne pas changer"
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                  <label
+                    htmlFor="edit-confirm-password"
+                    className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
+                  >
                     Confirmer le mot de passe
                   </label>
+
                   <input
+                    id="edit-confirm-password"
                     value={editConfirmPassword}
                     onChange={(e) => setEditConfirmPassword(e.target.value)}
                     type="password"
+                    autoComplete="new-password"
                     placeholder="Retape le nouveau mot de passe"
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
@@ -803,7 +886,7 @@ export default function ProfilePage() {
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-neutral-800"
                   type="button"
                 >
-                  <X className="h-4 w-4" />
+                  <X aria-hidden="true" className="h-4 w-4" />
                   Annuler
                 </button>
 
@@ -812,14 +895,14 @@ export default function ProfilePage() {
                   type="submit"
                   disabled={editLoading}
                 >
-                  <Save className="h-4 w-4" />
+                  <Save aria-hidden="true" className="h-4 w-4" />
                   {editLoading ? "Enregistrement..." : "Enregistrer"}
                 </button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
 
       <FollowListModal
         open={followModalType !== null}

@@ -32,7 +32,17 @@ export default async function RootLayout({
       lang="fr"
       className={`${inter.variable} ${initialTheme === "dark" ? "dark" : ""}`}
     >
-      <body  suppressHydrationWarning className="min-h-screen text-gray-900 dark:text-gray-50">
+      <body
+        suppressHydrationWarning
+        className="min-h-screen text-gray-900 dark:text-gray-50"
+      >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-9999 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-gray-900 focus:shadow-lg dark:focus:bg-[#120b05] dark:focus:text-white"
+        >
+          Aller au contenu principal
+        </a>
+
         <ThemeProvider initialTheme={initialTheme}>
           <NotificationProvider>
             <NotificationPoller />
