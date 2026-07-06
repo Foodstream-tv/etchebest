@@ -12,6 +12,8 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/search"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
+	"github.com/Foodstream-io/etchebest/internal/modules/upload"
+	"github.com/Foodstream-io/etchebest/internal/modules/scrape"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -110,6 +112,10 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.POST("/webrtc/answer", room.HandleRenegotiationAnswer(db))
 	api.POST("/ice", room.HandleICECandidate(db))
 
+	// Image Uploads
+	api.POST("/uploads/image", upload.UploadImage())
+	r.Static("/api/uploads", "./storage/uploads")
+
 	// HLS - public access (video players can't send Authorization headers)
 	r.Static("/api/hls", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/master.m3u8`;
 
@@ -120,6 +126,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.GET("/api/lives", live.GetLives(db))
 	r.GET("/api/lives/:roomId", live.GetLiveByRoomID(db))
 	r.Static("/replays-storage", "./storage/replays")
+	r.GET("/api/scrape/marmiton", scrape.ScrapeMarmiton())
 
 	// Not found
 	r.NoRoute(func(c *gin.Context) {

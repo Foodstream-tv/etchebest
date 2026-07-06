@@ -1,28 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Star } from "lucide-react";
-
-const CREATORS = [
-  {
-    id: "1",
-    name: "Aiko Tanaka",
-    tag: "Ramen japonais",
-    initials: "AT",
-  },
-  {
-    id: "2",
-    name: "Camille Dupont",
-    tag: "Pâtisserie française",
-    initials: "CD",
-  },
-  {
-    id: "3",
-    name: "Luis Ortega",
-    tag: "Street food mexicaine",
-    initials: "LO",
-  },
-];
+import { ArrowRight, Star, Users } from "lucide-react";
 
 export default function HomePopularCreators() {
   return (
@@ -58,44 +37,16 @@ export default function HomePopularCreators() {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {CREATORS.map((creator) => (
-          <article
-            key={creator.id}
-            aria-labelledby={`creator-${creator.id}`}
-            className="rounded-[28px] border border-black/8 bg-white/70 p-5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]"
-          >
-            <div className="flex items-center gap-4">
-              <div
-                aria-hidden="true"
-                className="grid h-14 w-14 place-items-center rounded-2xl bg-gray-900 text-sm font-bold text-white dark:bg-white dark:text-neutral-900"
-              >
-                {creator.initials}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <h3
-                  id={`creator-${creator.id}`}
-                  className="truncate text-sm font-bold text-gray-950 dark:text-white"
-                >
-                  {creator.name}
-                </h3>
-
-                <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                  {creator.tag}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              aria-label={`Suivre ${creator.name}`}
-              className="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_28px_rgba(249,115,22,0.24)] transition hover:bg-orange-400"
-            >
-              Suivre
-            </button>
-          </article>
-        ))}
+      <div className="rounded-[28px] border border-black/8 bg-white/72 p-8 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] flex flex-col items-center justify-center text-center py-10">
+        <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300" aria-hidden="true">
+          <Users className="h-7 w-7" />
+        </div>
+        <h3 className="text-sm font-bold text-gray-950 dark:text-white">
+          Aucun chef à découvrir actuellement
+        </h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-sm">
+          Il n'y a pas encore d'autres profils de chefs disponibles à suivre sur la plateforme.
+        </p>
       </div>
     </section>
   );

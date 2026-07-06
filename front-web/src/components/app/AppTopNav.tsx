@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Search,
   ShoppingBag,
-  SlidersHorizontal,
 } from "lucide-react";
 
 import { globalSearch, type SearchResponse } from "@/lib/search";
@@ -309,14 +308,7 @@ export default function AppTopNav() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Ouvrir les filtres"
-              className="hidden items-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-black/5 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-200 dark:ring-white/10 dark:hover:bg-white/10 md:flex"
-            >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-              Filtres
-            </button>
+
 
             <Link
               href="/shop"

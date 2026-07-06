@@ -126,6 +126,150 @@ export default function StudioPage() {
   const [openTagGroup, setOpenTagGroup] = useState<string>("Cuisine");
   const [customTag, setCustomTag] = useState("");
 
+  // Custom Recipe states
+  const [ingredients, setIngredients] = useState<{ name: string; qty: string }[]>([]);
+  const [newIngName, setNewIngName] = useState("");
+  const [newIngQty, setNewIngQty] = useState("");
+
+  const [cookingTimer, setCookingTimer] = useState<number>(0);
+
+  const [platingSteps, setPlatingSteps] = useState<string[]>([]);
+  const [newPlatingStep, setNewPlatingStep] = useState("");
+
+  const [prepSteps, setPrepSteps] = useState<string[]>([]);
+  const [newPrepStep, setNewPrepStep] = useState("");
+
+  const [prepTime, setPrepTime] = useState<number>(0);
+  const [restTime, setRestTime] = useState<number>(0);
+
+  const [utensils, setUtensils] = useState<string[]>([]);
+  const [newUtensil, setNewUtensil] = useState("");
+
+  const [marmitonUrl, setMarmitonUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+
+  const addPrepStep = () => {
+    const text = newPrepStep.trim();
+    if (!text) return;
+    setPrepSteps((prev) => [...prev, text]);
+    setNewPrepStep("");
+  };
+
+  const removePrepStep = (index: number) => {
+    setPrepSteps((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addUtensil = () => {
+    const cleaned = newUtensil.trim();
+    if (!cleaned) return;
+    if (!utensils.includes(cleaned)) {
+      setUtensils((prev) => [...prev, cleaned]);
+    }
+    setNewUtensil("");
+  };
+
+  const removeUtensil = (index: number) => {
+    setUtensils((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const importMarmitonRecipe = async () => {
+    const url = marmitonUrl.trim();
+    if (!url) return;
+    setImporting(true);
+    setImportError("");
+
+    try {
+      const response = await apiFetch<any>(`/scrape/marmiton?url=${encodeURIComponent(url)}`, {
+        token: token ?? undefined,
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Populate basic info
+      if (response.title) setTitle(response.title);
+      if (response.description) setDesc(response.description);
+
+      // Populate ingredients
+      if (response.ingredients && Array.isArray(response.ingredients)) {
+        const parsedIngs = response.ingredients.map((raw: string) => {
+          const match = raw.trim().match(/^([\d\/\s\.\,¼½¾\-]+(?:g|kg|ml|cl|l|c\.à\sc\.|c\.à\ss\.|sachets?|pincées?|gousses?|bottes?|brins?|tasses?|cuillères?|ml)?)(?:\s+(?:de|d')\s+)?(.*)$/i);
+          if (match) {
+            return {
+              name: match[2].trim(),
+              qty: match[1].trim()
+            };
+          }
+          return {
+            name: raw.trim(),
+            qty: "Au goût"
+          };
+        });
+        setIngredients(parsedIngs);
+      }
+
+      // Populate prep steps
+      if (response.steps && Array.isArray(response.steps)) {
+        setPrepSteps(response.steps);
+      }
+
+      // Populate cooking time / timer
+      if (response.cook_time_mins) {
+        setCookingTimer(response.cook_time_mins);
+      }
+
+      // Populate prep time
+      if (response.prep_time_mins) {
+        setPrepTime(response.prep_time_mins);
+      }
+
+      // Populate rest time
+      if (response.rest_time_mins) {
+        setRestTime(response.rest_time_mins);
+      }
+
+      // Populate utensils
+      if (response.utensils && Array.isArray(response.utensils)) {
+        setUtensils(response.utensils);
+      }
+
+      setMarmitonUrl("");
+    } catch (e: any) {
+      console.error(e);
+      setImportError(e?.message || "Erreur lors de l'importation de la recette.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+
+
+  const addIngredient = () => {
+    const name = newIngName.trim();
+    const qty = newIngQty.trim();
+    if (!name) return;
+    setIngredients((prev) => [...prev, { name, qty: qty || "Au goût" }]);
+    setNewIngName("");
+    setNewIngQty("");
+  };
+
+  const removeIngredient = (index: number) => {
+    setIngredients((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addPlatingStep = () => {
+    const text = newPlatingStep.trim();
+    if (!text) return;
+    setPlatingSteps((prev) => [...prev, text]);
+    setNewPlatingStep("");
+  };
+
+  const removePlatingStep = (index: number) => {
+    setPlatingSteps((prev) => prev.filter((_, i) => i !== index));
+  };
+
   useEffect(() => {
     if (!ready) return;
     if (!token || !user) router.replace("/signin");
@@ -271,10 +415,24 @@ export default function StudioPage() {
       finalThumbnailUrl = await uploadThumbnail(thumbnailFile);
     }
 
+    let finalDescription = desc.trim();
+    if (ingredients.length > 0 || prepSteps.length > 0 || cookingTimer > 0 || platingSteps.length > 0 || utensils.length > 0 || prepTime > 0 || restTime > 0) {
+      const recipeData = {
+        ingredients,
+        prepSteps,
+        cookingTimer: cookingTimer * 60, // minutes to seconds
+        platingSteps,
+        utensils,
+        prepTimeMins: prepTime,
+        restTimeMins: restTime,
+      };
+      finalDescription = `${finalDescription}\n\n---FOODSTREAM_RECIPE---\n${JSON.stringify(recipeData)}`;
+    }
+
     return {
       name: roomName,
       title: roomName,
-      description: desc.trim(),
+      description: finalDescription,
       tags,
       level,
       durationMinutes: duration,
@@ -470,6 +628,302 @@ export default function StudioPage() {
                   </div>
                 </div>
               </Field>
+
+              {/* Cooking Coop Custom Recipe Details */}
+              <div className="rounded-[28px] border border-orange-500/25 bg-orange-500/[0.02] p-5 dark:border-orange-500/20">
+                <div className="mb-4 flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-orange-500" />
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    Recette & Étapes (Cuisine Coop)
+                  </h3>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Marmiton Import Option */}
+                  <div className="rounded-2xl border border-dashed border-orange-500/30 bg-orange-500/5 p-4">
+                    <h4 className="text-sm font-bold text-orange-600 dark:text-orange-400 mb-2 flex items-center gap-1.5">
+                      Import Express depuis Marmiton
+                    </h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      Collez un lien de recette Marmiton pour pré-remplir automatiquement le titre, la description, les ingrédients, ustensiles, temps de préparation et étapes.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        aria-label="Lien de recette Marmiton"
+                        value={marmitonUrl}
+                        onChange={(e) => setMarmitonUrl(e.target.value)}
+                        placeholder="https://www.marmiton.org/recettes/recette_..."
+                        className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={importMarmitonRecipe}
+                        disabled={importing}
+                        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50"
+                      >
+                        {importing ? "Import..." : "Importer"}
+                      </button>
+                    </div>
+                    {importError && (
+                      <p className="text-xs text-red-500 mt-2 font-semibold">
+                        {importError}
+                      </p>
+                    )}
+                  </div>
+                  {/* Ingredients Section */}
+                  <Field label="Ingrédients requis">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                      <div className="flex gap-2">
+                        <input
+                          aria-label="Nom de l'ingrédient"
+                          value={newIngName}
+                          onChange={(e) => setNewIngName(e.target.value)}
+                          placeholder="Nom (ex: Farine)"
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                        />
+                        <input
+                          aria-label="Quantité"
+                          value={newIngQty}
+                          onChange={(e) => setNewIngQty(e.target.value)}
+                          placeholder="Quantité (ex: 200g)"
+                          className="w-28 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={addIngredient}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {ingredients.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {ingredients.map((ing, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1.5 rounded-full bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400"
+                            >
+                              <span>{ing.name} ({ing.qty})</span>
+                              <button
+                                type="button"
+                                onClick={() => removeIngredient(idx)}
+                                className="rounded-full hover:bg-orange-500/25 p-0.5 text-orange-500"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Field>
+
+                  {/* Preparation Steps Section */}
+                  <Field label="Étapes de Préparation">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                      <div className="flex gap-2">
+                        <input
+                          aria-label="Étape de préparation"
+                          value={newPrepStep}
+                          onChange={(e) => setNewPrepStep(e.target.value)}
+                          placeholder="ex: Ciselage de la cébette : Émincer finement"
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addPrepStep();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={addPrepStep}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {prepSteps.length > 0 && (
+                        <ol className="mt-3 space-y-2">
+                          {prepSteps.map((step, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
+                            >
+                              <span className="font-semibold">{idx + 1}. {step}</span>
+                              <button
+                                type="button"
+                                onClick={() => removePrepStep(idx)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  </Field>
+
+                  {/* Durations Section */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Temps de Préparation (minutes)">
+                      <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
+                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Préparation :</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            value={prepTime === 0 ? "" : prepTime}
+                            onChange={(e) => setPrepTime(Number(e.target.value))}
+                            placeholder="0"
+                            className="w-20 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          />
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">min</span>
+                        </div>
+                      </div>
+                    </Field>
+
+                    <Field label="Temps de Repos (minutes)">
+                      <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
+                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Repos :</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            value={restTime === 0 ? "" : restTime}
+                            onChange={(e) => setRestTime(Number(e.target.value))}
+                            placeholder="0"
+                            className="w-20 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          />
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">min</span>
+                        </div>
+                      </div>
+                    </Field>
+                  </div>
+
+                  {/* Utensils Section */}
+                  <Field label="Ustensiles nécessaires">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                      <div className="flex gap-2">
+                        <input
+                          aria-label="Ustensile requis"
+                          value={newUtensil}
+                          onChange={(e) => setNewUtensil(e.target.value)}
+                          placeholder="ex: Fouet, Saladier, Moule..."
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addUtensil();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={addUtensil}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {utensils.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {utensils.map((ut, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1.5 rounded-full bg-gray-200 dark:bg-white/10 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200"
+                            >
+                              <span>{ut}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeUtensil(idx)}
+                                className="rounded-full hover:bg-black/10 dark:hover:bg-white/20 p-0.5"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Field>
+
+                  {/* Cooking Timer Section */}
+                  <Field label="Minuteur de Cuisson (en minutes)">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
+                      <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                        Durée de cuisson recommandée :
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={180}
+                          value={cookingTimer === 0 ? "" : cookingTimer}
+                          onChange={(e) => setCookingTimer(Number(e.target.value))}
+                          placeholder="0 (Pas de minuteur)"
+                          className="w-24 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                        />
+                        <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
+                          min
+                        </span>
+                      </div>
+                    </div>
+                  </Field>
+
+                  {/* Plating Steps Section */}
+                  <Field label="Étapes de Dressage">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                      <div className="flex gap-2">
+                        <input
+                          aria-label="Étape de dressage"
+                          value={newPlatingStep}
+                          onChange={(e) => setNewPlatingStep(e.target.value)}
+                          placeholder="ex: Placer les nouilles puis ajouter le porc chashu"
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addPlatingStep();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={addPlatingStep}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {platingSteps.length > 0 && (
+                        <ol className="mt-3 space-y-2">
+                          {platingSteps.map((step, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
+                            >
+                              <span className="font-semibold">{idx + 1}. {step}</span>
+                              <button
+                                type="button"
+                                onClick={() => removePlatingStep(idx)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  </Field>
+                </div>
+              </div>
 
               <div className="grid gap-5 md:grid-cols-2">
                 <Field label="Tags du live">
