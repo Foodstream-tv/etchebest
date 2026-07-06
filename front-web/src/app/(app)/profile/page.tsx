@@ -83,7 +83,6 @@ export default function ProfilePage() {
 
   const { theme, setTheme } = useTheme();
   const themeChoice: ThemeChoice = theme === "dark" ? "Sombre" : "Clair";
-  const [lang, setLang] = useState<"FR" | "EN">("FR");
   const [notifLives, setNotifLives] = useState(true);
   const [notifReplays, setNotifReplays] = useState(false);
   const [notifChefs, setNotifChefs] = useState(true);
@@ -651,12 +650,8 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex gap-2">
-                      <ProfilePill active={lang === "FR"} onClick={() => setLang("FR")}>
-                        FR
-                      </ProfilePill>
-
-                      <ProfilePill active={lang === "EN"} onClick={() => setLang("EN")}>
-                        EN
+                      <ProfilePill active={true} onClick={() => {}}>
+                        Français
                       </ProfilePill>
                     </div>
                   </div>

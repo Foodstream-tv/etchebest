@@ -13,6 +13,7 @@ import {
   RefreshCcw,
   Share2,
   Users,
+  ChefHat,
 } from "lucide-react";
 import {
   getHLSUrl,
@@ -25,6 +26,8 @@ import {
 import { useAuth } from "@/lib/useAuth";
 import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import CookingAssistant from "@/components/watch/CookingAssistant";
+import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
 
@@ -47,7 +50,8 @@ const noop = () => {};
 export default function WatchRoomPage() {
   const routeParams = useParams<{ roomId: string }>();
   const roomId = routeParams?.roomId;
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+  const [sidebarTab, setSidebarTab] = useState<"chat" | "cook">("chat");
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -57,6 +61,7 @@ export default function WatchRoomPage() {
 
   const [room, setRoom] = useState<RoomInfo | null>(null);
   const [roomLoading, setRoomLoading] = useState(true);
+  const [liveInfo, setLiveInfo] = useState<LiveDTO | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,13 +85,27 @@ export default function WatchRoomPage() {
     return roomId ? getHLSUrl(roomId) : "";
   }, [roomId]);
 
-  const liveTitle = room?.name || "Live en direct";
+  const liveTitle = room?.name || liveInfo?.title || "Live en direct";
   const viewers = room?.viewers ?? null;
   const participants = room?.participants?.length ?? null;
   const maxParticipants = room?.maxParticipants ?? null;
 
-  const liveDescription =
-    "Regarde le live en direct et échange avec la communauté.";
+  const [parsedRecipe, liveDescription] = useMemo(() => {
+    const rawDesc = liveInfo?.description || "Regarde le live en direct et échange avec la communauté.";
+    const marker = "---FOODSTREAM_RECIPE---";
+    if (rawDesc.includes(marker)) {
+      const parts = rawDesc.split(marker);
+      const descriptionText = parts[0].trim();
+      try {
+        const recipeData = JSON.parse(parts[1].trim());
+        return [recipeData, descriptionText];
+      } catch (e) {
+        console.error("Failed to parse recipe JSON:", e);
+        return [null, descriptionText];
+      }
+    }
+    return [null, rawDesc];
+  }, [liveInfo?.description]);
 
   const fetchRoom = useCallback(async (isInitial = false) => {
     if (!roomId || !token) {
@@ -101,6 +120,13 @@ export default function WatchRoomPage() {
       const rooms = await getRooms(token);
       const currentRoom = rooms?.find((item) => item.id === roomId) ?? null;
       setRoom(currentRoom);
+
+      try {
+        const liveData = await getLiveByRoomId(roomId, token);
+        setLiveInfo(liveData);
+      } catch (err) {
+        console.warn("Failed to fetch live info details:", err);
+      }
     } catch (err) {
       console.error("Fetch room error:", err);
       setRoom(null);
@@ -443,13 +469,13 @@ export default function WatchRoomPage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="space-y-6">
             <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-              <div className="relative bg-black">
+              <div className="relative aspect-video bg-black">
                 <video
                   key={`${roomId ?? "no-room"}-${reloadKey}`}
                   ref={videoRef}
                   controls
                   playsInline
-                  className="block h-[260px] w-full bg-black sm:h-[380px] lg:h-[520px]"
+                  className="h-full w-full bg-black object-contain"
                 >
                   <track kind="captions" />
                 </video>
@@ -564,97 +590,130 @@ export default function WatchRoomPage() {
 
           <aside className="min-w-0">
             <div className="flex h-full max-h-[760px] flex-col overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-              <div className="flex items-center justify-between border-b border-black/8 px-4 py-4 dark:border-white/10">
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4 text-orange-500" />
-                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-                    Chat
-                  </div>
-                </div>
-
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {chatMessages.length} messages
-                </div>
+              {/* Tab Selector Header */}
+              <div className="flex border-b border-black/8 dark:border-white/10 bg-white/20 dark:bg-black/30">
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab("chat")}
+                  className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition ${
+                    sidebarTab === "chat"
+                      ? "border-orange-500 text-orange-600 dark:text-orange-400"
+                      : "border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  }`}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab("cook")}
+                  className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition ${
+                    sidebarTab === "cook"
+                      ? "border-orange-500 text-orange-600 dark:text-orange-400"
+                      : "border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  }`}
+                >
+                  <ChefHat className="h-4 w-4" />
+                  Cuisine Coop
+                </button>
               </div>
 
-              <div
-                ref={chatScrollRef}
-                aria-live="polite"
-                aria-label="Messages du chat"
-                className="flex h-[360px] flex-1 flex-col gap-3 overflow-y-auto bg-black/[0.02] px-4 py-4 dark:bg-white/[0.03]"
-              >
-                {chatMessages.length === 0 && (
-                  <div className="grid flex-1 place-items-center text-center">
-                    <div>
-                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
-                        <MessageCircle className="h-5 w-5 text-gray-400" />
-                      </div>
-
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Aucun message pour l’instant.
-                      </p>
-                    </div>
+              {sidebarTab === "chat" ? (
+                <>
+                  <div className="flex items-center justify-between border-b border-black/8 px-4 py-2 dark:border-white/10 bg-black/[0.01] dark:bg-black/[0.1] text-xs text-gray-500 dark:text-gray-400">
+                    <span>Flux de discussion</span>
+                    <span>{chatMessages.length} messages</span>
                   </div>
-                )}
 
-                {chatMessages.map((msg) => (
-                  <div key={msg.id} className="text-sm leading-6">
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">
-                      {msg.username}
-                    </span>
-
-                    <span className="text-gray-400"> : </span>
-
-                    <span className="text-gray-600 dark:text-gray-300">
-                      {msg.message}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {token ? (
-                <div className="border-t border-black/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.02]">
-                  <div className="space-y-3">
-                    <input
-                      value={message}
-                      aria-label="Écrire un message dans le chat"
-                      onChange={(e) =>
-                        setMessage(e.target.value.slice(0, MAX_MSG))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") onSendMessage();
-                      }}
-                      placeholder="Écrire un message..."
-                      className="w-full rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#1b140e] dark:text-white dark:placeholder:text-gray-500"
-                      disabled={sending}
-                      maxLength={MAX_MSG}
-                    />
-
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-gray-400">
-                        {message.length}/{MAX_MSG}
-                      </span>
-
-                      <button
-                        onClick={onSendMessage}
-                        style={{ background: ORANGE_GRADIENT_CSS }}
-                        className="inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:opacity-95 hover:shadow-[0_14px_32px_rgba(249,115,22,0.38)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-                        type="button"
-                        disabled={sending}
-                      >
-                        {sending ? "Envoi..." : "Envoyer"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="border-t border-black/8 px-4 py-4 text-center dark:border-white/10">
-                  <Link
-                    href="/signin"
-                    className="text-sm font-semibold text-orange-600 underline underline-offset-4 transition-colors duration-200 hover:text-orange-700 dark:text-orange-300 dark:hover:text-orange-200"
+                  <div
+                    ref={chatScrollRef}
+                    aria-live="polite"
+                    aria-label="Messages du chat"
+                    className="flex h-[360px] flex-1 flex-col gap-3 overflow-y-auto bg-black/[0.02] px-4 py-4 dark:bg-white/[0.03]"
                   >
-                    Connectez-vous pour chatter
-                  </Link>
+                    {chatMessages.length === 0 && (
+                      <div className="grid flex-1 place-items-center text-center">
+                        <div>
+                          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.04] dark:bg-white/[0.06]">
+                            <MessageCircle className="h-5 w-5 text-gray-400" />
+                          </div>
+
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Aucun message pour l’instant.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {chatMessages.map((msg) => (
+                      <div key={msg.id} className="text-sm leading-6">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                          {msg.username}
+                        </span>
+
+                        <span className="text-gray-400"> : </span>
+
+                        <span className="text-gray-600 dark:text-gray-300">
+                          {msg.message}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {token ? (
+                    <div className="border-t border-black/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+                      <div className="space-y-3">
+                        <input
+                          value={message}
+                          aria-label="Écrire un message dans le chat"
+                          onChange={(e) =>
+                            setMessage(e.target.value.slice(0, MAX_MSG))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") onSendMessage();
+                          }}
+                          placeholder="Écrire un message..."
+                          className="w-full rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#1b140e] dark:text-white dark:placeholder:text-gray-500"
+                          disabled={sending}
+                          maxLength={MAX_MSG}
+                        />
+
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-gray-400">
+                            {message.length}/{MAX_MSG}
+                          </span>
+
+                          <button
+                            onClick={onSendMessage}
+                            style={{ background: ORANGE_GRADIENT_CSS }}
+                            className="inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:opacity-95 hover:shadow-[0_14px_32px_rgba(249,115,22,0.38)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                            type="button"
+                            disabled={sending}
+                          >
+                            {sending ? "Envoi..." : "Envoyer"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t border-black/8 px-4 py-4 text-center dark:border-white/10">
+                      <Link
+                        href="/signin"
+                        className="text-sm font-semibold text-orange-600 underline underline-offset-4 transition-colors duration-200 hover:text-orange-700 dark:text-orange-300 dark:hover:text-orange-200"
+                      >
+                        Connectez-vous pour chatter
+                      </Link>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex-1 overflow-hidden">
+                  <CookingAssistant
+                    dishName={liveInfo?.dish_name}
+                    roomTitle={liveTitle}
+                    roomParticipants={room?.participants}
+                    recipeData={parsedRecipe}
+                  />
                 </div>
               )}
             </div>
