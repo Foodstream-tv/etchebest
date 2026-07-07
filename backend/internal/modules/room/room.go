@@ -436,6 +436,16 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			dishName = req.Tags[0]
 		}
 
+		var scheduledAt *time.Time
+		if req.ScheduledAt != nil && strings.TrimSpace(*req.ScheduledAt) != "" {
+			parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ScheduledAt))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scheduledAt format"})
+				return
+			}
+			scheduledAt = &parsed
+		}
+
 		var startedAt *time.Time
 		if status == "live" {
 			now := time.Now()
@@ -461,6 +471,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			LikeCount:      0,
 			StartedAt:      startedAt,
 			Tags:           resolvedTags,
+			ScheduledAt: scheduledAt,
 		}
 
 		if err := db.Create(&newLive).Error; err != nil {

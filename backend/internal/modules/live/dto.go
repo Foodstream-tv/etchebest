@@ -11,8 +11,8 @@ import (
 type LiveDTO struct {
 	ID          uint   `json:"id"`
 	Title       string `json:"title"`
-	RoomID 		string `json:"room_id"`
-	DishName 	string `json:"dish_name"`
+	RoomID      string `json:"room_id"`
+	DishName    string `json:"dish_name"`
 	Description string `json:"description,omitempty"`
 	Status      string `json:"status"`
 
@@ -28,8 +28,9 @@ type LiveDTO struct {
 	ThumbnailURL string `json:"thumbnail_url"`
 	PreviewGIF   string `json:"preview_gif,omitempty"`
 
-	StartedAt *time.Time `json:"started_at,omitempty"`
-	EndedAt   *time.Time `json:"ended_at,omitempty"`
+	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	EndedAt     *time.Time `json:"ended_at,omitempty"`
 
 	HasReplay   bool   `json:"has_replay"`
 	ReplayURL   string `json:"replay_url,omitempty"`

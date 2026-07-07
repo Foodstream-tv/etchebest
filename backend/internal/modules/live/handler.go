@@ -71,7 +71,7 @@ func GetLives(db *gorm.DB) gin.HandlerFunc {
 
 		var lives []Live
 		if err := query.
-			Order("created_at DESC").
+			Order("COALESCE(scheduled_at, created_at) ASC").
 			Limit(limit).
 			Offset(offset).
 			Find(&lives).Error; err != nil {

@@ -26,6 +26,7 @@ func LiveToDTO(live Live) LiveDTO {
 		ReplayURL:      live.ReplayURL,
 		ReplayViews:    live.ReplayViews,
 		CreatedAt:      live.CreatedAt,
+		ScheduledAt: live.ScheduledAt,
 	}
 
 	// User
