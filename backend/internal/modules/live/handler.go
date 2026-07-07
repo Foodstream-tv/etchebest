@@ -114,3 +114,38 @@ func GetLiveByRoomID(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, LiveToDTO(live))
 	}
 }
+
+// GetMyScheduledLive returns the current user's pending scheduled live
+// (room id, title and scheduled time), or {"live": null} if none exists.
+func GetMyScheduledLive(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("userId")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		// Limit(1).Find évite le log "record not found" de GORM :
+		// l'absence de live planifié est un cas normal, pas une erreur.
+		var scheduled []Live
+		if err := db.
+			Where("user_id = ? AND status = ?", userID, "scheduled").
+			Order("COALESCE(scheduled_at, created_at) ASC").
+			Limit(1).
+			Find(&scheduled).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch scheduled live"})
+			return
+		}
+
+		if len(scheduled) == 0 {
+			c.JSON(http.StatusOK, gin.H{"live": nil})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"live": gin.H{
+			"room_id":      scheduled[0].RoomID,
+			"title":        scheduled[0].Title,
+			"scheduled_at": scheduled[0].ScheduledAt,
+		}})
+	}
+}

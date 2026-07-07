@@ -36,6 +36,15 @@ func UpdateUser(db *gorm.DB, existingUser *User, patchedUser UserPatch) error {
 	return nil
 }
 
+func ClearBan(db *gorm.DB, bannedUser *User) error {
+	return db.Model(bannedUser).Updates(map[string]any{
+		"is_banned":    false,
+		"ban_reason":   "",
+		"banned_at":    nil,
+		"banned_until": nil,
+	}).Error
+}
+
 func SaveUser(db *gorm.DB, newUser *User) error {
 	if err := db.Save(&newUser).Error; err != nil {
 		return err

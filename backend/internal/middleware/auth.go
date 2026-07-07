@@ -5,12 +5,14 @@ import (
 	"strings"
 
 	"github.com/Foodstream-io/etchebest/internal/auth"
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
-func AuthMiddleware(jwtKey []byte) gin.HandlerFunc {
+func AuthMiddleware(jwtKey []byte, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 
@@ -40,8 +42,27 @@ func AuthMiddleware(jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
+		currentUser, err := user.GetUserByID(db, claims.UserID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+
+		if currentUser.IsCurrentlyBanned() {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":       "your account is banned",
+				"banReason":   currentUser.BanReason,
+				"bannedUntil": currentUser.BannedUntil,
+			})
+			c.Abort()
+			return
+		}
+
 		c.Set("userId", claims.UserID)
-		c.Set("role", claims.Role)
+		// Use the role from the database so promotions/demotions apply
+		// immediately instead of waiting for the JWT to expire.
+		c.Set("role", currentUser.Role)
 		c.Next()
 	}
 }

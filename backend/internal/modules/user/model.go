@@ -35,6 +35,11 @@ type User struct {
 	IsVerified         bool           `json:"isVerified" gorm:"default:false"`
 	IsFeaturedChef     bool           `json:"isFeaturedChef" gorm:"default:false;index:idx_user_featured"`
 	LastLiveAt         *time.Time     `json:"lastLiveAt" gorm:"index:idx_user_last_live"`
+	// Moderation fields
+	IsBanned    bool       `json:"isBanned" gorm:"default:false;index:idx_user_banned"`
+	BanReason   string     `json:"banReason"`
+	BannedAt    *time.Time `json:"bannedAt"`
+	BannedUntil *time.Time `json:"bannedUntil"` // nil while IsBanned = permanent ban
 	// OAuth fields
 	GoogleID      *string `json:"googleId" gorm:"index:idx_user_google"`
 	FacebookID    *string `json:"facebookId" gorm:"index:idx_user_facebook"`
@@ -51,6 +56,15 @@ type UserPatch struct {
 	Description        *string `json:"description"`
 	CountryNumberPhone *int    `json:"countryNumberPhone"`
 	NumberPhone        *string `json:"numberPhone"`
+}
+
+// IsCurrentlyBanned reports whether the ban is still in effect
+// (permanent, or the temporary ban has not expired yet).
+func (u *User) IsCurrentlyBanned() bool {
+	if !u.IsBanned {
+		return false
+	}
+	return u.BannedUntil == nil || time.Now().Before(*u.BannedUntil)
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
