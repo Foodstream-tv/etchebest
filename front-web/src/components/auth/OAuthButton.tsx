@@ -13,15 +13,9 @@ export default function OAuthButton({
   provider,
   disabled = false,
 }: OAuthButtonProps) {
-  const isGoogle = provider === "google";
+  const label = "Continuer avec Google";
 
-  const label = isGoogle
-    ? "Continuer avec Google"
-    : "Continuer avec Apple";
-
-  const logoSrc = isGoogle
-    ? "/images/icons8-logo-google-16.png"
-    : "/images/icons8-mac-os-50.png";
+  const logoSrc = "/images/icons8-logo-google-16.png";
 
   return (
     <button

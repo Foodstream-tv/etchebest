@@ -75,7 +75,6 @@ type RegisterCopy = {
     submit: string;
     divider: string;
     signupGoogleAttempt: string;
-    signupAppleAttempt: string;
     countryModalTitle: string;
     registerSuccess: string;
     registerError: string;
@@ -102,7 +101,6 @@ const REGISTER_COPY: Record<'fr' | 'en', RegisterCopy> = {
         submit: 'Inscription',
         divider: 'Ou',
         signupGoogleAttempt: "Tentative d'inscription avec Google",
-        signupAppleAttempt: "Tentative d'inscription avec Apple",
         countryModalTitle: 'Selectionner un indicatif',
         registerSuccess: 'Inscription reussie !',
         registerError: "Erreur d'inscription",
@@ -127,7 +125,6 @@ const REGISTER_COPY: Record<'fr' | 'en', RegisterCopy> = {
         submit: 'Create account',
         divider: 'Or',
         signupGoogleAttempt: 'Google sign-up attempt',
-        signupAppleAttempt: 'Apple sign-up attempt',
         countryModalTitle: 'Select country code',
         registerSuccess: 'Registration successful!',
         registerError: 'Registration error',
@@ -400,14 +397,6 @@ function RegisterScreenContent() {
                                     style={styles.socialIcon}
                                     resizeMode="contain"
                                 />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.socialIconButton}
-                                onPress={() => {
-                                    toast.info(copy.signupAppleAttempt);
-                                }}
-                            >
-                                <Ionicons name="logo-apple" size={26} color={brandTheme.colors.text} />
                             </TouchableOpacity>
                         </View>
                     </View>

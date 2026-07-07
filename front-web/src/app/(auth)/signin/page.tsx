@@ -106,7 +106,6 @@ export default function SignInPage() {
       bottomText="Vous n'avez pas de compte ?"
       bottomLinkHref="/signup"
       bottomLinkLabel="Inscrivez-vous"
-      showForgotPassword
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <TextField
@@ -168,7 +167,6 @@ export default function SignInPage() {
 
       <div className="space-y-3">
         <OAuthButton provider="google" disabled={loading} />
-        <OAuthButton provider="apple" disabled={loading} />
       </div>
     </AuthCard>
   );

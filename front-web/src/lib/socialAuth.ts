@@ -1,4 +1,4 @@
-export type SocialProvider = "google" | "apple";
+export type SocialProvider = "google";
 
 export function startSocialAuth(provider: SocialProvider) {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;

@@ -233,7 +233,6 @@ export default function SignUpPage() {
 
       <div className="space-y-3">
         <OAuthButton provider="google" disabled={loading} />
-        <OAuthButton provider="apple" disabled={loading} />
       </div>
     </AuthCard>
   );

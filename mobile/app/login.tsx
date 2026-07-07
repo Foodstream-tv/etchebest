@@ -58,7 +58,6 @@ type LoginCopy = {
     googleInProgress: string;
     googlePlayServicesMissing: string;
     googleUnknown: string;
-    appleUnavailable: string;
     headlineTop: string;
     headlineMiddle: string;
     headlineAccent: string;
@@ -69,7 +68,6 @@ type LoginCopy = {
     loginButton: string;
     divider: string;
     continueGoogle: string;
-    continueApple: string;
     forgotPassword: string;
     noAccount: string;
     register: string;
@@ -89,7 +87,6 @@ const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
         googleInProgress: 'Connexion deja en cours',
         googlePlayServicesMissing: 'Google Play Services indisponible sur cet appareil',
         googleUnknown: 'Erreur inattendue de connexion avec Google.',
-        appleUnavailable: "La connexion avec Apple n'est pas encore disponible",
         headlineTop: 'Cuisinez en live.',
         headlineMiddle: 'Apprenez avec les',
         headlineAccent: 'meilleurs chefs.',
@@ -100,7 +97,6 @@ const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
         loginButton: 'Se connecter',
         divider: 'Ou',
         continueGoogle: 'Continuer avec Google',
-        continueApple: 'Continuer avec Apple',
         forgotPassword: 'Mot de passe oublie ?',
         noAccount: "Vous n'avez pas de compte ? ",
         register: 'Inscrivez-vous',
@@ -118,7 +114,6 @@ const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
         googleInProgress: 'Sign in already in progress',
         googlePlayServicesMissing: 'Google Play Services unavailable on this device',
         googleUnknown: 'Unexpected Google sign-in error.',
-        appleUnavailable: 'Apple sign-in is not available yet',
         headlineTop: 'Cook live.',
         headlineMiddle: 'Learn from the',
         headlineAccent: 'best chefs.',
@@ -129,7 +124,6 @@ const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
         loginButton: 'Sign in',
         divider: 'Or',
         continueGoogle: 'Continue with Google',
-        continueApple: 'Continue with Apple',
         forgotPassword: 'Forgot password?',
         noAccount: "Don't have an account? ",
         register: 'Sign up',
@@ -356,10 +350,6 @@ function LoginScreenContent() {
         }
     }, [copy, handleGoogleLoginError, handleNativeGoogleLogin, handleWebGoogleLogin]);
 
-    const handleAppleLogin = useCallback(() => {
-        setSocialMessage(copy.appleUnavailable);
-    }, [copy]);
-
     const blurActiveElementOnWeb = useCallback(() => {
         if (Platform.OS === 'web') {
             const activeElement = document.activeElement as HTMLElement | null;
@@ -533,24 +523,7 @@ function LoginScreenContent() {
                         </View>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.socialButton}
-                        onPress={handleAppleLogin}
-                        testID="apple-login-button"
-                    >
-                        <View style={styles.socialButtonContent}>
-                            <View style={styles.socialIconBadge}>
-                                <Ionicons name="logo-apple" size={24} color="#F4EDE3" />
-                            </View>
-                            <Text style={styles.socialText}>{copy.continueApple}</Text>
-                        </View>
-                    </TouchableOpacity>
-
                     {!!socialMessage && <Text style={styles.socialMessage}>{socialMessage}</Text>}
-
-                    <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordWrap}>
-                        <Text style={styles.forgotPasswordText}>{copy.forgotPassword}</Text>
-                    </TouchableOpacity>
 
                     <View style={styles.footerRow}>
                         <Text style={styles.footerText}>{copy.noAccount}</Text>

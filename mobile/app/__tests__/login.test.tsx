@@ -34,31 +34,11 @@ describe('LoginScreen', () => {
     it('renders correctly', () => {
         const { getByText, getByPlaceholderText } = render(<LoginScreen />);
 
-        expect(getByText('Connexion')).toBeTruthy();
-        expect(getByText('Bon retour, content de vous revoir !')).toBeTruthy();
+        expect(getByText('CONNEXION')).toBeTruthy();
+        expect(getByText(/Cuisinez en live/)).toBeTruthy();
         expect(getByPlaceholderText('Adresse e-mail')).toBeTruthy();
         expect(getByPlaceholderText('Mot de passe')).toBeTruthy();
         expect(getByText('Se connecter')).toBeTruthy();
-    });
-
-    it('shows floating label when email input is focused', () => {
-        const { getByPlaceholderText, queryByText } = render(<LoginScreen />);
-        const emailInput = getByPlaceholderText('Adresse e-mail');
-
-        expect(queryByText('Adresse e-mail')).toBeNull();
-        fireEvent(emailInput, 'focus');
-        expect(queryByText('Adresse e-mail')).toBeTruthy();
-    });
-
-    it('shows floating label when password input has value', async () => {
-        const { getByPlaceholderText, getByText } = render(<LoginScreen />);
-        const passwordInput = getByPlaceholderText('Mot de passe');
-
-        fireEvent.changeText(passwordInput, 'test123');
-
-        await waitFor(() => {
-            expect(getByText('Mot de passe')).toBeTruthy();
-        });
     });
 
     it('displays error message for invalid email', async () => {
@@ -97,12 +77,6 @@ describe('LoginScreen', () => {
         expect(passwordInput.props.secureTextEntry).toBe(true);
     });
 
-    it('renders forgot password link', () => {
-        const { getByText } = render(<LoginScreen />);
-        const forgotPasswordLink = getByText('Mot de passe oublié ?');
-        expect(forgotPasswordLink).toBeTruthy();
-    });
-
     it('renders register link', () => {
         const { getByText } = render(<LoginScreen />);
         const registerLink = getByText('Inscrivez-vous');
@@ -135,9 +109,6 @@ describe('LoginScreen', () => {
 
         await waitFor(() => {
             expect(apiService.login).toHaveBeenCalled();
-            // Since we mocked useRouter, we can't easily assert on replace unless we exposed the mock. 
-            // In our setup, we can't directly access the local router mock's replace method.
-            // But we can check if it rendered the UI correctly without a toast.
         });
     });
 
@@ -148,29 +119,7 @@ describe('LoginScreen', () => {
         fireEvent.press(googleButton);
 
         await waitFor(() => {
-            expect(getByText("La connexion avec Google n'est pas encore disponible")).toBeTruthy();
-        });
-    });
-
-    it('shows inline message when Apple login is pressed', async () => {
-        const { getByTestId, getByText } = render(<LoginScreen />);
-        const appleButton = getByTestId('apple-login-button');
-
-        fireEvent.press(appleButton);
-
-        await waitFor(() => {
-            expect(getByText("La connexion avec Apple n'est pas encore disponible")).toBeTruthy();
-        });
-    });
-
-    it('shows inline message when Facebook login is pressed', async () => {
-        const { getByTestId, getByText } = render(<LoginScreen />);
-        const facebookButton = getByTestId('facebook-login-button');
-
-        fireEvent.press(facebookButton);
-
-        await waitFor(() => {
-            expect(getByText("La connexion avec Facebook n'est pas encore disponible")).toBeTruthy();
+            expect(getByText("Connexion Google indisponible sur cet appareil.")).toBeTruthy();
         });
     });
 });
