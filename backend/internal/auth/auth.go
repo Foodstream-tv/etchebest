@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Foodstream-io/etchebest/internal/modules/user"
+	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -62,7 +62,7 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		user := user.User{
+		user := userModule.User{
 			ID:                 uuid.New().String(),
 			Email:              req.Email,
 			Password:           string(hashedPassword),
@@ -104,7 +104,7 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
-		var user user.User
+		var user userModule.User
 
 		if err := db.Where("email = ?", req.Email).First(&user).Error; err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
@@ -114,6 +114,23 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return
+		}
+
+		if user.IsCurrentlyBanned() {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":       "your account is banned",
+				"banReason":   user.BanReason,
+				"bannedUntil": user.BannedUntil,
+			})
+			return
+		}
+
+		// Lazily lift temporary bans that have expired
+		if user.IsBanned {
+			if err := userModule.ClearBan(db, &user); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+				return
+			}
 		}
 
 		// 7 Days expiration token
@@ -138,7 +155,7 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 }
 
 // generateJWT creates a JWT token for authentication
-func GenerateJWT(user *user.User, jwtKey []byte) (string, error) {
+func GenerateJWT(user *userModule.User, jwtKey []byte) (string, error) {
 	expiration := time.Now().Add(7 * 24 * time.Hour)
 	claims := &Claims{
 		UserID: user.ID,

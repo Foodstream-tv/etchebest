@@ -51,7 +51,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.GET("/api/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api")
-	api.Use(middleware.AuthMiddleware(bJwtToken))
+	api.Use(middleware.AuthMiddleware(bJwtToken, db))
 
 	admin := api.Group("/admin")
 	admin.Use(middleware.RequireRole(user.ADMIN))
@@ -80,6 +80,9 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	admin.GET("/users", user.GetAllUsers(db))
 	admin.PATCH("/users/:userId", user.UpdateUserById(db))
 	admin.DELETE("/users/:userId", user.DeleteUserById(db))
+	admin.POST("/users/:userId/ban", user.BanUserById(db))
+	admin.POST("/users/:userId/unban", user.UnbanUserById(db))
+	admin.PATCH("/users/:userId/status", user.UpdateUserStatusById(db))
 	api.GET(usersMePath, user.GetMe(db))
 	api.PATCH(usersMePath, user.UpdateCurrentUser(db))
 	api.PATCH(usersMePath+"/password", user.UpdateCurrentPassword(db))
@@ -92,6 +95,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.GET("/search", search.GlobalSearch(db))
 	api.GET("/users/:userId", user.GetUserById(db))
 	api.GET("/users/me/activities", activity.GetMyActivities(db))
+	api.GET("/users/me/scheduled-live", live.GetMyScheduledLive(db))
 
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))

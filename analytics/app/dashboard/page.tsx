@@ -2,33 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-
-const API = "http://localhost:8081";
-
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  username: string;
-  role: string;
-  followerCount: number;
-  totalLives: number;
-  totalViews: number;
-  isVerified: boolean;
-  isFeaturedChef: boolean;
-  createdAt: string;
-  lastLiveAt: string | null;
-}
-
-interface Room {
-  id: string;
-  name: string;
-  host: string;
-  participants: string[];
-  viewers: number;
-  maxParticipants: number;
-}
+import { API, Room, User, adminAction, isBanActive } from "@/lib/api";
+import UserActionsMenu, { UserAction } from "@/components/UserActionsMenu";
+import BanModal from "@/components/BanModal";
+import ConfirmModal from "@/components/ConfirmModal";
+import NavBar from "@/components/NavBar";
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -54,6 +32,8 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<"users" | "rooms">("users");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [banTarget, setBanTarget] = useState<{ user: User; permanent: boolean } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -82,39 +62,60 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  function logout() {
-    localStorage.removeItem("token");
-    router.push("/login");
+  async function runAction(action: () => Promise<void>) {
+    setError("");
+    try {
+      await action();
+      await fetchData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed");
+    }
+  }
+
+  function handleUserAction(user: User, action: UserAction) {
+    switch (action.type) {
+      case "ban":
+        setBanTarget({ user, permanent: action.permanent });
+        break;
+      case "unban":
+        runAction(() => adminAction(`/api/admin/users/${user.id}/unban`, "POST"));
+        break;
+      case "delete":
+        setDeleteTarget(user);
+        break;
+      case "toggleVerified":
+        runAction(() =>
+          adminAction(`/api/admin/users/${user.id}/status`, "PATCH", {
+            isVerified: !user.isVerified,
+          })
+        );
+        break;
+      case "toggleChef":
+        runAction(() =>
+          adminAction(`/api/admin/users/${user.id}/status`, "PATCH", {
+            isFeaturedChef: !user.isFeaturedChef,
+          })
+        );
+        break;
+      case "toggleRole":
+        runAction(() =>
+          adminAction(`/api/admin/users/${user.id}/status`, "PATCH", {
+            role: user.role === "ADMIN" ? "USER" : "ADMIN",
+          })
+        );
+        break;
+    }
   }
 
   const admins = users.filter((u) => u.role === "ADMIN").length;
   const verified = users.filter((u) => u.isVerified).length;
   const chefs = users.filter((u) => u.isFeaturedChef).length;
+  const banned = users.filter((u) => isBanActive(u)).length;
   const totalViewers = rooms.reduce((sum, r) => sum + (r.viewers ?? 0), 0);
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-lg">Foodstream Analytics</h1>
-          <p className="text-gray-500 text-xs">Admin dashboard</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchData}
-            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition"
-          >
-            Refresh
-          </button>
-          <button
-            onClick={logout}
-            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+      <NavBar onRefresh={fetchData} />
 
       <main className="flex-1 px-6 py-6 max-w-7xl w-full mx-auto">
         {error && (
@@ -129,6 +130,7 @@ export default function DashboardPage() {
           <StatCard label="Admins" value={loading ? "—" : admins} />
           <StatCard label="Verified" value={loading ? "—" : verified} />
           <StatCard label="Featured chefs" value={loading ? "—" : chefs} />
+          <StatCard label="Banned" value={loading ? "—" : banned} />
           <StatCard label="Active rooms" value={loading ? "—" : rooms.length} />
           <StatCard label="Live viewers" value={loading ? "—" : totalViewers} />
           <StatCard
@@ -164,16 +166,65 @@ export default function DashboardPage() {
         {loading ? (
           <p className="text-gray-500 text-sm py-8 text-center">Loading…</p>
         ) : tab === "users" ? (
-          <UsersTable users={users} />
+          <UsersTable users={users} onAction={handleUserAction} />
         ) : (
           <RoomsTable rooms={rooms} />
         )}
       </main>
+
+      {banTarget && (
+        <BanModal
+          user={banTarget.user}
+          permanent={banTarget.permanent}
+          onClose={() => setBanTarget(null)}
+          onConfirm={async (reason, durationHours) => {
+            await adminAction(`/api/admin/users/${banTarget.user.id}/ban`, "POST", {
+              reason,
+              durationHours,
+            });
+            setBanTarget(null);
+            await fetchData();
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete user"
+          body={
+            <>
+              <span className="font-medium text-gray-300">@{deleteTarget.username}</span> (
+              {deleteTarget.email}) and their data will be permanently deleted. This cannot
+              be undone.
+            </>
+          }
+          confirmLabel="Delete user"
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={async () => {
+            await adminAction(`/api/admin/users/${deleteTarget.id}`, "DELETE");
+            setDeleteTarget(null);
+            await fetchData();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function UsersTable({ users }: { users: User[] }) {
+function banTooltip(u: User): string {
+  const until = u.bannedUntil
+    ? `until ${new Date(u.bannedUntil).toLocaleString()}`
+    : "permanently";
+  return u.banReason ? `Banned ${until} — ${u.banReason}` : `Banned ${until}`;
+}
+
+function UsersTable({
+  users,
+  onAction,
+}: {
+  users: User[];
+  onAction: (user: User, action: UserAction) => void;
+}) {
   if (users.length === 0)
     return <p className="text-gray-500 text-sm py-8 text-center">No users found.</p>;
 
@@ -190,46 +241,64 @@ function UsersTable({ users }: { users: User[] }) {
             <th className="px-4 py-3 text-right">Views</th>
             <th className="px-4 py-3 text-left">Status</th>
             <th className="px-4 py-3 text-left">Joined</th>
+            <th className="px-4 py-3 text-right">
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => (
-            <tr
-              key={u.id}
-              className="border-b border-gray-800/60 hover:bg-gray-900/60 transition"
-            >
-              <td className="px-4 py-3">
-                <p className="font-medium">
-                  {u.firstName} {u.lastName}
-                </p>
-                <p className="text-gray-500 text-xs">@{u.username}</p>
-              </td>
-              <td className="px-4 py-3 text-gray-400">{u.email}</td>
-              <td className="px-4 py-3">
-                {u.role === "ADMIN" ? (
-                  <Badge color="bg-indigo-900/60 text-indigo-300">Admin</Badge>
-                ) : (
-                  <Badge color="bg-gray-800 text-gray-400">User</Badge>
-                )}
-              </td>
-              <td className="px-4 py-3 text-right tabular-nums">{u.followerCount}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{u.totalLives}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{u.totalViews}</td>
-              <td className="px-4 py-3">
-                <div className="flex gap-1 flex-wrap">
-                  {u.isVerified && (
-                    <Badge color="bg-emerald-900/60 text-emerald-400">Verified</Badge>
+          {users.map((u) => {
+            const bannedNow = isBanActive(u);
+            return (
+              <tr
+                key={u.id}
+                className={`border-b border-gray-800/60 hover:bg-gray-900/60 transition ${
+                  bannedNow ? "opacity-60" : ""
+                }`}
+              >
+                <td className="px-4 py-3">
+                  <p className="font-medium">
+                    {u.firstName} {u.lastName}
+                  </p>
+                  <p className="text-gray-500 text-xs">@{u.username}</p>
+                </td>
+                <td className="px-4 py-3 text-gray-400">{u.email}</td>
+                <td className="px-4 py-3">
+                  {u.role === "ADMIN" ? (
+                    <Badge color="bg-indigo-900/60 text-indigo-300">Admin</Badge>
+                  ) : (
+                    <Badge color="bg-gray-800 text-gray-400">User</Badge>
                   )}
-                  {u.isFeaturedChef && (
-                    <Badge color="bg-amber-900/60 text-amber-400">Chef</Badge>
-                  )}
-                </div>
-              </td>
-              <td className="px-4 py-3 text-gray-500 text-xs">
-                {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{u.followerCount}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{u.totalLives}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{u.totalViews}</td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1 flex-wrap">
+                    {bannedNow && (
+                      <span title={banTooltip(u)}>
+                        <Badge color="bg-red-900/60 text-red-400">
+                          {u.bannedUntil ? "Banned (temp)" : "Banned"}
+                        </Badge>
+                      </span>
+                    )}
+                    {u.isVerified && (
+                      <Badge color="bg-emerald-900/60 text-emerald-400">Verified</Badge>
+                    )}
+                    {u.isFeaturedChef && (
+                      <Badge color="bg-amber-900/60 text-amber-400">Chef</Badge>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-gray-500 text-xs">
+                  {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <UserActionsMenu user={u} onAction={(a) => onAction(u, a)} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

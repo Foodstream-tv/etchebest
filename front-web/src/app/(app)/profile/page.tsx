@@ -453,22 +453,20 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/[0.03] px-3 py-3 text-xs dark:bg-white/[0.04]">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Mail aria-hidden="true" className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{user.email}</span>
-                </div>
-
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-200"
-                  type="button"
-                  aria-label="Se déconnecter"
-                >
-                  <LogOut aria-hidden="true" className="h-4 w-4" />
-                  Déco
-                </button>
+              <div className="mt-4 flex items-center gap-2 rounded-2xl bg-black/[0.03] px-3 py-3 text-xs dark:bg-white/[0.04]">
+                <Mail aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <span className="truncate">{user.email}</span>
               </div>
+
+              <button
+                onClick={handleSignOut}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-black/[0.03] px-3 py-3 text-xs font-medium text-gray-700 transition hover:bg-black/[0.06] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08]"
+                type="button"
+                aria-label="Se déconnecter"
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+                Déconnexion
+              </button>
             </ProfileCard>
 
             <ProfileCard>

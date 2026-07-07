@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { API } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,14 +16,18 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8081/api/login", {
+      const res = await fetch(`${API}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || data.message || "Login failed");
+        let message = data.error || data.message || "Login failed";
+        if (data.banReason) message += ` — ${data.banReason}`;
+        if (data.bannedUntil)
+          message += ` (until ${new Date(data.bannedUntil).toLocaleString()})`;
+        setError(message);
         return;
       }
       localStorage.setItem("token", data.token);
