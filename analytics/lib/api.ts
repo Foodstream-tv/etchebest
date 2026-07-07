@@ -1,4 +1,4 @@
-export const API = "http://localhost:8081";
+export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 
 export interface User {
   id: string;

@@ -1,0 +1,11 @@
+services:
+  analytics:
+    container_name: analytics-foodstream
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8081}
+    ports:
+      - '3001:3000'
+    restart: unless-stopped
