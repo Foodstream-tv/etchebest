@@ -1823,6 +1823,19 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
+		// If the user is the host, transition the live status from "scheduled" to "live"
+		if userID == room.Host {
+			now := time.Now()
+			if err := db.Model(&liveModule.Live{}).
+				Where("room_id = ? AND status = ?", roomID, "scheduled").
+				Updates(map[string]any{
+					"status":     "live",
+					"started_at": &now,
+				}).Error; err != nil {
+				log.Printf("Failed to transition live status to live for room %s: %v", roomID, err)
+			}
+		}
+
 		// 3. Parse SDP offer
 		var offer webrtc.SessionDescription
 		if err := c.ShouldBindJSON(&offer); err != nil {
