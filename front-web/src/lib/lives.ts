@@ -79,3 +79,16 @@ export async function getLiveByRoomId(roomId: string, token?: string) {
     cache: "no-store",
   });
 }
+
+export type MyScheduledLive = {
+  room_id: string;
+  title: string;
+  scheduled_at?: string | null;
+};
+
+export async function getMyScheduledLive(token: string) {
+  return apiFetch<{ live: MyScheduledLive | null }>("/users/me/scheduled-live", {
+    token,
+    cache: "no-store",
+  });
+}

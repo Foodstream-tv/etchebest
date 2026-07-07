@@ -6,6 +6,8 @@ import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
 import AppBackground from "@/components/layout/AppBackground";
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import NotificationPoller from "@/components/notifications/NotificationPoller";
+import ScheduledLiveToast from "@/components/notifications/ScheduledLiveToast";
+import SessionGuard from "@/components/notifications/SessionGuard";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -45,7 +47,9 @@ export default async function RootLayout({
 
         <ThemeProvider initialTheme={initialTheme}>
           <NotificationProvider>
+            <SessionGuard />
             <NotificationPoller />
+            <ScheduledLiveToast />
             <AppBackground>{children}</AppBackground>
           </NotificationProvider>
         </ThemeProvider>

@@ -5,7 +5,8 @@ import { Mail } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import { useAuthSubmit } from "@/lib/useAuthSubmit";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
+import { BANNED_ERROR, formatBanMessage } from "@/lib/session";
 import AuthCard from "@/components/auth/AuthCard";
 import TextField from "@/components/auth/TextField";
 import PasswordField from "@/components/auth/PasswordField";
@@ -94,6 +95,21 @@ export default function SignInPage() {
       router.replace("/home");
     } catch (err) {
       console.error("Login error:", err);
+
+      if (
+        err instanceof ApiError &&
+        err.status === 403 &&
+        err.body?.error === BANNED_ERROR
+      ) {
+        setError(formatBanMessage(err.body?.bannedUntil));
+        return;
+      }
+
+      if (err instanceof ApiError && err.status === 401) {
+        setError("Adresse e-mail ou mot de passe incorrect.");
+        return;
+      }
+
       setError("Une erreur est survenue lors de la connexion.");
     }
   }

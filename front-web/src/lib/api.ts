@@ -1,5 +1,22 @@
+import { BANNED_ERROR, dispatchSessionTerminated } from "@/lib/session";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
+
+// Error thrown by apiFetch on a non-OK response. Carries the HTTP status and
+// the parsed JSON body so callers can react to structured errors (e.g. a ban)
+// instead of only a message string.
+export class ApiError extends Error {
+  status: number;
+  body: any;
+
+  constructor(message: string, status: number, body: any) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
 
 function joinUrl(base: string, path: string) {
   const b = base.replace(/\/+$/, "");
@@ -53,8 +70,27 @@ export async function apiFetch<T>(
     if (!options.silent) {
       console.error("API ERROR", { url, status: res.status, raw: text, json });
     }
-    throw new Error(
-      json?.message || json?.error || text || `Erreur ${res.status}`
+
+    // Only authenticated requests can invalidate a session. This keeps
+    // unauthenticated failures (e.g. wrong credentials on login) from
+    // triggering a global logout.
+    if (headers.has("Authorization")) {
+      if (res.status === 403 && json?.error === BANNED_ERROR) {
+        dispatchSessionTerminated({
+          reason: "banned",
+          banReason: json?.banReason || undefined,
+          bannedUntil: json?.bannedUntil ?? null,
+        });
+      } else if (res.status === 401) {
+        // Token no longer valid: user deleted, token expired, etc.
+        dispatchSessionTerminated({ reason: "revoked" });
+      }
+    }
+
+    throw new ApiError(
+      json?.message || json?.error || text || `Erreur ${res.status}`,
+      res.status,
+      json
     );
   }
 
