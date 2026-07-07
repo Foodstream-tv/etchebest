@@ -3,20 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import {  Mail, LogOut, Settings, Bell, ShieldCheck, Trophy, Star, Pencil, X, Save, BellRing } from "lucide-react";
+import {  Mail, LogOut, Settings, Bell, ShieldCheck, Pencil, X, Save, BellRing } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { getUserFollowers, getUserFollowing, type UserSummary } from "@/lib/users";
 import HomeFooter from "@/components/home/HomeFooter";
 import ProfileCard from "@/components/profile/ProfileCard";
 import ProfilePill from "@/components/profile/ProfilePill";
-import ProfileTabButton from "@/components/profile/ProfileTabButton";
-import ProfileBadgeCard from "@/components/profile/ProfileBadgeCard";
-import ProfileFavoriteRow from "@/components/profile/ProfileFavoriteRow";
-import ProfileConnectedRow from "@/components/profile/ProfileConnectedRow";
-import ProfileStatMiniCard from "@/components/profile/ProfileStatMiniCard";
-import ProfileProgressRow from "@/components/profile/ProfileProgressRow";
-import ProfileActivityRow from "@/components/profile/ProfileActivityRow";
 import FollowStats from "@/components/profile/FollowStats";
 import FollowListModal from "@/components/profile/FollowListModal";
 import { initialsOf } from "@/components/profile/profileUtils";
@@ -40,12 +33,6 @@ type MeProfile = {
 };
 
 type ThemeChoice = "Clair" | "Sombre" | "Système";
-type ProfileTab =
-  | "Préférences"
-  | "Statistiques"
-  | "Activité"
-  | "Médailles & Badges"
-  | "Favoris";
 
 type UpdateProfilePayload = {
   username?: string;
@@ -60,7 +47,6 @@ export default function ProfilePage() {
   const pathname = usePathname();
   const { pushNotification } = useNotifications();
 
-  const [tab, setTab] = useState<ProfileTab>("Préférences");
   const [profile, setProfile] = useState<MeProfile | null>(null);
 
   const [followersCount, setFollowersCount] = useState(0);
@@ -87,10 +73,7 @@ export default function ProfilePage() {
   const [notifReplays, setNotifReplays] = useState(false);
   const [notifChefs, setNotifChefs] = useState(true);
 
-  const [googleConnected, setGoogleConnected] = useState(true);
-  const [twitchConnected, setTwitchConnected] = useState(false);
-  const [youtubeConnected, setYoutubeConnected] = useState(true);
-  const [xConnected, setXConnected] = useState(false);
+
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editUsername, setEditUsername] = useState("");
@@ -189,17 +172,7 @@ export default function ProfilePage() {
     setEditDescription(profile?.description || "");
   }, [user, profile]);
 
-  const stats = useMemo(
-    () => ({
-      watchHours: 42,
-      recipes: 18,
-      streakDays: 7,
-      chefsFollowed: 24,
-      chefLevel: 68,
-      weeklyGoal: 80,
-    }),
-    []
-  );
+
 
   if (!ready) {
     return (
@@ -469,252 +442,91 @@ export default function ProfilePage() {
               </button>
             </ProfileCard>
 
-            <ProfileCard>
-              <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-50">
-                Comptes connectés
-              </h2>
 
-              <div className="space-y-3">
-                <ProfileConnectedRow
-                  label="Google"
-                  connected={googleConnected}
-                  onToggle={() => setGoogleConnected(!googleConnected)}
-                />
-                <ProfileConnectedRow
-                  label="Twitch"
-                  connected={twitchConnected}
-                  onToggle={() => setTwitchConnected(!twitchConnected)}
-                />
-                <ProfileConnectedRow
-                  label="YouTube"
-                  connected={youtubeConnected}
-                  onToggle={() => setYoutubeConnected(!youtubeConnected)}
-                />
-                <ProfileConnectedRow
-                  label="Twitter/X"
-                  connected={xConnected}
-                  onToggle={() => setXConnected(!xConnected)}
-                />
-              </div>
-            </ProfileCard>
           </aside>
 
           <section className="space-y-6" aria-label="Contenu du profil">
             <ProfileCard>
-              <div className="flex flex-wrap gap-2" aria-label="Onglets du profil">
-                {(
-                  [
-                    "Préférences",
-                    "Statistiques",
-                    "Activité",
-                    "Médailles & Badges",
-                    "Favoris",
-                  ] as ProfileTab[]
-                ).map((item) => (
-                  <ProfileTabButton
-                    key={item}
-                    active={tab === item}
-                    onClick={() => {
-                      setTab(item);
+              <div className="mb-4 flex items-center gap-2">
+                <Settings aria-hidden="true" className="h-4 w-4 text-orange-500" />
+                <h2 className="text-sm font-semibold">Préférences</h2>
+              </div>
 
-                      if (item === "Activité") {
-                        const currentActivityIds = activities.map(
-                          (activity) => activity.id
-                        );
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Thème
+                  </div>
 
-                        localStorage.setItem(
-                          getReadActivityStorageKey(),
-                          JSON.stringify(currentActivityIds)
-                        );
+                  <div className="flex flex-wrap gap-2">
+                    {(["Clair", "Sombre"] as ThemeChoice[]).map((item) => (
+                      <ProfilePill
+                        key={item}
+                        active={themeChoice === item}
+                        onClick={() =>
+                          setTheme(item === "Sombre" ? "dark" : "light")
+                        }
+                      >
+                        {item}
+                      </ProfilePill>
+                    ))}
+                  </div>
+                </div>
 
-                        setNewFollowerNotification(false);
-                        setNotificationCount(0);
-                      }
-                    }}
-                  >
-                    <span className="relative inline-flex items-center">
-                      {item}
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    <Bell aria-hidden="true" className="h-4 w-4" />
+                    Notifications
+                  </div>
 
-                      {item === "Activité" && notificationCount > 0 ? (
-                        <span
-                          aria-label={`${notificationCount} nouvelle activité`}
-                          className="absolute -right-4 -top-3 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow"
-                        >
-                          {notificationCount}
-                        </span>
-                      ) : null}
-                    </span>
-                  </ProfileTabButton>
-                ))}
+                  <div className="flex flex-wrap gap-2">
+                    <ProfilePill
+                      active={notifLives}
+                      onClick={() => setNotifLives((v) => !v)}
+                    >
+                      Lives
+                    </ProfilePill>
+
+                    <ProfilePill
+                      active={notifReplays}
+                      onClick={() => setNotifReplays((v) => !v)}
+                    >
+                      Replays
+                    </ProfilePill>
+
+                    <ProfilePill
+                      active={notifChefs}
+                      onClick={() => setNotifChefs((v) => !v)}
+                    >
+                      Nouveaux chefs
+                    </ProfilePill>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Langue
+                  </div>
+
+                  <div className="flex gap-2">
+                    <ProfilePill active={true} onClick={() => {}}>
+                      Français
+                    </ProfilePill>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                    Confidentialité
+                  </div>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Profil visible, listes publiques, etc.
+                  </p>
+                </div>
               </div>
             </ProfileCard>
-
-            {tab === "Médailles & Badges" ? (
-              <ProfileCard>
-                <div className="mb-4 flex items-center gap-2">
-                  <Trophy aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                  <h2 className="text-sm font-semibold">Médailles & Badges</h2>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                  <ProfileBadgeCard title="Chef" subtitle="Débutant" meta="5 lives suivis" />
-                  <ProfileBadgeCard title="Gourmet" subtitle="Curieux" meta="10 recettes sauvegardées" />
-                  <ProfileBadgeCard title="Roi du Chat" meta="100 messages envoyés" />
-                  <ProfileBadgeCard title="Matinal" meta="3 lives à 8h" />
-                  <ProfileBadgeCard title="Noctambule" meta="3 lives après minuit" />
-                  <ProfileBadgeCard title="Ambassadeur" meta="5 parrainages" />
-                  <ProfileBadgeCard title="Explorateur" meta="10 lives différents" />
-                  <ProfileBadgeCard title="Fidèle" meta="7 jours de suite" />
-                </div>
-              </ProfileCard>
-            ) : null}
-
-            {tab === "Favoris" ? (
-              <ProfileCard>
-                <div className="mb-4 flex items-center gap-2">
-                  <Star aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                  <h2 className="text-sm font-semibold">Favoris</h2>
-                </div>
-
-                <div className="space-y-3">
-                  <ProfileFavoriteRow title="Bao buns moelleux" meta="Recette · Sauvegardé" />
-                  <ProfileFavoriteRow title="Ramen Tonkotsu" meta="Live · Suivi" />
-                  <ProfileFavoriteRow title="Chef Camille Dupont" meta="Chef · Abonné" />
-                </div>
-              </ProfileCard>
-            ) : null}
-
-            {tab === "Préférences" ? (
-              <ProfileCard>
-                <div className="mb-4 flex items-center gap-2">
-                  <Settings aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                  <h2 className="text-sm font-semibold">Préférences</h2>
-                </div>
-
-                <div className="grid gap-5 md:grid-cols-2">
-                  <div>
-                    <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      Thème
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {(["Clair", "Sombre"] as ThemeChoice[]).map((item) => (
-                        <ProfilePill
-                          key={item}
-                          active={themeChoice === item}
-                          onClick={() =>
-                            setTheme(item === "Sombre" ? "dark" : "light")
-                          }
-                        >
-                          {item}
-                        </ProfilePill>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      <Bell aria-hidden="true" className="h-4 w-4" />
-                      Notifications
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <ProfilePill
-                        active={notifLives}
-                        onClick={() => setNotifLives((v) => !v)}
-                      >
-                        Lives
-                      </ProfilePill>
-
-                      <ProfilePill
-                        active={notifReplays}
-                        onClick={() => setNotifReplays((v) => !v)}
-                      >
-                        Replays
-                      </ProfilePill>
-
-                      <ProfilePill
-                        active={notifChefs}
-                        onClick={() => setNotifChefs((v) => !v)}
-                      >
-                        Nouveaux chefs
-                      </ProfilePill>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      Langue
-                    </div>
-
-                    <div className="flex gap-2">
-                      <ProfilePill active={true} onClick={() => {}}>
-                        Français
-                      </ProfilePill>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                      Confidentialité
-                    </div>
-
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Profil visible, listes publiques, etc.
-                    </p>
-                  </div>
-                </div>
-              </ProfileCard>
-            ) : null}
-
-            {tab === "Statistiques" ? (
-              <ProfileCard>
-                <h2 className="mb-4 text-sm font-semibold">Statistiques</h2>
-
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <ProfileStatMiniCard value={`${stats.watchHours} h`} label="Temps de visionnage" />
-                  <ProfileStatMiniCard value={`${stats.recipes}`} label="Recettes cuisinées" />
-                  <ProfileStatMiniCard value={`${stats.streakDays} jours`} label="Streak" />
-                  <ProfileStatMiniCard value={`${stats.chefsFollowed}`} label="Chefs suivis" />
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  <ProfileProgressRow
-                    label="Niveau de Chef"
-                    value={`${stats.chefLevel}%`}
-                    percent={stats.chefLevel}
-                  />
-
-                  <ProfileProgressRow
-                    label="Objectif hebdo (5h)"
-                    value={`${stats.weeklyGoal}%`}
-                    percent={stats.weeklyGoal}
-                  />
-                </div>
-              </ProfileCard>
-            ) : null}
-
-            {tab === "Activité" ? (
-              <ProfileCard>
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">Activité récente</h2>
-                </div>
-
-                <div className="space-y-3">
-                  {activities.length === 0 ? (
-                    <ProfileActivityRow
-                      empty
-                      text="Aucune activité récente sur les 30 derniers jours."
-                    />
-                  ) : (
-                    activities.map((activity) => (
-                      <ProfileActivityRow key={activity.id} text={activity.text} />
-                    ))
-                  )}
-                </div>
-              </ProfileCard>
-            ) : null}
           </section>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Mail, ShieldCheck, Star, Trophy } from "lucide-react";
+import { ArrowLeft, Mail, ShieldCheck, Star } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import {
   getUserById,
@@ -15,7 +15,6 @@ import ProfileCard from "@/components/profile/ProfileCard";
 import FollowButton from "@/components/profile/FollowButton";
 import FollowStats from "@/components/profile/FollowStats";
 import FollowListModal from "@/components/profile/FollowListModal";
-import ProfileBadgeCard from "@/components/profile/ProfileBadgeCard";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useParams } from "next/navigation";
 
@@ -258,30 +257,7 @@ export default function PublicProfilePage() {
           </aside>
 
           <section className="space-y-6" aria-label="Contenu public du profil">
-            <ProfileCard>
-              <div className="mb-4 flex items-center gap-2">
-                <Trophy aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                <h2 className="text-sm font-semibold">Badges publics</h2>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <ProfileBadgeCard
-                  title="Chef"
-                  subtitle="Débutant"
-                  meta="Premier live"
-                />
-                <ProfileBadgeCard
-                  title="Gourmet"
-                  subtitle="Curieux"
-                  meta="Suit des chefs"
-                />
-                <ProfileBadgeCard title="Fidèle" meta="Profil actif" />
-                <ProfileBadgeCard
-                  title="Explorateur"
-                  meta="Découvre des lives"
-                />
-              </div>
-            </ProfileCard>
 
             <ProfileCard>
               <div className="mb-4 flex items-center gap-2">

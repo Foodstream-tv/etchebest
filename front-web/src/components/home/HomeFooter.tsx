@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomeFooter() {
   return (
     <footer className="mt-20 border-t border-black/8 bg-transparent dark:border-white/10">
@@ -22,24 +24,48 @@ export default function HomeFooter() {
             </h3>
 
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li>Découvrir</li>
-              <li>Studio</li>
-              <li>Favoris</li>
+              <li>
+                <Link href="/watch" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Lives
+                </Link>
+              </li>
+              <li>
+                <Link href="/studio" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Studio
+                </Link>
+              </li>
+              <li>
+                <Link href="/shop" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Boutique
+                </Link>
+              </li>
             </ul>
           </nav>
 
-          <nav aria-labelledby="footer-resources-title">
+          <nav aria-labelledby="footer-navigation-title">
             <h3
-              id="footer-resources-title"
+              id="footer-navigation-title"
               className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100"
             >
-              Ressources
+              Navigation
             </h3>
 
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li>Aide</li>
-              <li>Communauté</li>
-              <li>Support</li>
+              <li>
+                <Link href="/home" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Accueil
+                </Link>
+              </li>
+              <li>
+                <Link href="/replays" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Replays
+                </Link>
+              </li>
+              <li>
+                <Link href="/profile" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Mon Profil
+                </Link>
+              </li>
             </ul>
           </nav>
 
@@ -52,8 +78,11 @@ export default function HomeFooter() {
             </h3>
 
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li>Confidentialité</li>
-              <li>Conditions</li>
+              <li>
+                <Link href="/confidentialite" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  Confidentialité
+                </Link>
+              </li>
             </ul>
           </nav>
         </div>
