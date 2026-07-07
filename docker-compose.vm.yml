@@ -11,6 +11,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - analytics
 
   postgres:
     image: postgres:16-alpine
@@ -58,6 +59,18 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: https://${VM_IP}/api
     network_mode: "host"
+    restart: unless-stopped
+
+  analytics:
+    container_name: analytics-foodstream
+    build:
+      context: ./analytics
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${VM_IP}
+    network_mode: "host"
+    environment:
+      - PORT=3001
     restart: unless-stopped
 
 
