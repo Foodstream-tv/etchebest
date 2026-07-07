@@ -436,6 +436,16 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			dishName = req.Tags[0]
 		}
 
+		var scheduledAt *time.Time
+		if req.ScheduledAt != nil && strings.TrimSpace(*req.ScheduledAt) != "" {
+			parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ScheduledAt))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scheduledAt format"})
+				return
+			}
+			scheduledAt = &parsed
+		}
+
 		var startedAt *time.Time
 		if status == "live" {
 			now := time.Now()
@@ -461,6 +471,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			LikeCount:      0,
 			StartedAt:      startedAt,
 			Tags:           resolvedTags,
+			ScheduledAt: scheduledAt,
 		}
 
 		if err := db.Create(&newLive).Error; err != nil {
@@ -1810,6 +1821,19 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		userID := utils.GetContextString(c, "userId")
 		if !ensureParticipant(c, db, room, userID) {
 			return
+		}
+
+		// If the user is the host, transition the live status from "scheduled" to "live"
+		if userID == room.Host {
+			now := time.Now()
+			if err := db.Model(&liveModule.Live{}).
+				Where("room_id = ? AND status = ?", roomID, "scheduled").
+				Updates(map[string]any{
+					"status":     "live",
+					"started_at": &now,
+				}).Error; err != nil {
+				log.Printf("Failed to transition live status to live for room %s: %v", roomID, err)
+			}
 		}
 
 		// 3. Parse SDP offer

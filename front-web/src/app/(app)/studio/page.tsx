@@ -485,7 +485,7 @@ export default function StudioPage() {
       setStatus("creating");
       const id = await createRoom("scheduled");
       setStatus("idle");
-      router.push(`/watch/${encodeURIComponent(id)}`);
+      router.push(`/broadcast/${encodeURIComponent(id)}?mode=host`);
     } catch (e: any) {
       setStatus("error");
       setError(e?.message || "Erreur");

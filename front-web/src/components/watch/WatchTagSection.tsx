@@ -5,6 +5,7 @@ import { useMemo, useRef } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarDays,
   Eye,
   PlayCircle,
   Radio,
@@ -18,6 +19,23 @@ type Props = {
   lives: LiveDTO[];
   mode?: "live" | "replay";
 };
+
+function formatScheduledDate(value?: string) {
+  if (!value) return "Date à venir";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date à venir";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 export default function WatchTagSection({
   tagName,
@@ -89,8 +107,8 @@ export default function WatchTagSection({
       >
         {displayedLives.map((live) => {
           const rid = encodeURIComponent(live.room_id || String(live.id));
-
           const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
+          const isScheduled = live.status === "scheduled";
 
           return (
             <article
@@ -129,7 +147,7 @@ export default function WatchTagSection({
                     ) : live.status === "ended" ? (
                       <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
                     ) : (
-                      <Radio className="h-3.5 w-3.5" aria-hidden="true" />
+                      <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
 
                     {live.status === "live"
@@ -165,6 +183,16 @@ export default function WatchTagSection({
                   ))}
                 </div>
 
+                {isScheduled ? (
+                  <div className="rounded-2xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-200">
+                    <CalendarDays
+                      className="mb-1 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                    Programmé le {formatScheduledDate(live.scheduled_at)}
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04] dark:text-gray-300">
                     <Eye className="mb-1 h-4 w-4" aria-hidden="true" />
@@ -191,7 +219,7 @@ export default function WatchTagSection({
                       href={`/watch/${rid}`}
                       className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
-                      Regarder
+                      {isScheduled ? "Voir" : "Regarder"}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
 
@@ -202,6 +230,10 @@ export default function WatchTagSection({
                       >
                         Rejoindre
                       </Link>
+                    ) : isScheduled ? (
+                      <div className="inline-flex items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
+                        À venir
+                      </div>
                     ) : (
                       <div className="inline-flex items-center justify-center rounded-2xl border border-black/8 bg-black/[0.04] px-4 py-3 text-sm font-semibold text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/35">
                         Hors ligne

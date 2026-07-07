@@ -20,13 +20,16 @@ export type LiveDTO = {
   description?: string;
   dish_name?: string;
   status: "scheduled" | "live" | "ended";
+
+  scheduled_at?: string;
+  created_at: string;
+
   thumbnail_url?: string;
   preview_gif?: string;
   current_viewers: number;
   view_count: number;
   tags?: LiveTag[];
   user?: LiveUser;
-  created_at: string;
   replay_url?: string;
   has_replay?: boolean;
 };

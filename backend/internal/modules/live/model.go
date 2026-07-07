@@ -33,9 +33,11 @@ type Live struct {
 	LikeCount      int `gorm:"default:0" json:"like_count"`
 
 	// Status
-	Status    string     `gorm:"size:20;not null;default:'scheduled';index:idx_live_country_status,idx_live_status" json:"status"` // "scheduled", "live", "ended"
-	StartedAt *time.Time `gorm:"index" json:"started_at,omitempty"`
-	EndedAt   *time.Time `json:"ended_at,omitempty"`
+	Status string `gorm:"size:20;not null;default:'scheduled';index:idx_live_country_status,idx_live_status" json:"status"` // "scheduled", "live", "ended"
+
+	ScheduledAt *time.Time `gorm:"index" json:"scheduled_at,omitempty"`
+	StartedAt   *time.Time `gorm:"index" json:"started_at,omitempty"`
+	EndedAt     *time.Time `json:"ended_at,omitempty"`
 
 	// Replay
 	HasReplay   bool   `gorm:"default:false;index:idx_live_replay" json:"has_replay"`
