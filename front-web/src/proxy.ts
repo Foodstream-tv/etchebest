@@ -20,8 +20,8 @@ function decodeJwtPayload(token: string) {
     }
 
     const base64 = payload
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
+      .replaceAll("-", "+")
+      .replaceAll("_", "/");
 
     const padded = base64.padEnd(
       base64.length + ((4 - (base64.length % 4)) % 4),
