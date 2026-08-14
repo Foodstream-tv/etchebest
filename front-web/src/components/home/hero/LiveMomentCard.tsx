@@ -67,7 +67,7 @@ export default function LiveMomentCard() {
         </h3>
 
         <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400 max-w-[200px]">
-          Il n'y a pas de diffusion en direct pour le moment. Lancez-en une depuis le studio !
+          Il n’y a pas de diffusion en direct pour le moment. Lancez-en une depuis le studio !
         </p>
 
         <Link
@@ -81,7 +81,7 @@ export default function LiveMomentCard() {
     );
   }
 
-  const targetUrl = `/watch/${encodeURIComponent(live.room_id || String(live.id))}`;
+  const targetUrl = "/replays";
   const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
 
   return (
@@ -131,11 +131,11 @@ export default function LiveMomentCard() {
 
           <Link
             href={targetUrl}
-            aria-label={`Rejoindre le live ${live.title} par ${live.user?.username || "Foodstream"}`}
+            aria-label={`Voir les rediffusions de ${live.title}`}
             className="mt-4 block w-full rounded-2xl py-3 text-center text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 active:scale-[0.98]"
             style={{ background: ORANGE_GRADIENT_CSS }}
           >
-            Rejoindre
+            Voir les rediffusions
           </Link>
         </div>
       </div>
