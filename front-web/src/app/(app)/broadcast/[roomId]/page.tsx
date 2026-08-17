@@ -160,6 +160,7 @@ type ChatPanelProps = {
   chatMessages: ChatMessage[];
   message: string;
   sending: boolean;
+  scrollRef?: { current: HTMLDivElement | null };
   onMessageChange: (value: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
   onSendMessage: () => Promise<void>;
@@ -169,6 +170,7 @@ function ChatPanel({
   chatMessages,
   message,
   sending,
+  scrollRef,
   onMessageChange,
   onKeyDown,
   onSendMessage,
@@ -199,6 +201,7 @@ function ChatPanel({
       </div>
 
       <div
+        ref={scrollRef}
         aria-live="polite"
         aria-label="Messages du chat live"
         className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
