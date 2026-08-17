@@ -85,13 +85,13 @@ export default function WatchRoomPage() {
     return roomId ? getHLSUrl(roomId) : "";
   }, [roomId]);
 
-  const liveTitle = room?.name || liveInfo?.title || "Live en direct";
+  const liveTitle = room?.name || liveInfo?.title || "Archive FoodStream";
   const viewers = room?.viewers ?? null;
   const participants = room?.participants?.length ?? null;
   const maxParticipants = room?.maxParticipants ?? null;
 
   const [parsedRecipe, liveDescription] = useMemo(() => {
-    const rawDesc = liveInfo?.description || "Regarde le live en direct et échange avec la communauté.";
+    const rawDesc = liveInfo?.description || "Cette archive est accessible en replay pour revisualiser la recette et les échanges.";
     const marker = "---FOODSTREAM_RECIPE---";
     if (rawDesc.includes(marker)) {
       const parts = rawDesc.split(marker);
@@ -414,7 +414,7 @@ export default function WatchRoomPage() {
       if (navigator.share) {
         await navigator.share({
           title: liveTitle,
-          text: "Regarde ce live",
+          text: "Voir cette rediffusion",
           url: shareUrl,
         });
 
@@ -438,9 +438,9 @@ export default function WatchRoomPage() {
               Retour
             </Link>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-bold text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-              <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
-              <span>En direct</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />
+              <span>Replay / archive</span>
             </div>
 
             {viewers !== null && (
@@ -515,7 +515,7 @@ export default function WatchRoomPage() {
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Diffusion FoodStream
+                      Archive FoodStream
                     </p>
                   </div>
 
@@ -552,14 +552,12 @@ export default function WatchRoomPage() {
                 </p>
 
                 <div className="flex flex-wrap gap-2">
-                  {viewers !== null && (
-                    <InfoPill icon={<Eye className="h-4 w-4" />}>
-                      {viewers} viewers
-                    </InfoPill>
-                  )}
+                  <InfoPill icon={<Eye className="h-4 w-4" />}>
+                    Streamer-only · archive
+                  </InfoPill>
 
                   <InfoPill icon={<Radio className="h-4 w-4" />}>
-                    Mode: {playerMode}
+                    Lecture: {playerMode}
                   </InfoPill>
 
                   <InfoPill icon={<Radio className="h-4 w-4" />}>

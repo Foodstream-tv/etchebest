@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { Mail, User, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AuthCard from "@/components/auth/AuthCard";
@@ -24,7 +24,9 @@ type RegisterResponse = {
 };
 
 function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+    value.trim()
+  );
 }
 
 function minLen(value: string, min: number) {
@@ -62,13 +64,13 @@ export default function SignUpPage() {
       minLen(firstName, 2) &&
       minLen(lastName, 2) &&
       minLen(username, 3) &&
-      password.length >= 6 &&
+      password.length >= 8 &&
       inRange(description, 10, 500) &&
       isValidPhone(phoneNumber)
     );
   }, [email, firstName, lastName, username, password, description, phoneNumber]);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
@@ -92,8 +94,8 @@ export default function SignUpPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Le mot de passe doit faire au moins 6 caractères.");
+    if (password.length < 8) {
+      setError("Le mot de passe doit faire au moins 8 caractères.");
       return;
     }
 
