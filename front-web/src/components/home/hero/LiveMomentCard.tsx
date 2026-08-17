@@ -131,7 +131,7 @@ export default function LiveMomentCard() {
 
           <Link
             href={targetUrl}
-            aria-label={`Voir les rediffusions de ${live.title}`}
+            aria-label="Voir les rediffusions disponibles"
             className="mt-4 block w-full rounded-2xl py-3 text-center text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 active:scale-[0.98]"
             style={{ background: ORANGE_GRADIENT_CSS }}
           >
