@@ -48,9 +48,10 @@ export default function LiveGridCard({ item }: LiveGridCardProps) {
         </div>
 
         <div className="p-4">
-          <h3 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+          <h3 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50 break-all [overflow-wrap:anywhere]">
             {item.title}
           </h3>
+
 
           <div className="mt-1 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
             <span>
