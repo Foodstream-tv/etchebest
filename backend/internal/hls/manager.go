@@ -55,9 +55,10 @@ func RegisterToStream(roomID string, stop func()) {
 
 func logSegmentStatus(roomID string) {
 	qualities := []string{"1080p", "720p", "480p", "360p"}
+	const playlistFile = "index.m3u8"
 	
 	for _, quality := range qualities {
-		indexPath := filepath.Join("./hls", roomID, quality, "index.m3u8")
+		indexPath := filepath.Join("./hls", roomID, quality, playlistFile)
 		data, err := os.ReadFile(indexPath)
 		if err != nil {
 			continue
@@ -77,12 +78,13 @@ func logSegmentStatus(roomID string) {
 }
 
 func finalizePlaylist(roomID string) error {
+	const playlistFile = "index.m3u8"
 	playlists := []string{
 		filepath.Join("./hls", roomID, "master.m3u8"),
-		filepath.Join("./hls", roomID, "1080p", "index.m3u8"),
-		filepath.Join("./hls", roomID, "720p", "index.m3u8"),
-		filepath.Join("./hls", roomID, "480p", "index.m3u8"),
-		filepath.Join("./hls", roomID, "360p", "index.m3u8"),
+		filepath.Join("./hls", roomID, "1080p", playlistFile),
+		filepath.Join("./hls", roomID, "720p", playlistFile),
+		filepath.Join("./hls", roomID, "480p", playlistFile),
+		filepath.Join("./hls", roomID, "360p", playlistFile),
 	}
 
 	for _, playlistPath := range playlists {

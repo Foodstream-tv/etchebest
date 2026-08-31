@@ -42,6 +42,10 @@ type AddParticipantReq struct {
 	UserId string `json:"userId" binding:"required" example:"550e8400-e29b-41d4-a716-446655440001"`
 }
 
+const errRoomIDRequired = "room ID is required"
+const errRoomNotFound = "room not found"
+
+
 var (
 	mu        sync.Mutex
 	liveRooms = make(map[string]*Room)
@@ -159,15 +163,18 @@ func getPeerConnectionByUser(room *Room, userID string) *webrtc.PeerConnection {
 	return nil
 }
 
-// requestRenegotiationOffer creates and queues a server offer for one user.
-// The offer is fetched by the client via polling and answered through
-// HandleRenegotiationAnswer.
-func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnection) {
-	if room == nil || pc == nil || userID == "" {
-		return
-	}
-
+// markNeedsRenegotiation sets NeedsRenegotiationByUser[userID] = true under mu.
+func markNeedsRenegotiation(room *Room, userID string) {
 	mu.Lock()
+	if room.NeedsRenegotiationByUser != nil {
+		room.NeedsRenegotiationByUser[userID] = true
+	}
+	mu.Unlock()
+}
+
+// initRenegotiationMaps ensures all per-user renegotiation maps are non-nil.
+// Must be called with mu held.
+func initRenegotiationMaps(room *Room) {
 	if room.PendingOfferByUser == nil {
 		room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
 	}
@@ -177,19 +184,62 @@ func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnect
 	if room.NeedsRenegotiationByUser == nil {
 		room.NeedsRenegotiationByUser = make(map[string]bool)
 	}
+}
 
+// tryAcquireRenegotiation checks whether a renegotiation is already in progress
+// or pending for userID. Returns false if the caller should defer and exit.
+// Must be called with mu held; unlocks mu before returning false.
+func tryAcquireRenegotiation(room *Room, userID string) bool {
 	if _, hasPendingOffer := room.PendingOfferByUser[userID]; hasPendingOffer {
 		room.NeedsRenegotiationByUser[userID] = true
 		mu.Unlock()
-		return
+		return false
 	}
 	if room.RenegotiatingByUser[userID] {
 		room.NeedsRenegotiationByUser[userID] = true
 		mu.Unlock()
-		return
+		return false
 	}
 	room.RenegotiatingByUser[userID] = true
 	mu.Unlock()
+	return true
+}
+
+// logOfferSenders prints a debug summary of current senders on pc.
+func logOfferSenders(userID string, pc *webrtc.PeerConnection) {
+	log.Printf("Generated renegotiation offer for user %s, has %d senders currently", userID, len(pc.GetSenders()))
+	for i, sender := range pc.GetSenders() {
+		if sender != nil && sender.Track() != nil {
+			log.Printf("  Sender %d: %s track (id=%s)", i, sender.Track().Kind(), sender.Track().ID())
+		}
+	}
+}
+
+// storeOrSendOffer delivers the local offer to the user via WebSocket or
+// falls back to the polling map. Must be called with mu held.
+func storeOrSendOffer(room *Room, userID string, local *webrtc.SessionDescription) {
+	if !sendOfferToUser(room.ID, userID, local) {
+		if room.PendingOfferByUser == nil {
+			room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
+		}
+		room.PendingOfferByUser[userID] = *local
+		log.Printf("WebSocket send failed for %s, storing offer for polling", userID)
+	}
+}
+
+// requestRenegotiationOffer creates and queues a server offer for one user.
+// The offer is fetched by the client via polling and answered through
+// HandleRenegotiationAnswer.
+func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnection) {
+	if room == nil || pc == nil || userID == "" {
+		return
+	}
+
+	mu.Lock()
+	initRenegotiationMaps(room)
+	if !tryAcquireRenegotiation(room, userID) {
+		return
+	}
 
 	defer func() {
 		mu.Lock()
@@ -203,51 +253,30 @@ func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnect
 		return
 	}
 	if pc.SignalingState() != webrtc.SignalingStateStable {
-		mu.Lock()
-		if room.NeedsRenegotiationByUser != nil {
-			room.NeedsRenegotiationByUser[userID] = true
-		}
-		mu.Unlock()
+		markNeedsRenegotiation(room, userID)
 		return
 	}
 
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
 		log.Printf("CreateOffer (renegotiation) failed for user %s: %v", userID, err)
-		mu.Lock()
-		if room.NeedsRenegotiationByUser != nil {
-			room.NeedsRenegotiationByUser[userID] = true
-		}
-		mu.Unlock()
+		markNeedsRenegotiation(room, userID)
 		return
 	}
 
-	log.Printf("Generated renegotiation offer for user %s, has %d senders currently", userID, len(pc.GetSenders()))
-	for i, sender := range pc.GetSenders() {
-		if sender != nil && sender.Track() != nil {
-			log.Printf("  Sender %d: %s track (id=%s)", i, sender.Track().Kind(), sender.Track().ID())
-		}
-	}
+	logOfferSenders(userID, pc)
 
 	gatherComplete := webrtc.GatheringCompletePromise(pc)
 	if err := pc.SetLocalDescription(offer); err != nil {
 		log.Printf("SetLocalDescription (renegotiation) failed for user %s: %v", userID, err)
-		mu.Lock()
-		if room.NeedsRenegotiationByUser != nil {
-			room.NeedsRenegotiationByUser[userID] = true
-		}
-		mu.Unlock()
+		markNeedsRenegotiation(room, userID)
 		return
 	}
 	<-gatherComplete
 
 	local := pc.LocalDescription()
 	if local == nil {
-		mu.Lock()
-		if room.NeedsRenegotiationByUser != nil {
-			room.NeedsRenegotiationByUser[userID] = true
-		}
-		mu.Unlock()
+		markNeedsRenegotiation(room, userID)
 		return
 	}
 
@@ -256,16 +285,7 @@ func requestRenegotiationOffer(room *Room, userID string, pc *webrtc.PeerConnect
 	if getPeerConnectionByUser(room, userID) != pc {
 		return
 	}
-
-	// Send offer via WebSocket if connection exists
-	if !sendOfferToUser(room.ID, userID, local) {
-		// Fallback to polling if WebSocket not available
-		if room.PendingOfferByUser == nil {
-			room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
-		}
-		room.PendingOfferByUser[userID] = *local
-		log.Printf("WebSocket send failed for %s, storing offer for polling", userID)
-	}
+	storeOrSendOffer(room, userID, local)
 }
 
 // closePeerConnection safely removes senders and closes the underlying PeerConnection.
@@ -357,6 +377,64 @@ func GetAllRooms(db *gorm.DB) gin.HandlerFunc {
 // @Failure      500  {object}  map[string]string "error: Failed to create room"
 // @Router       /api/rooms [post]
 
+// resolveOrCreateTag finds or creates a tag by its name. Returns the tag or an error.
+func resolveOrCreateTag(db *gorm.DB, tagName string) (tagModule.Tag, error) {
+	cleanName := strings.TrimSpace(tagName)
+	if cleanName == "" {
+		return tagModule.Tag{}, nil
+	}
+	slug := strings.ReplaceAll(strings.ToLower(cleanName), " ", "-")
+	var tag tagModule.Tag
+	if db.Where("slug = ?", slug).First(&tag).Error == nil {
+		return tag, nil
+	}
+	tag = tagModule.Tag{Name: cleanName, Slug: slug, IsActive: true}
+	if err := db.Create(&tag).Error; err != nil {
+		return tagModule.Tag{}, err
+	}
+	return tag, nil
+}
+
+// resolveTags maps a list of raw tag names to Tag records, creating missing ones.
+func resolveTags(db *gorm.DB, names []string) ([]tagModule.Tag, error) {
+	tags := make([]tagModule.Tag, 0, len(names))
+	for _, name := range names {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		tag, err := resolveOrCreateTag(db, name)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
+// parseScheduledAt parses an optional RFC3339 timestamp pointer.
+func parseScheduledAt(raw *string) (*time.Time, error) {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*raw))
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+// liveStatus returns the normalised status and optional startedAt for a new live.
+func liveStatus(status string) (string, *time.Time) {
+	if status == "" {
+		status = "scheduled"
+	}
+	if status == "live" {
+		now := time.Now()
+		return status, &now
+	}
+	return status, nil
+}
+
 func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req Request
@@ -366,7 +444,6 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
-
 		currentUser, err := userModule.GetUserByID(db, currentUserId)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get current user"})
@@ -374,13 +451,9 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var existingLive liveModule.Live
-
-		if err := db.
-			Where("user_id = ? AND status IN ?", currentUser.ID, []string{"live", "scheduled"}).
+		if err := db.Where("user_id = ? AND status IN ?", currentUser.ID, []string{"live", "scheduled"}).
 			First(&existingLive).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "you already have an active or scheduled live",
-			})
+			c.JSON(http.StatusConflict, gin.H{"error": "you already have an active or scheduled live"})
 			return
 		}
 
@@ -392,64 +465,28 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Viewers:         0,
 			MaxParticipants: 6,
 		}
-
 		if err := CreateRoom(db, &room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
 			return
 		}
 
-		resolvedTags := make([]tagModule.Tag, 0, len(req.Tags))
-
-		for _, tagName := range req.Tags {
-			cleanName := strings.TrimSpace(tagName)
-			if cleanName == "" {
-				continue
-			}
-
-			slug := strings.ToLower(cleanName)
-			slug = strings.ReplaceAll(slug, " ", "-")
-
-			var existingTag tagModule.Tag
-			if err := db.Where("slug = ?", slug).First(&existingTag).Error; err != nil {
-				existingTag = tagModule.Tag{
-					Name:     cleanName,
-					Slug:     slug,
-					IsActive: true,
-				}
-
-				if err := db.Create(&existingTag).Error; err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create tag"})
-					return
-				}
-			}
-
-			resolvedTags = append(resolvedTags, existingTag)
+		resolvedTags, err := resolveTags(db, req.Tags)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create tag"})
+			return
 		}
 
-		status := req.Status
-		if status == "" {
-			status = "scheduled"
+		scheduledAt, err := parseScheduledAt(req.ScheduledAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scheduledAt format"})
+			return
 		}
+
+		status, startedAt := liveStatus(req.Status)
 
 		dishName := ""
 		if len(req.Tags) > 0 {
 			dishName = req.Tags[0]
-		}
-
-		var scheduledAt *time.Time
-		if req.ScheduledAt != nil && strings.TrimSpace(*req.ScheduledAt) != "" {
-			parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ScheduledAt))
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scheduledAt format"})
-				return
-			}
-			scheduledAt = &parsed
-		}
-
-		var startedAt *time.Time
-		if status == "live" {
-			now := time.Now()
-			startedAt = &now
 		}
 
 		title := strings.TrimSpace(req.Title)
@@ -471,9 +508,8 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			LikeCount:      0,
 			StartedAt:      startedAt,
 			Tags:           resolvedTags,
-			ScheduledAt: scheduledAt,
+			ScheduledAt:    scheduledAt,
 		}
-
 		if err := db.Create(&newLive).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create live"})
 			return
@@ -488,6 +524,21 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			"liveId":  newLive.ID,
 			"message": "room and live created",
 		})
+	}
+}
+
+// triggerRenegotiationForRoom notifies all active connections in the live room,
+// except the newly joined user, to renegotiate. Must be called with mu held.
+func triggerRenegotiationForRoom(db *gorm.DB, logPrefix, roomID, newUserID string) {
+	liveRoom, err := getLiveRoom(db, roomID)
+	if err != nil || liveRoom == nil {
+		return
+	}
+	log.Printf("[%s] triggering renegotiation for new participant %s in room %s", logPrefix, newUserID, roomID)
+	for _, conn := range liveRoom.Connections {
+		if conn.UserID != newUserID && conn.PeerCon != nil {
+			go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
+		}
 	}
 }
 
@@ -509,7 +560,6 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
-
 		room, err := GetRoomById(db, roomId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
@@ -530,24 +580,13 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		room.Participants = append(room.Participants, currentUserId)
-		err = SaveRoom(db, room)
-		if err != nil {
+		if err = SaveRoom(db, room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
 			return
 		}
 
-		// Notify existing participants to renegotiate (so they can receive the new participant's stream)
 		mu.Lock()
-		liveRoom, getRoomErr := getLiveRoom(db, roomId)
-		if getRoomErr == nil && liveRoom != nil {
-			log.Printf("[RESERVE_ROOM] triggering renegotiation for new participant %s in room %s", currentUserId, roomId)
-			for _, conn := range liveRoom.Connections {
-				// Skip the new participant themselves
-				if conn.UserID != currentUserId && conn.PeerCon != nil {
-					go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
-				}
-			}
-		}
+		triggerRenegotiationForRoom(db, "RESERVE_ROOM", roomId, currentUserId)
 		mu.Unlock()
 
 		c.JSON(http.StatusOK, gin.H{"message": "reserved successfully"})
@@ -577,7 +616,7 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 
 		room, err := GetRoomById(db, req.RoomId)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": errRoomNotFound})
 			return
 		}
 
@@ -587,24 +626,13 @@ func AddParticipant(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		room.Participants = append(room.Participants, req.UserId)
-		err = SaveRoom(db, room)
-		if err != nil {
+		if err = SaveRoom(db, room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
 			return
 		}
 
-		// Notify existing participants to renegotiate (so they can receive the new participant's stream)
 		mu.Lock()
-		liveRoom, getRoomErr := getLiveRoom(db, req.RoomId)
-		if getRoomErr == nil && liveRoom != nil {
-			log.Printf("[ADD_PARTICIPANT] triggering renegotiation for new participant %s in room %s", req.UserId, req.RoomId)
-			for _, conn := range liveRoom.Connections {
-				// Skip the new participant themselves
-				if conn.UserID != req.UserId && conn.PeerCon != nil {
-					go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
-				}
-			}
-		}
+		triggerRenegotiationForRoom(db, "ADD_PARTICIPANT", req.RoomId, req.UserId)
 		mu.Unlock()
 
 		c.JSON(http.StatusOK, gin.H{"status": "participant added"})
@@ -696,7 +724,7 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 		roomID := c.Query("roomId")
 		if roomID == "" {
 			log.Println("room ID missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": errRoomIDRequired})
 			return
 		}
 
@@ -747,7 +775,7 @@ func PollRenegotiationOffer(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
 		if roomID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": errRoomIDRequired})
 			return
 		}
 
@@ -757,7 +785,7 @@ func PollRenegotiationOffer(db *gorm.DB) gin.HandlerFunc {
 		room, err := getLiveRoom(db, roomID)
 		if err != nil {
 			mu.Unlock()
-			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": errRoomNotFound})
 			return
 		}
 		offer, ok := room.PendingOfferByUser[userID]
@@ -780,7 +808,7 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
 		if roomID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": errRoomIDRequired})
 			return
 		}
 
@@ -800,7 +828,7 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 		room, err := getLiveRoom(db, roomID)
 		if err != nil {
 			mu.Unlock()
-			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": errRoomNotFound})
 			return
 		}
 
@@ -1082,37 +1110,31 @@ type peerTrack struct {
 	pt uint8
 }
 
-// isH264Keyframe returns true if the H264 RTP payload starts an IDR (keyframe) NAL.
-// It handles single NAL units, STAP-A aggregations, and FU-A fragments.
-func isH264Keyframe(payload []byte) bool {
-	if len(payload) < 1 {
-		return false
-	}
-	nalType := payload[0] & 0x1F
-	switch nalType {
-	case 5: // IDR slice — single NAL keyframe
-		return true
-	case 24: // STAP-A — scan aggregated NALs
-		offset := 1
-		for offset+2 <= len(payload) {
-			size := int(payload[offset])<<8 | int(payload[offset+1])
-			offset += 2
-			if offset+size > len(payload) {
-				break
-			}
-			if size > 0 && payload[offset]&0x1F == 5 {
-				return true
-			}
-			offset += size
+
+// skipVP8ExtendedDescriptor advances offset past the extended VP8 descriptor
+// fields (I, L, T/K sub-fields) as described in RFC 7741.
+// Returns the new offset, or -1 if the payload is too short.
+func skipVP8ExtendedDescriptor(payload []byte, offset int, xByte byte) int {
+	// PictureID (I bit)
+	if xByte&0x80 != 0 {
+		if offset >= len(payload) {
+			return -1
 		}
-	case 28, 29: // FU-A / FU-B — fragmented NAL
-		if len(payload) < 2 {
-			return false
+		if payload[offset]&0x80 != 0 {
+			offset += 2 // 2-byte PictureID
+		} else {
+			offset++ // 1-byte PictureID
 		}
-		// Start bit must be set (first fragment) and inner NAL type must be IDR.
-		return payload[1]&0x80 != 0 && payload[1]&0x1F == 5
 	}
-	return false
+	// TL0PICIDX (L bit)
+	if xByte&0x40 != 0 {
+		offset++
+	}
+	// TID/KEYIDX (T or K bit)
+	if xByte&0x20 != 0 || xByte&0x10 != 0 {
+		offset++
+	}
+	return offset
 }
 
 // isVP8Keyframe parses a VP8 RTP payload (RFC 7741) and returns true if the
@@ -1137,24 +1159,9 @@ func isVP8Keyframe(payload []byte) bool {
 		}
 		xByte := payload[offset]
 		offset++
-		// PictureID (I bit)
-		if xByte&0x80 != 0 {
-			if offset >= len(payload) {
-				return false
-			}
-			if payload[offset]&0x80 != 0 {
-				offset += 2 // 2-byte PictureID
-			} else {
-				offset++ // 1-byte PictureID
-			}
-		}
-		// TL0PICIDX (L bit)
-		if xByte&0x40 != 0 {
-			offset++
-		}
-		// TID/KEYIDX (T or K bit)
-		if xByte&0x20 != 0 || xByte&0x10 != 0 {
-			offset++
+		offset = skipVP8ExtendedDescriptor(payload, offset, xByte)
+		if offset < 0 {
+			return false
 		}
 	}
 
@@ -1199,28 +1206,6 @@ func isH264KeyframeWithParams(payload []byte) bool {
 	return false
 }
 
-// isH264CodecParams checks if an H264 RTP payload contains codec parameters only (SPS/PPS).
-// These must always be forwarded to FFmpeg, even if the slice-data gate is closed.
-// H264 NAL unit types: 7=SPS, 8=PPS, 24=STAP-A (aggregated)
-func isH264CodecParams(payload []byte) bool {
-	if len(payload) < 1 {
-		return false
-	}
-
-	nalType := payload[0] & 0x1f
-
-	// Single NAL unit - SPS or PPS
-	if nalType == 7 || nalType == 8 {
-		return true
-	}
-
-	// STAP-A aggregated packet (type 24) - may contain multiple NAL units including SPS/PPS
-	if nalType == 24 && len(payload) > 2 {
-		return true
-	}
-
-	return false
-}
 
 // extractAndSendAllSTAPAUnits takes a STAP-A packet and sends each NAL unit
 // as a separate RTP packet to FFmpeg. Returns true if any units were sent.
@@ -1360,20 +1345,248 @@ func isH264SliceData(payload []byte) bool {
 // every subscribed peer (rewriting the PT) and, when isHLSSource is true,
 // to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
 // all other goroutines must leave it false so they never touch the shared HLSWriter.
+// hlsVideoState tracks mutable per-goroutine HLS gate state for a video relay.
+type hlsVideoState struct {
+	gotKeyframe    bool
+	keyframeTime   time.Time
+	receivedSPS    bool
+	receivedPPS    bool
+	paramsGateTime time.Time
+	pliSentCount   int
+	seqNum         uint16
+}
+
+// sendPLIBurst sends n PLI packets to request SPS/PPS from the sender.
+func (s *hlsVideoState) sendPLIBurst(pc *webrtc.PeerConnection, ssrc uint32, n int) {
+	for i := 0; i < n; i++ {
+		if err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: ssrc}}); err != nil {
+			log.Printf("[HLS] failed to send PLI: %v", err)
+		}
+		s.pliSentCount++
+	}
+}
+
+// processH264 applies the H264 codec-param gate. Returns false if the packet should be skipped.
+// updateH264ParamTracking records first-seen SPS/PPS and opens the gate clock.
+func (s *hlsVideoState) updateH264ParamTracking(isSPS, isPPS bool, payload []byte) {
+	if (isSPS || isPPS) && len(payload) > 0 {
+		log.Printf("[HLS] Codec param detected: type=%d SPS=%v PPS=%v", payload[0]&0x1f, isSPS, isPPS)
+	}
+	if isSPS && !s.receivedSPS {
+		s.receivedSPS = true
+		log.Printf("[HLS] SPS received for room, starting params gate window")
+		if s.paramsGateTime.IsZero() {
+			s.paramsGateTime = time.Now()
+		}
+	}
+	if isPPS && !s.receivedPPS {
+		s.receivedPPS = true
+		log.Printf("[HLS] PPS received for room")
+		if s.paramsGateTime.IsZero() {
+			s.paramsGateTime = time.Now()
+		}
+	}
+}
+
+// runParamsPLIGate sends periodic PLI while waiting for SPS+PPS,
+// and force-opens the gate after 2 s. Returns true if the gate just timed out.
+func (s *hlsVideoState) runParamsPLIGate(pc *webrtc.PeerConnection, ssrc uint32) {
+	if s.paramsGateTime.IsZero() || (s.receivedSPS && s.receivedPPS) {
+		return
+	}
+	elapsed := time.Since(s.paramsGateTime)
+	if elapsed > 0 && int(elapsed.Milliseconds())%150 == 0 && s.pliSentCount < 15 {
+		if err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: ssrc}}); err == nil {
+			s.pliSentCount++
+		}
+	}
+	if elapsed >= 2000*time.Millisecond && !s.gotKeyframe {
+		s.gotKeyframe = true
+		log.Printf("[HLS] timeout on params gate (waited 2s, SPS=%v PPS=%v), opening gate anyway", s.receivedSPS, s.receivedPPS)
+	}
+}
+
+// processH264 applies the H264 codec-param gate. Returns false if the packet should be skipped.
+func (s *hlsVideoState) processH264(pc *webrtc.PeerConnection, track *webrtc.TrackRemote, pkt *rtp.Packet) bool {
+	isSPS := isH264SPS(pkt.Payload)
+	isPPS := isH264PPS(pkt.Payload)
+	isSlice := isH264SliceData(pkt.Payload)
+
+	s.updateH264ParamTracking(isSPS, isPPS, pkt.Payload)
+
+	if isH264KeyframeWithParams(pkt.Payload) && s.keyframeTime.IsZero() {
+		s.keyframeTime = time.Now()
+		s.paramsGateTime = time.Now()
+		log.Printf("[HLS] keyframe detected for room, requesting codec params with PLI burst")
+		s.sendPLIBurst(pc, uint32(track.SSRC()), 5)
+	}
+
+	s.runParamsPLIGate(pc, uint32(track.SSRC()))
+
+	if s.receivedSPS && s.receivedPPS && !s.gotKeyframe {
+		s.gotKeyframe = true
+		log.Printf("[HLS] codec params ready for room (SPS+PPS received in %dms), sent %d PLI requests, starting video stream",
+			time.Since(s.paramsGateTime).Milliseconds(), s.pliSentCount)
+	}
+
+	return !isSlice || s.gotKeyframe
+}
+
+// processVP8 applies the VP8 keyframe gate. Returns false if the packet should be skipped.
+func (s *hlsVideoState) processVP8(pkt *rtp.Packet, mimeType string) bool {
+	if s.gotKeyframe {
+		return true
+	}
+	var isKF bool
+	if strings.Contains(mimeType, "vp8") {
+		isKF = isVP8Keyframe(pkt.Payload)
+	} else {
+		isKF = true
+	}
+	if isKF && s.keyframeTime.IsZero() {
+		s.keyframeTime = time.Now()
+		s.gotKeyframe = true
+		log.Printf("[HLS] keyframe detected for room (codec=%s), video feed started", mimeType)
+	}
+	return s.gotKeyframe
+}
+
+// refreshPeerSnapshot rebuilds the cached peer list and HLS writer under mu.
+func refreshPeerSnapshot(ti *TrackInfo, room *Room, origPT uint8) ([]peerTrack, *hls.HLSWriter) {
+	mu.Lock()
+	defer mu.Unlock()
+	peers := make([]peerTrack, 0, len(ti.LocalTracks))
+	for pc, lt := range ti.LocalTracks {
+		pt := ti.PeerPT[pc]
+		if pt == 0 {
+			pt = origPT
+		}
+		peers = append(peers, peerTrack{lt, pt})
+	}
+	return peers, room.HLSWriter
+}
+
+// sendHLSVideoPacket sends a processed video RTP packet to FFmpeg via the HLS writer.
+// Handles STAP-A deserialization for H264.
+func sendHLSVideoPacket(writer *hls.HLSWriter, pkt *rtp.Packet, mimeType string, state *hlsVideoState) {
+	if writer == nil || writer.VideoConn == nil {
+		return
+	}
+	// For H264, deserialize STAP-A into individual NAL units
+	if strings.Contains(mimeType, "h264") && len(pkt.Payload) > 0 {
+		if pkt.Payload[0]&0x1f == 24 {
+			if extractAndSendAllSTAPAUnits(pkt.Payload, writer.VideoConn, pkt, &state.seqNum) {
+				log.Printf("[HLS] Deserialized STAP-A packet (skipping aggregated form)")
+				return
+			}
+		}
+	}
+	pkt.SequenceNumber = state.seqNum
+	state.seqNum++
+	if data, err := pkt.Marshal(); err == nil {
+		_, _ = writer.VideoConn.Write(data)
+	}
+}
+
+// readNextRTPPacket reads and unmarshals the next RTP packet from track into buf.
+func readNextRTPPacket(track *webrtc.TrackRemote, buf []byte) (*rtp.Packet, int, error) {
+	n, _, err := track.Read(buf)
+	if err != nil {
+		return nil, 0, err
+	}
+	var pkt rtp.Packet
+	if err := pkt.Unmarshal(buf[:n]); err != nil {
+		return nil, n, err
+	}
+	return &pkt, n, nil
+}
+
+// fanoutToPeers sends the RTP packet to all cached peers, rewriting the payload type per-peer.
+func fanoutToPeers(pkt *rtp.Packet, peers []peerTrack) {
+	for _, p := range peers {
+		pktCopy := *pkt
+		pktCopy.PayloadType = p.pt
+		_ = p.lt.WriteRTP(&pktCopy)
+	}
+}
+
+func isNonPrimaryVideo(isAudio bool, pktPT uint8, primaryPT uint8) bool {
+	return !isAudio && pktPT != primaryPT
+}
+
+// hlsVideoRelay manages HLS video stream state and packet forwarding for a relay.
+type hlsVideoRelay struct {
+	state      hlsVideoState
+	pliLastPkt int
+}
+
+func (r *hlsVideoRelay) shouldRelay(isHLSSource bool, writer *hls.HLSWriter) bool {
+	return isHLSSource && writer != nil
+}
+
+// relay forwards audio or video packets to HLS.
+func (r *hlsVideoRelay) relay(
+	isAudio bool,
+	writer *hls.HLSWriter,
+	rawBuf []byte,
+	pkt *rtp.Packet,
+	track *webrtc.TrackRemote,
+	pc *webrtc.PeerConnection,
+	pktCount int,
+) {
+	if isAudio {
+		if writer.AudioConn != nil {
+			_, _ = writer.AudioConn.Write(rawBuf)
+		}
+		return
+	}
+	r.relayVideo(writer, pkt, track, pc, pktCount)
+}
+
+// relayVideo applies the codec-specific keyframe gate and, when open, forwards video RTP to FFmpeg.
+func (r *hlsVideoRelay) relayVideo(
+	writer *hls.HLSWriter,
+	pkt *rtp.Packet,
+	track *webrtc.TrackRemote,
+	pc *webrtc.PeerConnection,
+	pktCount int,
+) {
+	if writer.VideoConn == nil || pkt.PayloadType != uint8(track.Codec().PayloadType) {
+		return
+	}
+
+	mimeType := strings.ToLower(track.Codec().MimeType)
+
+	if pktCount-r.pliLastPkt >= 150 {
+		r.pliLastPkt = pktCount
+		_ = pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(track.SSRC())}})
+	}
+
+	var gated bool
+	if strings.Contains(mimeType, "h264") {
+		gated = r.state.processH264(pc, track, pkt)
+	} else {
+		gated = r.state.processVP8(pkt, mimeType)
+	}
+	if !gated {
+		return
+	}
+
+	sendHLSVideoPacket(writer, pkt, mimeType, &r.state)
+}
+
+// startTrackRelay reads RTP packets from the source track and fans them out to
+// every subscribed peer (rewriting the PT) and, when isHLSSource is true,
+// to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
+// all other goroutines must leave it false so they never touch the shared HLSWriter.
 func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *webrtc.PeerConnection, isHLSSource bool) {
 	buf := make([]byte, 4096)
 	var cachedWriter *hls.HLSWriter
 	var cachedPeers []peerTrack
 	pktCount := 0
 	isAudio := track.Kind() == webrtc.RTPCodecTypeAudio
-	hlsGotKeyframe := false
-	pliLastPkt := 0
-	hlsKeyframeTime := time.Time{}       // Track when first video keyframe arrived
-	pliSentCount := 0                    // Count PLI requests sent during startup gate
-	hlsReceivedSPS := false              // Track if we've received and forwarded SPS
-	hlsReceivedPPS := false              // Track if we've received and forwarded PPS
-	hlsParamsGateOpenTime := time.Time{} // Time when we started waiting for params
-	var ffmpegVideoSeqNum uint16 = 0
+	primaryPT := uint8(track.Codec().PayloadType)
+	var hlsRelay hlsVideoRelay
 
 	// Request a keyframe immediately so that both HLS and all WebRTC
 	// receiving peers get a clean start for the video feed.
@@ -1382,204 +1595,133 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 	}
 
 	for {
-		n, _, err := track.Read(buf)
+		pkt, n, err := readNextRTPPacket(track, buf)
 		if err != nil {
 			log.Println("track ended:", err)
 			return
 		}
-
-		var pkt rtp.Packet
-		if err := pkt.Unmarshal(buf[:n]); err != nil {
-			log.Printf("failed to unmarshal RTP: %v", err)
+		if pkt == nil {
 			continue
 		}
-		origPT := pkt.PayloadType
+
 		pktCount++
-
-		// Ignore retransmission/non-primary video packets for peer fanout.
-		// Reinjecting RTX payload as media causes decoder corruption on receivers
-		// (symptom: briefly unmuted, then permanently muted/black).
-		if !isAudio && origPT != uint8(track.Codec().PayloadType) {
+		if isNonPrimaryVideo(isAudio, pkt.PayloadType, primaryPT) {
 			continue
 		}
 
-		// Refresh the peer snapshot every ~100 packets to reduce lock contention.
-		// Also refresh immediately on the first packet.
 		if pktCount%100 == 1 {
-			mu.Lock()
-			cachedPeers = make([]peerTrack, 0, len(ti.LocalTracks))
-			for pc, lt := range ti.LocalTracks {
-				pt := ti.PeerPT[pc]
-				if pt == 0 {
-					pt = origPT
-				}
-				cachedPeers = append(cachedPeers, peerTrack{lt, pt})
-			}
-			cachedWriter = room.HLSWriter
-			mu.Unlock()
+			cachedPeers, cachedWriter = refreshPeerSnapshot(ti, room, pkt.PayloadType)
 		}
 
-		// Fan-out with per-peer PT rewriting. Different peers may negotiate
-		// different payload types for the same codec (e.g. VP8 PT=96 vs PT=98).
-		for _, p := range cachedPeers {
-			pktCopy := pkt
-			pktCopy.PayloadType = p.pt
-			if err := p.lt.WriteRTP(&pktCopy); err != nil {
-				// peer track may have been removed — will be caught on next refresh
-			}
-		}
+		fanoutToPeers(pkt, cachedPeers)
 
-		// Feed FFmpeg for HLS — only from the designated host relay goroutine.
-		if !isHLSSource || cachedWriter == nil {
-			continue
-		}
-
-		if isAudio && cachedWriter.AudioConn != nil {
-			_, _ = cachedWriter.AudioConn.Write(buf[:n])
-		} else if !isAudio && cachedWriter.VideoConn != nil {
-			// Skip RTX retransmission packets (different PT, 2-byte OSN header).
-			if origPT != uint8(track.Codec().PayloadType) {
-				continue
-			}
-			mimeType := strings.ToLower(track.Codec().MimeType)
-
-			// Request periodic keyframes to recover faster after packet loss.
-			if pktCount-pliLastPkt >= 150 {
-				pliLastPkt = pktCount
-				_ = pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
-					MediaSSRC: uint32(track.SSRC()),
-				}})
-			}
-
-			// H264-specific: Gate that ensures SPS and PPS arrive at FFmpeg BEFORE any slice data.
-			// This prevents "non-existing PPS 0 referenced" errors.
-			//
-			// Strategy:
-			// 1. When we detect a keyframe (IDR), send PLI bursts to request SPS/PPS from sender
-			// 2. ALWAYS forward SPS/PPS immediately when received
-			// 3. HOLD slice data (types 1, 5) until we've seen both SPS and PPS
-			// 4. Once both params are received, open the gate and forward everything
-			if strings.Contains(mimeType, "h264") {
-				isSPS := isH264SPS(pkt.Payload)
-				isPPS := isH264PPS(pkt.Payload)
-				isSlice := isH264SliceData(pkt.Payload)
-
-				// Log codec params when detected (for debugging gate)
-				if (isSPS || isPPS) && len(pkt.Payload) > 0 {
-					nalType := pkt.Payload[0] & 0x1f
-					log.Printf("[HLS] Codec param detected: type=%d SPS=%v PPS=%v", nalType, isSPS, isPPS)
-				}
-
-				// Update param tracking when we receive them
-				if isSPS && !hlsReceivedSPS {
-					hlsReceivedSPS = true
-					log.Printf("[HLS] SPS received for room, starting params gate window")
-					if hlsParamsGateOpenTime.IsZero() {
-						hlsParamsGateOpenTime = time.Now()
-					}
-				}
-				if isPPS && !hlsReceivedPPS {
-					hlsReceivedPPS = true
-					log.Printf("[HLS] PPS received for room")
-					if hlsParamsGateOpenTime.IsZero() {
-						hlsParamsGateOpenTime = time.Now()
-					}
-				}
-
-				// When we see a keyframe and haven't started the gate yet, request params
-				isKF := isH264KeyframeWithParams(pkt.Payload)
-				if isKF && hlsKeyframeTime.IsZero() {
-					hlsKeyframeTime = time.Now()
-					hlsParamsGateOpenTime = time.Now()
-					log.Printf("[HLS] keyframe detected for room, requesting codec params with PLI burst")
-					// Send aggressive burst of PLI to force params resend
-					for i := 0; i < 5; i++ {
-						err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
-							MediaSSRC: uint32(track.SSRC()),
-						}})
-						if err != nil {
-							log.Printf("[HLS] failed to send PLI: %v", err)
-						}
-						pliSentCount++
-					}
-				}
-
-				// Periodic PLI every 150ms during first 2 seconds if we still haven't got params
-				if !hlsParamsGateOpenTime.IsZero() && (!hlsReceivedSPS || !hlsReceivedPPS) {
-					elapsed := time.Since(hlsParamsGateOpenTime)
-					if elapsed > 0 && int(elapsed.Milliseconds())%150 == 0 && pliSentCount < 15 {
-						err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
-							MediaSSRC: uint32(track.SSRC()),
-						}})
-						if err == nil {
-							pliSentCount++
-						}
-					}
-					// Fallback: if 2 seconds elapsed without params, open gate anyway
-					if elapsed >= 2000*time.Millisecond && !hlsGotKeyframe {
-						hlsGotKeyframe = true
-						log.Printf("[HLS] timeout on params gate (waited 2s, SPS=%v PPS=%v), opening gate anyway",
-							hlsReceivedSPS, hlsReceivedPPS)
-					}
-				}
-
-				// Once we have both SPS and PPS, mark gate as open
-				if hlsReceivedSPS && hlsReceivedPPS && !hlsGotKeyframe {
-					hlsGotKeyframe = true
-					elapsed := time.Since(hlsParamsGateOpenTime)
-					log.Printf("[HLS] codec params ready for room (SPS+PPS received in %dms), sent %d PLI requests, starting video stream",
-						elapsed.Milliseconds(), pliSentCount)
-				}
-
-				// Gate logic:
-				// - ALWAYS forward SPS/PPS (they have params in them)
-				// - Only forward slice data if gate is open OR we have both params
-				if isSlice && !hlsGotKeyframe {
-					// Skip slice data until we have both SPS and PPS
-					continue
-				}
-			} else {
-				// For VP8 or other codecs, simpler logic: just wait for first keyframe
-				var isKF bool
-				if strings.Contains(mimeType, "vp8") {
-					isKF = isVP8Keyframe(pkt.Payload)
-				} else {
-					isKF = true // default
-				}
-
-				if isKF && hlsKeyframeTime.IsZero() {
-					hlsKeyframeTime = time.Now()
-					hlsGotKeyframe = true
-					log.Printf("[HLS] keyframe detected for room (codec=%s), video feed started", track.Codec().MimeType)
-				}
-
-				if !hlsGotKeyframe {
-					continue // hold all video until first keyframe
-				}
-			}
-
-			// If this is a STAP-A with multiple NAL units, extract and send each one separately
-			// This ensures FFmpeg receives individual NAL units, not an aggregated packet
-			if strings.Contains(mimeType, "h264") && len(pkt.Payload) > 0 {
-				nalType := pkt.Payload[0] & 0x1f
-				if nalType == 24 { // STAP-A - deserialize into separate RTP packets
-					if extractAndSendAllSTAPAUnits(pkt.Payload, cachedWriter.VideoConn, &pkt, &ffmpegVideoSeqNum) {
-						log.Printf("[HLS] Deserialized STAP-A packet (skipping aggregated form)")
-						// Successfully extracted and sent all units - skip the original STAP-A
-						continue
-					}
-				}
-			}
-
-			// Send the packet (single NAL unit packets, or STAP-A if extraction failed)
-			pkt.SequenceNumber = ffmpegVideoSeqNum
-			ffmpegVideoSeqNum++
-			data, err := pkt.Marshal()
-			if err == nil {
-				_, _ = cachedWriter.VideoConn.Write(data)
-			}
+		if hlsRelay.shouldRelay(isHLSSource, cachedWriter) {
+			hlsRelay.relay(isAudio, cachedWriter, buf[:n], pkt, track, pc, pktCount)
 		}
 	}
+}
+
+
+// onPeerDisconnected cleans up room state when a peer leaves.
+// It is safe to call multiple times for the same PC (idempotent).
+// removeParticipantState removes a disconnected user from participants, DB, and
+// per-user maps. Must be called with mu held.
+func removeParticipantState(db *gorm.DB, room *Room, userID string) {
+	updated := make(pq.StringArray, 0, len(room.Participants))
+	for _, p := range room.Participants {
+		if p != userID {
+			updated = append(updated, p)
+		}
+	}
+	room.Participants = updated
+	if err := SaveRoom(db, room); err != nil {
+		log.Printf("failed to save room after removing participant: %v", err)
+	}
+	if room.PendingICEByUser != nil {
+		delete(room.PendingICEByUser, userID)
+	}
+	if room.PendingOfferByUser != nil {
+		delete(room.PendingOfferByUser, userID)
+	}
+	if room.RenegotiatingByUser != nil {
+		delete(room.RenegotiatingByUser, userID)
+	}
+	if room.NeedsRenegotiationByUser != nil {
+		delete(room.NeedsRenegotiationByUser, userID)
+	}
+}
+
+// removeSourceTrack removes all senders for a source track from every receiving peer.
+func removeSourceTrack(ti *TrackInfo) {
+	if ti.SendersByPeer == nil {
+		return
+	}
+	log.Printf("Removing track from %d receiving peers", len(ti.SendersByPeer))
+	for otherPc, sender := range ti.SendersByPeer {
+		if otherPc == nil || sender == nil {
+			continue
+		}
+		if err := otherPc.RemoveTrack(sender); err != nil {
+			log.Printf("RemoveTrack failed: %v", err)
+		} else {
+			log.Printf("RemoveTrack succeeded for peer")
+		}
+	}
+}
+
+// removeTracksFromPeer rebuilds the track list, removing source tracks from pc
+// and cleaning per-peer state for pc from surviving tracks.
+// Must be called with mu held.
+func removeTracksFromPeer(room *Room, pc *webrtc.PeerConnection) []*TrackInfo {
+	updated := make([]*TrackInfo, 0, len(room.Tracks))
+	for _, ti := range room.Tracks {
+		if ti.SourcePC == pc {
+			removeSourceTrack(ti)
+			log.Printf("Skipping track from disconnected peer (track will be removed from room)")
+			continue
+		}
+		if ti.LocalTracks != nil {
+			delete(ti.LocalTracks, pc)
+		}
+		if ti.PeerPT != nil {
+			delete(ti.PeerPT, pc)
+		}
+		if ti.SendersByPeer != nil {
+			delete(ti.SendersByPeer, pc)
+		}
+		updated = append(updated, ti)
+	}
+	return updated
+}
+
+// teardownEmptyRoom stops HLS, marks the live as ended, and removes the DB record.
+// Must be called with mu held.
+func teardownEmptyRoom(db *gorm.DB, room *Room, roomID string) {
+	replayURL, replayErr := hls.StopStream(roomID)
+	if replayErr != nil {
+		log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
+	}
+	room.Tracks = nil
+	removeLiveRoom(roomID)
+	markLiveAsEndedByRoomID(db, roomID, replayURL)
+	if err := DeleteRoomById(db, roomID); err != nil {
+		log.Printf("failed to delete room %s: %v", roomID, err)
+	} else {
+		log.Printf("room %s deleted (last peer left)", roomID)
+	}
+}
+
+// closeDisconnectedPC removes all senders and closes pc outside the lock.
+func closeDisconnectedPC(pc *webrtc.PeerConnection) {
+	if pc.ConnectionState() == webrtc.PeerConnectionStateClosed {
+		return
+	}
+	for _, sender := range pc.GetSenders() {
+		if sender != nil {
+			_ = pc.RemoveTrack(sender)
+		}
+	}
+	_ = pc.Close()
 }
 
 // onPeerDisconnected cleans up room state when a peer leaves.
@@ -1606,80 +1748,18 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 
 	log.Printf("peer disconnected from room %s", roomID)
 	room.Connections = updated
+
 	if disconnectedUserID != "" {
-		// Remove participant from the participants list
-		updatedParticipants := make(pq.StringArray, 0, len(room.Participants))
-		for _, p := range room.Participants {
-			if p != disconnectedUserID {
-				updatedParticipants = append(updatedParticipants, p)
-			}
-		}
-		room.Participants = updatedParticipants
-
-		// Save the updated participants list to the database
-		if err := SaveRoom(db, room); err != nil {
-			log.Printf("failed to save room after removing participant: %v", err)
-		}
-
-		if room.PendingICEByUser != nil {
-			delete(room.PendingICEByUser, disconnectedUserID)
-		}
-		if room.PendingOfferByUser != nil {
-			delete(room.PendingOfferByUser, disconnectedUserID)
-		}
-		if room.RenegotiatingByUser != nil {
-			delete(room.RenegotiatingByUser, disconnectedUserID)
-		}
-		if room.NeedsRenegotiationByUser != nil {
-			delete(room.NeedsRenegotiationByUser, disconnectedUserID)
-		}
+		removeParticipantState(db, room, disconnectedUserID)
 	}
-
-	// Clear the host pointer if this was the publisher
 	if room.HostPeerCon == pc {
 		room.HostPeerCon = nil
 	}
 
-	// Remove per-peer LocalTracks for the disconnecting peer AND remove TrackInfos sourced from this peer
-	updatedTracks := make([]*TrackInfo, 0, len(room.Tracks))
-	for _, ti := range room.Tracks {
-		// If this track came from the disconnecting peer, remove it completely
-		// and also remove the senders from all other peers
-		if ti.SourcePC == pc {
-			// Remove senders from all peers that were receiving this track
-			if ti.SendersByPeer != nil {
-				log.Printf("Removing track from %d receiving peers", len(ti.SendersByPeer))
-				for otherPc, sender := range ti.SendersByPeer {
-					if otherPc != nil && sender != nil {
-						err := otherPc.RemoveTrack(sender)
-						if err != nil {
-							log.Printf("RemoveTrack failed: %v", err)
-						} else {
-							log.Printf("RemoveTrack succeeded for peer")
-						}
-					}
-				}
-			}
-			log.Printf("Skipping track from disconnected peer (track will be removed from room)")
-			continue
-		}
-
-		// Otherwise, remove this peer's LocalTrack from the track (if any)
-		if ti.LocalTracks != nil {
-			delete(ti.LocalTracks, pc)
-		}
-		if ti.PeerPT != nil {
-			delete(ti.PeerPT, pc)
-		}
-		if ti.SendersByPeer != nil {
-			delete(ti.SendersByPeer, pc)
-		}
-		updatedTracks = append(updatedTracks, ti)
-	}
-	room.Tracks = updatedTracks
+	room.Tracks = removeTracksFromPeer(room, pc)
 	log.Printf("After cleanup: room has %d tracks", len(room.Tracks))
 
-	// Prepare renegotiation targets for remaining peers
+	// Collect renegotiation targets before releasing the lock
 	var renegotiationTargets []renegotiationTarget
 	for _, conn := range room.Connections {
 		if conn.PeerCon != nil {
@@ -1690,22 +1770,8 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 		}
 	}
 
-	empty := len(room.Connections) == 0
-	if empty {
-		replayURL, replayErr := hls.StopStream(roomID)
-		if replayErr != nil {
-			log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
-		}
-		room.Tracks = nil
-		removeLiveRoom(roomID)
-
-		markLiveAsEndedByRoomID(db, roomID, replayURL)
-
-		if err := DeleteRoomById(db, roomID); err != nil {
-			log.Printf("failed to delete room %s: %v", roomID, err)
-		} else {
-			log.Printf("room %s deleted (last peer left)", roomID)
-		}
+	if len(room.Connections) == 0 {
+		teardownEmptyRoom(db, room, roomID)
 	}
 	mu.Unlock()
 
@@ -1714,16 +1780,7 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 		go requestRenegotiationOffer(room, target.userID, target.pc)
 	}
 
-	// Close the peer connection itself (outside the lock to avoid deadlocks).
-	// Ignore errors — the PC may already be closed.
-	if pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
-		for _, sender := range pc.GetSenders() {
-			if sender != nil {
-				_ = pc.RemoveTrack(sender)
-			}
-		}
-		_ = pc.Close()
-	}
+	closeDisconnectedPC(pc)
 	log.Println("peerConnection closed and cleaned up")
 }
 
@@ -1781,6 +1838,81 @@ func finalizeAnswer(c *gin.Context, pc *webrtc.PeerConnection) bool {
 	return true
 }
 
+// maybeTransitionToLive transitions the live from "scheduled" to "live" when the host connects.
+func maybeTransitionToLive(db *gorm.DB, room *Room, userID, roomID string) {
+	if userID != room.Host {
+		return
+	}
+	now := time.Now()
+	if err := db.Model(&liveModule.Live{}).
+		Where("room_id = ? AND status = ?", roomID, "scheduled").
+		Updates(map[string]any{"status": "live", "started_at": &now}).Error; err != nil {
+		log.Printf("Failed to transition live status to live for room %s: %v", roomID, err)
+	}
+}
+
+// handleOnTrack processes a new incoming media track: registers it for HLS,
+// fans it out to existing peers, and starts the relay goroutine.
+func handleOnTrack(
+	track *webrtc.TrackRemote,
+	room *Room, roomID string,
+	peerConnection *webrtc.PeerConnection,
+	hlsCtx *hlsState,
+) {
+	log.Printf("track received: %s codec=%s PT=%d (StreamID: %s)",
+		track.Kind().String(), track.Codec().MimeType,
+		track.Codec().PayloadType, track.StreamID())
+
+	ci := buildCodecInfo(track.Codec())
+	mu.Lock()
+	isHost := room.HostPeerCon == peerConnection
+	if isHost {
+		if track.Kind() == webrtc.RTPCodecTypeAudio {
+			hlsCtx.audio = ci
+		} else {
+			hlsCtx.video = ci
+		}
+		hlsCtx.trackCount++
+		hlsCtx.tryStartHLS(room, roomID)
+	}
+	mu.Unlock()
+
+	ti := &TrackInfo{
+		LocalTracks:   make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP),
+		PeerPT:        make(map[*webrtc.PeerConnection]uint8),
+		SendersByPeer: make(map[*webrtc.PeerConnection]*webrtc.RTPSender),
+		Senders:       []*webrtc.RTPSender{},
+		Track:         track,
+		SourcePC:      peerConnection,
+	}
+	mu.Lock()
+	room.Tracks = append(room.Tracks, ti)
+	renegotiationTargets := broadcastTrackToPeers(ti, room, peerConnection)
+	mu.Unlock()
+
+	for _, target := range renegotiationTargets {
+		go requestRenegotiationOffer(room, target.userID, target.pc)
+	}
+
+	go startTrackRelay(track, ti, room, peerConnection, isHost)
+}
+
+// makeConnectionStateHandler returns an OnConnectionStateChange callback that
+// triggers cleanup when the peer disconnects or fails.
+func makeConnectionStateHandler(
+	db *gorm.DB, room *Room, roomID string,
+	peerConnection *webrtc.PeerConnection,
+) func(webrtc.PeerConnectionState) {
+	return func(state webrtc.PeerConnectionState) {
+		log.Printf("connection state has changed: %s", state.String())
+		if state == webrtc.PeerConnectionStateDisconnected ||
+			state == webrtc.PeerConnectionStateFailed ||
+			state == webrtc.PeerConnectionStateClosed {
+			onPeerDisconnected(db, room, roomID, peerConnection)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // HandleWebRTC — main handler (orchestrates the helpers above)
 // ---------------------------------------------------------------------------
@@ -1804,7 +1936,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 	return func(c *gin.Context) {
 		roomID := c.Query("roomId")
 		if roomID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "room ID is required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": errRoomIDRequired})
 			return
 		}
 
@@ -1813,7 +1945,7 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		room, err := getLiveRoom(db, roomID)
 		mu.Unlock()
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": errRoomNotFound})
 			return
 		}
 
@@ -1823,108 +1955,42 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
-		// If the user is the host, transition the live status from "scheduled" to "live"
-		if userID == room.Host {
-			now := time.Now()
-			if err := db.Model(&liveModule.Live{}).
-				Where("room_id = ? AND status = ?", roomID, "scheduled").
-				Updates(map[string]any{
-					"status":     "live",
-					"started_at": &now,
-				}).Error; err != nil {
-				log.Printf("Failed to transition live status to live for room %s: %v", roomID, err)
-			}
-		}
+		// 3. Transition host live status from "scheduled" to "live"
+		maybeTransitionToLive(db, room, userID, roomID)
 
-		// 3. Parse SDP offer
+		// 4. Parse SDP offer
 		var offer webrtc.SessionDescription
 		if err := c.ShouldBindJSON(&offer); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		// 4. Create PeerConnection
+		// 5. Create PeerConnection
 		pc, err := newPeerConnection(STUNServerURL, webrtcIP)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		// 5. Register peer in room and buffer pending ICE candidates.
-		//    We do NOT call attachExistingTracks here yet — resolveCodec needs
-		//    the remote description to read negotiated payload types.
+		// 6. Register peer and retrieve buffered ICE candidates.
 		mu.Lock()
 		pending := registerPeer(pc, room, userID)
 		mu.Unlock()
 
-		// 6. OnTrack — handle incoming media from the publisher
+		// 7. Wire callbacks
 		hlsCtx := &hlsState{}
 		peerConnection := pc // capture for closures
-
-		peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-			log.Printf("track received: %s codec=%s PT=%d (StreamID: %s)",
-				track.Kind().String(), track.Codec().MimeType,
-				track.Codec().PayloadType, track.StreamID())
-
-			// We no longer strictly ignore tracks from non-hosts. All participants can co-stream.
-
-			// Register codec for HLS (Only register HLS for the host stream)
-			ci := buildCodecInfo(track.Codec())
-			mu.Lock()
-			isHost := room.HostPeerCon == peerConnection
-			if isHost {
-				if track.Kind() == webrtc.RTPCodecTypeAudio {
-					hlsCtx.audio = ci
-				} else {
-					hlsCtx.video = ci
-				}
-				hlsCtx.trackCount++
-				hlsCtx.tryStartHLS(room, roomID)
-			}
-			mu.Unlock()
-
-			// Create TrackInfo and fan out to all existing peers
-			ti := &TrackInfo{
-				LocalTracks:   make(map[*webrtc.PeerConnection]*webrtc.TrackLocalStaticRTP),
-				PeerPT:        make(map[*webrtc.PeerConnection]uint8),
-				SendersByPeer: make(map[*webrtc.PeerConnection]*webrtc.RTPSender),
-				Senders:       []*webrtc.RTPSender{},
-				Track:         track,
-				SourcePC:      peerConnection,
-			}
-			var renegotiationTargets []renegotiationTarget
-			mu.Lock()
-			room.Tracks = append(room.Tracks, ti)
-			renegotiationTargets = broadcastTrackToPeers(ti, room, peerConnection)
-			mu.Unlock()
-
-			for _, target := range renegotiationTargets {
-				go requestRenegotiationOffer(room, target.userID, target.pc)
-			}
-
-			// Start the relay goroutine.
-			// isHost is captured from the enclosing OnTrack closure.
-			go startTrackRelay(track, ti, room, peerConnection, isHost)
+		peerConnection.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+			handleOnTrack(track, room, roomID, peerConnection, hlsCtx)
 		})
+		peerConnection.OnConnectionStateChange(makeConnectionStateHandler(db, room, roomID, peerConnection))
 
-		// 7. OnConnectionStateChange — cleanup on disconnect
-		peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-			log.Printf("connection state has changed: %s", state.String())
-			if state == webrtc.PeerConnectionStateDisconnected ||
-				state == webrtc.PeerConnectionStateFailed ||
-				state == webrtc.PeerConnectionStateClosed {
-				onPeerDisconnected(db, room, roomID, peerConnection)
-			}
-		})
-
-		// 8a. Apply remote description first — this populates receiver codec parameters
-		//     so that resolveCodec (called in attachExistingTracks below) can read
-		//     the negotiated payload types and stamp outgoing RTP packets correctly.
+		// 8a. Apply remote description (populates receiver codec parameters for resolveCodec).
 		if !applyRemoteDescription(c, peerConnection, offer, pending) {
 			return
 		}
 
-		// 8b. NOW attach existing tracks — resolveCodec will find the right PT.
+		// 8b. Attach existing tracks — resolveCodec will find the right PT.
 		mu.Lock()
 		attachExistingTracks(peerConnection, room)
 		mu.Unlock()

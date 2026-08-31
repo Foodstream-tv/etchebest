@@ -62,9 +62,11 @@ export default function StudioPreviewCard({
             </div>
           ) : null}
 
-          <p className="line-clamp-2 text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+          <p className="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50 break-all [overflow-wrap:anywhere]">
             {previewTitle}
           </p>
+
+
 
           <p className="text-xs text-gray-500 dark:text-white/50">
             par Vous • {formatPreviewDate(date)}, {time}

@@ -577,15 +577,22 @@ export default function StudioPage() {
             <div className="space-y-6">
               <Field label="Titre du live">
                 <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                  <div className="mb-2 flex items-center justify-end">
+                    <span className="text-xs text-gray-400 dark:text-white/35">
+                      {title.length}/100
+                    </span>
+                  </div>
                   <input
                     aria-label="Titre du live"
                     className="w-full rounded-xl border border-black/8 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 md:text-lg dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
                     placeholder="Ex. : Ramen Tonkotsu en 30 minutes"
                     value={title}
+                    maxLength={100}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                 </div>
               </Field>
+
 
               <Field label="Description">
                 <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
