@@ -18,14 +18,11 @@ services:
     container_name: db-foodstream
     restart: unless-stopped
     env_file: .env
-    ports:
-      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
-    networks:
-      - back-network
+    network_mode: "host"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1"]
       interval: 3s
       timeout: 3s
       retries: 20
