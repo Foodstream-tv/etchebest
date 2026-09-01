@@ -165,13 +165,6 @@ export default function ProfilePage() {
     setFollowingCount(profile.followingIds?.length ?? 0);
   }, [profile]);
 
-  useEffect(() => {
-    if (!user) return;
-    setEditUsername(profile?.username || user.username || "");
-    setEditEmail(user.email || "");
-    setEditDescription(profile?.description || "");
-  }, [user, profile]);
-
 
 
   if (!ready) {
