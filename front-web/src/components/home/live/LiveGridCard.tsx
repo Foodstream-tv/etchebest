@@ -20,10 +20,14 @@ type LiveGridCardProps = Readonly<{
 }>;
 
 export default function LiveGridCard({ item }: LiveGridCardProps) {
+  const targetHref = item.isLive
+    ? `/broadcast/${encodeURIComponent(item.id)}?mode=join`
+    : `/watch/${encodeURIComponent(item.id)}`;
+
   return (
     <article>
       <Link
-        href={`/watch/${encodeURIComponent(item.id)}`}
+        href={targetHref}
         aria-label={`Regarder ${item.title} par ${item.author}`}
         className="block overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
       >

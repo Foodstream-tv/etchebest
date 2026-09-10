@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import type { LiveDTO } from "@/lib/lives";
+import { useAuth } from "@/lib/useAuth";
 
 type Props = {
   tagName: string;
@@ -42,6 +43,7 @@ export default function WatchTagSection({
   lives,
   mode = "live",
 }: Props) {
+  const { user } = useAuth();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const displayedLives = useMemo(() => {
@@ -109,6 +111,7 @@ export default function WatchTagSection({
           const rid = encodeURIComponent(live.room_id || String(live.id));
           const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
           const isScheduled = live.status === "scheduled";
+          const isHost = Boolean(user?.id && live.user?.id && String(user.id) === String(live.user.id));
 
           return (
             <article
@@ -205,7 +208,7 @@ export default function WatchTagSection({
                   </div>
                 </div>
 
-                {mode === "replay" ? (
+                {mode === "replay" || live.status === "ended" ? (
                   <Link
                     href={`/replays/${rid}`}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
@@ -213,32 +216,61 @@ export default function WatchTagSection({
                     Replay
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                ) : live.status === "live" ? (
+                  isHost ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Link
+                        href={`/watch/${rid}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      >
+                        Fiche
+                      </Link>
+                      <Link
+                        href={`/broadcast/${rid}?mode=host`}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-orange-400"
+                      >
+                        <Radio className="h-4 w-4" />
+                        Mon Studio
+                      </Link>
+                    </div>
+                  ) : (
+                    <Link
+                      href={`/broadcast/${rid}?mode=join`}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
+                    >
+                      <Radio className="h-4 w-4" />
+                      Rejoindre le direct
+                    </Link>
+                  )
+                ) : isScheduled ? (
+                  isHost ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Link
+                        href={`/watch/${rid}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      >
+                        Détails
+                      </Link>
+                      <Link
+                        href={`/broadcast/${rid}?mode=host`}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-orange-400"
+                      >
+                        <Radio className="h-4 w-4" />
+                        Lancer le live
+                      </Link>
+                    </div>
+                  ) : (
                     <Link
                       href={`/watch/${rid}`}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200"
                     >
-                      {isScheduled ? "Voir" : "Regarder"}
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      <CalendarDays className="h-4 w-4" />
+                      Voir les détails (À venir)
                     </Link>
-
-                    {live.status === "live" ? (
-                      <Link
-                        href={`/broadcast/${rid}?mode=join`}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-200 dark:hover:bg-orange-500/15"
-                      >
-                        Rejoindre
-                      </Link>
-                    ) : isScheduled ? (
-                      <div className="inline-flex items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
-                        À venir
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center justify-center rounded-2xl border border-black/8 bg-black/[0.04] px-4 py-3 text-sm font-semibold text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/35">
-                        Hors ligne
-                      </div>
-                    )}
+                  )
+                ) : (
+                  <div className="inline-flex w-full items-center justify-center rounded-2xl border border-black/8 bg-black/[0.04] px-4 py-3 text-sm font-semibold text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/35">
+                    Hors ligne
                   </div>
                 )}
               </div>

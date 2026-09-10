@@ -20,7 +20,7 @@ import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useAuth } from "@/lib/useAuth";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import {
   useCallback,
@@ -263,10 +263,20 @@ export default function BroadcastRoomPage() {
   const router = useRouter();
   const params = useParams<{ roomId: string }>();
 
-  const { token, ready } = useAuth();
+  const { user, token, ready } = useAuth();
 
-  const isHost = true;
   const roomIdFromUrl = useMemo(() => params?.roomId, [params]);
+
+  const [liveInfo, setLiveInfo] = useState<LiveDTO | null>(null);
+
+  const isHost = useMemo(() => {
+    if (!liveInfo) return true;
+    if (!user?.id || !liveInfo?.user?.id) return false;
+    return String(user.id) === String(liveInfo.user.id);
+  }, [user?.id, liveInfo]);
+
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode");
 
   const {
     state,
@@ -275,6 +285,7 @@ export default function BroadcastRoomPage() {
     remoteStreams,
     error,
     hostExistingRoom,
+    joinAsCoStreamer,
     stopLive,
   } = useWebRTC(token ?? undefined);
 
@@ -282,11 +293,21 @@ export default function BroadcastRoomPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [liveInfo, setLiveInfo] = useState<LiveDTO | null>(null);
 
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const displayRoom = roomId ?? roomIdFromUrl;
+
+  useEffect(() => {
+    if (!ready || !token || !roomIdFromUrl || hasStarted || state !== "idle") return;
+
+    if (mode === "join" && !isHost && liveInfo?.status === "live") {
+      setHasStarted(true);
+      joinAsCoStreamer(roomIdFromUrl).catch((err) => {
+        console.error("Failed to join stream as viewer/co-streamer:", err);
+      });
+    }
+  }, [ready, token, roomIdFromUrl, hasStarted, state, mode, isHost, liveInfo?.status, joinAsCoStreamer]);
 
   const { label: statusLabel, dotClassName } = getBroadcastStatusMeta(
     state as BroadcastState
@@ -457,6 +478,49 @@ export default function BroadcastRoomPage() {
             {error}
           </div>
         ) : null}
+
+        {!isHost && liveInfo?.status === "scheduled" && (
+          <div
+            role="alert"
+            className="mb-5 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-sm font-medium text-blue-700 backdrop-blur-sm dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200 flex items-center justify-between gap-4"
+          >
+            <div>
+              <p className="font-bold">Live planifié non démarré</p>
+              <p className="text-xs text-blue-600 dark:text-blue-300 mt-0.5">Ce direct n&apos;a pas encore été lancé par son créateur. Veuillez patienter que le chef démarre la diffusion.</p>
+            </div>
+            <button
+              onClick={() => router.push("/home")}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition shrink-0"
+            >
+              Retour
+            </button>
+          </div>
+        )}
+
+        {isHost && liveInfo?.status === "scheduled" && !hasStarted && (
+          <div
+            role="status"
+            className="mb-5 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm font-medium text-orange-900 dark:text-orange-200 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
+          >
+            <div>
+              <p className="font-bold flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                <Radio className="h-4 w-4" />
+                Vous êtes le créateur de ce live planifié !
+              </p>
+              <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">
+                Pour démarrer la vidéo en direct et ouvrir la session à vos spectateurs, cliquez sur le bouton <strong>« Lancer le live »</strong>.
+              </p>
+            </div>
+            <button
+              disabled={!canLaunch}
+              onClick={handleLaunchLive}
+              className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-orange-400 transition shrink-0"
+            >
+              <Radio className="h-4 w-4" />
+              Lancer le live maintenant
+            </button>
+          </div>
+        )}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,860px)_380px] xl:items-start xl:justify-center">
           <section className="min-w-0 space-y-5" aria-label="Diffusion vidéo">
