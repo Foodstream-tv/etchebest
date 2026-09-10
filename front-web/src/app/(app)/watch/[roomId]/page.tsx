@@ -14,6 +14,8 @@ import {
   Share2,
   Users,
   ChefHat,
+  CalendarClock,
+  CalendarDays,
 } from "lucide-react";
 import {
   getHLSUrl,
@@ -46,6 +48,19 @@ const formatQualityOption = (height: number): QualityOption => ({
   value: String(height),
 });
 const noop = () => {};
+
+function formatScheduledDate(value?: string | null) {
+  if (!value) return "Date à venir";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date à venir";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 export default function WatchRoomPage() {
   const routeParams = useParams<{ roomId: string }>();
@@ -80,6 +95,13 @@ export default function WatchRoomPage() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  const isHost = useMemo(() => {
+    if (!user?.id || !liveInfo?.user?.id) return false;
+    return String(user.id) === String(liveInfo.user.id);
+  }, [user?.id, liveInfo?.user?.id]);
+
+  const isScheduled = liveInfo?.status === "scheduled";
 
   const hlsUrl = useMemo(() => {
     return roomId ? getHLSUrl(roomId) : "";
@@ -207,6 +229,12 @@ export default function WatchRoomPage() {
   useEffect(() => {
     const video = videoRef.current;
     if (!roomId || !hlsUrl || !video) return;
+
+    if (liveInfo?.status === "scheduled") {
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -438,10 +466,22 @@ export default function WatchRoomPage() {
               Retour
             </Link>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />
-              <span>Replay / archive</span>
-            </div>
+            {liveInfo?.status === "live" ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-bold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+                <span>En direct</span>
+              </div>
+            ) : isScheduled ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-bold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+                <CalendarDays className="h-4 w-4 text-blue-500" />
+                <span>Planifié</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />
+                <span>Replay / archive</span>
+              </div>
+            )}
 
             {viewers !== null && (
               <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -470,44 +510,94 @@ export default function WatchRoomPage() {
           <section className="space-y-6">
             <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
               <div className="relative aspect-video bg-black">
-                <video
-                  key={`${roomId ?? "no-room"}-${reloadKey}`}
-                  ref={videoRef}
-                  controls
-                  playsInline
-                  className="h-full w-full bg-black object-contain"
-                >
-                  <track kind="captions" />
-                </video>
-
-                {playerMode === "hlsjs" && qualities.length > 1 && (
-                  <select
-                    value={selectedQuality}
-                    onChange={(e) => handleQualityChange(e.target.value)}
-                    className="absolute right-3 top-3 z-20 rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md outline-none"
-                  >
-                    {qualities.map((quality) => (
-                      <option key={quality.value} value={quality.value}>
-                        {quality.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {loading && (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="absolute inset-0 grid place-items-center bg-black/40"
-                  >
-                    <div className="rounded-2xl bg-black/40 px-4 py-3 text-sm font-semibold text-white backdrop-blur">
-                      Préparation du stream…
+                {isScheduled ? (
+                  isHost ? (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-orange-950 via-neutral-900 to-black text-white">
+                      <div className="mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-orange-500 text-white shadow-[0_0_30px_rgba(249,115,22,0.4)]">
+                        <Radio className="h-8 w-8 animate-pulse" />
+                      </div>
+                      <h2 className="text-xl font-bold">Vous êtes le créateur de ce live !</h2>
+                      <p className="mt-2 max-w-md text-sm text-gray-300">
+                        Votre direct est programmé pour le <strong className="text-orange-400">{formatScheduledDate(liveInfo?.scheduled_at)}</strong>.
+                      </p>
+                      <Link
+                        href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
+                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(249,115,22,0.35)] transition hover:bg-orange-400 hover:scale-105 active:scale-95"
+                      >
+                        <Radio className="h-4 w-4" />
+                        Lancer le direct dans le Studio
+                      </Link>
                     </div>
+                  ) : (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-blue-950 via-neutral-900 to-black text-white">
+                      <div className="mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-blue-500/20 border border-blue-400/30 text-blue-400 shadow-lg">
+                        <CalendarClock className="h-8 w-8" />
+                      </div>
+                      <h2 className="text-xl font-bold">Live planifié</h2>
+                      <p className="mt-2 max-w-md text-sm text-gray-300">
+                        Ce direct est programmé pour le <strong className="text-blue-300">{formatScheduledDate(liveInfo?.scheduled_at)}</strong>{liveInfo?.user?.username ? ` par ${liveInfo.user.username}` : ""}.
+                      </p>
+                      <p className="mt-2 text-xs text-gray-400">
+                        Le chef n&apos;a pas encore démarré la diffusion. Revenez à l&apos;heure prévue pour suivre la recette en direct !
+                      </p>
+                    </div>
+                  )
+                ) : liveInfo?.status === "live" ? (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-red-950 via-neutral-900 to-black text-white">
+                    <div className="mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]">
+                      <Radio className="h-8 w-8 animate-pulse" />
+                    </div>
+                    <h2 className="text-xl font-bold">Ce live est actuellement en direct !</h2>
+                    <p className="mt-2 max-w-md text-sm text-gray-300">
+                      Rejoignez la session WebRTC pour interagir et suivre la recette en temps réel.
+                    </p>
+                    {isHost ? (
+                      <Link
+                        href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
+                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-orange-400 hover:scale-105 active:scale-95"
+                      >
+                        <Radio className="h-4 w-4" />
+                        Accéder au Studio Host
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=join`}
+                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-red-500 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(239,68,68,0.35)] transition hover:bg-red-400 hover:scale-105 active:scale-95"
+                      >
+                        <Radio className="h-4 w-4" />
+                        Rejoindre le direct
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-neutral-900 text-white">
+                    <p className="text-base font-semibold text-gray-300">Ce live est actuellement hors ligne ou terminé.</p>
                   </div>
                 )}
               </div>
 
               <div className="space-y-5 p-5 sm:p-6">
+                {isHost && isScheduled && (
+                  <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-orange-600 dark:text-orange-400 text-sm flex items-center gap-2">
+                        <Radio className="h-4 w-4" />
+                        Accès Studio Créateur
+                      </h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                        Vous êtes le créateur de ce live. Vous pouvez entrer dans le studio et démarrer la diffusion dès maintenant.
+                      </p>
+                    </div>
+                    <Link
+                      href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
+                      className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-bold text-white shrink-0 hover:bg-orange-400 transition shadow-md"
+                    >
+                      <Radio className="h-4 w-4" />
+                      Lancer le live
+                    </Link>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50 sm:text-3xl">
@@ -515,7 +605,7 @@ export default function WatchRoomPage() {
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Archive FoodStream
+                      {isScheduled ? `Planifié pour le ${formatScheduledDate(liveInfo?.scheduled_at)}` : "Archive FoodStream"}
                     </p>
                   </div>
 
