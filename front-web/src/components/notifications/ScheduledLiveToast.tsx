@@ -119,9 +119,7 @@ export default function ScheduledLiveToast() {
 
   const urgency = getUrgency(scheduledLive.scheduled_at, now);
 
-  // Seul le toast orange (échéance lointaine) peut être fermé ; le rouge et
-  // le noir restent affichés quoi qu'il arrive.
-  if (urgency === "upcoming" && dismissedRoomId === scheduledLive.room_id) {
+  if (dismissedRoomId === scheduledLive.room_id) {
     return null;
   }
 
@@ -167,16 +165,14 @@ export default function ScheduledLiveToast() {
           </p>
         </div>
 
-        {urgency === "upcoming" ? (
-          <button
-            type="button"
-            onClick={dismiss}
-            aria-label="Masquer le rappel de live planifié"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/70 transition hover:bg-white/15 hover:text-white"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Masquer le rappel de live planifié"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/70 transition hover:bg-white/15 hover:text-white"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </Link>
   );
