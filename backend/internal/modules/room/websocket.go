@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +41,42 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now, can be restricted later
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // Non-browser clients (mobile native, CLI, etc.)
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		hostname := u.Hostname()
+		// Allow localhost / local development
+		if hostname == "localhost" || hostname == "127.0.0.1" {
+			return true
+		}
+		// Allow same host as request
+		reqHost := r.Host
+		if colon := strings.Index(reqHost, ":"); colon != -1 {
+			reqHost = reqHost[:colon]
+		}
+		if strings.EqualFold(hostname, reqHost) {
+			return true
+		}
+		// Allow explicitly configured origins
+		if allowed := os.Getenv("CORS_ALLOWED_ORIGINS"); allowed != "" {
+			for _, o := range strings.Split(allowed, ",") {
+				o = strings.TrimSpace(o)
+				if o == "*" || o == origin || o == hostname {
+					return true
+				}
+			}
+		}
+		// Allow foodstream domains
+		if strings.HasSuffix(hostname, "foodstream.tv") {
+			return true
+		}
+		log.Printf("[WS] CheckOrigin rejected origin: %s", origin)
+		return false
 	},
 }
 

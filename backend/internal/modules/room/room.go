@@ -4,7 +4,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -215,15 +217,18 @@ func logOfferSenders(userID string, pc *webrtc.PeerConnection) {
 	}
 }
 
-// storeOrSendOffer delivers the local offer to the user via WebSocket or
-// falls back to the polling map. Must be called with mu held.
+// storeOrSendOffer delivers the local offer to the user via WebSocket and
+// stores it in the pending offer map for polling. Must be called with mu held.
 func storeOrSendOffer(room *Room, userID string, local *webrtc.SessionDescription) {
-	if !sendOfferToUser(room.ID, userID, local) {
-		if room.PendingOfferByUser == nil {
-			room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
-		}
-		room.PendingOfferByUser[userID] = *local
-		log.Printf("WebSocket send failed for %s, storing offer for polling", userID)
+	if room.PendingOfferByUser == nil {
+		room.PendingOfferByUser = make(map[string]webrtc.SessionDescription)
+	}
+	room.PendingOfferByUser[userID] = *local
+
+	if sendOfferToUser(room.ID, userID, local) {
+		log.Printf("[RENEGOTIATION] offer delivered via WebSocket to %s in room %s", userID, room.ID)
+	} else {
+		log.Printf("[RENEGOTIATION] WebSocket not connected or send failed for %s, offer stored for polling", userID)
 	}
 }
 
@@ -463,7 +468,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: 6,
+			MaxParticipants: 5,
 		}
 		if err := CreateRoom(db, &room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
@@ -665,10 +670,25 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if room.Host != currentUserID {
+			// A participant / co-streamer is leaving the room
+			var userPC *webrtc.PeerConnection
+			for _, conn := range room.Connections {
+				if conn.UserID == currentUserID {
+					userPC = conn.PeerCon
+					break
+				}
+			}
 			mu.Unlock()
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "only the host can end this live",
-			})
+
+			if userPC != nil {
+				onPeerDisconnected(db, room, roomId, userPC)
+			} else {
+				mu.Lock()
+				removeParticipantState(db, room, currentUserID)
+				mu.Unlock()
+			}
+
+			c.JSON(http.StatusOK, gin.H{"message": "left room successfully"})
 			return
 		}
 
@@ -850,9 +870,9 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 		if room.PendingOfferByUser != nil {
 			delete(room.PendingOfferByUser, userID)
 		}
-		mu.Unlock()
-
-		mu.Lock()
+		if room.RenegotiatingByUser != nil {
+			room.RenegotiatingByUser[userID] = false
+		}
 		needsAnotherOffer := room.NeedsRenegotiationByUser != nil && room.NeedsRenegotiationByUser[userID]
 		if needsAnotherOffer {
 			room.NeedsRenegotiationByUser[userID] = false
@@ -900,7 +920,21 @@ func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error)
 	if webrtcIP != "" {
 		se.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
 	}
-	se.SetEphemeralUDPPortRange(50000, 50100)
+	portMin := uint16(50000)
+	portMax := uint16(50100)
+	if minStr := os.Getenv("WEBRTC_PORT_MIN"); minStr != "" {
+		if val, err := strconv.ParseUint(minStr, 10, 16); err == nil {
+			portMin = uint16(val)
+		}
+	}
+	if maxStr := os.Getenv("WEBRTC_PORT_MAX"); maxStr != "" {
+		if val, err := strconv.ParseUint(maxStr, 10, 16); err == nil {
+			portMax = uint16(val)
+		}
+	}
+	if err := se.SetEphemeralUDPPortRange(portMin, portMax); err != nil {
+		log.Printf("failed to set ephemeral UDP port range [%d, %d]: %v", portMin, portMax, err)
+	}
 
 	me := &webrtc.MediaEngine{}
 	if err := me.RegisterDefaultCodecs(); err != nil {
