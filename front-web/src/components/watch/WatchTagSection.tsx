@@ -14,6 +14,7 @@ import {
 
 import type { LiveDTO } from "@/lib/lives";
 import { useAuth } from "@/lib/useAuth";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type Props = {
   tagName: string;
@@ -21,30 +22,31 @@ type Props = {
   mode?: "live" | "replay";
 };
 
-function formatScheduledDate(value?: string) {
-  if (!value) return "Date à venir";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Date à venir";
-  }
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 export default function WatchTagSection({
   tagName,
   lives,
   mode = "live",
 }: Props) {
   const { user } = useAuth();
+  const { t, locale } = useI18n();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const formatScheduledDate = (value?: string) => {
+    if (!value) return t("watch.upcomingDate");
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return t("watch.upcomingDate");
+    }
+
+    return new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
 
   const displayedLives = useMemo(() => {
     return Array.isArray(lives) ? lives : [];
@@ -75,8 +77,10 @@ export default function WatchTagSection({
           </h2>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {displayedLives.length} contenu
-            {displayedLives.length > 1 ? "s" : ""}
+            {t("watch.contentCount", {
+              count: displayedLives.length,
+              plural: displayedLives.length > 1 ? "s" : "",
+            })}
           </p>
         </div>
 
@@ -85,7 +89,7 @@ export default function WatchTagSection({
             <button
               type="button"
               onClick={() => scroll("left")}
-              aria-label={`Faire défiler la section ${tagName} vers la gauche`}
+              aria-label={t("watch.scrollLeftAria", { tagName })}
               className="grid h-10 w-10 place-items-center rounded-2xl border border-black/8 bg-white/80 text-gray-900 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -94,7 +98,7 @@ export default function WatchTagSection({
             <button
               type="button"
               onClick={() => scroll("right")}
-              aria-label={`Faire défiler la section ${tagName} vers la droite`}
+              aria-label={t("watch.scrollRightAria", { tagName })}
               className="grid h-10 w-10 place-items-center rounded-2xl border border-black/8 bg-white/80 text-gray-900 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -122,7 +126,7 @@ export default function WatchTagSection({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={thumbnail}
-                  alt={`Miniature du live ${live.title}`}
+                  alt={t("watch.thumbnailAlt", { title: live.title })}
                   className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-105"
                 />
 
@@ -154,10 +158,10 @@ export default function WatchTagSection({
                     )}
 
                     {live.status === "live"
-                      ? "EN DIRECT"
+                      ? t("watch.badge.live")
                       : live.status === "scheduled"
-                      ? "PLANIFIÉ"
-                      : "REPLAY"}
+                      ? t("watch.badge.scheduled")
+                      : t("watch.badge.replay")}
                   </span>
                 </div>
 
@@ -168,14 +172,14 @@ export default function WatchTagSection({
 
                   <p className="mt-1 text-sm text-white/75">
                     {live.user?.username
-                      ? `par ${live.user.username}`
-                      : "Chef Foodstream"}
+                      ? t("common.by", { name: live.user.username })
+                      : t("nav.chefRole")}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-4 p-5">
-                <div className="flex flex-wrap gap-2" aria-label="Tags du live">
+                <div className="flex flex-wrap gap-2" aria-label={t("watch.liveTagsAria")}>
                   {live.tags?.slice(0, 3).map((tag) => (
                     <span
                       key={tag.id}
@@ -192,19 +196,22 @@ export default function WatchTagSection({
                       className="mb-1 h-4 w-4"
                       aria-hidden="true"
                     />
-                    Programmé le {formatScheduledDate(live.scheduled_at)}
+                    {t("watch.scheduledFor", { date: formatScheduledDate(live.scheduled_at) })}
                   </div>
                 ) : null}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04] dark:text-gray-300">
                     <Eye className="mb-1 h-4 w-4" aria-hidden="true" />
-                    {live.current_viewers ?? 0} spectateurs
+                    {t("watch.viewersCount", {
+                      count: live.current_viewers ?? 0,
+                      plural: (live.current_viewers ?? 0) > 1 ? "s" : "",
+                    })}
                   </div>
 
                   <div className="rounded-2xl bg-black/[0.03] px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04] dark:text-gray-300">
                     <Users className="mb-1 h-4 w-4" aria-hidden="true" />
-                    Créateur
+                    {t("watch.creator")}
                   </div>
                 </div>
 
@@ -213,7 +220,7 @@ export default function WatchTagSection({
                     href={`/replays/${rid}`}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                   >
-                    Replay
+                    {t("watch.replay")}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 ) : live.status === "live" ? (
@@ -223,14 +230,14 @@ export default function WatchTagSection({
                         href={`/watch/${rid}`}
                         className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
                       >
-                        Fiche
+                        {t("watch.sheet")}
                       </Link>
                       <Link
                         href={`/broadcast/${rid}?mode=host`}
                         className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-orange-400"
                       >
                         <Radio className="h-4 w-4" />
-                        Mon Studio
+                        {t("watch.myStudio")}
                       </Link>
                     </div>
                   ) : (
@@ -239,7 +246,7 @@ export default function WatchTagSection({
                       className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
                     >
                       <Radio className="h-4 w-4" />
-                      Rejoindre le direct
+                      {t("watch.joinLive")}
                     </Link>
                   )
                 ) : isScheduled ? (
@@ -249,14 +256,14 @@ export default function WatchTagSection({
                         href={`/watch/${rid}`}
                         className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
                       >
-                        Détails
+                        {t("watch.details")}
                       </Link>
                       <Link
                         href={`/broadcast/${rid}?mode=host`}
                         className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-orange-400"
                       >
                         <Radio className="h-4 w-4" />
-                        Lancer le live
+                        {t("watch.startLive")}
                       </Link>
                     </div>
                   ) : (
@@ -265,12 +272,12 @@ export default function WatchTagSection({
                       className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200"
                     >
                       <CalendarDays className="h-4 w-4" />
-                      Voir les détails (À venir)
+                      {t("watch.seeDetailsUpcoming")}
                     </Link>
                   )
                 ) : (
                   <div className="inline-flex w-full items-center justify-center rounded-2xl border border-black/8 bg-black/[0.04] px-4 py-3 text-sm font-semibold text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/35">
-                    Hors ligne
+                    {t("watch.offline")}
                   </div>
                 )}
               </div>

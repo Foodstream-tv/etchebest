@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/profile", "/home", "/studio", "/stream"];
+const PROTECTED_PREFIXES = ["/profile", "/studio", "/stream"];
 const AUTH_ROUTES = ["/signin", "/signup"];
 
 function isTokenValid(token: string): boolean {
@@ -31,6 +31,14 @@ export default function proxy(req: NextRequest) {
 
   if (pathname.startsWith("/_next") || pathname.startsWith("/api")) {
     return NextResponse.next();
+  }
+
+  // If user requested logout explicitly on /signin, clear cookies and allow page load
+  if (pathname === "/signin" && req.nextUrl.searchParams.has("logout")) {
+    const res = NextResponse.next();
+    res.cookies.delete("token");
+    res.cookies.delete("auth_token");
+    return res;
   }
 
   const token = req.cookies.get("token")?.value;

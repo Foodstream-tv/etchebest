@@ -12,42 +12,43 @@ type BroadcastStatusMeta = Readonly<{
 }>;
 
 export default function getBroadcastStatusMeta(
-  state: BroadcastState
+  state: BroadcastState,
+  t?: (key: any) => string
 ): BroadcastStatusMeta {
   switch (state) {
     case "live":
       return {
-        label: "En direct",
+        label: t ? t("broadcast.statusLive") : "En direct",
         dotClassName: "bg-red-500",
       };
 
     case "connecting":
       return {
-        label: "Connexion…",
+        label: t ? t("broadcast.statusConnecting") : "Connexion…",
         dotClassName: "bg-amber-500",
       };
 
     case "creating":
       return {
-        label: "Création…",
+        label: t ? t("broadcast.statusCreating") : "Création…",
         dotClassName: "bg-blue-500",
       };
 
     case "disconnected":
       return {
-        label: "Déconnecté",
+        label: t ? t("broadcast.statusDisconnected") : "Déconnecté",
         dotClassName: "bg-gray-500",
       };
 
     case "error":
       return {
-        label: "Erreur",
+        label: t ? t("broadcast.statusError") : "Erreur",
         dotClassName: "bg-red-600",
       };
 
     case "idle":
       return {
-        label: "Prêt",
+        label: t ? t("broadcast.statusIdle") : "Prêt",
         dotClassName: "bg-gray-400",
       };
 

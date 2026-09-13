@@ -5,10 +5,13 @@ import { ChevronDown, Search } from "lucide-react";
 
 import LiveMomentCard from "@/components/home/hero/LiveMomentCard";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { useI18n } from "@/i18n/LanguageContext";
 
 const TAG_GROUPS = [
   {
-    title: "Cuisine",
+    key: "cuisine",
+    titleKey: "home.hero.group.cuisine" as const,
+    defaultTitle: "Cuisine",
     tags: [
       "Tout",
       "Asiatique",
@@ -25,7 +28,9 @@ const TAG_GROUPS = [
     ],
   },
   {
-    title: "Type de plat",
+    key: "dishType",
+    titleKey: "home.hero.group.dishType" as const,
+    defaultTitle: "Type de plat",
     tags: [
       "Végétarien",
       "Vegan",
@@ -40,7 +45,9 @@ const TAG_GROUPS = [
     ],
   },
   {
-    title: "Format",
+    key: "format",
+    titleKey: "home.hero.group.format" as const,
+    defaultTitle: "Format",
     tags: [
       "Recette rapide",
       "Pas à pas",
@@ -58,19 +65,20 @@ type HomeHeroProps = Readonly<{
 }>;
 
 export default function HomeHero({ onSearch }: HomeHeroProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState("Tout");
-  const [openGroup, setOpenGroup] = useState("Cuisine");
+  const [openGroupKey, setOpenGroupKey] = useState<string>("cuisine");
 
   const selectedLabel = useMemo(() => {
-    if (activeTag === "Tout") return "Toutes les cuisines";
+    if (activeTag === "Tout") return t("home.hero.allCuisines");
 
     return activeTag;
-  }, [activeTag]);
+  }, [activeTag, t]);
 
   const activeGroup = useMemo(() => {
-    return TAG_GROUPS.find((group) => group.title === openGroup);
-  }, [openGroup]);
+    return TAG_GROUPS.find((group) => group.key === openGroupKey);
+  }, [openGroupKey]);
 
   const handleSearch = () => {
     onSearch?.({
@@ -85,24 +93,15 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
       className="grid gap-8 lg:grid-cols-[1.6fr_0.92fr] lg:items-start"
     >
       <div className="pt-2">
-        <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-          <span
-            className="h-2 w-2 rounded-full bg-orange-500"
-            aria-hidden="true"
-          />
-          Foodstream
-        </div>
-
         <h1
           id="home-hero-title"
           className="mt-4 max-w-3xl text-4xl font-semibold leading-[1.02] tracking-tight text-gray-900 dark:text-gray-50 lg:text-[3.2rem]"
         >
-          Regarde, cuisine, partage.
+          {t("home.hero.title")}
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-600 dark:text-gray-400 md:text-base">
-          La plateforme live des passionnés de cuisine. Découvre des recettes,
-          suis des chefs et rejoins des lives culinaires en direct.
+          {t("home.hero.subtitle")}
         </p>
 
         <div className="mt-6 rounded-[28px] border border-black/8 bg-white/75 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
@@ -114,7 +113,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
               />
 
               <label htmlFor="home-hero-search" className="sr-only">
-                Chercher une recette ou une cuisine
+                {t("home.hero.searchAria")}
               </label>
 
               <input
@@ -124,7 +123,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                 onKeyDown={(event) => {
                   if (event.key === "Enter") handleSearch();
                 }}
-                placeholder="Chercher une recette, une cuisine..."
+                placeholder={t("home.hero.searchPlaceholder")}
                 className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
               />
             </div>
@@ -135,13 +134,13 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
               className="h-12 shrink-0 rounded-2xl px-6 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:scale-[1.01] active:scale-[0.98]"
               style={{ background: ORANGE_GRADIENT_CSS }}
             >
-              Découvrir
+              {t("home.hero.discover")}
             </button>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/5 pt-3 dark:border-white/10">
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-              Filtre actif :
+              {t("home.hero.activeFilter")}
             </span>
 
             <span className="rounded-full bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-700 ring-1 ring-orange-100 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/20">
@@ -150,16 +149,16 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
 
             <div
               className="ml-0 flex overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:ml-2"
-              aria-label="Groupes de filtres"
+              aria-label={t("home.hero.filterGroups")}
             >
               {TAG_GROUPS.map((group, index) => {
-                const open = openGroup === group.title;
+                const open = openGroupKey === group.key;
 
                 return (
                   <button
-                    key={group.title}
+                    key={group.key}
                     type="button"
-                    onClick={() => setOpenGroup(open ? "" : group.title)}
+                    onClick={() => setOpenGroupKey(open ? "" : group.key)}
                     aria-expanded={open}
                     className={[
                       "inline-flex items-center gap-2 px-3 py-2 text-xs font-bold transition",
@@ -171,7 +170,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                         : "text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-300 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
                     ].join(" ")}
                   >
-                    {group.title}
+                    {t(group.titleKey)}
                     <ChevronDown
                       aria-hidden="true"
                       className={[
@@ -189,7 +188,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
             <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50/50 p-3 dark:border-orange-500/20 dark:bg-orange-500/10">
               <div
                 className="flex flex-wrap gap-2"
-                aria-label={`Filtres ${activeGroup.title}`}
+                aria-label={t("home.hero.filtersAria", { group: t(activeGroup.titleKey) })}
               >
                 {activeGroup.tags.map((tag) => (
                   <button
@@ -197,7 +196,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                     type="button"
                     onClick={() => {
                       setActiveTag(tag);
-                      setOpenGroup("");
+                      setOpenGroupKey("");
                       onSearch?.({
                         q: query.trim(),
                         tag,

@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
       { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
+      { protocol: "https", hostname: "*.googleusercontent.com", pathname: "/**" },
+      { protocol: "https", hostname: "assets.afcdn.com", pathname: "/**" },
+      { protocol: "https", hostname: "*.afcdn.com", pathname: "/**" },
+      { protocol: "https", hostname: "marmiton.org", pathname: "/**" },
+      { protocol: "https", hostname: "*.marmiton.org", pathname: "/**" },
     ],
   },
   async rewrites() {
