@@ -2,11 +2,11 @@ import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import ForgotPasswordScreen from '../forgot-password';
 
-const mockBack = jest.fn();
+const mockReplace = jest.fn();
 
 jest.mock('expo-router', () => ({
     useRouter: () => ({
-        back: mockBack,
+        replace: mockReplace,
     }),
 }));
 
@@ -18,8 +18,8 @@ describe('ForgotPasswordScreen', () => {
     it('renders correctly', () => {
         const { getByText, getByPlaceholderText } = render(<ForgotPasswordScreen />);
 
-        expect(getByText('Récupération')).toBeTruthy();
-        expect(getByText('Entrez votre adresse e-mail pour recevoir un lien de réinitialisation.')).toBeTruthy();
+        expect(getByText('Mot de passe oublie')).toBeTruthy();
+        expect(getByText(/Entrez votre e-mail/)).toBeTruthy();
         expect(getByPlaceholderText('Adresse e-mail')).toBeTruthy();
         expect(getByText('Envoyer le lien')).toBeTruthy();
     });
@@ -33,8 +33,8 @@ describe('ForgotPasswordScreen', () => {
         const submitButton = getByText('Envoyer le lien');
         fireEvent.press(submitButton);
 
-        expect(getByText('Adresse e-mail invalide')).toBeTruthy();
-        expect(queryByText('Vérifiez votre boîte mail')).toBeNull();
+        expect(getByText('Veuillez entrer une adresse e-mail valide')).toBeTruthy();
+        expect(queryByText(/Si un compte existe pour/)).toBeNull();
     });
 
     it('shows success view for valid email', () => {
@@ -46,17 +46,17 @@ describe('ForgotPasswordScreen', () => {
         const submitButton = getByText('Envoyer le lien');
         fireEvent.press(submitButton);
 
-        expect(getByText('Vérifiez votre boîte mail')).toBeTruthy();
-        expect(getByText('Retour à la connexion')).toBeTruthy();
+        expect(getByText(/Si un compte existe pour/)).toBeTruthy();
+        expect(getByText('Retour a la connexion')).toBeTruthy();
     });
 
-    it('navigates back when back button is pressed', () => {
+    it('navigates back when back to login button is pressed', () => {
         const { getByTestId } = render(<ForgotPasswordScreen />);
         
-        const backButton = getByTestId('back-button');
+        const backButton = getByTestId('back-to-login-button');
         fireEvent.press(backButton);
 
-        expect(mockBack).toHaveBeenCalled();
+        expect(mockReplace).toHaveBeenCalledWith('/login');
     });
 
     it('navigates back when return to login button is pressed on success view', () => {
@@ -68,9 +68,9 @@ describe('ForgotPasswordScreen', () => {
         const submitButton = getByText('Envoyer le lien');
         fireEvent.press(submitButton);
 
-        const returnButton = getByTestId('return-to-login-button');
+        const returnButton = getByTestId('back-to-login-button');
         fireEvent.press(returnButton);
 
-        expect(mockBack).toHaveBeenCalled();
+        expect(mockReplace).toHaveBeenCalledWith('/login');
     });
 });

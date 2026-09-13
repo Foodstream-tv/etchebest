@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useCart } from "@/components/shop/CartContext";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type Product = {
   id: string;
@@ -16,40 +17,41 @@ type Product = {
 const products: Product[] = [
   {
     id: "l1",
-    name: "Trépied smartphone",
-    price: 24,
+    name: "Support smartphone orientable",
+    price: 29,
     image:
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80",
-    category: "Matériel Live",
+      "https://images.unsplash.com/photo-1586105251261-72a756497a11?auto=format&fit=crop&w=900&q=80",
+    category: "Live",
   },
   {
     id: "l2",
-    name: "Microphone USB",
-    price: 49,
+    name: "Ring light LED studio",
+    price: 45,
     image:
-      "https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?auto=format&fit=crop&w=900&q=80",
-    category: "Matériel Live",
+      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80",
+    category: "Live",
   },
   {
     id: "l3",
-    name: "Ring Light LED",
-    price: 39,
+    name: "Micro cravate sans fil",
+    price: 59,
     image:
-      "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?auto=format&fit=crop&w=900&q=80",
-    category: "Matériel Live",
+      "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80",
+    category: "Live",
   },
   {
     id: "l4",
-    name: "Support caméra",
+    name: "Trépied flexible cuisine",
     price: 34,
     image:
-      "https://images.unsplash.com/photo-1495707902641-75cac588d2e9?auto=format&fit=crop&w=900&q=80",
-    category: "Matériel Live",
+      "https://images.unsplash.com/photo-1527011046414-4781f1f94f8c?auto=format&fit=crop&w=900&q=80",
+    category: "Live",
   },
 ];
 
 function ProductCard({ product }: Readonly<{ product: Product }>) {
   const { addToCart } = useCart();
+  const { t } = useI18n();
 
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 dark:bg-neutral-900">
@@ -75,10 +77,10 @@ function ProductCard({ product }: Readonly<{ product: Product }>) {
         <button
           type="button"
           onClick={() => addToCart(product)}
-          aria-label={`Ajouter ${product.name} au panier`}
+          aria-label={t("shop.cart.increaseQty", { name: product.name })}
           className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
         >
-          Ajouter au panier
+          {t("shop.food.addToCart")}
         </button>
       </div>
     </article>
@@ -86,6 +88,8 @@ function ProductCard({ product }: Readonly<{ product: Product }>) {
 }
 
 export default function LiveShopPage() {
+  const { t } = useI18n();
+
   return (
     <main
       id="main-content"
@@ -100,17 +104,16 @@ export default function LiveShopPage() {
           className="h-4 w-4"
         />
 
-        Retour à la boutique
+        {t("shop.food.back")}
       </Link>
 
       <section className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-neutral-900 md:p-8">
         <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
-          Matériel pour le live
+          {t("shop.liveGear.title")}
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-          Le matériel utile pour rendre tes lives plus propres, plus stables et
-          plus agréables à regarder.
+          {t("shop.liveGear.desc")}
         </p>
       </section>
 
@@ -119,7 +122,7 @@ export default function LiveShopPage() {
         className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4"
       >
         <h2 id="products-title" className="sr-only">
-          Produits de matériel pour le live
+          {t("shop.liveGear.title")}
         </h2>
 
         {products.map((product) => (

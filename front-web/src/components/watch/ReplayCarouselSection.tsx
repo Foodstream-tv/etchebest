@@ -11,6 +11,7 @@ import {
 import { useId, useRef } from "react";
 
 import type { LiveDTO } from "@/lib/lives";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type Props = {
   title: string;
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export default function ReplayCarouselSection({ title, replays }: Props) {
+  const { t } = useI18n();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
 
@@ -45,7 +47,7 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
             <button
               type="button"
               onClick={() => scroll("left")}
-              aria-label={`Faire défiler la section ${title} vers la gauche`}
+              aria-label={t("replays.scrollLeftAria", { title })}
               className="absolute -left-4 top-[38%] z-20 grid h-10 w-10 place-items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur transition hover:bg-black"
             >
               <ChevronLeft className="h-5 w-5" aria-hidden="true" />
@@ -54,7 +56,7 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
             <button
               type="button"
               onClick={() => scroll("right")}
-              aria-label={`Faire défiler la section ${title} vers la droite`}
+              aria-label={t("replays.scrollRightAria", { title })}
               className="absolute -right-4 top-[38%] z-20 grid h-10 w-10 place-items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur transition hover:bg-black"
             >
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
@@ -76,15 +78,16 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
               <Link
                 key={replay.id}
                 href={`/replays/${encodeURIComponent(replay.room_id)}`}
-                aria-label={`Voir le replay ${replay.title} par ${creatorName}`}
+                aria-label={t("replays.viewReplayAria", { title: replay.title, creator: creatorName })}
                 className="group w-[310px] shrink-0"
               >
                 <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
                   <Image
                     src={thumbnail}
-                    alt={`Miniature du replay ${replay.title}`}
+                    alt={t("replays.thumbnailAlt", { title: replay.title })}
                     fill
                     sizes="310px"
+                    unoptimized
                     className="object-cover transition duration-300 group-hover:scale-105"
                   />
 
@@ -95,12 +98,14 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
 
                   <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white">
                     <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                    REPLAY
+                    {t("replays.badgeVideo")}
                   </div>
 
                   <div className="absolute bottom-3 left-3 rounded-md bg-black/70 px-2 py-1 text-sm font-bold text-white">
-                    {replay.view_count ?? 0} vue
-                    {(replay.view_count ?? 0) > 1 ? "s" : ""}
+                    {t("replays.views", {
+                      count: replay.view_count ?? 0,
+                      plural: (replay.view_count ?? 0) > 1 ? "s" : "",
+                    })}
                   </div>
                 </div>
 
@@ -112,6 +117,7 @@ export default function ReplayCarouselSection({ title, replays }: Props) {
                         alt={`Photo de profil de ${creatorName}`}
                         width={40}
                         height={40}
+                        unoptimized
                         className="h-full w-full object-cover"
                       />
                     ) : null}
