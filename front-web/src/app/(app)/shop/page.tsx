@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type Category = {
   title: string;
@@ -11,34 +12,7 @@ type Category = {
   priority?: boolean;
 };
 
-const categories: Category[] = [
-  {
-    title: "Ustensiles",
-    description: "Tout pour cuisiner comme un chef",
-    image:
-      "https://images.unsplash.com/photo-1514986888952-8cd320577b68?auto=format&fit=crop&w=1400&q=80",
-    href: "/shop/ustensiles",
-    priority: true,
-  },
-  {
-    title: "Matériel Live",
-    description: "Améliore la qualité de tes streams",
-    image:
-      "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1400&q=80",
-    href: "/shop/live",
-    priority: true,
-  },
-  {
-    title: "Nourriture",
-    description: "Ingrédients & kits prêts à cuisiner",
-    image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1400&q=80",
-    href: "/shop/food",
-    priority: true,
-  },
-];
-
-function CategoryCard({ category }: Readonly<{ category: Category }>) {
+function CategoryCard({ category, exploreLabel }: Readonly<{ category: Category; exploreLabel: string }>) {
   return (
     <Link
       href={category.href}
@@ -72,7 +46,7 @@ function CategoryCard({ category }: Readonly<{ category: Category }>) {
           aria-hidden="true"
           className="mt-4 inline-block rounded-full bg-white/20 px-4 py-2 text-sm font-semibold backdrop-blur"
         >
-          Explorer →
+          {exploreLabel}
         </div>
       </div>
     </Link>
@@ -80,6 +54,35 @@ function CategoryCard({ category }: Readonly<{ category: Category }>) {
 }
 
 export default function ShopPage() {
+  const { t } = useI18n();
+
+  const categories: Category[] = [
+    {
+      title: t("shop.cat.utensils"),
+      description: t("shop.cat.utensilsDesc"),
+      image:
+        "https://images.unsplash.com/photo-1514986888952-8cd320577b68?auto=format&fit=crop&w=1400&q=80",
+      href: "/shop/ustensiles",
+      priority: true,
+    },
+    {
+      title: t("shop.cat.liveGear"),
+      description: t("shop.cat.liveGearDesc"),
+      image:
+        "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1400&q=80",
+      href: "/shop/live",
+      priority: true,
+    },
+    {
+      title: t("shop.cat.food"),
+      description: t("shop.cat.foodDesc"),
+      image:
+        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1400&q=80",
+      href: "/shop/food",
+      priority: true,
+    },
+  ];
+
   return (
     <main
       id="main-content"
@@ -98,16 +101,15 @@ export default function ShopPage() {
 
         <div className="relative z-10">
           <p className="text-sm font-semibold uppercase tracking-widest text-orange-600 dark:text-orange-300">
-            Boutique FoodStream
+            {t("shop.title")}
           </p>
 
           <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white">
-            Équipe-toi pour tes lives 🍳
+            {t("shop.heroTitle")}
           </h1>
 
           <p className="mt-4 max-w-2xl text-gray-600 dark:text-gray-300">
-            Découvre les meilleurs outils, équipements et ingrédients utilisés
-            par les streamers FoodStream.
+            {t("shop.heroDesc")}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -115,14 +117,14 @@ export default function ShopPage() {
               type="button"
               className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
             >
-              Voir les tendances
+              {t("shop.trends")}
             </button>
 
             <button
               type="button"
               className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold transition hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-neutral-800"
             >
-              Produits populaires
+              {t("shop.popular")}
             </button>
           </div>
         </div>
@@ -133,11 +135,11 @@ export default function ShopPage() {
         className="grid gap-6 md:grid-cols-3"
       >
         <h2 id="shop-categories-title" className="sr-only">
-          Catégories de la boutique
+          {t("shop.title")}
         </h2>
 
         {categories.map((cat) => (
-          <CategoryCard key={cat.href} category={cat} />
+          <CategoryCard key={cat.href} category={cat} exploreLabel={t("shop.explore")} />
         ))}
       </section>
     </main>

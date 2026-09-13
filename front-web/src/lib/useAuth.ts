@@ -60,6 +60,10 @@ function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
   document.cookie = "token=; path=/; max-age=0; samesite=lax";
+  document.cookie = "auth_token=; path=/; max-age=0; samesite=lax";
+  if (typeof window !== "undefined") {
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+  }
 }
 
 export function useAuth() {
@@ -92,8 +96,13 @@ export function useAuth() {
     setAuthState(nextAuth);
   };
 
-  const signOut = () => {
+  const signOut = async () => {
     setAuth(null);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
   };
 
   return {

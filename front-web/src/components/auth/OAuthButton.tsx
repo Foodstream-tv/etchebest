@@ -3,6 +3,7 @@
 import Image from "next/image";
 
 import { startSocialAuth, type SocialProvider } from "@/lib/socialAuth";
+import { useI18n } from "@/i18n";
 
 type OAuthButtonProps = Readonly<{
   provider: SocialProvider;
@@ -13,7 +14,8 @@ export default function OAuthButton({
   provider,
   disabled = false,
 }: OAuthButtonProps) {
-  const label = "Continuer avec Google";
+  const { t } = useI18n();
+  const label = t("auth.signin.google");
 
   const logoSrc = "/images/icons8-logo-google-16.png";
 

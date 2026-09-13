@@ -13,6 +13,10 @@ import {
   X,
   ChevronDown,
   Plus,
+  Sparkles,
+  ArrowRight,
+  ArrowLeft,
+  Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -20,6 +24,7 @@ import HomeFooter from "@/components/home/HomeFooter";
 import Field from "@/components/studio/Field";
 import Chip from "@/components/studio/Chip";
 import StudioPreviewCard from "@/components/studio/StudioPreviewCard";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type Level = "Débutant" | "Intermédiaire" | "Avancé";
 type Visibility = "Public" | "Non listé" | "Privé";
@@ -82,6 +87,10 @@ type UploadImageRes = { url: string };
 export default function StudioPage() {
   const { token, user, ready } = useAuth();
   const router = useRouter();
+  const { t } = useI18n();
+
+  // Stepper state: 1: Source & Infos, 2: Recette & Étapes, 3: Média & Diffusion
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -148,6 +157,7 @@ export default function StudioPage() {
   const [marmitonUrl, setMarmitonUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState("");
 
   const addPrepStep = () => {
     const text = newPrepStep.trim();
@@ -178,6 +188,7 @@ export default function StudioPage() {
     if (!url) return;
     setImporting(true);
     setImportError("");
+    setImportSuccess("");
 
     try {
       const response = await apiFetch<any>(`/scrape/marmiton?url=${encodeURIComponent(url)}`, {
@@ -190,7 +201,13 @@ export default function StudioPage() {
 
       // Populate basic info
       if (response.title) setTitle(response.title);
-      if (response.description) setDesc(response.description);
+      if (response.description) {
+        setDesc(response.description.slice(0, 500));
+      }
+      if (response.image) {
+        setImageUrl(response.image);
+        setThumbnailFile(null);
+      }
 
       // Populate ingredients
       if (response.ingredients && Array.isArray(response.ingredients)) {
@@ -236,15 +253,14 @@ export default function StudioPage() {
       }
 
       setMarmitonUrl("");
+      setImportSuccess("Recette importée avec succès ! Les informations ont été pré-remplies.");
     } catch (e: any) {
       console.error(e);
-      setImportError(e?.message || "Erreur lors de l'importation de la recette.");
+      setImportError(e?.message || "Erreur lors de l'importation de la recette Marmiton.");
     } finally {
       setImporting(false);
     }
   };
-
-
 
   const addIngredient = () => {
     const name = newIngName.trim();
@@ -312,7 +328,6 @@ export default function StudioPage() {
 
   const addCustomTag = () => {
     const cleaned = customTag.trim();
-
     if (!cleaned) return;
 
     if (tags.includes(cleaned)) {
@@ -328,7 +343,6 @@ export default function StudioPage() {
     if (!date || !time) return null;
 
     const dt = new Date(`${date}T${time}:00`);
-
     if (Number.isNaN(dt.getTime())) return null;
 
     return dt.toISOString();
@@ -337,7 +351,11 @@ export default function StudioPage() {
   const appendDescriptionHint = (hint: string) => {
     setDesc((prev) => {
       if (prev.includes(hint)) return prev;
-      return prev.trim() ? `${prev}\n• ${hint}` : `• ${hint}`;
+      const addition = prev.trim() ? `\n• ${hint}` : `• ${hint}`;
+      if (prev.length + addition.length > 500) {
+        return prev;
+      }
+      return `${prev}${addition}`;
     });
   };
 
@@ -374,29 +392,11 @@ export default function StudioPage() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL ?? ""}/uploads/image`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      }
-    );
-
-    if (!res.ok) {
-      let message = "Impossible d’uploader l’image";
-
-      try {
-        const data = await res.json();
-        message = data?.message || data?.error || message;
-      } catch {}
-
-      throw new Error(message);
-    }
-
-    const data: UploadImageRes = await res.json();
+    const data = await apiFetch<UploadImageRes>("/uploads/image", {
+      method: "POST",
+      body: formData,
+      token,
+    });
 
     if (!data?.url) {
       throw new Error("Aucune URL retournée après l’upload de l’image.");
@@ -416,7 +416,15 @@ export default function StudioPage() {
     }
 
     let finalDescription = desc.trim();
-    if (ingredients.length > 0 || prepSteps.length > 0 || cookingTimer > 0 || platingSteps.length > 0 || utensils.length > 0 || prepTime > 0 || restTime > 0) {
+    if (
+      ingredients.length > 0 ||
+      prepSteps.length > 0 ||
+      cookingTimer > 0 ||
+      platingSteps.length > 0 ||
+      utensils.length > 0 ||
+      prepTime > 0 ||
+      restTime > 0
+    ) {
       const recipeData = {
         ingredients,
         prepSteps,
@@ -426,7 +434,9 @@ export default function StudioPage() {
         prepTimeMins: prepTime,
         restTimeMins: restTime,
       };
-      finalDescription = `${finalDescription}\n\n---FOODSTREAM_RECIPE---\n${JSON.stringify(recipeData)}`;
+      finalDescription = `${finalDescription}\n\n---FOODSTREAM_RECIPE---\n${JSON.stringify(
+        recipeData
+      )}`;
     }
 
     return {
@@ -545,7 +555,7 @@ export default function StudioPage() {
           aria-live="polite"
           className="mx-auto w-full max-w-7xl px-6 py-10"
         >
-          Chargement…
+          {t("common.loading")}
         </div>
       </div>
     );
@@ -555,150 +565,438 @@ export default function StudioPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto w-full max-w-7xl px-6 py-8 md:py-10">
-        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-10">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* Main Form Column */}
           <section className="rounded-[32px] border border-black/8 bg-white/72 p-5 text-gray-900 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md md:p-7 dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-100 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-            <div className="mb-7 flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-orange-500 shadow-[0_10px_24px_rgba(249,115,22,0.28)]">
-                <Radio aria-hidden="true" className="h-5 w-5 text-white" />
+            {/* Header */}
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-orange-500 shadow-[0_10px_24px_rgba(249,115,22,0.28)]">
+                  <Radio aria-hidden="true" className="h-5 w-5 text-white" />
+                </div>
+
+                <div className="leading-tight">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-500 dark:text-orange-400">
+                    Foodstream Studio
+                  </p>
+
+                  <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+                    {t("studio.info.title")}
+                  </h1>
+                </div>
               </div>
 
-              <div className="leading-tight">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-500 dark:text-orange-400">
-                  Foodstream Studio
-                </p>
-
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-                  Créer un nouveau live
-                </h1>
-              </div>
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                {t("cook.step", { step: activeStep, total: 3 })}
+              </span>
             </div>
 
-            <div className="space-y-6">
-              <Field label="Titre du live">
-                <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-                  <div className="mb-2 flex items-center justify-end">
-                    <span className="text-xs text-gray-400 dark:text-white/35">
-                      {title.length}/100
-                    </span>
-                  </div>
-                  <input
-                    aria-label="Titre du live"
-                    className="w-full rounded-xl border border-black/8 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 md:text-lg dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
-                    placeholder="Ex. : Ramen Tonkotsu en 30 minutes"
-                    value={title}
-                    maxLength={100}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-              </Field>
+            {/* Stepper Navigation */}
+            <nav
+              aria-label={t("studio.steps.step1")}
+              className="mb-8 overflow-hidden rounded-2xl border border-black/8 bg-white/80 p-1.5 dark:border-white/10 dark:bg-white/[0.03]"
+            >
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  {
+                    step: 1 as const,
+                    label: t("studio.steps.step1"),
+                    desc: "Marmiton & Titre",
+                  },
+                  {
+                    step: 2 as const,
+                    label: t("studio.steps.step2"),
+                    desc: "Ingrédients & Détails",
+                  },
+                  {
+                    step: 3 as const,
+                    label: t("studio.steps.step3"),
+                    desc: "Miniature & Diffusion",
+                  },
+                ].map((item) => {
+                  const isCurrent = activeStep === item.step;
+                  const isDone = activeStep > item.step;
 
+                  return (
+                    <button
+                      key={item.step}
+                      type="button"
+                      onClick={() => setActiveStep(item.step)}
+                      className={`flex flex-col items-center sm:items-start rounded-xl px-2.5 py-2 sm:px-3 sm:py-2.5 text-left transition ${
+                        isCurrent
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : isDone
+                          ? "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-300 hover:bg-orange-500/15"
+                          : "text-gray-500 hover:bg-black/[0.03] dark:text-white/50 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 w-full">
+                        {isDone ? (
+                          <Check className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <span
+                            className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold ${
+                              isCurrent
+                                ? "bg-white text-orange-600"
+                                : "bg-black/10 dark:bg-white/10"
+                            }`}
+                          >
+                            {item.step}
+                          </span>
+                        )}
+                        <span className="text-xs sm:text-sm font-bold truncate">
+                          {item.label}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
 
-              <Field label="Description">
-                <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+            {/* STEP 1: Source & Informations de base */}
+            {activeStep === 1 && (
+              <div className="space-y-6">
+                {/* Marmiton Import Option - PROMINENT AT TOP */}
+                <div className="rounded-[28px] border-2 border-dashed border-orange-500/35 bg-gradient-to-br from-orange-500/[0.06] to-transparent p-5 dark:border-orange-500/30 dark:from-orange-500/[0.08]">
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/75">
-                      <FileText aria-hidden="true" className="h-4 w-4" />
-                      <span>Présentation du live</span>
+                    <div className="flex items-center gap-2">
+                      <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-500 text-white shadow-sm">
+                        <Sparkles className="h-4 w-4" />
+                      </div>
+                      <h2 className="text-base font-bold text-gray-900 dark:text-white">
+                        {t("studio.marmiton.title")}
+                      </h2>
                     </div>
-
-                    <span className="shrink-0 text-xs text-gray-400 dark:text-white/35">
-                      {desc.length}/500
-                    </span>
                   </div>
 
-                  <textarea
-                    aria-label="Description du live"
-                    className="w-full min-h-[180px] resize-y rounded-xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
-                    placeholder="Présente ton live : ce que tu vas cuisiner, les étapes, le niveau, les ingrédients ou le matériel nécessaire…"
-                    value={desc}
-                    maxLength={500}
-                    onChange={(e) => setDesc(e.target.value)}
-                  />
+                  <p className="mb-4 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                    {t("studio.marmiton.subtitle")}
+                  </p>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {[
-                      "Recette maison",
-                      "Pas à pas",
-                      "Débutant friendly",
-                      "Matériel simple",
-                    ].map((hint) => (
-                      <button
-                        key={hint}
-                        type="button"
-                        onClick={() => appendDescriptionHint(hint)}
-                        className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-black/5 transition hover:bg-gray-100 dark:bg-white/5 dark:text-white/75 dark:ring-white/10 dark:hover:bg-white/10"
-                      >
-                        + {hint}
-                      </button>
-                    ))}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      aria-label={t("studio.marmiton.title")}
+                      value={marmitonUrl}
+                      onChange={(e) => setMarmitonUrl(e.target.value)}
+                      placeholder={t("studio.marmiton.placeholder")}
+                      className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35"
+                    />
+                    <button
+                      type="button"
+                      onClick={importMarmitonRecipe}
+                      disabled={importing || !marmitonUrl.trim()}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50 shrink-0"
+                    >
+                      {importing ? (
+                        <>
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          {t("studio.marmiton.importing")}
+                        </>
+                      ) : (
+                        t("studio.marmiton.btn")
+                      )}
+                    </button>
                   </div>
-                </div>
-              </Field>
 
-              {/* Cooking Coop Custom Recipe Details */}
-              <div className="rounded-[28px] border border-orange-500/25 bg-orange-500/[0.02] p-5 dark:border-orange-500/20">
-                <div className="mb-4 flex items-center gap-2">
-                  <Plus className="h-5 w-5 text-orange-500" />
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                    Recette & Étapes (Cuisine Coop)
-                  </h3>
-                </div>
-
-                <div className="space-y-5">
-                  {/* Marmiton Import Option */}
-                  <div className="rounded-2xl border border-dashed border-orange-500/30 bg-orange-500/5 p-4">
-                    <h4 className="text-sm font-bold text-orange-600 dark:text-orange-400 mb-2 flex items-center gap-1.5">
-                      Import Express depuis Marmiton
-                    </h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                      Collez un lien de recette Marmiton pour pré-remplir automatiquement le titre, la description, les ingrédients, ustensiles, temps de préparation et étapes.
+                  {importError && (
+                    <p className="mt-2.5 text-xs font-semibold text-red-500 dark:text-red-400">
+                      {importError}
                     </p>
-                    <div className="flex gap-2">
-                      <input
-                        aria-label="Lien de recette Marmiton"
-                        value={marmitonUrl}
-                        onChange={(e) => setMarmitonUrl(e.target.value)}
-                        placeholder="https://www.marmiton.org/recettes/recette_..."
-                        className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={importMarmitonRecipe}
-                        disabled={importing}
-                        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50"
-                      >
-                        {importing ? "Import..." : "Importer"}
-                      </button>
+                  )}
+
+                  {importSuccess && (
+                    <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <Check className="h-4 w-4" />
+                      <span>{importSuccess}</span>
                     </div>
-                    {importError && (
-                      <p className="text-xs text-red-500 mt-2 font-semibold">
-                        {importError}
-                      </p>
-                    )}
+                  )}
+                </div>
+
+                {/* Title */}
+                <Field label={t("studio.info.liveTitle")}>
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs text-gray-500 dark:text-white/45">
+                        {t("studio.info.liveTitle")}
+                      </span>
+                      <span className="text-xs font-semibold text-gray-400 dark:text-white/35">
+                        {title.length}/100
+                      </span>
+                    </div>
+                    <input
+                      aria-label={t("studio.info.liveTitle")}
+                      className="w-full rounded-xl border border-black/8 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 md:text-lg dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
+                      placeholder={t("studio.info.liveTitlePlaceholder")}
+                      value={title}
+                      maxLength={100}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
                   </div>
+                </Field>
+
+                {/* Tags & Level in 2 columns */}
+                <div className="grid gap-5 md:grid-cols-2">
+                  <Field label={t("studio.info.tags")}>
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {tags.length === 0 ? (
+                          <span className="text-xs text-gray-400 dark:text-white/35">
+                            {t("studio.info.tags")}
+                          </span>
+                        ) : (
+                          tags.map((tag) => (
+                            <Chip
+                              key={tag}
+                              active
+                              onClick={() => toggleTag(tag)}
+                              label={tag}
+                            />
+                          ))
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {TAG_GROUPS.map((group) => {
+                          const open = openTagGroup === group.title;
+                          const panelId = `tag-group-${group.title
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`;
+
+                          return (
+                            <div
+                              key={group.title}
+                              className="rounded-xl border border-black/5 bg-white/70 dark:border-white/10 dark:bg-white/[0.03]"
+                            >
+                              <button
+                                type="button"
+                                aria-expanded={open}
+                                aria-controls={panelId}
+                                onClick={() =>
+                                  setOpenTagGroup(open ? "" : group.title)
+                                }
+                                className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-white/45"
+                              >
+                                {group.title}
+
+                                <ChevronDown
+                                  aria-hidden="true"
+                                  className={`h-4 w-4 transition ${
+                                    open ? "rotate-180" : ""
+                                  }`}
+                                />
+                              </button>
+
+                              {open ? (
+                                <div
+                                  id={panelId}
+                                  className="flex flex-wrap gap-2 border-t border-black/5 px-3 py-3 dark:border-white/10"
+                                >
+                                  {group.tags.map((tag) => (
+                                    <Chip
+                                      key={tag}
+                                      active={tags.includes(tag)}
+                                      onClick={() => toggleTag(tag)}
+                                      label={tag}
+                                    />
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          aria-label={t("studio.info.addTag")}
+                          value={customTag}
+                          onChange={(e) => setCustomTag(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addCustomTag();
+                            }
+                          }}
+                          placeholder={t("studio.info.addTag")}
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={addCustomTag}
+                          className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
+                        >
+                          <Plus aria-hidden="true" className="h-4 w-4" />
+                          {t("studio.info.addTagBtn")}
+                        </button>
+                      </div>
+                    </div>
+                  </Field>
+
+                  <Field label={t("studio.info.level")}>
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04] space-y-3">
+                      <p className="text-xs text-gray-500 dark:text-white/45">
+                        {t("studio.info.level")}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(["Débutant", "Intermédiaire", "Avancé"] as Level[]).map(
+                          (item) => (
+                            <Chip
+                              key={item}
+                              active={level === item}
+                              onClick={() => setLevel(item)}
+                              label={
+                                item === "Débutant"
+                                  ? t("studio.info.levelBeginner")
+                                  : item === "Intermédiaire"
+                                  ? t("studio.info.levelIntermediate")
+                                  : t("studio.info.levelAdvanced")
+                              }
+                            />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </Field>
+                </div>
+
+                {/* Step 1 Navigation */}
+                <div className="flex justify-end pt-4 border-t border-black/5 dark:border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(2)}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.25)] transition hover:bg-orange-400"
+                  >
+                    <span>{t("studio.steps.next")}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Recette & Description */}
+            {activeStep === 2 && (
+              <div className="space-y-6">
+                {/* Description with strict 500 limit */}
+                <Field label={t("studio.info.desc")}>
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/75">
+                        <FileText aria-hidden="true" className="h-4 w-4" />
+                        <span>{t("studio.info.desc")}</span>
+                      </div>
+
+                      <span
+                        className={`shrink-0 text-xs font-semibold ${
+                          desc.length >= 500
+                            ? "text-red-500 font-bold"
+                            : desc.length >= 450
+                            ? "text-orange-500"
+                            : "text-gray-400 dark:text-white/35"
+                        }`}
+                      >
+                        {desc.length}/500
+                      </span>
+                    </div>
+
+                    <textarea
+                      aria-label={t("studio.info.desc")}
+                      className="w-full min-h-[160px] resize-y rounded-xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
+                      placeholder={t("studio.info.descPlaceholder")}
+                      value={desc}
+                      maxLength={500}
+                      onChange={(e) => setDesc(e.target.value.slice(0, 500))}
+                    />
+
+                    {/* Quick Hint buttons strictly respecting the 500 char limit */}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-gray-500 dark:text-white/45 mr-1">
+                        {t("studio.info.quickTags")}
+                      </span>
+                      {[
+                        "Recette maison",
+                        "Pas à pas",
+                        "Débutant friendly",
+                        "Matériel simple",
+                      ].map((hint) => {
+                        const isAlreadyIncluded = desc.includes(hint);
+                        const additionLen = desc.trim() ? hint.length + 3 : hint.length + 2;
+                        const wouldOverflow = desc.length + additionLen > 500;
+                        const isDisabled = isAlreadyIncluded || wouldOverflow;
+
+                        return (
+                          <button
+                            key={hint}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => appendDescriptionHint(hint)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+                              isDisabled
+                                ? "cursor-not-allowed opacity-40 bg-gray-100 text-gray-400 ring-gray-200 dark:bg-white/5 dark:text-white/30 dark:ring-white/5"
+                                : "bg-white text-gray-700 ring-black/5 hover:bg-gray-100 dark:bg-white/5 dark:text-white/75 dark:ring-white/10 dark:hover:bg-white/10"
+                            }`}
+                            title={
+                              isAlreadyIncluded
+                                ? "Déjà inclus"
+                                : wouldOverflow
+                                ? "500 chars max"
+                                : `+ ${hint}`
+                            }
+                          >
+                            + {hint}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Field>
+
+                {/* Recipe Details Card */}
+                <div className="rounded-[28px] border border-orange-500/25 bg-orange-500/[0.02] p-5 dark:border-orange-500/20 space-y-5">
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-orange-500" />
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                      {t("studio.recipe.title")}
+                    </h3>
+                  </div>
+
                   {/* Ingredients Section */}
-                  <Field label="Ingrédients requis">
+                  <Field label={t("studio.recipe.ingredients")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
                       <div className="flex gap-2">
                         <input
-                          aria-label="Nom de l'ingrédient"
+                          aria-label={t("studio.recipe.ingredients")}
                           value={newIngName}
                           onChange={(e) => setNewIngName(e.target.value)}
-                          placeholder="Nom (ex: Farine)"
+                          placeholder={t("studio.recipe.ingNamePlaceholder")}
                           className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addIngredient();
+                            }
+                          }}
                         />
                         <input
-                          aria-label="Quantité"
+                          aria-label={t("studio.recipe.ingQtyPlaceholder")}
                           value={newIngQty}
                           onChange={(e) => setNewIngQty(e.target.value)}
-                          placeholder="Quantité (ex: 200g)"
+                          placeholder={t("studio.recipe.ingQtyPlaceholder")}
                           className="w-28 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addIngredient();
+                            }
+                          }}
                         />
                         <button
                           type="button"
                           onClick={addIngredient}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          title={t("studio.recipe.addIngredient")}
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -711,11 +1009,15 @@ export default function StudioPage() {
                               key={idx}
                               className="flex items-center gap-1.5 rounded-full bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400"
                             >
-                              <span>{ing.name} ({ing.qty})</span>
+                              <span>
+                                {ing.name} ({ing.qty})
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => removeIngredient(idx)}
                                 className="rounded-full hover:bg-orange-500/25 p-0.5 text-orange-500"
+                                title={t("common.delete")}
+                                aria-label={t("common.delete")}
                               >
                                 <X className="h-3.5 w-3.5" />
                               </button>
@@ -727,14 +1029,14 @@ export default function StudioPage() {
                   </Field>
 
                   {/* Preparation Steps Section */}
-                  <Field label="Étapes de Préparation">
+                  <Field label={t("studio.recipe.steps")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
                       <div className="flex gap-2">
                         <input
-                          aria-label="Étape de préparation"
+                          aria-label={t("studio.recipe.steps")}
                           value={newPrepStep}
                           onChange={(e) => setNewPrepStep(e.target.value)}
-                          placeholder="ex: Ciselage de la cébette : Émincer finement"
+                          placeholder={t("studio.recipe.stepPlaceholder")}
                           className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -746,7 +1048,8 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={addPrepStep}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          title={t("studio.recipe.addStep")}
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -759,11 +1062,15 @@ export default function StudioPage() {
                               key={idx}
                               className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
                             >
-                              <span className="font-semibold">{idx + 1}. {step}</span>
+                              <span className="font-semibold">
+                                {idx + 1}. {step}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => removePrepStep(idx)}
                                 className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                                title={t("common.delete")}
+                                aria-label={t("common.delete")}
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -776,9 +1083,11 @@ export default function StudioPage() {
 
                   {/* Durations Section */}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Temps de Préparation (minutes)">
+                    <Field label={t("studio.recipe.prepTime")}>
                       <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
-                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Préparation :</span>
+                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                          {t("studio.recipe.prepTime")} :
+                        </span>
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
@@ -788,14 +1097,18 @@ export default function StudioPage() {
                             placeholder="0"
                             className="w-20 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                           />
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">min</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
+                            min
+                          </span>
                         </div>
                       </div>
                     </Field>
 
-                    <Field label="Temps de Repos (minutes)">
+                    <Field label={t("studio.recipe.restTime")}>
                       <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
-                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Repos :</span>
+                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                          {t("studio.recipe.restTime")} :
+                        </span>
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
@@ -805,21 +1118,23 @@ export default function StudioPage() {
                             placeholder="0"
                             className="w-20 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                           />
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">min</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
+                            min
+                          </span>
                         </div>
                       </div>
                     </Field>
                   </div>
 
                   {/* Utensils Section */}
-                  <Field label="Ustensiles nécessaires">
+                  <Field label={t("studio.recipe.utensils")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
                       <div className="flex gap-2">
                         <input
-                          aria-label="Ustensile requis"
+                          aria-label={t("studio.recipe.utensils")}
                           value={newUtensil}
                           onChange={(e) => setNewUtensil(e.target.value)}
-                          placeholder="ex: Fouet, Saladier, Moule..."
+                          placeholder={t("studio.recipe.utensilPlaceholder")}
                           className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -831,7 +1146,8 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={addUtensil}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          title={t("studio.recipe.addUtensil")}
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -849,6 +1165,8 @@ export default function StudioPage() {
                                 type="button"
                                 onClick={() => removeUtensil(idx)}
                                 className="rounded-full hover:bg-black/10 dark:hover:bg-white/20 p-0.5"
+                                title={t("common.delete")}
+                                aria-label={t("common.delete")}
                               >
                                 <X className="h-3.5 w-3.5" />
                               </button>
@@ -860,10 +1178,10 @@ export default function StudioPage() {
                   </Field>
 
                   {/* Cooking Timer Section */}
-                  <Field label="Minuteur de Cuisson (en minutes)">
+                  <Field label={t("studio.recipe.cookTime")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
                       <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                        Durée de cuisson recommandée :
+                        {t("studio.recipe.cookTime")} :
                       </span>
                       <div className="flex items-center gap-2">
                         <input
@@ -872,7 +1190,7 @@ export default function StudioPage() {
                           max={180}
                           value={cookingTimer === 0 ? "" : cookingTimer}
                           onChange={(e) => setCookingTimer(Number(e.target.value))}
-                          placeholder="0 (Pas de minuteur)"
+                          placeholder="0"
                           className="w-24 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                         />
                         <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
@@ -883,14 +1201,14 @@ export default function StudioPage() {
                   </Field>
 
                   {/* Plating Steps Section */}
-                  <Field label="Étapes de Dressage">
+                  <Field label={t("studio.recipe.plating")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
                       <div className="flex gap-2">
                         <input
-                          aria-label="Étape de dressage"
+                          aria-label={t("studio.recipe.plating")}
                           value={newPlatingStep}
                           onChange={(e) => setNewPlatingStep(e.target.value)}
-                          placeholder="ex: Placer les nouilles puis ajouter le porc chashu"
+                          placeholder={t("studio.recipe.platingPlaceholder")}
                           className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -902,7 +1220,8 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={addPlatingStep}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          title={t("studio.recipe.addPlating")}
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -915,11 +1234,15 @@ export default function StudioPage() {
                               key={idx}
                               className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
                             >
-                              <span className="font-semibold">{idx + 1}. {step}</span>
+                              <span className="font-semibold">
+                                {idx + 1}. {step}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => removePlatingStep(idx)}
                                 className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                                title={t("common.delete")}
+                                aria-label={t("common.delete")}
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -930,343 +1253,295 @@ export default function StudioPage() {
                     </div>
                   </Field>
                 </div>
-              </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <Field label="Tags du live">
-                  <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {tags.length === 0 ? (
-                        <span className="text-xs text-gray-400 dark:text-white/35">
-                          Aucun tag sélectionné
-                        </span>
-                      ) : (
-                        tags.map((tag) => (
-                          <Chip
-                            key={tag}
-                            active
-                            onClick={() => toggleTag(tag)}
-                            label={tag}
-                          />
-                        ))
-                      )}
+                {/* Step 2 Navigation */}
+                <div className="flex items-center justify-between pt-4 border-t border-black/5 dark:border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(1)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-black/[0.03] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span>{t("studio.steps.prev")}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(3)}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.25)] transition hover:bg-orange-400"
+                  >
+                    <span>{t("studio.steps.next")}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Média & Diffusion */}
+            {activeStep === 3 && (
+              <div className="space-y-6">
+                {/* Thumbnail upload with crash-proof preview & safe API */}
+                <Field label={t("studio.broadcast.thumbnail")}>
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/70">
+                      <ImageIcon aria-hidden="true" className="h-4 w-4" />
+                      <span>{t("studio.broadcast.thumbnail")}</span>
                     </div>
 
-                    <div className="space-y-2">
-                      {TAG_GROUPS.map((group) => {
-                        const open = openTagGroup === group.title;
-                        const panelId = `tag-group-${group.title
-                          .toLowerCase()
-                          .replace(/\s+/g, "-")}`;
+                    <div className="space-y-4">
+                      {/* File upload zone */}
+                      <div className="rounded-xl border border-dashed border-black/10 bg-white p-4 dark:border-white/10 dark:bg-[#120b05]/80">
+                        <input
+                          id="thumbnail-file"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
 
-                        return (
-                          <div
-                            key={group.title}
-                            className="rounded-xl border border-black/5 bg-white/70 dark:border-white/10 dark:bg-white/[0.03]"
-                          >
+                        <label
+                          htmlFor="thumbnail-file"
+                          className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400"
+                        >
+                          <Upload aria-hidden="true" className="h-4 w-4" />
+                          {t("studio.broadcast.chooseImageDevice")}
+                        </label>
+
+                        <p className="mt-2 text-center text-xs text-gray-500 dark:text-white/45">
+                          {t("studio.broadcast.fileFormats")}
+                        </p>
+
+                        {thumbnailFile && thumbnailPreview ? (
+                          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 dark:border-orange-500/20 dark:bg-orange-500/10">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-black/10">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={thumbnailPreview}
+                                  alt={t("studio.broadcast.previewAlt")}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                                  {thumbnailFile.name}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-white/45">
+                                  {(thumbnailFile.size / 1024 / 1024).toFixed(2)} Mo
+                                </p>
+                              </div>
+                            </div>
+
                             <button
                               type="button"
-                              aria-expanded={open}
-                              aria-controls={panelId}
-                              onClick={() =>
-                                setOpenTagGroup(open ? "" : group.title)
-                              }
-                              className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-white/45"
+                              aria-label={t("studio.broadcast.removeImageAria")}
+                              onClick={removeSelectedFile}
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-gray-700 ring-1 ring-black/5 transition hover:bg-gray-100 dark:bg-white/10 dark:text-white dark:ring-white/10 dark:hover:bg-white/15"
                             >
-                              {group.title}
-
-                              <ChevronDown
-                                aria-hidden="true"
-                                className={`h-4 w-4 transition ${
-                                  open ? "rotate-180" : ""
-                                }`}
-                              />
+                              <X aria-hidden="true" className="h-4 w-4" />
                             </button>
-
-                            {open ? (
-                              <div
-                                id={panelId}
-                                className="flex flex-wrap gap-2 border-t border-black/5 px-3 py-3 dark:border-white/10"
-                              >
-                                {group.tags.map((tag) => (
-                                  <Chip
-                                    key={tag}
-                                    active={tags.includes(tag)}
-                                    onClick={() => toggleTag(tag)}
-                                    label={tag}
-                                  />
-                                ))}
-                              </div>
-                            ) : null}
                           </div>
-                        );
-                      })}
+                        ) : null}
+                      </div>
+
+                      {/* Image URL fallback */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/45">
+                          {t("studio.broadcast.orPasteUrl")}
+                        </label>
+                        <div className="flex items-center gap-3 rounded-xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#120b05]/80">
+                          <ImageIcon
+                            aria-hidden="true"
+                            className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
+                          />
+
+                          <input
+                            aria-label={t("studio.broadcast.thumbnail")}
+                            placeholder={t("studio.broadcast.imagePlaceholder")}
+                            value={imageUrl}
+                            onChange={(e) => {
+                              setImageUrl(e.target.value);
+                              if (e.target.value.trim()) {
+                                setThumbnailFile(null);
+                              }
+                            }}
+                            className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                          />
+                          {imageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setImageUrl("")}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                              title={t("studio.broadcast.clearUrl")}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        aria-label="Ajouter un tag personnalisé"
-                        value={customTag}
-                        onChange={(e) => setCustomTag(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addCustomTag();
-                          }
-                        }}
-                        placeholder="Ajouter un tag personnalisé"
-                        className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={addCustomTag}
-                        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
-                      >
-                        <Plus aria-hidden="true" className="h-4 w-4" />
-                        Ajouter
-                      </button>
-                    </div>
                   </div>
                 </Field>
 
-                <Field label="Niveau">
-                  <div className="flex flex-wrap gap-2">
-                    {(["Débutant", "Intermédiaire", "Avancé"] as Level[]).map(
-                      (item) => (
-                        <Chip
-                          key={item}
-                          active={level === item}
-                          onClick={() => setLevel(item)}
-                          label={item}
-                        />
-                      )
-                    )}
-                  </div>
-                </Field>
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <Field label="Date">
-                  <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-                    <Calendar
-                      aria-hidden="true"
-                      className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
-                    />
-
-                    <input
-                      type="date"
-                      aria-label="Date du live"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
-                    />
-                  </div>
-                </Field>
-
-                <Field label="Heure (heure locale)">
-                  <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-                    <Clock
-                      aria-hidden="true"
-                      className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
-                    />
-
-                    <input
-                      type="time"
-                      aria-label="Heure du live"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
-                    />
-                  </div>
-                </Field>
-              </div>
-
-              <Field label="Durée du live">
-                <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold">Durée</span>
-
-                    <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-gray-900 ring-1 ring-black/5 dark:bg-[#120b05]/80 dark:text-white dark:ring-white/10">
-                      {duration} min
-                    </span>
-                  </div>
-
-                  <input
-                    type="range"
-                    aria-label="Durée du live en minutes"
-                    min={10}
-                    max={180}
-                    step={5}
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                    className="w-full"
-                  />
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {[30, 45, 60, 90].map((item) => (
-                      <Chip
-                        key={item}
-                        active={duration === item}
-                        onClick={() => setDuration(item)}
-                        label={`${item} min`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </Field>
-
-              <Field label="Image du live">
-                <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-white/70">
-                    <ImageIcon aria-hidden="true" className="h-4 w-4" />
-                    <span>Miniature du live</span>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 rounded-xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#120b05]/80">
-                      <ImageIcon
+                {/* Date & Time */}
+                <div className="grid gap-5 md:grid-cols-2">
+                  <Field label={t("studio.broadcast.dateField")}>
+                    <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
+                      <Calendar
                         aria-hidden="true"
                         className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
                       />
 
                       <input
-                        aria-label="URL de la miniature du live"
-                        placeholder="https://mon-site.com/miniature-live.jpg"
-                        value={imageUrl}
-                        onChange={(e) => {
-                          setImageUrl(e.target.value);
-
-                          if (e.target.value.trim()) {
-                            setThumbnailFile(null);
-                          }
-                        }}
-                        className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                        type="date"
+                        aria-label={t("studio.broadcast.dateAria")}
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
                       />
                     </div>
+                  </Field>
 
-                    <div className="relative rounded-xl border border-dashed border-black/10 bg-white p-4 dark:border-white/10 dark:bg-[#120b05]/80">
-                      <input
-                        id="thumbnail-file"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileChange}
-                        className="hidden"
+                  <Field label={t("studio.broadcast.timeField")}>
+                    <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
+                      <Clock
+                        aria-hidden="true"
+                        className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
                       />
 
-                      <label
-                        htmlFor="thumbnail-file"
-                        className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400"
-                      >
-                        <Upload aria-hidden="true" className="h-4 w-4" />
-                        Choisir une image depuis mon fichier
-                      </label>
+                      <input
+                        type="time"
+                        aria-label={t("studio.broadcast.timeAria")}
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                        className="w-full min-w-0 bg-transparent text-sm text-gray-900 outline-none dark:text-white"
+                      />
+                    </div>
+                  </Field>
+                </div>
 
-                      <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-                        PNG, JPG, WEBP… 5 Mo maximum.
-                      </p>
+                {/* Duration */}
+                <Field label={t("studio.broadcast.durationField")}>
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-semibold">{t("studio.broadcast.plannedDuration")}</span>
 
-                      {thumbnailFile ? (
-                        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                              {thumbnailFile.name}
-                            </p>
+                      <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-gray-900 ring-1 ring-black/5 dark:bg-[#120b05]/80 dark:text-white dark:ring-white/10">
+                        {duration} min
+                      </span>
+                    </div>
 
-                            <p className="text-xs text-gray-500 dark:text-white/45">
-                              {(thumbnailFile.size / 1024 / 1024).toFixed(2)} Mo
-                            </p>
-                          </div>
+                    <input
+                      type="range"
+                      aria-label={t("studio.broadcast.durationAria")}
+                      min={10}
+                      max={180}
+                      step={5}
+                      value={duration}
+                      onChange={(e) => setDuration(Number(e.target.value))}
+                      className="w-full accent-orange-500"
+                    />
 
-                          <button
-                            type="button"
-                            aria-label="Supprimer l'image sélectionnée"
-                            onClick={removeSelectedFile}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-700 ring-1 ring-black/5 transition hover:bg-gray-100 dark:bg-white/10 dark:text-white dark:ring-white/10 dark:hover:bg-white/15"
-                          >
-                            <X aria-hidden="true" className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {[30, 45, 60, 90].map((item) => (
+                        <Chip
+                          key={item}
+                          active={duration === item}
+                          onClick={() => setDuration(item)}
+                          label={`${item} min`}
+                        />
+                      ))}
                     </div>
                   </div>
+                </Field>
 
-                  <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-                    Tu peux soit coller une URL, soit importer une image depuis
-                    ton appareil.
-                  </p>
-                </div>
-              </Field>
-
-              <div className="flex flex-wrap gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={onSaveDraft}
-                  disabled={status !== "idle" || !canCreate}
-                  className="rounded-2xl border border-black/8 bg-white px-5 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-black/[0.03] disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                >
-                  Enregistrer le brouillon
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onSchedule}
-                  disabled={status !== "idle" || !canSchedule}
-                  className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:opacity-50"
-                  title={
-                    canSchedule
-                      ? undefined
-                      : "Choisis une date et une heure pour planifier"
-                  }
-                >
-                  Planifier le live
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onGoLiveNow}
-                  disabled={status !== "idle" || !canCreate}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-                >
-                  <Video aria-hidden="true" className="h-4 w-4" />
-                  Démarrer maintenant
-                </button>
-              </div>
-
-              {error ? (
-                <div
-                  role="alert"
-                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
-                >
-                  <p>{error}</p>
-
-                  {error.includes(
-                    "you already have an active or scheduled live"
-                  ) ? (
+                {/* Action Buttons */}
+                <div className="space-y-4 pt-4 border-t border-black/5 dark:border-white/5">
+                  <div className="flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={onForceEndLive}
-                      disabled={endingLive}
-                      className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                      onClick={() => setActiveStep(2)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-black/[0.03] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                     >
-                      {endingLive
-                        ? "Arrêt en cours..."
-                        : "Arrêter le live en cours"}
+                      <ArrowLeft className="h-4 w-4" />
+                      <span>{t("studio.steps.prev")}</span>
                     </button>
-                  ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={onSaveDraft}
+                      disabled={status !== "idle" || !canCreate}
+                      className="rounded-2xl border border-black/8 bg-white px-5 py-3 text-sm font-semibold text-gray-900 transition hover:bg-black/[0.03] disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                    >
+                      {t("studio.broadcast.saveDraft")}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onSchedule}
+                      disabled={status !== "idle" || !canSchedule}
+                      className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:opacity-50"
+                      title={
+                        canSchedule
+                          ? undefined
+                          : t("studio.broadcast.scheduleTooltip")
+                      }
+                    >
+                      {t("studio.broadcast.scheduleBtn")}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onGoLiveNow}
+                      disabled={status !== "idle" || !canCreate}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 shadow-md"
+                    >
+                      <Video aria-hidden="true" className="h-4 w-4" />
+                      {t("studio.broadcast.startNowBtn")}
+                    </button>
+                  </div>
                 </div>
-              ) : null}
-            </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                  >
+                    <p>{error}</p>
+
+                    {error.includes(
+                      "you already have an active or scheduled live"
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={onForceEndLive}
+                        disabled={endingLive}
+                        className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {endingLive
+                          ? t("studio.broadcast.stoppingLive")
+                          : t("studio.broadcast.stopActiveLive")}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
+          {/* Sticky Preview Column */}
           <aside className="space-y-6">
-            <StudioPreviewCard
-              safeImage={safeImage}
-              previewTitle={previewTitle}
-              previewTags={previewTags}
-              date={date}
-              time={time}
-            />
+            <div className="sticky top-6">
+              <StudioPreviewCard
+                safeImage={safeImage}
+                previewTitle={previewTitle}
+                previewTags={previewTags}
+                date={date}
+                time={time}
+              />
+            </div>
           </aside>
         </div>
       </div>

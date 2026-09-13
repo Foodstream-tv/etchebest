@@ -45,7 +45,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   const localStreamRef = useRef<MediaStream | null>(null);
   const isStoppingRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const streamTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const streamTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const tokenRef = useRef<string | undefined>(token);
 

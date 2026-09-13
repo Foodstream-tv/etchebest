@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Eye } from "lucide-react";
 
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { useI18n } from "@/i18n";
 
 type CardItem = {
   id: string;
@@ -20,6 +21,7 @@ type LiveGridCardProps = Readonly<{
 }>;
 
 export default function LiveGridCard({ item }: LiveGridCardProps) {
+  const { t } = useI18n();
   const targetHref = item.isLive
     ? `/broadcast/${encodeURIComponent(item.id)}?mode=join`
     : `/watch/${encodeURIComponent(item.id)}`;
@@ -28,7 +30,10 @@ export default function LiveGridCard({ item }: LiveGridCardProps) {
     <article>
       <Link
         href={targetHref}
-        aria-label={`Regarder ${item.title} par ${item.author}`}
+        aria-label={t("home.card.watchAria", {
+          title: item.title,
+          author: item.author,
+        })}
         className="block overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
       >
         <div className="relative aspect-[16/9] w-full bg-black/[0.06] dark:bg-white/10">
