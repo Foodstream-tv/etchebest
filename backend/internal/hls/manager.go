@@ -147,9 +147,5 @@ func StopStream(roomID string) (string, error) {
 		log.Printf("[HLS] cleanup failed for room %s: %v", roomID, err)
 	}
 
-	mu.Lock()
-	delete(tokens, roomID)
-	mu.Unlock()
-
 	return replayURL, err
 }

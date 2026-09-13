@@ -12,6 +12,7 @@ RUN go build -o etchebest ./cmd/server/main.go
 
 RUN apk add --no-cache ffmpeg
 
-EXPOSE 8080
+EXPOSE 8081
+EXPOSE 50000-50100/udp
 
 CMD ["./etchebest"]
