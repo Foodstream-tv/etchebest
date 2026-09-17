@@ -315,12 +315,25 @@ export default function StudioPage() {
   const isSafeThumbnailPreviewUrl = (value: string): boolean =>
     typeof value === "string" && value.startsWith("blob:");
 
+  const isSafeRemoteImageUrl = (value: string): boolean => {
+    if (typeof value !== "string" || !value.trim()) return false;
+    try {
+      const parsed = new URL(value.trim());
+      return parsed.protocol === "https:" || parsed.protocol === "http:";
+    } catch {
+      return false;
+    }
+  };
+
   const safeThumbnailPreview = isSafeThumbnailPreviewUrl(thumbnailPreview)
     ? thumbnailPreview
     : "";
 
-  const safeImage =
-    thumbnailPreview || imageUrl?.trim() || "/images/live-fallback.png";
+  const safeImage = safeThumbnailPreview
+    ? safeThumbnailPreview
+    : isSafeRemoteImageUrl(imageUrl)
+      ? imageUrl.trim()
+      : "/images/live-fallback.png";
 
   const canCreate = title.trim().length > 0;
   const canSchedule = canCreate && !!date && !!time;
