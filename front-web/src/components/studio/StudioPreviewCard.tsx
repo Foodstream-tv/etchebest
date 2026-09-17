@@ -32,7 +32,7 @@ export default function StudioPreviewCard({
 
       <div className="overflow-hidden rounded-2xl border border-black/8 bg-black/[0.03] dark:border-white/10 dark:bg-white/[0.04]">
         <div className="relative h-44 w-full overflow-hidden bg-black/5 dark:bg-white/5">
-          {safeImage.startsWith("blob:") || safeImage.startsWith("data:") ? (
+          {safeImage.startsWith("blob:") ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={safeImage}
