@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
+      - '127.0.0.1:${POSTGRES_PORT}:${POSTGRES_PORT}'
     networks:
       - back-network
     volumes:
