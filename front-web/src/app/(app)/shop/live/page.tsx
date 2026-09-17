@@ -77,7 +77,7 @@ function ProductCard({ product }: Readonly<{ product: Product }>) {
         <button
           type="button"
           onClick={() => addToCart(product)}
-          aria-label={t("shop.cart.increaseQty", { name: product.name })}
+          aria-label={`${t("shop.food.addToCart")}: ${product.name}`}
           className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
         >
           {t("shop.food.addToCart")}
