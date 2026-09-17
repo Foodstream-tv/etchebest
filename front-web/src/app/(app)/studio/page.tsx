@@ -312,6 +312,13 @@ export default function StudioPage() {
     [tags, level]
   );
 
+  const isSafeThumbnailPreviewUrl = (value: string): boolean =>
+    typeof value === "string" && value.startsWith("blob:");
+
+  const safeThumbnailPreview = isSafeThumbnailPreviewUrl(thumbnailPreview)
+    ? thumbnailPreview
+    : "";
+
   const safeImage =
     thumbnailPreview || imageUrl?.trim() || "/images/live-fallback.png";
 
@@ -1317,7 +1324,7 @@ export default function StudioPage() {
                               <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-black/10">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                  src={thumbnailPreview}
+                                  src={safeThumbnailPreview}
                                   alt={t("studio.broadcast.previewAlt")}
                                   className="h-full w-full object-cover"
                                 />
