@@ -541,7 +541,7 @@ export default function WatchRoomPage() {
                       <p className="mt-2 max-w-md text-sm text-gray-300">
                         {t("watch.room.viewerScheduledDesc", {
                           date: formatScheduledDate(liveInfo?.scheduled_at, locale, t("watch.upcomingDate")),
-                          creator: liveInfo?.user?.username ? ` par ${liveInfo.user.username}` : "",
+                          creator: liveInfo?.user?.username ? ` ${t("common.by", { name: liveInfo.user.username })}` : "",
                         })}
                       </p>
                       <p className="mt-2 text-xs text-gray-400">
