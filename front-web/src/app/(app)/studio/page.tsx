@@ -312,8 +312,16 @@ export default function StudioPage() {
     [tags, level]
   );
 
-  const isSafeThumbnailPreviewUrl = (value: string): boolean =>
-    typeof value === "string" && value.startsWith("blob:");
+  const isSafeThumbnailPreviewUrl = (value: string): boolean => {
+    if (typeof value !== "string" || !value.trim()) return false;
+    try {
+      const parsed = new URL(value.trim());
+      if (parsed.protocol !== "blob:") return false;
+      return parsed.origin === window.location.origin || parsed.origin === "null";
+    } catch {
+      return false;
+    }
+  };
 
   const isSafeRemoteImageUrl = (value: string): boolean => {
     if (typeof value !== "string" || !value.trim()) return false;
