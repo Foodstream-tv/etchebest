@@ -148,7 +148,7 @@ const ForgotPasswordContent: React.FC = () => {
                         </>
                     )}
 
-                    <TouchableOpacity style={styles.backLinkWrap} onPress={() => router.replace('/login' as any)}>
+                    <TouchableOpacity testID="back-to-login-button" style={styles.backLinkWrap} onPress={() => router.replace('/login' as any)}>
                         <Text style={styles.backLink}>{copy.backToLogin}</Text>
                     </TouchableOpacity>
                 </View>

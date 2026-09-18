@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/i18n/LanguageContext";
+
 type FollowStatsProps = Readonly<{
   followersCount: number;
   followingCount: number;
@@ -13,17 +15,20 @@ export default function FollowStats({
   onOpenFollowers,
   onOpenFollowing,
 }: FollowStatsProps) {
+  const { t } = useI18n();
+
   return (
     <div
       className="flex items-center gap-4"
-      aria-label="Statistiques d'abonnement"
+      aria-label={t("profile.followStatsAria")}
     >
       <button
         type="button"
         onClick={onOpenFollowers}
-        aria-label={`Afficher les ${followersCount} follower${
-          followersCount > 1 ? "s" : ""
-        }`}
+        aria-label={t("profile.showFollowersAria", {
+          count: followersCount,
+          plural: followersCount > 1 ? "s" : "",
+        })}
         className="rounded-xl px-3 py-2 text-left transition hover:bg-orange-50 dark:hover:bg-white/5"
       >
         <span className="block text-base font-bold text-gray-950 dark:text-white">
@@ -31,16 +36,17 @@ export default function FollowStats({
         </span>
 
         <span className="block text-xs text-gray-500 dark:text-gray-400">
-          Followers
+          {t("profile.followers")}
         </span>
       </button>
 
       <button
         type="button"
         onClick={onOpenFollowing}
-        aria-label={`Afficher les ${followingCount} profil${
-          followingCount > 1 ? "s" : ""
-        } suivi${followingCount > 1 ? "s" : ""}`}
+        aria-label={t("profile.showFollowingAria", {
+          count: followingCount,
+          plural: followingCount > 1 ? "s" : "",
+        })}
         className="rounded-xl px-3 py-2 text-left transition hover:bg-orange-50 dark:hover:bg-white/5"
       >
         <span className="block text-base font-bold text-gray-950 dark:text-white">
@@ -48,7 +54,7 @@ export default function FollowStats({
         </span>
 
         <span className="block text-xs text-gray-500 dark:text-gray-400">
-          Suivis
+          {t("profile.following")}
         </span>
       </button>
     </div>

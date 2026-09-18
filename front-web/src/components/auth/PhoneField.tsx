@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Phone } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export type CountryCode = {
   code: string;
@@ -41,6 +42,7 @@ export default function PhoneField({
   onPhoneChange,
   disabled = false,
 }: PhoneFieldProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
@@ -77,7 +79,10 @@ export default function PhoneField({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-medium text-gray-800 transition hover:bg-black/5 dark:text-gray-100 dark:hover:bg-white/10"
-          aria-label={`Choisir un indicatif, actuellement ${country.country} ${country.code}`}
+          aria-label={t("auth.phone.chooseCountryAria", {
+            country: country.country,
+            code: country.code,
+          })}
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={listboxId}
@@ -99,7 +104,7 @@ export default function PhoneField({
         />
 
         <label htmlFor={inputId} className="sr-only">
-          Numéro de téléphone
+          {t("auth.signup.phone")}
         </label>
 
         <input
@@ -107,7 +112,7 @@ export default function PhoneField({
           className="auth-input"
           type="tel"
           inputMode="tel"
-          placeholder="Numéro de téléphone"
+          placeholder={t("auth.signup.phone")}
           value={phone}
           onChange={(event) => onPhoneChange(event.target.value)}
           autoComplete="tel"
@@ -121,7 +126,7 @@ export default function PhoneField({
           <div
             id={listboxId}
             role="listbox"
-            aria-label="Liste des indicatifs téléphoniques"
+            aria-label={t("auth.phone.countryListAria")}
             className="no-scrollbar max-h-64 overflow-auto p-1.5"
           >
             {COUNTRY_CODES.map((item, index) => {

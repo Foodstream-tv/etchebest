@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff, Lock } from "lucide-react";
 
 import AuthFieldShell from "@/components/auth/AuthFieldShell";
+import { useI18n } from "@/i18n";
 
 type PasswordFieldProps = Readonly<{
   value: string;
@@ -17,12 +18,14 @@ type PasswordFieldProps = Readonly<{
 export default function PasswordField({
   value,
   onChange,
-  placeholder = "Mot de passe",
+  placeholder,
   autoComplete = "current-password",
   required = true,
   disabled = false,
 }: PasswordFieldProps) {
+  const { t } = useI18n();
   const [show, setShow] = useState(false);
+  const effectivePlaceholder = placeholder ?? t("auth.signin.passwordPlaceholder");
 
   return (
     <AuthFieldShell
@@ -31,7 +34,7 @@ export default function PasswordField({
         <button
           type="button"
           onClick={() => setShow((prev) => !prev)}
-          aria-label={show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          aria-label={show ? t("auth.password.hide") : t("auth.password.show")}
           aria-pressed={show}
           disabled={disabled}
           className="rounded-lg p-1 text-gray-500 transition hover:bg-black/5 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200"
@@ -49,8 +52,8 @@ export default function PasswordField({
         type={show ? "text" : "password"}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
+        placeholder={effectivePlaceholder}
+        aria-label={effectivePlaceholder}
         autoComplete={autoComplete}
         required={required}
         disabled={disabled}

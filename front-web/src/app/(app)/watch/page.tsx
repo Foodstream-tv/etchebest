@@ -7,18 +7,9 @@ import HomeFooter from "@/components/home/HomeFooter";
 import { getLives, type LiveDTO } from "@/lib/lives";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import WatchTagSection from "@/components/watch/WatchTagSection";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type TabKey = "all" | "live" | "scheduled" | "ended";
-
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-  { key: "all", label: "Tous", icon: <Star className="h-4 w-4" /> },
-  { key: "live", label: "En direct", icon: <Flame className="h-4 w-4" /> },
-  {
-    key: "scheduled",
-    label: "Planifiés",
-    icon: <CalendarDays className="h-4 w-4" />,
-  },
-];
 
 const TAGS = [
   "Tout",
@@ -38,6 +29,7 @@ const TAGS = [
 ];
 
 export default function WatchListPage() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
 
   const initialQ = searchParams.get("q") ?? "";
@@ -46,6 +38,19 @@ export default function WatchListPage() {
   const [q, setQ] = useState(initialQ);
   const [tag, setTag] = useState(initialTag);
   const [tab, setTab] = useState<TabKey>("all");
+
+  const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = useMemo(
+    () => [
+      { key: "all", label: t("watch.tab.all"), icon: <Star className="h-4 w-4" /> },
+      { key: "live", label: t("watch.tab.live"), icon: <Flame className="h-4 w-4" /> },
+      {
+        key: "scheduled",
+        label: t("watch.tab.scheduled"),
+        icon: <CalendarDays className="h-4 w-4" />,
+      },
+    ],
+    [t]
+  );
 
   const [lives, setLives] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +79,7 @@ export default function WatchListPage() {
 
       setTotal(res.total ?? 0);
     } catch (e: any) {
-      setError(e?.message ?? "Impossible de charger les lives");
+      setError(e?.message ?? t("watch.loadError"));
       if (targetPage === 1) setLives([]);
     } finally {
       setLoading(false);
@@ -84,8 +89,8 @@ export default function WatchListPage() {
   useEffect(() => {
     refresh();
 
-    const t = window.setInterval(refresh, 10_000);
-    return () => window.clearInterval(t);
+    const tTimer = window.setInterval(refresh, 10_000);
+    return () => window.clearInterval(tTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, tag, tab]);
 
@@ -96,14 +101,15 @@ export default function WatchListPage() {
 
     lives.forEach((live) => {
       if (!live.tags || live.tags.length === 0) {
-        const existing = map.get("Autres") ?? [];
-        map.set("Autres", [...existing, live]);
+        const otherTag = t("common.other");
+        const existing = map.get(otherTag) ?? [];
+        map.set(otherTag, [...existing, live]);
         return;
       }
 
-      live.tags.forEach((tag) => {
-        const existing = map.get(tag.name) ?? [];
-        map.set(tag.name, [...existing, live]);
+      live.tags.forEach((itemTag) => {
+        const existing = map.get(itemTag.name) ?? [];
+        map.set(itemTag.name, [...existing, live]);
       });
     });
 
@@ -111,7 +117,7 @@ export default function WatchListPage() {
       tagName,
       lives: tagLives,
     }));
-  }, [lives]);
+  }, [lives, t]);
 
   return (
     <div className="min-h-screen">
@@ -122,16 +128,15 @@ export default function WatchListPage() {
               <div className="max-w-2xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
                   <Radio className="h-4 w-4" aria-hidden="true" />
-                  Catalogue Foodstream
+                  {t("watch.catalogBadge")}
                 </div>
 
                 <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 md:text-4xl">
-                  Trouve le live qui te donne faim
+                  {t("watch.heroTitle")}
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-600 dark:text-gray-400 md:text-base">
-                  Explore les lives en direct, les lives planifiés par cuisine,
-                  plat ou créateur.
+                  {t("watch.heroDesc")}
                 </p>
               </div>
             </div>
@@ -147,8 +152,8 @@ export default function WatchListPage() {
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Rechercher un live, un plat..."
-                    aria-label="Rechercher un live ou un plat"
+                    placeholder={t("watch.searchPlaceholder")}
+                    aria-label={t("watch.searchAria")}
                     type="search"
                     className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                   />
@@ -156,9 +161,9 @@ export default function WatchListPage() {
 
                 <div
                   className="flex overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
-                  aria-label="Filtrer par statut"
+                  aria-label={t("watch.filterStatusAria")}
                 >
-                  {TABS.map((item, index) => {
+                  {tabs.map((item, index) => {
                     const active = tab === item.key;
 
                     return (
@@ -190,7 +195,7 @@ export default function WatchListPage() {
 
               <div
                 className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10"
-                aria-label="Filtrer par catégorie"
+                aria-label={t("watch.filterCategoryAria")}
               >
                 {TAGS.map((item) => {
                   const active = tag === item;
@@ -208,7 +213,7 @@ export default function WatchListPage() {
                           : "bg-white text-gray-700 ring-1 ring-black/5 hover:bg-orange-50 hover:text-orange-700 dark:bg-white/5 dark:text-gray-200 dark:ring-white/10 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
                       ].join(" ")}
                     >
-                      {item}
+                      {item === "Tout" ? t("replays.tagAll") : item}
                     </button>
                   );
                 })}
@@ -222,7 +227,7 @@ export default function WatchListPage() {
               className="rounded-[28px] border border-red-200 bg-red-50/80 p-5 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10"
             >
               <h2 className="text-base font-semibold text-red-700 dark:text-red-200">
-                Impossible de charger les lives
+                {t("watch.loadError")}
               </h2>
               <p className="mt-1 text-sm text-red-600 dark:text-red-200/80">
                 {error}
@@ -234,7 +239,7 @@ export default function WatchListPage() {
             <section
               role="status"
               aria-live="polite"
-              aria-label="Chargement des lives"
+              aria-label={t("common.loading")}
               className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
             >
               {Array.from({ length: 6 }).map((_, i) => (
@@ -258,11 +263,11 @@ export default function WatchListPage() {
               </div>
 
               <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                Aucun contenu trouvé
+                {t("watch.emptyTitle")}
               </h2>
 
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-gray-600 dark:text-gray-400">
-                Essaie une autre recherche, un autre tag ou un autre onglet.
+                {t("watch.emptyDesc")}
               </p>
             </section>
           ) : (
@@ -285,7 +290,7 @@ export default function WatchListPage() {
                 disabled={loading}
                 className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-white shadow-[0_10px_30px_rgba(249,115,22,0.25)] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? "Chargement..." : "Voir plus"}
+                {loading ? t("common.loading") : t("watch.loadMore")}
               </button>
             </div>
           ) : null}

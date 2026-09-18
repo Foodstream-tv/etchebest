@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CalendarDays,
   Eye,
@@ -17,6 +17,7 @@ import UpcomingCard from "@/components/home/live/UpcomingCard";
 import { getLives, type LiveDTO } from "@/lib/lives";
 import { useAuth } from "@/lib/useAuth";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type TabKey = "live" | "popular" | "replays" | "planned";
 
@@ -42,28 +43,6 @@ type TabItem = {
   icon: ReactNode;
 };
 
-const TABS: TabItem[] = [
-  {
-    key: "live",
-    label: "En direct",
-    icon: <Flame className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    key: "popular",
-    label: "Populaires",
-    icon: <Star className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    key: "replays",
-    label: "Replays",
-    icon: <PlayCircle className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    key: "planned",
-    label: "Planifiés",
-    icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
-  },
-];
 
 const UPCOMING = [
   {
@@ -92,22 +71,7 @@ const CREATORS = [
   { id: "c3", name: "Luis Ortega", tag: "Street Food" },
 ];
 
-function liveToCardItem(live: LiveDTO): CardItem {
-  return {
-    id: live.room_id || String(live.id),
-    badge:
-      live.status === "live"
-        ? "Live"
-        : live.status === "scheduled"
-          ? "Planifié"
-          : "Replay",
-    title: live.title || "Live sans titre",
-    author: live.user?.username || "Chef FoodStream",
-    viewers: live.current_viewers ?? 0,
-    isLive: live.status === "live",
-    imageUrl: live.thumbnail_url,
-  };
-}
+
 
 export default function HomeLiveGrid({
   query = "",
@@ -118,6 +82,50 @@ export default function HomeLiveGrid({
   const [loading, setLoading] = useState(true);
 
   const { token } = useAuth();
+  const { t } = useI18n();
+
+  const liveToCardItem = useCallback((live: LiveDTO): CardItem => {
+    return {
+      id: live.room_id || String(live.id),
+      badge:
+        live.status === "live"
+          ? t("home.badge.live")
+          : live.status === "scheduled"
+            ? t("home.badge.scheduled")
+            : t("home.badge.replay"),
+      title: live.title || t("nav.untitledLive"),
+      author: live.user?.username || t("nav.chefRole"),
+      viewers: live.current_viewers ?? 0,
+      isLive: live.status === "live",
+      imageUrl: live.thumbnail_url,
+    };
+  }, [t]);
+
+  const tabs: TabItem[] = useMemo(
+    () => [
+      {
+        key: "live",
+        label: t("home.tab.live"),
+        icon: <Flame className="h-4 w-4" aria-hidden="true" />,
+      },
+      {
+        key: "popular",
+        label: t("home.tab.popular"),
+        icon: <Star className="h-4 w-4" aria-hidden="true" />,
+      },
+      {
+        key: "replays",
+        label: t("home.tab.replays"),
+        icon: <PlayCircle className="h-4 w-4" aria-hidden="true" />,
+      },
+      {
+        key: "planned",
+        label: t("home.tab.planned"),
+        icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
+      },
+    ],
+    [t]
+  );
 
   const status = useMemo<"all" | "scheduled" | "live" | "ended">(() => {
     if (tab === "live") return "live";
@@ -215,9 +223,9 @@ export default function HomeLiveGrid({
         <div
           className="flex flex-wrap items-center gap-2"
           role="tablist"
-          aria-label="Filtres des lives"
+          aria-label={t("home.filterAria")}
         >
-          {TABS.map((tabItem) => {
+          {tabs.map((tabItem) => {
             const active = tabItem.key === tab;
 
             return (
@@ -247,7 +255,7 @@ export default function HomeLiveGrid({
           {loading ? (
             <div
               role="status"
-              aria-label="Chargement des lives"
+              aria-label={t("home.loadingAria")}
               className="grid grid-cols-1 gap-6 sm:grid-cols-2"
             >
               {Array.from({ length: 4 }).map((_, index) => (
@@ -267,10 +275,10 @@ export default function HomeLiveGrid({
             <>
               <div
                 className="grid gap-3 sm:grid-cols-3"
-                aria-label="Statistiques des lives"
+                aria-label={t("home.statsAria")}
               >
                 <article
-                  aria-label={`Lives actifs : ${stats.liveCount}`}
+                  aria-label={`${t("home.stats.activeLives")} : ${stats.liveCount}`}
                   className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
                 >
                   <div
@@ -285,12 +293,12 @@ export default function HomeLiveGrid({
                   </p>
 
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Lives actifs
+                    {t("home.stats.activeLives")}
                   </p>
                 </article>
 
                 <article
-                  aria-label={`Spectateurs : ${stats.totalViewers}`}
+                  aria-label={`${t("home.stats.viewers")} : ${stats.totalViewers}`}
                   className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
                 >
                   <div
@@ -305,12 +313,12 @@ export default function HomeLiveGrid({
                   </p>
 
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Spectateurs
+                    {t("home.stats.viewers")}
                   </p>
                 </article>
 
                 <article
-                  aria-label={`Créateurs : ${stats.uniqueCreators}`}
+                  aria-label={`${t("home.stats.creators")} : ${stats.uniqueCreators}`}
                   className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
                 >
                   <div
@@ -325,7 +333,7 @@ export default function HomeLiveGrid({
                   </p>
 
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Créateurs
+                    {t("home.stats.creators")}
                   </p>
                 </article>
               </div>
@@ -344,12 +352,12 @@ export default function HomeLiveGrid({
               role="status"
               className="rounded-[28px] border border-black/8 bg-white/72 p-6 text-sm text-gray-600 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-300"
             >
-              Aucun contenu trouvé pour ces filtres.
+              {t("home.empty")}
             </p>
           )}
         </div>
 
-        <aside className="space-y-6" aria-label="Informations complémentaires">
+        <aside className="space-y-6" aria-label={t("home.sidebarAria")}>
           <section
             aria-labelledby="upcoming-lives-title"
             className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
@@ -358,7 +366,7 @@ export default function HomeLiveGrid({
               id="upcoming-lives-title"
               className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-50"
             >
-              À venir
+              {t("home.upcoming.title")}
             </h3>
 
             <div className="space-y-3">
@@ -382,7 +390,7 @@ export default function HomeLiveGrid({
                 id="featured-creators-title"
                 className="text-sm font-semibold text-gray-900 dark:text-gray-50"
               >
-                Créateurs mis en avant
+                {t("home.creators.title")}
               </h3>
 
               <span

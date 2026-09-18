@@ -5,26 +5,31 @@ import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/lib/useAuth";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { useI18n } from "@/i18n";
 import {
   SESSION_TERMINATED_EVENT,
   formatBanMessage,
   type SessionTerminationDetail,
 } from "@/lib/session";
 
-function buildToast(detail: SessionTerminationDetail): {
+function buildToast(
+  detail: SessionTerminationDetail,
+  t: (key: any, vars?: Record<string, string | number>) => string,
+  locale: "fr" | "en"
+): {
   title: string;
   message: string;
 } {
   if (detail.reason === "banned") {
     return {
-      title: "Compte banni",
-      message: formatBanMessage(detail.bannedUntil),
+      title: t("notifications.session.bannedTitle"),
+      message: formatBanMessage(detail.bannedUntil, locale),
     };
   }
 
   return {
-    title: "Session terminée",
-    message: "Votre session n'est plus valide. Veuillez vous reconnecter.",
+    title: t("notifications.session.expiredTitle"),
+    message: t("notifications.session.expiredDesc"),
   };
 }
 
@@ -37,6 +42,7 @@ export default function SessionGuard() {
   const router = useRouter();
   const { token, signOut } = useAuth();
   const { pushNotification } = useNotifications();
+  const { t, locale } = useI18n();
 
   // Several requests can fail at once (e.g. a page firing multiple GETs);
   // handle only the first termination to avoid duplicate toasts/redirects.
@@ -54,7 +60,7 @@ export default function SessionGuard() {
       handledRef.current = true;
 
       const detail = (event as CustomEvent<SessionTerminationDetail>).detail;
-      const { title, message } = buildToast(detail);
+      const { title, message } = buildToast(detail, t, locale);
 
       signOut();
       pushNotification({ title, message });

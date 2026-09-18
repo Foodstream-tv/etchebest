@@ -106,7 +106,7 @@ const REGISTER_COPY: Record<'fr' | 'en', RegisterCopy> = {
         registerError: "Erreur d'inscription",
         validationFirstName: 'Le prenom',
         validationLastName: 'Le nom',
-        validationUsername: 'L identifiant',
+        validationUsername: "L'identifiant",
         validationDescription: 'La description',
     },
     en: {

@@ -9,7 +9,7 @@ COPY pnpm-workspace.yaml ./
 
 RUN corepack enable \
   && corepack prepare pnpm@9.15.5 --activate \
-  && pnpm install --frozen-lockfile
+  && pnpm install
 
 COPY . .
 

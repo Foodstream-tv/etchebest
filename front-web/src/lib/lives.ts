@@ -46,7 +46,9 @@ export async function getLives(params: GetLivesParams = {}, token?: string) {
   const searchParams = new URLSearchParams();
 
   if (params.q) searchParams.set("q", params.q);
-  if (params.tag && params.tag !== "Tout") searchParams.set("tag", params.tag);
+  if (params.tag && params.tag !== "Tout" && params.tag !== "All") {
+    searchParams.set("tag", params.tag);
+  }
 
   if (params.status && params.status !== "all") {
     searchParams.set("status", params.status);
