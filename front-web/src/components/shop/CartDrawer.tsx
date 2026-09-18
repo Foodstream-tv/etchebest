@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { useCart } from "@/components/shop/CartContext";
+import { useI18n } from "@/i18n/LanguageContext";
 
 export default function CartDrawer() {
   const {
@@ -17,13 +18,14 @@ export default function CartDrawer() {
     totalPrice,
     totalItems,
   } = useCart();
+  const { t } = useI18n();
 
   return (
     <>
       <button
         type="button"
         onClick={closeCart}
-        aria-label="Fermer le panier"
+        aria-label={t("shop.cart.close")}
         className={`fixed inset-0 z-40 border-0 bg-black/40 transition outline-none cursor-default ${
           isOpen
             ? "pointer-events-auto opacity-100"
@@ -53,11 +55,14 @@ export default function CartDrawer() {
                 id="cart-drawer-title"
                 className="text-lg font-extrabold text-gray-900 dark:text-white"
               >
-                Mon panier
+                {t("shop.cart.title")}
               </h2>
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {totalItems} article{totalItems > 1 ? "s" : ""}
+                {t("shop.cart.items", {
+                  count: totalItems,
+                  plural: totalItems > 1 ? "s" : "",
+                })}
               </p>
             </div>
           </div>
@@ -65,7 +70,7 @@ export default function CartDrawer() {
           <button
             type="button"
             onClick={closeCart}
-            aria-label="Fermer le panier"
+            aria-label={t("shop.cart.close")}
             className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-neutral-800 dark:hover:text-white"
           >
             <X className="h-5 w-5" aria-hidden="true" />
@@ -83,12 +88,11 @@ export default function CartDrawer() {
               </div>
 
               <h3 className="mt-4 text-lg font-bold text-gray-900 dark:text-white">
-                Ton panier est vide
+                {t("shop.cart.empty")}
               </h3>
 
               <p className="mt-2 max-w-xs text-sm text-gray-500 dark:text-gray-400">
-                Ajoute des produits depuis les catégories de la boutique
-                FoodStream.
+                {t("shop.cart.emptyDesc")}
               </p>
             </div>
           ) : (
@@ -130,7 +134,7 @@ export default function CartDrawer() {
                           <button
                             type="button"
                             onClick={() => decreaseQuantity(item.id)}
-                            aria-label={`Diminuer la quantité de ${item.name}`}
+                            aria-label={t("shop.cart.decreaseQty", { name: item.name })}
                             className="rounded-full border border-gray-200 p-1.5 transition hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-neutral-800"
                           >
                             <Minus className="h-4 w-4" aria-hidden="true" />
@@ -154,7 +158,7 @@ export default function CartDrawer() {
                                 category: item.category,
                               })
                             }
-                            aria-label={`Augmenter la quantité de ${item.name}`}
+                            aria-label={t("shop.cart.increaseQty", { name: item.name })}
                             className="rounded-full border border-gray-200 p-1.5 transition hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-neutral-800"
                           >
                             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -164,7 +168,7 @@ export default function CartDrawer() {
                         <button
                           type="button"
                           onClick={() => removeFromCart(item.id)}
-                          aria-label={`Supprimer ${item.name} du panier`}
+                          aria-label={t("shop.cart.removeItem", { name: item.name })}
                           className="rounded-full p-2 text-red-500 transition hover:bg-red-50 dark:hover:bg-red-500/10"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -181,7 +185,7 @@ export default function CartDrawer() {
         <div className="border-t border-gray-200 px-5 py-4 dark:border-gray-800">
           <div className="mb-4 flex items-center justify-between">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Total
+              {t("shop.cart.total")}
             </span>
 
             <span className="text-xl font-extrabold text-gray-900 dark:text-white">
@@ -196,7 +200,7 @@ export default function CartDrawer() {
               disabled={items.length === 0}
               className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:hover:bg-neutral-800"
             >
-              Vider
+              {t("shop.cart.clear")}
             </button>
 
             <button
@@ -204,7 +208,7 @@ export default function CartDrawer() {
               disabled={items.length === 0}
               className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Commander
+              {t("shop.cart.checkout")}
             </button>
           </div>
         </div>

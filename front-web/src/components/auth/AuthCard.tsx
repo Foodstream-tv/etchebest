@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Flame } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 type AuthCardProps = Readonly<{
   label: string;
@@ -23,6 +24,7 @@ export default function AuthCard({
   showForgotPassword = false,
   children,
 }: AuthCardProps) {
+  const { t } = useI18n();
   return (
     <section
       aria-labelledby="auth-card-title"
@@ -69,7 +71,7 @@ export default function AuthCard({
                 href="/forgot-password"
                 className="text-sm font-medium text-orange-500 transition hover:text-orange-400 hover:underline"
               >
-                Mot de passe oublié ?
+                {t("auth.signin.forgotPassword")}
               </Link>
             </div>
           ) : null}

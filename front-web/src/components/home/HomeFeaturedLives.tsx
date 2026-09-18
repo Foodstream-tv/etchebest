@@ -6,6 +6,7 @@ import { ArrowRight, Flame } from "lucide-react";
 
 import LiveGridCard from "@/components/home/live/LiveGridCard";
 import { apiFetch } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 type LiveItem = {
   id: number;
@@ -28,6 +29,7 @@ type Props = Readonly<{
 }>;
 
 export default function HomeFeaturedLives({ query, tag }: Props) {
+  const { t } = useI18n();
   const [lives, setLives] = useState<LiveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,18 +95,18 @@ export default function HomeFeaturedLives({ query, tag }: Props) {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
             <Flame className="h-3.5 w-3.5" aria-hidden="true" />
-            En direct
+            {t("common.live")}
           </div>
 
           <h2
             id="featured-lives-title"
             className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
           >
-            Lives tendances
+            {t("home.featured.title")}
           </h2>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Découvre les lives culinaires du moment.
+            {t("home.featured.desc")}
           </p>
         </div>
 
@@ -112,7 +114,7 @@ export default function HomeFeaturedLives({ query, tag }: Props) {
           href="/watch"
           className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
         >
-          Voir tout
+          {t("home.featured.viewAll")}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
@@ -120,7 +122,7 @@ export default function HomeFeaturedLives({ query, tag }: Props) {
       {loading ? (
         <div
           role="status"
-          aria-label="Chargement des lives tendances"
+          aria-label={t("home.featured.loadingAria")}
           className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4"
         >
           {Array.from({ length: 4 }).map((_, index) => (
@@ -158,7 +160,7 @@ export default function HomeFeaturedLives({ query, tag }: Props) {
           role="status"
           className="rounded-[28px] border border-black/8 bg-white/70 p-8 text-sm text-gray-500 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-400"
         >
-          Aucun live trouvé.
+          {t("home.featured.empty")}
         </p>
       )}
     </section>

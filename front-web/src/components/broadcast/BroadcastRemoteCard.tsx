@@ -1,6 +1,7 @@
 "use client";
 
 import StreamView from "@/components/StreamView";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type BroadcastRemoteCardProps = Readonly<{
   stream: MediaStream;
@@ -11,7 +12,8 @@ export default function BroadcastRemoteCard({
   stream,
   index,
 }: BroadcastRemoteCardProps) {
-  const participantLabel = `Participant ${index + 1}`;
+  const { t } = useI18n();
+  const participantLabel = t("broadcast.participantLabel", { index: index + 1 });
 
   return (
     <article
@@ -27,7 +29,7 @@ export default function BroadcastRemoteCard({
 
       <div
         className="h-[170px] bg-black"
-        aria-label={`Flux vidéo de ${participantLabel}`}
+        aria-label={t("broadcast.participantStreamAria", { name: participantLabel })}
       >
         <StreamView stream={stream} />
       </div>

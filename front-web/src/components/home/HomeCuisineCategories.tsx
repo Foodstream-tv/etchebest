@@ -2,35 +2,38 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-
-const CATEGORIES = [
-  {
-    label: "Asiatique",
-    description: "Ramen, wok, curry, bao...",
-    emoji: "🍜",
-    href: "/watch?tag=Asiatique",
-  },
-  {
-    label: "Pâtisserie",
-    description: "Gâteaux, macarons, desserts...",
-    emoji: "🧁",
-    href: "/watch?tag=Pâtisserie",
-  },
-  {
-    label: "BBQ",
-    description: "Grillades, sauces, fumage...",
-    emoji: "🔥",
-    href: "/watch?tag=BBQ",
-  },
-  {
-    label: "Healthy",
-    description: "Repas équilibrés et frais.",
-    emoji: "🥗",
-    href: "/watch?tag=Healthy",
-  },
-];
+import { useI18n } from "@/i18n/LanguageContext";
 
 export default function HomeCuisineCategories() {
+  const { t } = useI18n();
+
+  const categories = [
+    {
+      label: t("home.categories.asian"),
+      description: t("home.categories.asianDesc"),
+      emoji: "🍜",
+      href: "/watch?tag=Asiatique",
+    },
+    {
+      label: t("home.categories.pastry"),
+      description: t("home.categories.pastryDesc"),
+      emoji: "🧁",
+      href: "/watch?tag=Pâtisserie",
+    },
+    {
+      label: t("home.categories.bbq"),
+      description: t("home.categories.bbqDesc"),
+      emoji: "🔥",
+      href: "/watch?tag=BBQ",
+    },
+    {
+      label: t("home.categories.healthy"),
+      description: t("home.categories.healthyDesc"),
+      emoji: "🥗",
+      href: "/watch?tag=Healthy",
+    },
+  ];
+
   return (
     <section
       className="mt-14"
@@ -42,11 +45,11 @@ export default function HomeCuisineCategories() {
             id="cuisine-categories-title"
             className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
           >
-            Explorer par cuisine
+            {t("home.categories.title")}
           </h2>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Trouve rapidement le type de live qui te donne envie.
+            {t("home.categories.subtitle")}
           </p>
         </div>
 
@@ -54,13 +57,13 @@ export default function HomeCuisineCategories() {
           href="/watch"
           className="hidden items-center gap-2 text-sm font-semibold text-orange-600 hover:text-orange-500 sm:inline-flex"
         >
-          Tout explorer
+          {t("home.categories.exploreAll")}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {CATEGORIES.map((category) => (
+        {categories.map((category) => (
           <Link
             key={category.label}
             href={category.href}
@@ -84,7 +87,7 @@ export default function HomeCuisineCategories() {
               </p>
 
               <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-orange-600 transition group-hover:gap-3 dark:text-orange-300">
-                Voir les lives
+                {t("home.categories.seeLives")}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </div>
             </article>

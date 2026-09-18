@@ -14,17 +14,12 @@ import {
 import { globalSearch, type SearchResponse } from "@/lib/search";
 import { useAuth } from "@/lib/useAuth";
 
+import { useI18n } from "@/i18n/LanguageContext";
+
 type NavItem = {
   label: string;
   href: string;
 };
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Accueil", href: "/home" },
-  { label: "Lives", href: "/watch" },
-  { label: "Studio", href: "/studio" },
-  { label: "Replays", href: "/replays" },
-];
 
 function cx(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
@@ -50,6 +45,14 @@ export default function AppTopNav() {
   const searchRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const { user, ready, token } = useAuth();
+  const { t } = useI18n();
+
+  const navItems: NavItem[] = [
+    { label: t("nav.home"), href: "/home" },
+    { label: t("nav.lives"), href: "/watch" },
+    { label: t("nav.studio"), href: "/studio" },
+    { label: t("nav.replays"), href: "/replays" },
+  ];
 
   useEffect(() => {
     if (!search.trim()) {
@@ -108,7 +111,7 @@ export default function AppTopNav() {
         <div className="flex h-16 items-center gap-3">
           <Link
             href="/home"
-            aria-label="Aller à l'accueil Foodstream"
+            aria-label={t("nav.homeAria")}
             className="group flex items-center gap-3"
           >
             <div className="relative grid h-16 w-16 place-items-center overflow-hidden rounded-2xl group-hover:shadow-lg">
@@ -130,9 +133,9 @@ export default function AppTopNav() {
 
           <nav
             className="hidden items-center gap-2 pl-2 md:flex"
-            aria-label="Navigation principale"
+            aria-label={t("nav.mainNavAria")}
           >
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const active =
                 item.href === "/home"
                   ? pathname === "/home"
@@ -169,7 +172,7 @@ export default function AppTopNav() {
                 />
 
                 <label htmlFor="top-nav-search" className="sr-only">
-                  Rechercher un chef ou un live
+                  {t("nav.searchAria")}
                 </label>
 
                 <input
@@ -180,7 +183,7 @@ export default function AppTopNav() {
                   onFocus={() => {
                     if (results) setSearchOpen(true);
                   }}
-                  placeholder="Rechercher un chef"
+                  placeholder={t("nav.searchPlaceholder")}
                   autoComplete="off"
                   aria-expanded={searchOpen}
                   aria-controls="top-nav-search-results"
@@ -192,7 +195,7 @@ export default function AppTopNav() {
                 <div
                   id="top-nav-search-results"
                   role="region"
-                  aria-label="Résultats de recherche"
+                  aria-label={t("nav.searchResultsAria")}
                   className="absolute left-0 right-0 top-[110%] z-50 overflow-hidden rounded-3xl border border-black/5 bg-white shadow-2xl dark:border-white/10 dark:bg-neutral-950"
                 >
                   {hasResults ? (
@@ -200,7 +203,7 @@ export default function AppTopNav() {
                       {results.users && results.users.length > 0 ? (
                         <div className="p-2">
                           <p className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-gray-400">
-                            Chefs
+                            {t("nav.chefs")}
                           </p>
 
                           {results.users.map((chef) => {
@@ -245,7 +248,7 @@ export default function AppTopNav() {
                                   </p>
 
                                   <p className="text-xs text-gray-500">
-                                    Chef FoodStream
+                                    {t("nav.chefRole")}
                                   </p>
                                 </div>
                               </Link>
@@ -257,7 +260,7 @@ export default function AppTopNav() {
                       {results.lives && results.lives.length > 0 ? (
                         <div className="border-t border-black/5 p-2 dark:border-white/10">
                           <p className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-gray-400">
-                            Lives
+                            {t("nav.lives")}
                           </p>
 
                           {results.lives.map((live) => (
@@ -272,10 +275,11 @@ export default function AppTopNav() {
                                   <Image
                                     src={live.thumbnailUrl}
                                     alt={`Miniature du live ${
-                                      live.title || "sans titre"
+                                      live.title || t("nav.untitledLive")
                                     }`}
                                     fill
                                     sizes="64px"
+                                    unoptimized
                                     className="object-cover"
                                   />
                                 ) : null}
@@ -283,7 +287,7 @@ export default function AppTopNav() {
 
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                                  {live.title || "Live sans titre"}
+                                  {live.title || t("nav.untitledLive")}
                                 </p>
 
                                 {live.dishName ? (
@@ -299,7 +303,7 @@ export default function AppTopNav() {
                     </>
                   ) : (
                     <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
-                      Aucun résultat trouvé.
+                      {t("nav.noResults")}
                     </p>
                   )}
                 </div>
@@ -315,47 +319,56 @@ export default function AppTopNav() {
               className="hidden items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 md:inline-flex"
             >
               <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-              Boutique
+              {t("nav.shop")}
             </Link>
 
-            <Link
-              href="/profile"
-              aria-label="Ouvrir mon profil"
-              className="group flex items-center gap-2 rounded-full px-2 py-1 transition hover:bg-gray-100 dark:hover:bg-white/10"
-              title="Mon profil"
-            >
-              <div className="relative h-10 w-10 overflow-hidden rounded-full ring-1 ring-black/10 transition group-hover:ring-orange-500/40 dark:ring-white/10">
-                {!ready ? (
-                  <div
-                    className="h-full w-full animate-pulse bg-gray-200 dark:bg-white/10"
-                    aria-hidden="true"
-                  />
-                ) : user?.profileImageUrl && !failedProfileImage ? (
-                  <Image
-                    src={user.profileImageUrl}
-                    alt={`Photo de profil de ${
-                      user.username || user.email || "l'utilisateur"
-                    }`}
-                    fill
-                    sizes="40px"
-                    className="object-cover"
-                    onError={() => setFailedProfileImage(true)}
-                  />
-                ) : (
-                  <div
-                    className="grid h-full w-full place-items-center bg-gray-200 text-sm font-bold text-gray-700 dark:bg-white/10 dark:text-gray-200"
-                    aria-hidden="true"
-                  >
-                    {initialsOf(user?.username, user?.email)}
-                  </div>
-                )}
-              </div>
+            {ready && !user ? (
+              <Link
+                href="/signin"
+                className="rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-600 transition"
+              >
+                {t("nav.signin")}
+              </Link>
+            ) : (
+              <Link
+                href="/profile"
+                aria-label={t("nav.openProfileAria")}
+                className="group flex items-center gap-2 rounded-full px-2 py-1 transition hover:bg-gray-100 dark:hover:bg-white/10"
+                title={t("nav.myProfile")}
+              >
+                <div className="relative h-10 w-10 overflow-hidden rounded-full ring-1 ring-black/10 transition group-hover:ring-orange-500/40 dark:ring-white/10">
+                  {!ready ? (
+                    <div
+                      className="h-full w-full animate-pulse bg-gray-200 dark:bg-white/10"
+                      aria-hidden="true"
+                    />
+                  ) : user?.profileImageUrl && !failedProfileImage ? (
+                    <Image
+                      src={user.profileImageUrl}
+                      alt={`Photo de profil de ${
+                        user.username || user.email || "l'utilisateur"
+                      }`}
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                      onError={() => setFailedProfileImage(true)}
+                    />
+                  ) : (
+                    <div
+                      className="grid h-full w-full place-items-center bg-gray-200 text-sm font-bold text-gray-700 dark:bg-white/10 dark:text-gray-200"
+                      aria-hidden="true"
+                    >
+                      {initialsOf(user?.username, user?.email)}
+                    </div>
+                  )}
+                </div>
 
-              <ChevronDown
-                className="h-4 w-4 text-gray-500 transition group-hover:text-orange-500"
-                aria-hidden="true"
-              />
-            </Link>
+                <ChevronDown
+                  className="h-4 w-4 text-gray-500 transition group-hover:text-orange-500"
+                  aria-hidden="true"
+                />
+              </Link>
+            )}
           </div>
         </div>
       </div>
