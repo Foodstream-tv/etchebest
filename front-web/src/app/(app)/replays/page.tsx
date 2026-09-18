@@ -7,9 +7,9 @@ import { PlayCircle, RefreshCw, Search, Video } from "lucide-react";
 import HomeFooter from "@/components/home/HomeFooter";
 import { getLives, type LiveDTO } from "@/lib/lives";
 import ReplayCarouselSection from "@/components/watch/ReplayCarouselSection";
+import { useI18n } from "@/i18n/LanguageContext";
 
-const TAGS = [
-  "Tout",
+const BASE_TAGS = [
   "Asiatique",
   "Africain",
   "Européen",
@@ -26,11 +26,14 @@ const TAGS = [
 ];
 
 export default function ReplaysPage() {
+  const { t, locale } = useI18n();
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("Tout");
   const [replays, setReplays] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const tags = useMemo(() => ["Tout", ...BASE_TAGS], []);
 
   const refresh = async () => {
     try {
@@ -47,7 +50,7 @@ export default function ReplaysPage() {
 
       setReplays(res.lives ?? []);
     } catch (e: any) {
-      setError(e?.message ?? "Impossible de charger les replays");
+      setError(e?.message ?? t("replays.errorTitle"));
       setReplays([]);
     } finally {
       setLoading(false);
@@ -64,8 +67,9 @@ export default function ReplaysPage() {
 
     replays.forEach((replay) => {
       if (!replay.tags || replay.tags.length === 0) {
-        const existing = map.get("Autres") ?? [];
-        map.set("Autres", [...existing, replay]);
+        const otherTag = t("replays.tagOther");
+        const existing = map.get(otherTag) ?? [];
+        map.set(otherTag, [...existing, replay]);
         return;
       }
 
@@ -79,7 +83,7 @@ export default function ReplaysPage() {
       tagName,
       lives: tagReplays,
     }));
-  }, [replays]);
+  }, [replays, t]);
 
   return (
     <main id="main-content" className="min-h-screen">
@@ -90,19 +94,21 @@ export default function ReplaysPage() {
               <div className="max-w-2xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
                   <PlayCircle aria-hidden="true" className="h-4 w-4" />
-                  Replays Foodstream
+                  {t("replays.badge")}
                 </div>
 
                 <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 md:text-4xl">
-                  Revois les meilleurs lives
+                  {t("replays.heroTitle")}
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-600 dark:text-gray-400 md:text-base">
-                  Retrouve les lives terminés, les recettes à revoir et les
-                  moments culinaires que tu as manqués.{" "}
+                  {t("replays.heroDesc")}{" "}
                   <span className="font-semibold text-gray-900 dark:text-gray-100">
-                    {replays.length} replay{replays.length > 1 ? "s" : ""}{" "}
-                    disponible{replays.length > 1 ? "s" : ""}.
+                    {t("replays.count", {
+                      count: replays.length,
+                      plural: replays.length > 1 ? "s" : "",
+                    })}
+                    .
                   </span>
                 </p>
               </div>
@@ -118,7 +124,7 @@ export default function ReplaysPage() {
                     aria-hidden="true"
                     className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
                   />
-                  Actualiser
+                  {t("replays.refresh")}
                 </button>
 
                 <Link
@@ -126,7 +132,7 @@ export default function ReplaysPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
                 >
                   <Video aria-hidden="true" className="h-4 w-4" />
-                  Voir les lives
+                  {t("replays.seeLives")}
                 </Link>
               </div>
             </div>
@@ -142,17 +148,17 @@ export default function ReplaysPage() {
                   type="search"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Rechercher un replay, une recette"
-                  aria-label="Rechercher un replay ou une recette"
+                  placeholder={t("replays.searchPlaceholder")}
+                  aria-label={t("replays.searchAria")}
                   className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
                 />
               </div>
 
               <div
                 className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10"
-                aria-label="Filtrer les replays par catégorie"
+                aria-label={t("replays.filterAria")}
               >
-                {TAGS.map((item) => {
+                {tags.map((item) => {
                   const active = tag === item;
 
                   return (
@@ -182,7 +188,7 @@ export default function ReplaysPage() {
               className="rounded-[28px] border border-red-200 bg-red-50/80 p-5 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10"
             >
               <h2 className="text-base font-semibold text-red-700 dark:text-red-200">
-                Impossible de charger les replays
+                {t("replays.errorTitle")}
               </h2>
 
               <p className="mt-1 text-sm text-red-600 dark:text-red-200/80">
@@ -195,7 +201,7 @@ export default function ReplaysPage() {
             <section
               role="status"
               aria-live="polite"
-              aria-label="Chargement des replays"
+              aria-label={t("replays.loadingAria")}
               className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
             >
               {Array.from({ length: 6 }).map((_, i) => (
@@ -223,11 +229,11 @@ export default function ReplaysPage() {
               </div>
 
               <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                Aucun replay disponible
+                {t("replays.emptyTitle")}
               </h2>
 
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-gray-600 dark:text-gray-400">
-                Les replays apparaîtront ici quand des lives seront terminés.
+                {t("replays.emptyDesc")}
               </p>
             </section>
           ) : (

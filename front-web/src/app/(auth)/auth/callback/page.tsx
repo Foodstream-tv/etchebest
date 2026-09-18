@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
@@ -18,12 +18,19 @@ export default function AuthCallbackPage() {
   const router = useRouter();
   const params = useSearchParams();
   const { setAuth } = useAuth();
+  const hasHandledCallback = useRef(false);
+
+  const token = params.get("token");
+  const error = params.get("error");
 
   useEffect(() => {
-    async function run() {
-      const token = params.get("token");
-      const error = params.get("error");
+    // Saving the session updates this component's local auth state. Handle the
+    // OAuth response only once so that update cannot start another callback
+    // request before the route transition completes.
+    if (hasHandledCallback.current) return;
+    hasHandledCallback.current = true;
 
+    async function run() {
       if (error) {
         router.replace(`/signin?error=${encodeURIComponent(error)}`);
         return;
@@ -55,7 +62,7 @@ export default function AuthCallbackPage() {
     }
 
     void run();
-  }, [params, router, setAuth]);
+  }, [error, router, setAuth, token]);
 
   return (
     <main

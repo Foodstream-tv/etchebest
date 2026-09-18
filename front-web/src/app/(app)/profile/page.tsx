@@ -15,8 +15,9 @@ import FollowListModal from "@/components/profile/FollowListModal";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { getMyActivities } from "@/lib/activity";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type MeProfile = {
   id: string;
@@ -43,6 +44,14 @@ type UpdateProfilePayload = {
 
 export default function ProfilePage() {
   const { user, token, signOut, ready } = useAuth();
+  const { locale, setLocale, t } = useI18n();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (ready && !user) {
+      router.replace("/signin");
+    }
+  }, [ready, user, router]);
 
   const pathname = usePathname();
   const { pushNotification } = useNotifications();
@@ -119,7 +128,7 @@ export default function ProfilePage() {
     if (pathname !== "/profile" && unreadActivities.length > 0) {
       unreadActivities.forEach((activity) => {
         pushNotification({
-          title: "Nouvelle activité",
+          title: t("profile.newActivity"),
           message: activity.text,
           href: "/profile",
         });
@@ -165,16 +174,9 @@ export default function ProfilePage() {
     setFollowingCount(profile.followingIds?.length ?? 0);
   }, [profile]);
 
-  useEffect(() => {
-    if (!user) return;
-    setEditUsername(profile?.username || user.username || "");
-    setEditEmail(user.email || "");
-    setEditDescription(profile?.description || "");
-  }, [user, profile]);
 
 
-
-  if (!ready) {
+  if (!ready || !user) {
     return (
       <main id="main-content" className="grid min-h-[60vh] place-items-center">
         <p
@@ -182,30 +184,8 @@ export default function ProfilePage() {
           aria-live="polite"
           className="text-sm text-gray-500 dark:text-gray-300"
         >
-          Chargement…
+          {!ready ? t("common.loading") : t("common.redirecting")}
         </p>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main id="main-content" className="grid min-h-[60vh] place-items-center">
-        <div className="text-center">
-          <p
-            role="alert"
-            className="text-sm text-gray-600 dark:text-gray-300"
-          >
-            Session expirée.
-          </p>
-
-          <Link
-            href="/signin"
-            className="mt-3 inline-block rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-          >
-            Se reconnecter
-          </Link>
-        </div>
       </main>
     );
   }
@@ -214,11 +194,11 @@ export default function ProfilePage() {
     profile
       ? [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
         profile.username
-      : user.username || "Mon profil";
+      : user.username || t("nav.myProfile");
 
-  const handleSignOut = () => {
-    signOut();
-    window.location.href = "/signin";
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = "/signin?logout=true";
   };
 
   const openFollowers = async () => {
@@ -279,22 +259,22 @@ export default function ProfilePage() {
     setEditSuccess("");
 
     if (!editUsername.trim()) {
-      setEditError("Le pseudo est obligatoire.");
+      setEditError(t("profile.editModal.errorUsername"));
       return;
     }
 
     if (!editEmail.trim()) {
-      setEditError("L’email est obligatoire.");
+      setEditError(t("profile.editModal.errorEmail"));
       return;
     }
 
     if (editPassword && editPassword.length < 6) {
-      setEditError("Le mot de passe doit contenir au moins 6 caractères.");
+      setEditError(t("profile.editModal.errorPasswordLen"));
       return;
     }
 
     if (editPassword !== editConfirmPassword) {
-      setEditError("Les mots de passe ne correspondent pas.");
+      setEditError(t("profile.editModal.errorPasswordMatch"));
       return;
     }
 
@@ -327,7 +307,7 @@ export default function ProfilePage() {
           : prev
       );
 
-      setEditSuccess("Profil mis à jour avec succès.");
+      setEditSuccess(t("profile.editModal.success"));
       setEditPassword("");
       setEditConfirmPassword("");
 
@@ -339,7 +319,7 @@ export default function ProfilePage() {
       setEditError(
         error instanceof Error
           ? error.message
-          : "Impossible de mettre à jour le profil."
+          : t("profile.editModal.errorGeneric")
       );
     } finally {
       setEditLoading(false);
@@ -350,21 +330,21 @@ export default function ProfilePage() {
     <main id="main-content" className="min-h-screen">
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="grid gap-8 md:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-6" aria-label="Informations du profil">
+          <aside className="space-y-6" aria-label={t("profile.infoAria")}>
             <ProfileCard>
               <div className="flex items-center gap-3">
                 <div className="relative h-16 w-16 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
                   {profile?.profileImageUrl || user.profileImageUrl ? (
                     <Image
                       src={(profile?.profileImageUrl || user.profileImageUrl)!}
-                      alt={`Photo de profil de ${displayName}`}
+                      alt={t("profile.avatarAlt", { name: displayName })}
                       fill
                       sizes="64px"
                       className="object-cover"
                     />
                   ) : (
                     <div
-                      aria-label={`Initiales de ${displayName}`}
+                      aria-label={t("profile.initialsAria", { name: displayName })}
                       className="grid h-full w-full place-items-center text-lg font-bold"
                     >
                       {initialsOf(profile?.username || user.username, user.email)}
@@ -380,13 +360,13 @@ export default function ProfilePage() {
 
                     {profile?.isVerified ? (
                       <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
-                        Vérifié
+                        {t("profile.verified")}
                       </span>
                     ) : null}
 
                     {profile?.isFeaturedChef ? (
                       <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
-                        Chef
+                        {t("profile.chef")}
                       </span>
                     ) : null}
                   </div>
@@ -419,10 +399,10 @@ export default function ProfilePage() {
                   onClick={openEditModal}
                   className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
                   type="button"
-                  aria-label="Modifier le profil"
+                  aria-label={t("profile.editAria")}
                 >
                   <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-                  Modifier
+                  {t("profile.edit")}
                 </button>
               </div>
 
@@ -435,39 +415,39 @@ export default function ProfilePage() {
                 onClick={handleSignOut}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-black/[0.03] px-3 py-3 text-xs font-medium text-gray-700 transition hover:bg-black/[0.06] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08]"
                 type="button"
-                aria-label="Se déconnecter"
+                aria-label={t("profile.signoutAria")}
               >
                 <LogOut aria-hidden="true" className="h-4 w-4" />
-                Déconnexion
+                {t("profile.signout")}
               </button>
             </ProfileCard>
 
 
           </aside>
 
-          <section className="space-y-6" aria-label="Contenu du profil">
+          <section className="space-y-6" aria-label={t("profile.contentAria")}>
             <ProfileCard>
               <div className="mb-4 flex items-center gap-2">
                 <Settings aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                <h2 className="text-sm font-semibold">Préférences</h2>
+                <h2 className="text-sm font-semibold">{t("profile.preferences.title")}</h2>
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
                   <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    Thème
+                    {t("profile.preferences.theme")}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {(["Clair", "Sombre"] as ThemeChoice[]).map((item) => (
+                    {(["light", "dark"] as const).map((mode) => (
                       <ProfilePill
-                        key={item}
-                        active={themeChoice === item}
-                        onClick={() =>
-                          setTheme(item === "Sombre" ? "dark" : "light")
-                        }
+                        key={mode}
+                        active={theme === mode}
+                        onClick={() => setTheme(mode)}
                       >
-                        {item}
+                        {mode === "dark"
+                          ? t("profile.preferences.theme.dark")
+                          : t("profile.preferences.theme.light")}
                       </ProfilePill>
                     ))}
                   </div>
@@ -476,7 +456,7 @@ export default function ProfilePage() {
                 <div>
                   <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                     <Bell aria-hidden="true" className="h-4 w-4" />
-                    Notifications
+                    {t("profile.preferences.notifications")}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -484,33 +464,42 @@ export default function ProfilePage() {
                       active={notifLives}
                       onClick={() => setNotifLives((v) => !v)}
                     >
-                      Lives
+                      {t("profile.preferences.notif.lives")}
                     </ProfilePill>
 
                     <ProfilePill
                       active={notifReplays}
                       onClick={() => setNotifReplays((v) => !v)}
                     >
-                      Replays
+                      {t("profile.preferences.notif.replays")}
                     </ProfilePill>
 
                     <ProfilePill
                       active={notifChefs}
                       onClick={() => setNotifChefs((v) => !v)}
                     >
-                      Nouveaux chefs
+                      {t("profile.preferences.notif.newChefs")}
                     </ProfilePill>
                   </div>
                 </div>
 
                 <div>
                   <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    Langue
+                    {t("profile.preferences.language")}
                   </div>
 
                   <div className="flex gap-2">
-                    <ProfilePill active={true} onClick={() => {}}>
-                      Français
+                    <ProfilePill
+                      active={locale === "fr"}
+                      onClick={() => setLocale("fr")}
+                    >
+                      {t("profile.languages.fr")}
+                    </ProfilePill>
+                    <ProfilePill
+                      active={locale === "en"}
+                      onClick={() => setLocale("en")}
+                    >
+                      {t("profile.languages.en")}
                     </ProfilePill>
                   </div>
                 </div>
@@ -518,11 +507,11 @@ export default function ProfilePage() {
                 <div>
                   <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                     <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                    Confidentialité
+                    {t("profile.preferences.privacy")}
                   </div>
 
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Profil visible, listes publiques, etc.
+                    {t("profile.preferences.privacyDesc")}
                   </p>
                 </div>
               </div>
@@ -546,14 +535,14 @@ export default function ProfilePage() {
                   id="edit-profile-title"
                   className="text-lg font-bold text-gray-900 dark:text-white"
                 >
-                  Modifier le profil
+                  {t("profile.editModal.title")}
                 </h2>
 
                 <p
                   id="edit-profile-description"
                   className="text-sm text-gray-500 dark:text-gray-400"
                 >
-                  Mets à jour ton pseudo, ton email, ta description et ton mot de passe.
+                  {t("profile.editModal.desc")}
                 </p>
               </div>
 
@@ -561,7 +550,7 @@ export default function ProfilePage() {
                 onClick={closeEditModal}
                 className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-neutral-800 dark:hover:text-white"
                 type="button"
-                aria-label="Fermer la fenêtre de modification du profil"
+                aria-label={t("profile.editModal.closeAria")}
               >
                 <X aria-hidden="true" className="h-5 w-5" />
               </button>
@@ -593,7 +582,7 @@ export default function ProfilePage() {
                     htmlFor="edit-username"
                     className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
                   >
-                    Pseudo
+                    {t("profile.editModal.username")}
                   </label>
 
                   <input
@@ -602,7 +591,7 @@ export default function ProfilePage() {
                     onChange={(e) => setEditUsername(e.target.value)}
                     type="text"
                     autoComplete="username"
-                    placeholder="Ton pseudo"
+                    placeholder={t("profile.editModal.usernamePlaceholder")}
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
@@ -612,7 +601,7 @@ export default function ProfilePage() {
                     htmlFor="edit-email"
                     className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
                   >
-                    Email
+                    {t("profile.editModal.email")}
                   </label>
 
                   <input
@@ -632,7 +621,7 @@ export default function ProfilePage() {
                   htmlFor="edit-description"
                   className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
                 >
-                  Description
+                  {t("profile.editModal.bio")}
                 </label>
 
                 <textarea
@@ -640,7 +629,7 @@ export default function ProfilePage() {
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={5}
-                  placeholder="Parle un peu de toi, de ta cuisine, de ton univers..."
+                  placeholder={t("profile.editModal.bioPlaceholder")}
                   className="w-full resize-none rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                 />
               </div>
@@ -651,7 +640,7 @@ export default function ProfilePage() {
                     htmlFor="edit-password"
                     className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
                   >
-                    Nouveau mot de passe
+                    {t("profile.editModal.newPassword")}
                   </label>
 
                   <input
@@ -660,7 +649,7 @@ export default function ProfilePage() {
                     onChange={(e) => setEditPassword(e.target.value)}
                     type="password"
                     autoComplete="new-password"
-                    placeholder="Laisser vide pour ne pas changer"
+                    placeholder={t("profile.editModal.newPasswordPlaceholder")}
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
@@ -670,7 +659,7 @@ export default function ProfilePage() {
                     htmlFor="edit-confirm-password"
                     className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white"
                   >
-                    Confirmer le mot de passe
+                    {t("profile.editModal.confirmPassword")}
                   </label>
 
                   <input
@@ -679,7 +668,7 @@ export default function ProfilePage() {
                     onChange={(e) => setEditConfirmPassword(e.target.value)}
                     type="password"
                     autoComplete="new-password"
-                    placeholder="Retape le nouveau mot de passe"
+                    placeholder={t("profile.editModal.confirmPasswordPlaceholder")}
                     className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
@@ -692,7 +681,7 @@ export default function ProfilePage() {
                   type="button"
                 >
                   <X aria-hidden="true" className="h-4 w-4" />
-                  Annuler
+                  {t("common.cancel")}
                 </button>
 
                 <button
@@ -701,7 +690,7 @@ export default function ProfilePage() {
                   disabled={editLoading}
                 >
                   <Save aria-hidden="true" className="h-4 w-4" />
-                  {editLoading ? "Enregistrement..." : "Enregistrer"}
+                  {editLoading ? t("common.saving") : t("common.save")}
                 </button>
               </div>
             </form>
@@ -711,7 +700,7 @@ export default function ProfilePage() {
 
       <FollowListModal
         open={followModalType !== null}
-        title={followModalType === "followers" ? "Followers" : "Suivis"}
+        title={followModalType === "followers" ? t("profile.followers") : t("profile.following")}
         users={followModalUsers}
         loading={followModalLoading}
         onClose={() => setFollowModalType(null)}

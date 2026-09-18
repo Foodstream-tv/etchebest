@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type Ingredient = {
   name: string;
@@ -152,10 +153,10 @@ const RECIPES: Record<string, Recipe> = {
   },
 };
 
-type Props = Readonly<{
+type Props = {
   dishName?: string;
   roomTitle?: string;
-  roomParticipants?: { username: string }[];
+  roomParticipants?: any[];
   recipeData?: {
     ingredients?: { name: string; qty: string }[];
     prepSteps?: string[];
@@ -165,7 +166,7 @@ type Props = Readonly<{
     prepTimeMins?: number;
     restTimeMins?: number;
   } | null;
-}>;
+};
 
 type ParticipantState = {
   username: string;
@@ -175,6 +176,7 @@ type ParticipantState = {
 };
 
 export default function CookingAssistant({ dishName, roomTitle, roomParticipants, recipeData }: Props) {
+  const { t } = useI18n();
   // Detect recipe based on props
   const recipe = useMemo(() => {
     if (recipeData && (recipeData.ingredients?.length || recipeData.cookingTimer || recipeData.platingSteps?.length)) {
@@ -269,73 +271,18 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
     setCheckedIngredients(next);
   };
 
-  // Initialize simulated participants
-  const defaultParticipants = useMemo(() => {
-    const list = roomParticipants?.map((p) => p.username) || [];
-    if (list.length === 0) {
-      return ["Aiko Tanaka", "Chef Simon", "Camille Dupont", "Luis Ortega"];
+  // Real room participants progression
+  const peers = useMemo<ParticipantState[]>(() => {
+    if (!roomParticipants || roomParticipants.length === 0) {
+      return [];
     }
-    return list;
+    return roomParticipants.map((p: any) => ({
+      username: typeof p === "string" ? p : p?.username || p?.name || "Participant",
+      activeStep: typeof p === "object" ? (p?.step ?? p?.activeStep ?? 0) : 0,
+      prepProgress: typeof p === "object" ? (p?.progress ?? p?.prepProgress ?? 0) : 0,
+      timerActive: false,
+    }));
   }, [roomParticipants]);
-
-  const [peers, setPeers] = useState<ParticipantState[]>([]);
-
-  useEffect(() => {
-    setPeers(
-      defaultParticipants.map((name) => ({
-        username: name,
-        activeStep: 0,
-        prepProgress: Math.floor(Math.random() * 3), // random starting checked items
-        timerActive: false,
-      }))
-    );
-  }, [defaultParticipants]);
-
-  // Simulate peer progress
-  useEffect(() => {
-    if (!recipe || !recipe.ingredients?.length) return;
-
-    const interval = setInterval(() => {
-      setPeers((prevPeers) => {
-        if (prevPeers.length === 0) return prevPeers;
-
-        // Choose one random peer to update
-        const idx = Math.floor(Math.random() * prevPeers.length);
-        const updated = [...prevPeers];
-        const peer = { ...updated[idx] };
-
-        if (peer.activeStep === 0) {
-          // Increase prep checked count or move to preparation
-          if (peer.prepProgress < recipe.ingredients.length) {
-            peer.prepProgress += 1;
-          } else {
-            peer.activeStep = 1;
-          }
-        } else if (peer.activeStep === 1) {
-          // Move to cooking
-          peer.activeStep = 2;
-          peer.timerActive = true;
-        } else if (peer.activeStep === 2) {
-          // Finish cooking or move to plating
-          if (Math.random() > 0.4) {
-            peer.activeStep = 3;
-            peer.timerActive = false;
-          }
-        } else {
-          // Plating complete (randomize reset or keep)
-          if (Math.random() > 0.8) {
-            peer.activeStep = 0;
-            peer.prepProgress = 0;
-          }
-        }
-
-        updated[idx] = peer;
-        return updated;
-      });
-    }, 12000); // Update a peer every 12 seconds
-
-    return () => clearInterval(interval);
-  }, [recipe]);
 
   const prepProgressPercent = useMemo(() => {
     const total = recipe?.ingredients?.length ?? 0;
@@ -363,11 +310,18 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
       <div className="border-b border-black/8 px-4 py-4 dark:border-white/10 bg-white/20 dark:bg-black/30">
         <div className="flex items-center justify-between text-xs font-bold text-gray-400 mb-3">
           <span>{recipe.title}</span>
-          <span className="text-orange-600 dark:text-orange-400">Étape {activeStep + 1}/4</span>
+          <span className="text-orange-600 dark:text-orange-400">
+            {t("cook.step", { step: activeStep + 1, total: 4 })}
+          </span>
         </div>
 
         <div className="grid grid-cols-4 gap-1.5">
-          {(["Ingrédients", "Préparation", "Cuisson", "Dressage"] as const).map((stepName, index) => {
+          {[
+            { id: 0, label: t("cook.tabIngredients") },
+            { id: 1, label: t("cook.tabPrep") },
+            { id: 2, label: t("cook.tabCooking") },
+            { id: 3, label: t("cook.tabPlating") },
+          ].map(({ id: index, label: stepName }) => {
             const active = activeStep === index;
             const completed = activeStep > index;
 
@@ -404,7 +358,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Ingrédients requis
+                  {t("cook.ingredientsRequired")}
                 </h3>
 
                 <span className="text-xs font-bold text-orange-600 dark:text-orange-400">
@@ -473,7 +427,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                             onClick={() =>
                               setShowSubFor(showSubFor === item.name ? null : item.name)
                             }
-                            aria-label="Voir les substitutions"
+                            aria-label={t("cook.showSubstitutionsAria")}
                             className={`rounded-lg p-1 transition ${
                               showSubFor === item.name
                                 ? "text-orange-500 bg-orange-500/10"
@@ -489,7 +443,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                         <div className="mt-1 flex items-start gap-2 rounded-xl bg-orange-500/10 p-2.5 text-xs text-orange-700 dark:bg-orange-500/20 dark:text-orange-300">
                           <Info className="h-4 w-4 shrink-0 mt-0.5" />
                           <p>
-                            <strong className="font-bold">Substitutions possibles :</strong> {item.sub}
+                            <strong className="font-bold">{t("cook.possibleSubstitutions")}</strong> {item.sub}
                           </p>
                         </div>
                       )}
@@ -503,7 +457,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
             {recipe.utensils && recipe.utensils.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-black/5 dark:border-white/5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Matériel & Ustensiles nécessaires
+                  {t("cook.utensilsNeeded")}
                 </h3>
 
                 <div className="flex flex-wrap gap-2">
@@ -529,7 +483,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                 {recipe.prepTimeMins && recipe.prepTimeMins > 0 ? (
                   <div className="rounded-2xl border border-black/5 bg-white/60 p-3 text-center dark:border-white/5 dark:bg-white/[0.02]">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
-                      Préparation
+                      {t("cook.prepBadge")}
                     </span>
                     <span className="text-sm font-black text-orange-600 dark:text-orange-400">
                       {recipe.prepTimeMins} min
@@ -540,7 +494,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                 {recipe.restTimeMins && recipe.restTimeMins > 0 ? (
                   <div className="rounded-2xl border border-black/5 bg-white/60 p-3 text-center dark:border-white/5 dark:bg-white/[0.02]">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
-                      Repos
+                      {t("cook.restBadge")}
                     </span>
                     <span className="text-sm font-black text-orange-600 dark:text-orange-400">
                       {recipe.restTimeMins} min
@@ -554,7 +508,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
             {recipe.cuttings.length > 0 ? (
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Techniques & Découpe
+                  {t("cook.techniques")}
                 </h3>
 
                 <div className="space-y-2">
@@ -577,10 +531,10 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
               <div className="rounded-2xl border border-dashed border-black/10 bg-white/50 p-6 text-center dark:border-white/10 dark:bg-white/[0.02]">
                 <ChefHat className="mx-auto h-10 w-10 text-orange-500 mb-2 animate-bounce" />
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                  Mise en place & Préparation
+                  {t("cook.prepTitle")}
                 </h4>
                 <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                  Lavez, épluchez et découpez vos ingrédients selon les consignes du chef en direct avant de passer à la cuisson.
+                  {t("cook.prepDesc")}
                 </p>
               </div>
             )}
@@ -592,7 +546,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
             {/* Custom Timer Card */}
             <div className="rounded-2xl border border-black/5 bg-white/70 p-5 shadow-sm dark:border-white/5 dark:bg-white/[0.02] flex flex-col items-center text-center">
               <span className="text-xs font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 mb-1">
-                Minuteur de Cuisson
+                {t("cook.cookingTimer")}
               </span>
               <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4">
                 {recipe.timerLabel}
@@ -655,7 +609,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
             {/* Cooking Instructions list */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Instructions de cuisson
+                {t("cook.cookingInstructions")}
               </h3>
 
               <ol className="space-y-2">
@@ -678,7 +632,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
         {activeStep === 3 && (
           <div className="space-y-4 animate-fadeIn">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-              Conseils de Dressage
+              {t("cook.platingTips")}
             </h3>
 
             <ol className="space-y-2">
@@ -700,49 +654,65 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
 
       {/* Peer Progress Board (Collaborative) */}
       <div className="border-t border-black/8 bg-white/60 p-4 dark:border-white/10 dark:bg-black/40">
-        <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
-          <Users className="h-4 w-4" />
-          Progression de la Room
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+            <Users className="h-4 w-4" />
+            {t("cook.roomProgress")}
+          </h3>
+          <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500">
+            {t("cook.connectedCount", { count: 1 + peers.length, plural: peers.length > 0 ? "s" : "" })}
+          </span>
+        </div>
 
         <div className="space-y-2">
           {/* User status */}
-          <div className="flex items-center justify-between text-xs gap-3">
+          <div className="flex items-center justify-between text-xs gap-3 rounded-xl bg-black/[0.03] p-2 dark:bg-white/[0.04]">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="font-bold text-gray-900 dark:text-white truncate">Vous</span>
+              <div className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+              <span className="font-bold text-gray-900 dark:text-white truncate">{t("cook.you")}</span>
             </div>
 
-            <div className="text-gray-500 dark:text-gray-400 font-semibold shrink-0">
+            <div className="text-gray-600 dark:text-gray-300 font-semibold shrink-0">
               {activeStep === 0
-                ? `Ingrédients (${checkedIngredients.size}/${recipe.ingredients.length})`
+                ? t("cook.statusIngredients", { checked: checkedIngredients.size, total: recipe.ingredients.length })
                 : activeStep === 1
-                ? "Préparation 🔪"
+                ? t("cook.statusPrep")
                 : activeStep === 2
-                ? "Cuisson ⏳"
-                : "Dressage 🍽️"}
+                ? t("cook.statusCooking")
+                : t("cook.statusPlating")}
             </div>
           </div>
 
-          {/* Peers status */}
-          {peers.map((peer, idx) => (
-            <div key={`${peer.username}-${idx}`} className="flex items-center justify-between text-xs gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="h-2 w-2 rounded-full bg-gray-400" />
-                <span className="text-gray-700 dark:text-gray-300 truncate">{peer.username}</span>
-              </div>
-
-              <div className="text-gray-500 dark:text-gray-400 shrink-0">
-                {peer.activeStep === 0
-                  ? `Ingrédients (${peer.prepProgress}/${recipe.ingredients.length})`
-                  : peer.activeStep === 1
-                  ? "Préparation 🔪"
-                  : peer.activeStep === 2
-                  ? "Cuisson ⏳"
-                  : "Dressage 🍽️"}
-              </div>
+          {/* Real Peers status */}
+          {peers.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-black/10 dark:border-white/10 py-3 px-3 text-center text-xs text-gray-400 dark:text-gray-500">
+              {t("cook.waitingPeers")}
             </div>
-          ))}
+          ) : (
+            peers.map((peer, idx) => (
+              <div
+                key={`${peer.username}-${idx}`}
+                className="flex items-center justify-between text-xs gap-3 rounded-xl border border-black/5 bg-white/40 p-2 dark:border-white/5 dark:bg-white/[0.02]"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
+                  <span className="text-gray-800 dark:text-gray-200 font-medium truncate">
+                    {peer.username}
+                  </span>
+                </div>
+
+                <div className="text-gray-500 dark:text-gray-400 shrink-0">
+                  {peer.activeStep === 0
+                    ? t("cook.statusIngredients", { checked: peer.prepProgress, total: recipe.ingredients.length })
+                    : peer.activeStep === 1
+                    ? t("cook.statusPrep")
+                    : peer.activeStep === 2
+                    ? t("cook.statusCooking")
+                    : t("cook.statusPlating")}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -755,7 +725,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
           className="inline-flex items-center gap-1.5 rounded-xl border border-black/8 bg-white/70 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200"
         >
           <ChevronLeft className="h-4 w-4" />
-          Précédent
+          {t("cook.prevStep")}
         </button>
 
         <button
@@ -764,7 +734,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
           onClick={() => setActiveStep((prev) => prev + 1)}
           className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
         >
-          Suivant
+          {t("cook.nextStep")}
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>

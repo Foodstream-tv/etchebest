@@ -19,13 +19,13 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
+      - '127.0.0.1:${POSTGRES_PORT}:${POSTGRES_PORT}'
     networks:
       - back-network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost" ]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -48,6 +48,11 @@ services:
       BACKEND_PORT: ${BACKEND_PORT}
       STUN_SERVER_URL: ${STUN_SERVER_URL}
       WEBRTC_IP: ${WEBRTC_IP:-127.0.0.1}
+      WEBRTC_PORT_MIN: ${WEBRTC_PORT_MIN:-50000}
+      WEBRTC_PORT_MAX: ${WEBRTC_PORT_MAX:-50100}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
 
   frontend:
     container_name: frontend-foodstream
@@ -72,7 +77,6 @@ services:
     environment:
       - PORT=3001
     restart: unless-stopped
-
 
 volumes:
   postgres_data:
