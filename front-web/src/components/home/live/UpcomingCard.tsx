@@ -1,6 +1,7 @@
 "use client";
 
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { useI18n } from "@/i18n";
 
 type UpcomingCardProps = Readonly<{
   title: string;
@@ -13,6 +14,8 @@ export default function UpcomingCard({
   when,
   author,
 }: UpcomingCardProps) {
+  const { t } = useI18n();
+
   return (
     <article
       aria-labelledby={`upcoming-${title}`}
@@ -31,11 +34,11 @@ export default function UpcomingCard({
 
       <button
         type="button"
-        aria-label={`Être prévenu pour ${title} par ${author}`}
+        aria-label={t("home.upcoming.remindAria", { title, author })}
         className="mt-3 w-full rounded-xl py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.24)] transition hover:bg-orange-400"
         style={{ background: ORANGE_GRADIENT_CSS }}
       >
-        Me prévenir
+        {t("home.upcoming.remind")}
       </button>
     </article>
   );

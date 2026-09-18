@@ -4,6 +4,7 @@ import { useId } from "react";
 import { X } from "lucide-react";
 
 import type { UserSummary } from "@/lib/users";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type FollowListModalProps = Readonly<{
   open: boolean;
@@ -39,6 +40,7 @@ export default function FollowListModal({
   onClose,
 }: FollowListModalProps) {
   const titleId = useId();
+  const { t } = useI18n();
 
   if (!open) return null;
 
@@ -61,7 +63,7 @@ export default function FollowListModal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer la fenêtre"
+            aria-label={t("profile.closeWindowAria")}
             className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
           >
             <X className="h-5 w-5" aria-hidden="true" />
@@ -74,11 +76,11 @@ export default function FollowListModal({
               role="status"
               className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
             >
-              Chargement...
+              {t("common.loading")}
             </p>
           ) : users.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              Aucun utilisateur pour le moment.
+              {t("profile.noUsers")}
             </p>
           ) : (
             <ul className="space-y-2">
@@ -97,7 +99,7 @@ export default function FollowListModal({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={image}
-                          alt={`Photo de profil de ${displayName}`}
+                          alt={t("profile.avatarAlt", { name: displayName })}
                           className="h-full w-full object-cover"
                         />
                       ) : (

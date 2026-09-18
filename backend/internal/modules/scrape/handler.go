@@ -20,6 +20,7 @@ type RecipeScrapeResponse struct {
 	CookTimeMins int      `json:"cook_time_mins"`
 	RestTimeMins int      `json:"rest_time_mins"`
 	Utensils     []string `json:"utensils"`
+	Image        string   `json:"image,omitempty"`
 }
 
 func parseISODuration(d string) int {
@@ -104,7 +105,7 @@ func ScrapeMarmiton() gin.HandlerFunc {
 		htmlContent := string(bodyBytes)
 
 		// 1. Parse JSON-LD
-		var recipeTitle, recipeDesc string
+		var recipeTitle, recipeDesc, recipeImage string
 		var ingredients []string
 		var steps []string
 		var prepTime, cookTime, restTime int
@@ -135,6 +136,22 @@ func ScrapeMarmiton() gin.HandlerFunc {
 				if desc, ok := recipeObj["description"].(string); ok {
 					recipeDesc = desc
 				}
+				// Image
+				if img, ok := recipeObj["image"].(string); ok {
+					recipeImage = img
+				} else if imgList, ok := recipeObj["image"].([]any); ok && len(imgList) > 0 {
+					if imgStr, ok := imgList[0].(string); ok {
+						recipeImage = imgStr
+					} else if imgMap, ok := imgList[0].(map[string]any); ok {
+						if urlStr, ok := imgMap["url"].(string); ok {
+							recipeImage = urlStr
+						}
+					}
+				} else if imgMap, ok := recipeObj["image"].(map[string]any); ok {
+					if urlStr, ok := imgMap["url"].(string); ok {
+						recipeImage = urlStr
+					}
+				}
 				// Ingredients
 				if ings, ok := recipeObj["recipeIngredient"].([]any); ok {
 					for _, ing := range ings {
@@ -155,6 +172,14 @@ func ScrapeMarmiton() gin.HandlerFunc {
 					cookTime = parseISODuration(ct)
 				}
 				break
+			}
+		}
+
+		// Fallback image from og:image
+		if recipeImage == "" {
+			imgRegex := regexp.MustCompile(`(?i)<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']`)
+			if iMatch := imgRegex.FindStringSubmatch(htmlContent); len(iMatch) >= 2 {
+				recipeImage = strings.TrimSpace(iMatch[1])
 			}
 		}
 
@@ -236,6 +261,7 @@ func ScrapeMarmiton() gin.HandlerFunc {
 			CookTimeMins: cookTime,
 			RestTimeMins: restTime,
 			Utensils:     utensils,
+			Image:        recipeImage,
 		})
 	}
 }

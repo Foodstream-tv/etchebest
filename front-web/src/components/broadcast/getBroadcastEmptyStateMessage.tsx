@@ -3,34 +3,35 @@ import type { BroadcastState } from "@/components/broadcast/getBroadcastStatusMe
 export default function getBroadcastEmptyStateMessage(
   ready: boolean,
   token: string | null | undefined,
-  state: BroadcastState
+  state: BroadcastState,
+  t?: (key: any) => string
 ): string {
   if (!ready) {
-    return "Chargement…";
+    return t ? t("broadcast.emptyStateLoading") : "Chargement…";
   }
 
   if (!token) {
-    return "Connecte-toi pour activer la caméra.";
+    return t ? t("broadcast.emptyStateSignIn") : "Connecte-toi pour activer la caméra.";
   }
 
   switch (state) {
     case "creating":
-      return "Création en cours…";
+      return t ? t("broadcast.emptyStateCreating") : "Création en cours…";
 
     case "connecting":
-      return "Connexion en cours…";
+      return t ? t("broadcast.emptyStateConnecting") : "Connexion en cours…";
 
     case "error":
-      return "Impossible de démarrer le flux.";
+      return t ? t("broadcast.emptyStateError") : "Impossible de démarrer le flux.";
 
     case "disconnected":
-      return "Le flux est déconnecté.";
+      return t ? t("broadcast.emptyStateDisconnected") : "Le flux est déconnecté.";
 
     case "idle":
-      return "Le flux local n’est pas encore disponible.";
+      return t ? t("broadcast.emptyStateIdle") : "Le flux local n’est pas encore disponible.";
 
     case "live":
-      return "Connexion au flux vidéo…";
+      return t ? t("broadcast.emptyStateLive") : "Connexion au flux vidéo…";
 
     default: {
       const exhaustiveCheck: never = state;

@@ -3,10 +3,8 @@ import type { NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = [
   "/profile",
-  "/home",
   "/studio",
   "/stream",
-  "/watch",
 ];
 
 const AUTH_ROUTES = ["/signin", "/signup"];
@@ -20,8 +18,8 @@ function decodeJwtPayload(token: string) {
     }
 
     const base64 = payload
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
+      .replaceAll("-", "+")
+      .replaceAll("_", "/");
 
     const padded = base64.padEnd(
       base64.length + ((4 - (base64.length % 4)) % 4),
@@ -59,8 +57,6 @@ function isTokenValid(token: string): boolean {
 }
 
 export default function proxy(req: NextRequest) {
-  console.log("MIDDLEWARE EXECUTED:", req.nextUrl.pathname);
-
   const { pathname } = req.nextUrl;
 
   if (
@@ -69,6 +65,14 @@ export default function proxy(req: NextRequest) {
     pathname.startsWith("/favicon.ico")
   ) {
     return NextResponse.next();
+  }
+
+  // If user requested logout explicitly on /signin, clear cookies and allow page load
+  if (pathname === "/signin" && req.nextUrl.searchParams.has("logout")) {
+    const res = NextResponse.next();
+    res.cookies.delete("token");
+    res.cookies.delete("auth_token");
+    return res;
   }
 
   const token = req.cookies.get("token")?.value;

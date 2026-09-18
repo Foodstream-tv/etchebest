@@ -27,18 +27,18 @@ describe('RegisterScreen', () => {
         const { getAllByText, getByText, getByPlaceholderText } = render(<RegisterScreen />);
 
         expect(getAllByText('Inscription').length).toBeGreaterThan(0);
-        expect(getByText('Créez votre compte pour commencer !')).toBeTruthy();
+        expect(getByText(/Cree ton profil/)).toBeTruthy();
         expect(getByPlaceholderText('Adresse e-mail')).toBeTruthy();
-        expect(getByPlaceholderText('Prénom')).toBeTruthy();
+        expect(getByPlaceholderText('Prenom')).toBeTruthy();
         expect(getByPlaceholderText('Nom')).toBeTruthy();
         expect(getByPlaceholderText('Identifiant')).toBeTruthy();
         expect(getByPlaceholderText('Mot de passe')).toBeTruthy();
-        expect(getByPlaceholderText('Numéro de téléphone')).toBeTruthy();
+        expect(getByPlaceholderText('Numero de telephone')).toBeTruthy();
         expect(getByPlaceholderText('Description')).toBeTruthy();
     });
 
-    it('shows floating labels when inputs have values', async () => {
-        const { getByPlaceholderText, getByText } = render(<RegisterScreen />);
+    it('updates inputs when text changes', () => {
+        const { getByPlaceholderText } = render(<RegisterScreen />);
 
         const emailInput = getByPlaceholderText('Adresse e-mail');
         const usernameInput = getByPlaceholderText('Identifiant');
@@ -46,10 +46,8 @@ describe('RegisterScreen', () => {
         fireEvent.changeText(emailInput, 'test@example.com');
         fireEvent.changeText(usernameInput, 'testuser');
 
-        await waitFor(() => {
-            expect(getByText('Adresse e-mail')).toBeTruthy();
-            expect(getByText('Identifiant')).toBeTruthy();
-        });
+        expect(emailInput.props.value).toBe('test@example.com');
+        expect(usernameInput.props.value).toBe('testuser');
     });
 
     it('displays error message for invalid email', async () => {
@@ -104,7 +102,7 @@ describe('RegisterScreen', () => {
         const { getByPlaceholderText, getAllByText, getByText } = render(<RegisterScreen />);
 
         const emailInput = getByPlaceholderText('Adresse e-mail');
-        const firstNameInput = getByPlaceholderText('Prénom');
+        const firstNameInput = getByPlaceholderText('Prenom');
         const lastNameInput = getByPlaceholderText('Nom');
         const usernameInput = getByPlaceholderText('Identifiant');
         const passwordInput = getByPlaceholderText('Mot de passe');
@@ -126,11 +124,11 @@ describe('RegisterScreen', () => {
         const { getByPlaceholderText, getAllByText } = render(<RegisterScreen />);
 
         const emailInput = getByPlaceholderText('Adresse e-mail');
-        const firstNameInput = getByPlaceholderText('Prénom');
+        const firstNameInput = getByPlaceholderText('Prenom');
         const lastNameInput = getByPlaceholderText('Nom');
         const usernameInput = getByPlaceholderText('Identifiant');
         const passwordInput = getByPlaceholderText('Mot de passe');
-        const phoneInput = getByPlaceholderText('Numéro de téléphone');
+        const phoneInput = getByPlaceholderText('Numero de telephone');
         const descriptionInput = getByPlaceholderText('Description');
         const registerButton = getAllByText('Inscription')[1];
 

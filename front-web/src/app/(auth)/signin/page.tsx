@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/useAuth";
 import { useAuthSubmit } from "@/lib/useAuthSubmit";
 import { apiFetch, ApiError } from "@/lib/api";
 import { BANNED_ERROR, formatBanMessage } from "@/lib/session";
+import { useI18n } from "@/i18n";
 import AuthCard from "@/components/auth/AuthCard";
 import TextField from "@/components/auth/TextField";
 import PasswordField from "@/components/auth/PasswordField";
@@ -33,6 +34,7 @@ export default function SignInPage() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackError = params.get("error");
+  const { t, locale } = useI18n();
 
   const { setAuth } = useAuth();
   const { submit, loading, error, setError } = useAuthSubmit<LoginResponse>();
@@ -52,12 +54,12 @@ export default function SignInPage() {
     setError(null);
 
     if (!isValidEmail(email)) {
-      setError("Adresse e-mail invalide.");
+      setError(t("auth.signin.invalidEmail"));
       return;
     }
 
     if (!password.trim()) {
-      setError("Veuillez entrer votre mot de passe.");
+      setError(t("auth.signin.emptyPassword"));
       return;
     }
 
@@ -68,7 +70,7 @@ export default function SignInPage() {
       });
 
       if (!login?.token) {
-        setError("Réponse invalide du serveur.");
+        setError(t("auth.signin.serverError"));
         return;
       }
 
@@ -80,7 +82,7 @@ export default function SignInPage() {
       });
 
       if (!user?.id) {
-        setError("Impossible de récupérer votre profil.");
+        setError(t("auth.signin.fetchProfileError"));
         return;
       }
 
@@ -101,34 +103,34 @@ export default function SignInPage() {
         err.status === 403 &&
         err.body?.error === BANNED_ERROR
       ) {
-        setError(formatBanMessage(err.body?.bannedUntil));
+        setError(formatBanMessage(err.body?.bannedUntil, locale));
         return;
       }
 
       if (err instanceof ApiError && err.status === 401) {
-        setError("Adresse e-mail ou mot de passe incorrect.");
+        setError(t("auth.signin.invalidCreds"));
         return;
       }
 
-      setError("Une erreur est survenue lors de la connexion.");
+      setError(t("auth.signin.genericError"));
     }
   }
 
   return (
     <AuthCard
-      label="Connexion"
-      title="Bienvenue"
-      subtitle="Connectez-vous pour accéder à votre univers FoodStream."
-      bottomText="Vous n'avez pas de compte ?"
+      label={t("auth.signin.label")}
+      title={t("auth.signin.title")}
+      subtitle={t("auth.signin.subtitle")}
+      bottomText={t("auth.signin.noAccount")}
       bottomLinkHref="/signup"
-      bottomLinkLabel="Inscrivez-vous"
+      bottomLinkLabel={t("auth.signin.signupLink")}
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <TextField
           icon={Mail}
           value={email}
           onChange={setEmail}
-          placeholder="Adresse e-mail"
+          placeholder={t("auth.signin.emailPlaceholder")}
           type="email"
           autoComplete="email"
           required
@@ -139,7 +141,7 @@ export default function SignInPage() {
         <PasswordField
           value={password}
           onChange={setPassword}
-          placeholder="Mot de passe"
+          placeholder={t("auth.signin.passwordPlaceholder")}
           autoComplete="current-password"
           disabled={loading}
           aria-describedby={hasError ? "signin-error" : undefined}
@@ -153,7 +155,7 @@ export default function SignInPage() {
             disabled={loading}
             className="h-4 w-4 rounded border-gray-300 accent-amber-500"
           />
-          <span>Rester connecté</span>
+          <span>{t("auth.signin.rememberMe")}</span>
         </label>
 
         {hasError ? (
@@ -162,7 +164,7 @@ export default function SignInPage() {
             role="alert"
             className="text-sm font-medium text-red-500"
           >
-            {error || "Connexion externe impossible."}
+            {error || t("auth.signin.externalAuthError")}
           </p>
         ) : null}
 
@@ -171,13 +173,13 @@ export default function SignInPage() {
           disabled={loading || !canSubmit}
           className="auth-btn-primary"
         >
-          {loading ? "Connexion…" : "Se connecter"}
+          {loading ? t("auth.signin.submitting") : t("auth.signin.submit")}
         </button>
       </form>
 
       <div className="my-5 flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
         <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
-        <span>ou</span>
+        <span>{t("auth.signin.or")}</span>
         <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
       </div>
 
