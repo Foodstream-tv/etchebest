@@ -5,8 +5,10 @@ import Link from "next/link";
 import { Mail } from "lucide-react";
 import AuthCard from "@/components/auth/AuthCard";
 import TextField from "@/components/auth/TextField";
+import { useI18n } from "@/i18n";
 
 export default function ForgotPasswordPage() {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,12 +30,12 @@ export default function ForgotPasswordPage() {
       );
 
       if (!res.ok) {
-        throw new Error("Envoi impossible.");
+        throw new Error(t("auth.forgot.errorFailed"));
       }
 
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+      setError(err instanceof Error ? err.message : t("auth.forgot.errorGeneric"));
     } finally {
       setLoading(false);
     }
@@ -41,16 +43,16 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthCard
-      label="Réinitialisation"
-      title={sent ? "Email envoyé" : "Mot de passe oublié"}
+      label={t("auth.forgot.label")}
+      title={sent ? t("auth.forgot.titleSent") : t("auth.forgot.title")}
       subtitle={
         sent
-          ? "Vérifiez votre boîte mail pour réinitialiser votre mot de passe."
-          : "Entrez votre adresse e-mail pour recevoir un lien de réinitialisation."
+          ? t("auth.forgot.subtitleSent")
+          : t("auth.forgot.subtitle")
       }
-      bottomText="Vous vous souvenez de votre mot de passe ?"
+      bottomText={t("auth.forgot.rememberPassword")}
       bottomLinkHref="/signin"
-      bottomLinkLabel="Connexion"
+      bottomLinkLabel={t("auth.forgot.signinLink")}
     >
       {!sent ? (
         <form onSubmit={onSubmit} className="space-y-4">
@@ -58,7 +60,7 @@ export default function ForgotPasswordPage() {
             icon={Mail}
             value={email}
             onChange={setEmail}
-            placeholder="Adresse e-mail"
+            placeholder={t("auth.signin.emailPlaceholder")}
             type="email"
             autoComplete="email"
             required
@@ -81,7 +83,7 @@ export default function ForgotPasswordPage() {
             disabled={loading || !email.trim()}
             className="auth-btn-primary"
           >
-            {loading ? "Envoi…" : "Envoyer le lien"}
+            {loading ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
           </button>
         </form>
       ) : (
@@ -90,7 +92,7 @@ export default function ForgotPasswordPage() {
           aria-live="polite"
           className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300"
         >
-          Un email de réinitialisation a été envoyé.
+          {t("auth.forgot.sentBanner")}
         </div>
       )}
 
@@ -100,7 +102,7 @@ export default function ForgotPasswordPage() {
             href="/signin"
             className="text-sm font-medium text-orange-500 transition hover:text-orange-400 hover:underline"
           >
-            Retour à la connexion
+            {t("auth.forgot.backToSignin")}
           </Link>
         </div>
       ) : null}

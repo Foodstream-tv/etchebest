@@ -17,51 +17,9 @@ type GetLivesResponse struct {
 
 func GetLives(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		q := c.Query("q")
-		tagName := c.Query("tag")
-		status := c.Query("status")
-
-		page := 1
-		limit := 20
-
-		if p, err := strconv.Atoi(c.Query("page")); err == nil && p > 0 {
-			page = p
-		}
-
-		if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
-
+		page, limit := getLivesPagination(c)
 		offset := (page - 1) * limit
-
-		query := db.Model(&Live{}).
-			Preload("User").
-			Preload("Dish").
-			Preload("Country").
-			Preload("Tags")
-
-		if status != "" && status != "all" {
-			query = query.Where("status = ?", status)
-		} else {
-			query = query.Where("status IN ?", []string{"scheduled", "live"})
-		}
-
-		if q != "" {
-			like := "%" + q + "%"
-			query = query.Where(
-				"title ILIKE ? OR description ILIKE ? OR dish_name ILIKE ?",
-				like,
-				like,
-				like,
-			)
-		}
-
-		if tagName != "" && tagName != "Tout" {
-			query = query.
-				Joins("JOIN live_tags ON live_tags.live_id = lives.id").
-				Joins("JOIN tags ON tags.id = live_tags.tag_id").
-				Where("tags.name = ?", tagName)
-		}
+		query := livesQuery(db, c)
 
 		var total int64
 		if err := query.Count(&total).Error; err != nil {
@@ -69,12 +27,8 @@ func GetLives(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var lives []Live
-		if err := query.
-			Order("COALESCE(scheduled_at, created_at) ASC").
-			Limit(limit).
-			Offset(offset).
-			Find(&lives).Error; err != nil {
+		lives, err := fetchLives(query, limit, offset)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch lives"})
 			return
 		}
@@ -91,6 +45,43 @@ func GetLives(db *gorm.DB) gin.HandlerFunc {
 			Limit: limit,
 		})
 	}
+}
+
+func getLivesPagination(c *gin.Context) (int, int) {
+	page, limit := 1, 20
+	if p, err := strconv.Atoi(c.Query("page")); err == nil && p > 0 {
+		page = p
+	}
+	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	return page, limit
+}
+
+func livesQuery(db *gorm.DB, c *gin.Context) *gorm.DB {
+	query := db.Model(&Live{}).
+		Preload("User").Preload("Dish").Preload("Country").Preload("Tags")
+	status := c.Query("status")
+	if status != "" && status != "all" {
+		query = query.Where("status = ?", status)
+	} else {
+		query = query.Where("status IN ?", []string{"scheduled", "live"})
+	}
+	if q := c.Query("q"); q != "" {
+		like := "%" + q + "%"
+		query = query.Where("title ILIKE ? OR description ILIKE ? OR dish_name ILIKE ?", like, like, like)
+	}
+	if tagName := c.Query("tag"); tagName != "" && tagName != "Tout" {
+		query = query.Joins("JOIN live_tags ON live_tags.live_id = lives.id").
+			Joins("JOIN tags ON tags.id = live_tags.tag_id").Where("tags.name = ?", tagName)
+	}
+	return query
+}
+
+func fetchLives(query *gorm.DB, limit, offset int) ([]Live, error) {
+	var lives []Live
+	err := query.Order("COALESCE(scheduled_at, created_at) ASC").Limit(limit).Offset(offset).Find(&lives).Error
+	return lives, err
 }
 
 func GetLiveByRoomID(db *gorm.DB) gin.HandlerFunc {

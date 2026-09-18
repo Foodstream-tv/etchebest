@@ -17,6 +17,7 @@ import FollowStats from "@/components/profile/FollowStats";
 import FollowListModal from "@/components/profile/FollowListModal";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useParams } from "next/navigation";
+import { useI18n } from "@/i18n/LanguageContext";
 
 function getDisplayName(user: UserSummary) {
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
@@ -26,6 +27,7 @@ function getDisplayName(user: UserSummary) {
 export default function PublicProfilePage() {
   const params = useParams<{ id: string }>();
   const { token, user: currentUser, ready } = useAuth();
+  const { t } = useI18n();
 
   const [profile, setProfile] = useState<UserSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,7 +104,7 @@ export default function PublicProfilePage() {
           aria-live="polite"
           className="text-sm text-gray-500 dark:text-gray-300"
         >
-          Chargement du profil…
+          {t("profile.public.loading")}
         </p>
       </main>
     );
@@ -116,14 +118,14 @@ export default function PublicProfilePage() {
             role="alert"
             className="text-sm text-gray-600 dark:text-gray-300"
           >
-            Connecte-toi pour voir ce profil.
+            {t("profile.public.loginRequired")}
           </p>
 
           <Link
             href="/signin"
             className="mt-3 inline-block rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
           >
-            Se connecter
+            {t("profile.public.loginBtn")}
           </Link>
         </div>
       </main>
@@ -137,7 +139,7 @@ export default function PublicProfilePage() {
           role="alert"
           className="text-sm text-gray-500 dark:text-gray-300"
         >
-          Profil introuvable.
+          {t("profile.public.notFound")}
         </p>
       </main>
     );
@@ -154,25 +156,25 @@ export default function PublicProfilePage() {
           className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-orange-500 dark:text-gray-300"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Retour aux lives
+          {t("profile.public.backToLives")}
         </Link>
 
         <div className="grid gap-6 md:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-6" aria-label="Informations du profil">
+          <aside className="space-y-6" aria-label={t("profile.public.info")}>
             <ProfileCard>
               <div className="flex flex-col items-center text-center">
                 <div className="relative h-24 w-24 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
                   {avatar ? (
                     <Image
                       src={avatar}
-                      alt={`Photo de profil de ${displayName}`}
+                      alt={t("profile.avatarAlt", { name: displayName })}
                       fill
                       sizes="96px"
                       className="object-cover"
                     />
                   ) : (
                     <div
-                      aria-label={`Initiales de ${displayName}`}
+                      aria-label={t("profile.initialsAria", { name: displayName })}
                       className="grid h-full w-full place-items-center text-2xl font-bold"
                     >
                       {initialsOf(profile.username, profile.email)}
@@ -213,7 +215,7 @@ export default function PublicProfilePage() {
                       href="/profile"
                       className="inline-flex items-center justify-center rounded-full border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-white/5"
                     >
-                      Modifier mon profil
+                      {t("profile.public.editMyProfile")}
                     </Link>
                   ) : (
                     <FollowButton
@@ -235,7 +237,7 @@ export default function PublicProfilePage() {
                   aria-hidden="true"
                   className="h-4 w-4 text-orange-500"
                 />
-                Informations
+                {t("profile.public.info")}
               </h2>
 
               <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
@@ -250,29 +252,28 @@ export default function PublicProfilePage() {
                 ) : null}
 
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Profil public FoodStream.
+                  {t("profile.public.badgePublic")}
                 </p>
               </div>
             </ProfileCard>
           </aside>
 
-          <section className="space-y-6" aria-label="Contenu public du profil">
+          <section className="space-y-6" aria-label={t("profile.public.livesAndReplays")}>
 
 
             <ProfileCard>
               <div className="mb-4 flex items-center gap-2">
                 <Star aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                <h2 className="text-sm font-semibold">Lives & Replays</h2>
+                <h2 className="text-sm font-semibold">{t("profile.public.livesAndReplays")}</h2>
               </div>
 
               <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-white/10">
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                  Aucun live affiché pour le moment.
+                  {t("profile.public.noLivesYet")}
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  On pourra bientôt afficher ici ses lives en cours, planifiés et
-                  ses replays.
+                  {t("profile.public.noLivesDesc")}
                 </p>
               </div>
             </ProfileCard>
@@ -282,7 +283,7 @@ export default function PublicProfilePage() {
 
       <FollowListModal
         open={followModalType !== null}
-        title={followModalType === "followers" ? "Followers" : "Suivis"}
+        title={followModalType === "followers" ? t("profile.followers") : t("profile.following")}
         users={followModalUsers}
         loading={followModalLoading}
         onClose={() => setFollowModalType(null)}

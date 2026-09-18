@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
 import {
     createRoom,
     disconnectRoom,
@@ -126,10 +126,40 @@ export function useWebRTC(): UseWebRTCReturn {
 
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const roomIdRef = useRef<string | null>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
     const iceCandidateQueue = useRef<RTCIceCandidate[]>([]);
     const remoteStreamsRef = useRef<Map<string, any>>(new Map());
     const renegotiationInFlightRef = useRef(false);
     const renegotiationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // AppState lifecycle listener: manage media tracks on background/foreground transitions
+    useEffect(() => {
+        if (Platform.OS === 'web') return;
+
+        const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+            if (nextAppState === 'background' || nextAppState === 'inactive') {
+                if (localStreamRef.current) {
+                    localStreamRef.current.getVideoTracks().forEach((track: any) => {
+                        if (track && 'enabled' in track) {
+                            track.enabled = false;
+                        }
+                    });
+                }
+            } else if (nextAppState === 'active') {
+                if (localStreamRef.current) {
+                    localStreamRef.current.getVideoTracks().forEach((track: any) => {
+                        if (track && 'enabled' in track) {
+                            track.enabled = true;
+                        }
+                    });
+                }
+            }
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, []);
 
     const getRenderableStreams = useCallback(() => {
         const streams = Array.from(remoteStreamsRef.current.values());
@@ -235,8 +265,10 @@ export function useWebRTC(): UseWebRTCReturn {
                 frameRate: 30,
             },
         });
-        setLocalStream(stream as unknown as MediaStream);
-        return stream as unknown as MediaStream;
+        const mediaStream = stream as unknown as MediaStream;
+        localStreamRef.current = mediaStream;
+        setLocalStream(mediaStream);
+        return mediaStream;
     }, [ensureNativeWebRTC]);
 
     // Build peer connection, add local tracks, wire events
@@ -467,10 +499,11 @@ export function useWebRTC(): UseWebRTCReturn {
         }
 
         // Stop local tracks
-        if (localStream) {
-            localStream.getTracks().forEach((t: any) => t.stop());
-            setLocalStream(null);
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((t: any) => t.stop());
+            localStreamRef.current = null;
         }
+        setLocalStream(null);
 
         // Notify backend
         if (roomIdRef.current) {

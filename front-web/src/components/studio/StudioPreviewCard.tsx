@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import formatPreviewDate from "@/components/studio/formatPreviewDate";
+import { useI18n } from "@/i18n/LanguageContext";
 
 export default function StudioPreviewCard({
   safeImage,
@@ -15,6 +16,8 @@ export default function StudioPreviewCard({
   date: string;
   time: string;
 }>) {
+  const { t, locale } = useI18n();
+
   return (
     <article
       aria-labelledby="studio-preview-title"
@@ -24,20 +27,29 @@ export default function StudioPreviewCard({
         id="studio-preview-title"
         className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/80"
       >
-        Aperçu de la carte live
+        {t("studio.broadcast.preview")}
       </h3>
 
       <div className="overflow-hidden rounded-2xl border border-black/8 bg-black/[0.03] dark:border-white/10 dark:bg-white/[0.04]">
-        <div className="relative h-44 w-full">
-          <Image
-            src={safeImage}
-            alt={`Image d'aperçu du live ${previewTitle}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 360px"
-            className="object-cover"
-            unoptimized
-            priority
-          />
+        <div className="relative h-44 w-full overflow-hidden bg-black/5 dark:bg-white/5">
+          {safeImage.startsWith("blob:") ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={safeImage}
+              alt={t("studio.broadcast.previewAlt", { title: previewTitle })}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <Image
+              src={safeImage}
+              alt={t("studio.broadcast.previewAlt", { title: previewTitle })}
+              fill
+              sizes="(max-width: 768px) 100vw, 360px"
+              className="object-cover"
+              unoptimized
+              priority
+            />
+          )}
 
           <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
             <span
@@ -50,7 +62,7 @@ export default function StudioPreviewCard({
 
         <div className="space-y-2 p-4">
           {previewTags.length > 0 ? (
-            <div className="flex flex-wrap gap-2" aria-label="Tags du live">
+            <div className="flex flex-wrap gap-2" aria-label={t("watch.liveTagsAria")}>
               {previewTags.map((tag) => (
                 <span
                   key={tag}
@@ -62,12 +74,12 @@ export default function StudioPreviewCard({
             </div>
           ) : null}
 
-          <p className="line-clamp-2 text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+          <p className="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50 break-all [overflow-wrap:anywhere]">
             {previewTitle}
           </p>
 
           <p className="text-xs text-gray-500 dark:text-white/50">
-            par Vous • {formatPreviewDate(date)}, {time}
+            {t("studio.preview.byYou")} • {formatPreviewDate(date, t("common.today"))}, {time}
           </p>
         </div>
       </div>

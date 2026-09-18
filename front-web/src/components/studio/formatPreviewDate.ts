@@ -1,6 +1,9 @@
-export default function formatPreviewDate(dateValue: string): string {
+export default function formatPreviewDate(
+  dateValue: string,
+  fallback = "Aujourd’hui"
+): string {
   if (!dateValue) {
-    return "Aujourd’hui";
+    return fallback;
   }
 
   const parts = dateValue.split("-");

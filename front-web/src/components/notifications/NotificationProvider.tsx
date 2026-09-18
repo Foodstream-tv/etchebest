@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { BellRing, X } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 type ToastNotification = {
   id: string;
@@ -27,6 +28,7 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 export function NotificationProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const { t } = useI18n();
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
 
   const removeNotification = useCallback((id: string) => {
@@ -87,7 +89,7 @@ export function NotificationProvider({
                     event.preventDefault();
                     removeNotification(notification.id);
                   }}
-                  aria-label="Fermer la notification"
+                  aria-label={t("notifications.closeAria")}
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
