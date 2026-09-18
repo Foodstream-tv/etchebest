@@ -71,11 +71,24 @@ func livesQuery(db *gorm.DB, c *gin.Context) *gorm.DB {
 		like := "%" + q + "%"
 		query = query.Where("title ILIKE ? OR description ILIKE ? OR dish_name ILIKE ?", like, like, like)
 	}
-	if tagName := c.Query("tag"); tagName != "" && tagName != "Tout" {
-		query = query.Joins("JOIN live_tags ON live_tags.live_id = lives.id").
-			Joins("JOIN tags ON tags.id = live_tags.tag_id").Where("tags.name = ?", tagName)
+	// Accepts repeated params (?tag=A&tag=B): a live matches if it has any of the tags.
+	if tagNames := getTagFilters(c); len(tagNames) > 0 {
+		query = query.Where(
+			"lives.id IN (SELECT live_tags.live_id FROM live_tags JOIN tags ON tags.id = live_tags.tag_id WHERE tags.name IN ?)",
+			tagNames,
+		)
 	}
 	return query
+}
+
+func getTagFilters(c *gin.Context) []string {
+	tagNames := make([]string, 0)
+	for _, tagName := range c.QueryArray("tag") {
+		if tagName != "" && tagName != "Tout" {
+			tagNames = append(tagNames, tagName)
+		}
+	}
+	return tagNames
 }
 
 func fetchLives(query *gorm.DB, limit, offset int) ([]Live, error) {

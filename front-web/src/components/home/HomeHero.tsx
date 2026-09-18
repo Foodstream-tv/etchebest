@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useState } from "react";
+import { ChefHat, Globe, Salad, Search } from "lucide-react";
 
 import LiveMomentCard from "@/components/home/hero/LiveMomentCard";
 import HomeFiltersSelect from "@/components/home/HomeFiltersSelect";
@@ -13,8 +13,8 @@ const TAG_GROUPS = [
     key: "cuisine",
     titleKey: "home.hero.group.cuisine" as const,
     defaultTitle: "Cuisine",
+    icon: Globe,
     tags: [
-      "Tout",
       "Asiatique",
       "Africain",
       "Européen",
@@ -32,6 +32,7 @@ const TAG_GROUPS = [
     key: "dishType",
     titleKey: "home.hero.group.dishType" as const,
     defaultTitle: "Type de plat",
+    icon: Salad,
     tags: [
       "Végétarien",
       "Vegan",
@@ -49,6 +50,7 @@ const TAG_GROUPS = [
     key: "format",
     titleKey: "home.hero.group.format" as const,
     defaultTitle: "Format",
+    icon: ChefHat,
     tags: [
       "Recette rapide",
       "Pas à pas",
@@ -62,22 +64,18 @@ const TAG_GROUPS = [
 ];
 
 type HomeHeroProps = Readonly<{
-  onSearch?: (params: { q: string; tag: string }) => void;
+  onSearch?: (params: { q: string; tags: string[] }) => void;
 }>;
 
 export default function HomeHero({ onSearch }: HomeHeroProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
-  const [activeTag, setActiveTag] = useState("Tout");
-
-  const selectedLabel = useMemo(() => {
-    return activeTag === "Tout" ? t("home.hero.allCuisines") : activeTag;
-  }, [activeTag, t]);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
 
   const handleSearch = () => {
     onSearch?.({
       q: query.trim(),
-      tag: activeTag,
+      tags: activeTags,
     });
   };
 
@@ -136,15 +134,17 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                 label={t("home.hero.filters")}
                 description={t("home.hero.filtersDescription")}
                 closeLabel={t("home.hero.closeFilters")}
-                selectedLabel={selectedLabel}
-                value={activeTag}
+                resetLabel={t("home.hero.resetFilters")}
+                applyLabel={t("home.hero.applyFilters")}
+                value={activeTags}
                 groups={TAG_GROUPS.map((group) => ({
                   label: t(group.titleKey),
+                  icon: group.icon,
                   tags: group.tags,
                 }))}
-                onChange={(tag) => {
-                  setActiveTag(tag);
-                  onSearch?.({ q: query.trim(), tag });
+                onChange={(tags) => {
+                  setActiveTags(tags);
+                  onSearch?.({ q: query.trim(), tags });
                 }}
               />
             </div>

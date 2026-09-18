@@ -46,6 +46,56 @@ body {
   animation: fadeIn 0.15s ease-out;
 }
 
+@keyframes homeFiltersOverlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes homeFiltersSheetIn {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes homeFiltersDialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.home-filters-overlay {
+  animation: homeFiltersOverlayIn 0.2s ease-out;
+}
+
+.home-filters-panel {
+  animation: homeFiltersSheetIn 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (min-width: 40rem) {
+  .home-filters-panel {
+    animation: homeFiltersDialogIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-filters-overlay,
+  .home-filters-panel {
+    animation: none;
+  }
+}
+
 .auth-field {
   @apply flex items-center gap-3 rounded-2xl border border-black/8 bg-white/72 px-4 py-3.5 shadow-sm backdrop-blur-sm transition;
   @apply focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-300/50;

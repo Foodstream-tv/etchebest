@@ -25,11 +25,13 @@ type LiveItem = {
 
 type Props = Readonly<{
   query?: string;
-  tag?: string;
+  tags?: readonly string[];
 }>;
 
-export default function HomeFeaturedLives({ query, tag }: Props) {
+export default function HomeFeaturedLives({ query, tags = [] }: Props) {
   const { t } = useI18n();
+  // Stable dependency so a new array with the same tags doesn't refetch.
+  const tagsKey = tags.join("\n");
   const [lives, setLives] = useState<LiveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,8 +49,8 @@ export default function HomeFeaturedLives({ query, tag }: Props) {
           params.set("q", query.trim());
         }
 
-        if (tag && tag !== "Tout") {
-          params.set("tag", tag);
+        for (const tag of tagsKey ? tagsKey.split("\n") : []) {
+          params.append("tag", tag);
         }
 
         const data = await apiFetch<{
@@ -79,7 +81,7 @@ export default function HomeFeaturedLives({ query, tag }: Props) {
     return () => {
       mounted = false;
     };
-  }, [query, tag]);
+  }, [query, tagsKey]);
 
   const displayedLives = useMemo(() => {
     return lives.slice(0, 4);
