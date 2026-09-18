@@ -61,11 +61,11 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.POST("/api/login", auth.Login(db, bJwtToken))
 
 	// OAuth endpoints (public access)
-	if googleClientID != "" && googleClientSecret != "" && googleRedirectURI != "" {
-		r.GET("/api/auth/google", auth.GoogleStartAuth(googleClientID, googleRedirectURI))
-		r.GET("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
-		r.POST("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
-	}
+	r.GET("/api/auth/google", auth.GoogleStartAuth(googleClientID, googleRedirectURI))
+	r.GET("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
+	r.POST("/api/auth/google/callback", auth.GoogleCallback(db, bJwtToken, googleClientID, googleClientSecret, googleRedirectURI))
+	r.POST("/api/auth/logout", auth.Logout())
+	r.GET("/api/auth/logout", auth.Logout())
 
 	// if facebookAppID != "" && facebookAppSecret != "" && facebookRedirectURI != "" {
 	// 	r.GET("/api/auth/facebook/callback", auth.FacebookCallback(db, bJwtToken, facebookAppID, facebookAppSecret, facebookRedirectURI))

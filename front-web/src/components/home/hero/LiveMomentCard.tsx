@@ -6,8 +6,10 @@ import { Flame, Eye, VideoOff } from "lucide-react";
 
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import { getLives, type LiveDTO } from "@/lib/lives";
+import { useI18n } from "@/i18n/LanguageContext";
 
 export default function LiveMomentCard() {
+  const { t } = useI18n();
   const [live, setLive] = useState<LiveDTO | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,11 +65,11 @@ export default function LiveMomentCard() {
         </div>
 
         <h3 className="text-base font-bold tracking-tight text-gray-900 dark:text-gray-50">
-          Aucun live en cours
+          {t("home.hero.noLive")}
         </h3>
 
         <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400 max-w-[200px]">
-          Il n'y a pas de diffusion en direct pour le moment. Lancez-en une depuis le studio !
+          {t("home.hero.noLiveDesc")}
         </p>
 
         <Link
@@ -75,13 +77,13 @@ export default function LiveMomentCard() {
           className="mt-5 rounded-2xl px-5 py-2.5 text-xs font-bold text-white transition hover:scale-[1.01] active:scale-[0.98]"
           style={{ background: ORANGE_GRADIENT_CSS }}
         >
-          Accéder au studio
+          {t("home.hero.goToStudio")}
         </Link>
       </article>
     );
   }
 
-  const targetUrl = `/watch/${encodeURIComponent(live.room_id || String(live.id))}`;
+  const targetUrl = "/replays";
   const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
 
   return (
@@ -91,7 +93,7 @@ export default function LiveMomentCard() {
           className="h-4 w-4 text-orange-500"
           aria-hidden="true"
         />
-        Live du moment
+        {t("home.hero.liveMoment")}
       </h2>
 
       <div className="overflow-hidden rounded-2xl border border-black/8 dark:border-white/10">
@@ -108,7 +110,7 @@ export default function LiveMomentCard() {
             className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold text-white z-10"
             style={{ background: ORANGE_GRADIENT_CSS }}
           >
-            LIVE
+            {t("common.live")}
           </span>
 
           <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-xs text-white z-10">
@@ -126,16 +128,16 @@ export default function LiveMomentCard() {
           </h3>
 
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            par {live.user?.username || "Foodstream"}
+            {t("common.by", { name: live.user?.username || "Foodstream" })}
           </p>
 
           <Link
             href={targetUrl}
-            aria-label={`Rejoindre le live ${live.title} par ${live.user?.username || "Foodstream"}`}
+            aria-label={t("home.hero.seeReplaysAria")}
             className="mt-4 block w-full rounded-2xl py-3 text-center text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 active:scale-[0.98]"
             style={{ background: ORANGE_GRADIENT_CSS }}
           >
-            Rejoindre
+            {t("home.hero.seeReplays")}
           </Link>
         </div>
       </div>
