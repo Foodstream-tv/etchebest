@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type User = {
   id: string;
@@ -60,6 +60,10 @@ function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
   document.cookie = "token=; path=/; max-age=0; samesite=lax";
+  document.cookie = "auth_token=; path=/; max-age=0; samesite=lax";
+  if (typeof window !== "undefined") {
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+  }
 }
 
 export function useAuth() {
@@ -81,7 +85,7 @@ export function useAuth() {
     };
   }, []);
 
-  const setAuth = (nextAuth: AuthState | null, rememberMe = true) => {
+  const setAuth = useCallback((nextAuth: AuthState | null, rememberMe = true) => {
     if (!nextAuth) {
       clearAuth();
       setAuthState(null);
@@ -90,11 +94,16 @@ export function useAuth() {
 
     saveAuth(nextAuth, rememberMe);
     setAuthState(nextAuth);
-  };
+  }, []);
 
-  const signOut = () => {
+  const signOut = useCallback(async () => {
     setAuth(null);
-  };
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+  }, [setAuth]);
 
   return {
     auth,

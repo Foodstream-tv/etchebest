@@ -1,3 +1,7 @@
+"use client";
+
+import { useI18n } from "@/i18n";
+
 type FeaturedCreatorRowProps = Readonly<{
   name: string;
   tag: string;
@@ -7,6 +11,8 @@ export default function FeaturedCreatorRow({
   name,
   tag,
 }: FeaturedCreatorRowProps) {
+  const { t } = useI18n();
+
   return (
     <article className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -28,10 +34,10 @@ export default function FeaturedCreatorRow({
 
       <button
         type="button"
-        aria-label={`Suivre ${name}`}
+        aria-label={t("home.creators.followAria", { name })}
         className="rounded-xl bg-black/[0.04] px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-black/[0.08] dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/10"
       >
-        Suivre
+        {t("home.creators.follow")}
       </button>
     </article>
   );

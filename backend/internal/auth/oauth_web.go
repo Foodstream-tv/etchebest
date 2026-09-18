@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/gin-gonic/gin"
@@ -38,8 +39,26 @@ type GoogleUserInfo struct {
 // @Router       /api/auth/google [get]
 func GoogleStartAuth(googleClientID string, redirectURI string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if googleClientID == "" || redirectURI == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Google OAuth configuration missing"})
+		clientID := googleClientID
+		if clientID == "" {
+			clientID = os.Getenv("GOOGLE_CLIENT_ID")
+		}
+		redURI := redirectURI
+		if redURI == "" {
+			redURI = os.Getenv("GOOGLE_REDIRECT_URI")
+		}
+		if redURI == "" {
+			scheme := "http"
+			if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			redURI = fmt.Sprintf("%s://%s/api/auth/google/callback", scheme, c.Request.Host)
+		}
+
+		if clientID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Google OAuth configuration missing. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the environment.",
+			})
 			return
 		}
 
@@ -52,18 +71,20 @@ func GoogleStartAuth(googleClientID string, redirectURI string) gin.HandlerFunc 
 		// Build Google OAuth URL
 		googleAuthURL := fmt.Sprintf(
 			"https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid+profile+email&state=%s",
-			url.QueryEscape(googleClientID),
-			url.QueryEscape(redirectURI),
+			url.QueryEscape(clientID),
+			url.QueryEscape(redURI),
 			url.QueryEscape(state),
 		)
 
+		isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+
 		// If client provided a callback redirect, store it in state cookie for later use
 		if callbackRedirect != "" {
-			c.SetCookie("oauth_redirect", callbackRedirect, 600, "/", "", true, true)
+			c.SetCookie("oauth_redirect", callbackRedirect, 600, "/", "", isSecure, true)
 		}
 
 		// Store state in cookie for validation in callback
-		c.SetCookie("oauth_state", state, 600, "/", "", true, true)
+		c.SetCookie("oauth_state", state, 600, "/", "", isSecure, true)
 
 		// Redirect to Google
 		c.Redirect(http.StatusTemporaryRedirect, googleAuthURL)
@@ -84,6 +105,26 @@ func GoogleStartAuth(googleClientID string, redirectURI string) gin.HandlerFunc 
 // @Router       /api/auth/google/callback [post]
 func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleClientSecret string, redirectURI string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		clientID := googleClientID
+		if clientID == "" {
+			clientID = os.Getenv("GOOGLE_CLIENT_ID")
+		}
+		clientSecret := googleClientSecret
+		if clientSecret == "" {
+			clientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
+		}
+		redURI := redirectURI
+		if redURI == "" {
+			redURI = os.Getenv("GOOGLE_REDIRECT_URI")
+		}
+		if redURI == "" {
+			scheme := "http"
+			if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			redURI = fmt.Sprintf("%s://%s/api/auth/google/callback", scheme, c.Request.Host)
+		}
+
 		code := c.Query("code")
 		state := c.Query("state")
 
@@ -106,9 +147,9 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		tokenURL := "https://oauth2.googleapis.com/token"
 		data := map[string]string{
 			"code":          code,
-			"client_id":     googleClientID,
-			"client_secret": googleClientSecret,
-			"redirect_uri":  redirectURI,
+			"client_id":     clientID,
+			"client_secret": clientSecret,
+			"redirect_uri":  redURI,
 			"grant_type":    "authorization_code",
 		}
 
@@ -219,9 +260,15 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 			return
 		}
 
+		// Set secure httpOnly session cookie
+		isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+
 		// Clear OAuth cookies
-		c.SetCookie("oauth_state", "", -1, "/", "", true, true)
-		c.SetCookie("oauth_redirect", "", -1, "/", "", true, true)
+		c.SetCookie("oauth_state", "", -1, "/", "", isSecure, true)
+		c.SetCookie("oauth_redirect", "", -1, "/", "", isSecure, true)
+
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie("token", token, 3600*24*30, "/", "", isSecure, true)
 
 		// If there's a callback redirect, redirect with token
 		if callbackRedirect != "" {
@@ -266,3 +313,15 @@ func generateUsername(firstName string, lastName string) string {
 func strPtr(s string) *string {
 	return &s
 }
+
+// Logout clears the authentication session cookies
+func Logout() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie("token", "", -1, "/", "", isSecure, true)
+		c.SetCookie("auth_token", "", -1, "/", "", isSecure, true)
+		c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+	}
+}
+

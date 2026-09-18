@@ -1010,16 +1010,13 @@ HLS segments are served without authentication because:
 - Browser `<video>` elements don't support custom headers
 - hls.js uses `XMLHttpRequest` internally for fetching segments, but adding auth headers requires custom loaders
 - For a cooking live stream platform, viewer authentication adds complexity without proportional benefit
-- **Future improvement:** Token-based HLS auth (token.go already has the infrastructure for `GenerateToken` / `ValidateToken`)
+- **Future improvement:** Signed URLs or short-lived signed tokens for premium streams
 
-### 9.5 Transcoding Cost
+### 9.5 Video Codec & Transcoding
 
-VP8 → H.264 transcoding is CPU-intensive. Alternatives considered:
-
-- **Direct H.264 from browser**: Some browsers prefer VP8 (Firefox). Forcing H.264 limits browser compatibility.
-- **VP8 in HLS**: Not supported by the MPEG-TS container format.
-- **CMAF with VP8**: Experimental, poor player support.
-- **Current approach**: Accept the CPU cost of transcoding. `ultrafast` preset minimizes it at the expense of larger files.
+The platform standardizes on **H.264 Constrained Baseline Profile (42e01f)** with `packetization-mode=1`:
+- **Hardware encoding/decoding**: Native acceleration on both Android and iOS devices (`react-native-webrtc`) as well as desktop browsers.
+- **FFmpeg HLS Transcoding**: Transcodes incoming H.264 RTP stream to multi-rendition HLS ladders using `ultrafast` preset to minimize latency and CPU load.
 
 ---
 
@@ -1103,19 +1100,41 @@ Consider increasing the value for the 'analyzeduration'
 |------|---------|
 | `cmd/server/main.go` | Entry point, env vars, DB migration, route setup |
 | `internal/routes/routes.go` | All API route definitions |
-| `internal/middleware/auth.go` | JWT authentication middleware |
-| `internal/middleware/cors.go` | CORS headers (Allow-Origin: *) |
+| `internal/middleware/auth.go` | JWT authentication middleware (Bearer token & httpOnly cookie) |
+| `internal/middleware/cors.go` | CORS headers (configurable via CORS_ALLOWED_ORIGINS) |
 | `internal/modules/room/model.go` | Room struct definition |
 | `internal/modules/room/room.go` | Room CRUD, WebRTC signaling, ICE handling, track management |
+| `internal/modules/room/websocket.go` | Real-time signaling WebSocket hub and client handlers |
+| `internal/auth/oauth_web.go` | Web Google OAuth handler with secure session cookie delivery |
 | `internal/hls/streamer.go` | FFmpeg process management, UDP relay, SDP generation |
 | `internal/hls/manager.go` | Stream registry (start/stop/isRunning) |
-| `internal/hls/token.go` | HLS access token generation/validation (reserved for future use) |
+
+### Front-Web (`front-web/`)
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/useWebRTC.ts` | Complete WebRTC peer connection, WebSocket signaling, and media hook |
+| `src/hooks/useAuth.ts` | Authentication state and token management |
+| `src/app/rooms/page.tsx` | Room discovery and listing view |
+| `src/app/live/[id]/page.tsx` | Interactive streaming room and viewer interface |
+| `src/components/HLSPlayer.tsx` | HLS video playback with hls.js |
+
+### Analytics Dashboard (`analytics/`)
+
+| File | Purpose |
+|------|---------|
+| `app/dashboard/page.tsx` | Analytics overview dashboard |
+| `app/statistics/page.tsx` | Viewership & platform statistics |
+| `app/login/page.tsx` | Analytics admin authentication |
+| `components/NavBar.tsx` | Navigation bar for analytics dashboard |
+| `components/BanModal.tsx` | Moderation ban modal |
+| `lib/api.ts` | Analytics API client connecting to backend |
 
 ### Mobile / Web (`mobile/`)
 
 | File | Purpose |
 |------|---------|
-| `hooks/useWebRTC.ts` | WebRTC lifecycle hook (create/join/stop) |
+| `hooks/useWebRTC.ts` | WebRTC lifecycle hook (create/join/stop) with AppState support |
 | `services/streaming.ts` | API client (rooms, signaling, HLS URL) |
 | `services/auth.ts` | Authentication service (token storage) |
 | `config/env.ts` | API base URL configuration |

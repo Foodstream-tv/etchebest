@@ -1,31 +1,31 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+const API_PROXY_TARGET =
+  process.env.API_PROXY_TARGET || "http://localhost:8081";
+
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(process.cwd(), "../"),
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "lh3.googleusercontent.com",
-        pathname: "/**",
-      },
+      { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
+      { protocol: "https", hostname: "*.googleusercontent.com", pathname: "/**" },
+      { protocol: "https", hostname: "assets.afcdn.com", pathname: "/**" },
+      { protocol: "https", hostname: "*.afcdn.com", pathname: "/**" },
+      { protocol: "https", hostname: "marmiton.org", pathname: "/**" },
+      { protocol: "https", hostname: "*.marmiton.org", pathname: "/**" },
     ],
   },
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:8081/api/:path*", // Proxy to Backend
+        destination: `${API_PROXY_TARGET}/api/:path*`,
       },
       {
         source: "/replays-storage/:path*",
-        destination: "http://localhost:8081/replays-storage/:path*", // Proxy replays to Backend
+        destination: `${API_PROXY_TARGET}/replays-storage/:path*`,
       },
     ];
   },

@@ -13,23 +13,28 @@ import (
 )
 
 func AuthMiddleware(jwtKey []byte, db *gorm.DB) gin.HandlerFunc {
+	const BearerPrefix = "Bearer "
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 
 		if authHeader == "" {
 			queryToken := c.Query("token")
 			if queryToken != "" {
-				authHeader = "Bearer " + queryToken
+				authHeader = BearerPrefix + queryToken
+			} else if cookieToken, err := c.Cookie("token"); err == nil && cookieToken != "" {
+				authHeader = BearerPrefix + cookieToken
+			} else if cookieToken, err := c.Cookie("auth_token"); err == nil && cookieToken != "" {
+				authHeader = BearerPrefix + cookieToken
 			}
 		}
 
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		if authHeader == "" || !strings.HasPrefix(authHeader, BearerPrefix) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid token"})
 			c.Abort()
 			return
 		}
 
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		tokenStr := strings.TrimPrefix(authHeader, BearerPrefix)
 		claims := &auth.Claims{}
 
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {

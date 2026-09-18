@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { Mail, User, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AuthCard from "@/components/auth/AuthCard";
@@ -13,6 +13,7 @@ import TextField from "@/components/auth/TextField";
 import TextAreaField from "@/components/auth/TextAreaField";
 import OAuthButton from "@/components/auth/OAuthButton";
 import { useAuthSubmit } from "@/lib/useAuthSubmit";
+import { useI18n } from "@/i18n";
 
 type RegisterResponse = {
   token?: string;
@@ -24,7 +25,9 @@ type RegisterResponse = {
 };
 
 function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+    value.trim()
+  );
 }
 
 function minLen(value: string, min: number) {
@@ -43,6 +46,7 @@ function isValidPhone(value: string) {
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const { submit, loading, error, setError } = useAuthSubmit<RegisterResponse>();
 
   const [email, setEmail] = useState("");
@@ -62,48 +66,48 @@ export default function SignUpPage() {
       minLen(firstName, 2) &&
       minLen(lastName, 2) &&
       minLen(username, 3) &&
-      password.length >= 6 &&
+      password.length >= 8 &&
       inRange(description, 10, 500) &&
       isValidPhone(phoneNumber)
     );
   }, [email, firstName, lastName, username, password, description, phoneNumber]);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
     if (!isValidEmail(email)) {
-      setError("Email invalide.");
+      setError(t("auth.signin.invalidEmail"));
       return;
     }
 
     if (!minLen(firstName, 2)) {
-      setError("Le prénom doit faire au moins 2 caractères.");
+      setError(t("auth.signup.errorFirstName"));
       return;
     }
 
     if (!minLen(lastName, 2)) {
-      setError("Le nom doit faire au moins 2 caractères.");
+      setError(t("auth.signup.errorLastName"));
       return;
     }
 
     if (!minLen(username, 3)) {
-      setError("L'identifiant doit faire au moins 3 caractères.");
+      setError(t("auth.signup.errorUsername"));
       return;
     }
 
-    if (password.length < 6) {
-      setError("Le mot de passe doit faire au moins 6 caractères.");
+    if (password.length < 8) {
+      setError(t("auth.signup.errorPassword"));
       return;
     }
 
     if (!inRange(description, 10, 500)) {
-      setError("La description doit faire entre 10 et 500 caractères.");
+      setError(t("auth.signup.errorBioLen"));
       return;
     }
 
     if (!isValidPhone(phoneNumber)) {
-      setError("Numéro de téléphone invalide.");
+      setError(t("auth.signup.errorPhone"));
       return;
     }
 
@@ -124,19 +128,19 @@ export default function SignUpPage() {
 
   return (
     <AuthCard
-      label="Inscription"
-      title="Créer un compte"
-      subtitle="Rejoignez FoodStream et personnalisez votre profil."
-      bottomText="Vous avez déjà un compte ?"
+      label={t("auth.signup.label")}
+      title={t("auth.signup.title")}
+      subtitle={t("auth.signup.subtitle")}
+      bottomText={t("auth.signup.hasAccount")}
       bottomLinkHref="/signin"
-      bottomLinkLabel="Connectez-vous"
+      bottomLinkLabel={t("auth.signup.signinLink")}
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <TextField
           icon={Mail}
           value={email}
           onChange={setEmail}
-          placeholder="Adresse e-mail"
+          placeholder={t("auth.signin.emailPlaceholder")}
           type="email"
           autoComplete="email"
           required
@@ -148,7 +152,7 @@ export default function SignUpPage() {
           icon={User}
           value={firstName}
           onChange={setFirstName}
-          placeholder="Prénom"
+          placeholder={t("auth.signup.firstName")}
           autoComplete="given-name"
           required
           disabled={loading}
@@ -159,7 +163,7 @@ export default function SignUpPage() {
           icon={User}
           value={lastName}
           onChange={setLastName}
-          placeholder="Nom"
+          placeholder={t("auth.signup.lastName")}
           autoComplete="family-name"
           required
           disabled={loading}
@@ -170,7 +174,7 @@ export default function SignUpPage() {
           icon={User}
           value={username}
           onChange={setUsername}
-          placeholder="Identifiant"
+          placeholder={t("auth.signup.username")}
           autoComplete="nickname"
           required
           disabled={loading}
@@ -180,7 +184,7 @@ export default function SignUpPage() {
         <PasswordField
           value={password}
           onChange={setPassword}
-          placeholder="Mot de passe"
+          placeholder={t("auth.signin.passwordPlaceholder")}
           autoComplete="new-password"
           disabled={loading}
           aria-describedby={errorId}
@@ -199,7 +203,7 @@ export default function SignUpPage() {
           icon={FileText}
           value={description}
           onChange={setDescription}
-          placeholder="Parlez-nous de vous… (10 à 500 caractères)"
+          placeholder={t("auth.signup.bioPlaceholder")}
           required
           disabled={loading}
           maxLength={500}
@@ -221,13 +225,13 @@ export default function SignUpPage() {
           disabled={loading || !canSubmit}
           className="auth-btn-primary"
         >
-          {loading ? "Création…" : "S'inscrire"}
+          {loading ? t("auth.signup.submitting") : t("auth.signup.submit")}
         </button>
       </form>
 
       <div className="my-5 flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
         <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
-        <span>ou</span>
+        <span>{t("auth.signin.or")}</span>
         <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
       </div>
 
