@@ -1,6 +1,7 @@
 export default function formatPreviewDate(
   dateValue: string,
-  fallback = "Aujourd’hui"
+  fallback = "Aujourd’hui",
+  locale: "fr" | "en" = "fr"
 ): string {
   if (!dateValue) {
     return fallback;
@@ -29,5 +30,5 @@ export default function formatPreviewDate(
     return dateValue;
   }
 
-  return `${day}/${month}/${year}`;
+  return parsedDate.toLocaleDateString(locale);
 }

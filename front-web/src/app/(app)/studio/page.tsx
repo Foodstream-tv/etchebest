@@ -317,7 +317,10 @@ export default function StudioPage() {
     try {
       const parsed = new URL(value.trim());
       if (parsed.protocol !== "blob:") return false;
-      return parsed.origin === window.location.origin || parsed.origin === "null";
+      // Object URLs created for a local file retain this page's origin. Reject
+      // opaque (`blob:null`) and cross-origin blob URLs rather than passing an
+      // untrusted value to the DOM image source.
+      return parsed.origin === window.location.origin;
     } catch {
       return false;
     }
@@ -1339,7 +1342,7 @@ export default function StudioPage() {
                           {t("studio.broadcast.fileFormats")}
                         </p>
 
-                        {thumbnailFile && thumbnailPreview ? (
+                        {thumbnailFile && safeThumbnailPreview ? (
                           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 dark:border-orange-500/20 dark:bg-orange-500/10">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-black/10">

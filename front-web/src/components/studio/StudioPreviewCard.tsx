@@ -32,24 +32,16 @@ export default function StudioPreviewCard({
 
       <div className="overflow-hidden rounded-2xl border border-black/8 bg-black/[0.03] dark:border-white/10 dark:bg-white/[0.04]">
         <div className="relative h-44 w-full overflow-hidden bg-black/5 dark:bg-white/5">
-          {safeImage.startsWith("blob:") ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={safeImage}
-              alt={t("studio.broadcast.previewAlt", { title: previewTitle })}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <Image
-              src={safeImage}
-              alt={t("studio.broadcast.previewAlt", { title: previewTitle })}
-              fill
-              sizes="(max-width: 768px) 100vw, 360px"
-              className="object-cover"
-              unoptimized
-              priority
-            />
-          )}
+          <Image
+            src={safeImage}
+            alt={t("studio.broadcast.previewAlt", { title: previewTitle })}
+            fill
+            sizes="(max-width: 768px) 100vw, 360px"
+            className="object-cover"
+            // Object URLs cannot be processed by Next.js's image optimizer.
+            unoptimized
+            priority
+          />
 
           <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
             <span
@@ -79,7 +71,7 @@ export default function StudioPreviewCard({
           </p>
 
           <p className="text-xs text-gray-500 dark:text-white/50">
-            {t("studio.preview.byYou")} • {formatPreviewDate(date, t("common.today"))}, {time}
+            {t("studio.preview.byYou")} • {formatPreviewDate(date, t("common.today"), locale)}, {time}
           </p>
         </div>
       </div>
