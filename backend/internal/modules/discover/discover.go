@@ -72,6 +72,85 @@ func liveCountByCountry(db *gorm.DB) map[uint]int64 {
 	return m
 }
 
+func discoverCategories(db *gorm.DB) ([]CategoryWithCount, error) {
+	var countries []country.Country
+	if err := db.Where("is_active = ?", true).Find(&countries).Error; err != nil {
+		return nil, err
+	}
+
+	liveCounts := liveCountByCountry(db)
+	categories := make([]CategoryWithCount, 0, len(countries))
+	for _, ct := range countries {
+		categories = append(categories, CategoryWithCount{
+			ID: ct.ID, Name: ct.Name, Code: ct.Code, ImageURL: ct.ImageURL,
+			LiveCount: liveCounts[ct.ID],
+		})
+	}
+	return categories, nil
+}
+
+func trendingCategory(categories []CategoryWithCount) *CategoryWithCount {
+	if len(categories) == 0 {
+		return nil
+	}
+	best := categories[0]
+	for _, category := range categories[1:] {
+		if category.LiveCount > best.LiveCount {
+			best = category
+		}
+	}
+	return &best
+}
+
+func discoverTopDishes(db *gorm.DB) ([]DishWithStats, error) {
+	type dishStats struct {
+		DishID    uint
+		LiveCount int64
+	}
+	var dishRows []dishStats
+	db.Model(&live.Live{}).Select("dish_id, count(*) as live_count").
+		Where("status IN ?", []string{"scheduled", "live"}).Group("dish_id").Scan(&dishRows)
+
+	dishLiveCount := make(map[uint]int64, len(dishRows))
+	for _, row := range dishRows {
+		dishLiveCount[row.DishID] = row.LiveCount
+	}
+
+	var dishes []dish.Dish
+	if err := db.Preload("Country").Order("is_active desc").Limit(20).Find(&dishes).Error; err != nil {
+		return nil, err
+	}
+
+	type viewRow struct {
+		DishID     uint
+		TotalViews int64
+	}
+	var viewRows []viewRow
+	db.Model(&live.Live{}).Select("dish_id, coalesce(sum(view_count), 0) as total_views").
+		Group("dish_id").Scan(&viewRows)
+	dishTotalViews := make(map[uint]int64, len(viewRows))
+	for _, row := range viewRows {
+		dishTotalViews[row.DishID] = row.TotalViews
+	}
+
+	topDishes := make([]DishWithStats, 0, len(dishes))
+	for _, d := range dishes {
+		var countryDTO *country.CountryDTO
+		if d.Country != nil {
+			converted := country.CountryToDTO(*d.Country)
+			countryDTO = &converted
+		}
+		topDishes = append(topDishes, DishWithStats{
+			ID: d.ID, Name: d.Name, Description: d.Description, ImageURL: d.ImageURL,
+			Country: countryDTO, LiveCount: dishLiveCount[d.ID], TotalViews: dishTotalViews[d.ID],
+		})
+	}
+	sort.Slice(topDishes, func(i, j int) bool {
+		return topDishes[i].TotalViews > topDishes[j].TotalViews
+	})
+	return topDishes, nil
+}
+
 // GetDiscover godoc
 // @Summary      Get discover page data
 // @Description  Returns trending country, categories list and top dishes
@@ -82,101 +161,20 @@ func liveCountByCountry(db *gorm.DB) map[uint]int64 {
 // @Router       /api/discover [get]
 func GetDiscover(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// --- Categories (countries) ---
-		var countries []country.Country
-		if err := db.Where("is_active = ?", true).Find(&countries).Error; err != nil {
+		categories, err := discoverCategories(db)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to fetch categories"})
 			return
 		}
 
-		liveCounts := liveCountByCountry(db)
-
-		categories := make([]CategoryWithCount, 0, len(countries))
-		for _, ct := range countries {
-			categories = append(categories, CategoryWithCount{
-				ID:        ct.ID,
-				Name:      ct.Name,
-				Code:      ct.Code,
-				ImageURL:  ct.ImageURL,
-				LiveCount: liveCounts[ct.ID],
-			})
-		}
-
-		// --- Trending country: the one with the most active lives ---
-		var trendingCountry *CategoryWithCount
-		if len(categories) > 0 {
-			best := categories[0]
-			for _, cat := range categories[1:] {
-				if cat.LiveCount > best.LiveCount {
-					best = cat
-				}
-			}
-			trendingCountry = &best
-		}
-
-		// --- Top dishes: ranked by total_views, with live count ---
-		type dishStats struct {
-			DishID    uint
-			LiveCount int64
-		}
-		var dishRows []dishStats
-		db.Model(&live.Live{}).
-			Select("dish_id, count(*) as live_count").
-			Where("status IN ?", []string{"scheduled", "live"}).
-			Group("dish_id").
-			Scan(&dishRows)
-
-		dishLiveCount := make(map[uint]int64, len(dishRows))
-		for _, r := range dishRows {
-			dishLiveCount[r.DishID] = r.LiveCount
-		}
-
-		var dishes []dish.Dish
-		if err := db.Preload("Country").Order("is_active desc").Limit(20).Find(&dishes).Error; err != nil {
+		topDishes, err := discoverTopDishes(db)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to fetch dishes"})
 			return
 		}
 
-		// Compute total_views per dish from the live table
-		type viewRow struct {
-			DishID     uint
-			TotalViews int64
-		}
-		var viewRows []viewRow
-		db.Model(&live.Live{}).
-			Select("dish_id, coalesce(sum(view_count), 0) as total_views").
-			Group("dish_id").
-			Scan(&viewRows)
-
-		dishTotalViews := make(map[uint]int64, len(viewRows))
-		for _, r := range viewRows {
-			dishTotalViews[r.DishID] = r.TotalViews
-		}
-
-		topDishes := make([]DishWithStats, 0, len(dishes))
-		for _, d := range dishes {
-			var countryDTO *country.CountryDTO
-			if d.Country != nil {
-				c := country.CountryToDTO(*d.Country)
-				countryDTO = &c
-			}
-			topDishes = append(topDishes, DishWithStats{
-				ID:          d.ID,
-				Name:        d.Name,
-				Description: d.Description,
-				ImageURL:    d.ImageURL,
-				Country:     countryDTO,
-				LiveCount:   dishLiveCount[d.ID],
-				TotalViews:  dishTotalViews[d.ID],
-			})
-		}
-
-		sort.Slice(topDishes, func(i, j int) bool {
-			return topDishes[i].TotalViews > topDishes[j].TotalViews
-		})
-
 		c.JSON(http.StatusOK, DiscoverResponse{
-			TrendingCountry: trendingCountry,
+			TrendingCountry: trendingCategory(categories),
 			Categories:      categories,
 			TopDishes:       topDishes,
 		})

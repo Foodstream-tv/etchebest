@@ -5,6 +5,7 @@ import { Check, Loader2, UserPlus } from "lucide-react";
 
 import { followUser, isFollowingUser, unfollowUser } from "@/lib/users";
 import { useAuth } from "@/lib/useAuth";
+import { useI18n } from "@/i18n/LanguageContext";
 
 type FollowButtonProps = Readonly<{
   userId: string;
@@ -18,6 +19,7 @@ export default function FollowButton({
   onChange,
 }: FollowButtonProps) {
   const { token, user } = useAuth();
+  const { t } = useI18n();
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,7 @@ export default function FollowButton({
         <UserPlus className="h-4 w-4" aria-hidden="true" />
       )}
 
-      {isBusy ? "Chargement..." : isFollowing ? "Suivi" : "Suivre"}
+      {isBusy ? t("common.loading") : isFollowing ? t("profile.followingBtn") : t("profile.follow")}
     </button>
   );
 }
