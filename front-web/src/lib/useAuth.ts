@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type User = {
   id: string;
@@ -85,7 +85,7 @@ export function useAuth() {
     };
   }, []);
 
-  const setAuth = (nextAuth: AuthState | null, rememberMe = true) => {
+  const setAuth = useCallback((nextAuth: AuthState | null, rememberMe = true) => {
     if (!nextAuth) {
       clearAuth();
       setAuthState(null);
@@ -94,16 +94,16 @@ export function useAuth() {
 
     saveAuth(nextAuth, rememberMe);
     setAuthState(nextAuth);
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setAuth(null);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // ignore
     }
-  };
+  }, [setAuth]);
 
   return {
     auth,
