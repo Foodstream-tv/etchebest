@@ -58,7 +58,15 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// Authentication
 	r.POST("/api/register", auth.Register(db))
+	r.POST("/api/verify", auth.VerifyCode(db, bJwtToken))
+	r.POST("/api/auth/verify", auth.VerifyCode(db, bJwtToken))
+	r.POST("/api/resend-code", auth.ResendVerificationCode(db))
+	r.POST("/api/auth/resend-code", auth.ResendVerificationCode(db))
 	r.POST("/api/login", auth.Login(db, bJwtToken))
+	r.POST("/api/forgot-password", auth.ForgotPassword(db))
+	r.POST("/api/auth/forgot-password", auth.ForgotPassword(db))
+	r.POST("/api/reset-password", auth.ResetPassword(db))
+	r.POST("/api/auth/reset-password", auth.ResetPassword(db))
 
 	// OAuth endpoints (public access)
 	r.GET("/api/auth/google", auth.GoogleStartAuth(googleClientID, googleRedirectURI))

@@ -2,15 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Mail } from "lucide-react";
+import { Mail, ExternalLink } from "lucide-react";
 import AuthCard from "@/components/auth/AuthCard";
 import TextField from "@/components/auth/TextField";
 import { useI18n } from "@/i18n";
+import { apiFetch, ApiError } from "@/lib/api";
+
+type ForgotResponse = {
+  message?: string;
+  devToken?: string;
+  devLink?: string;
+};
 
 export default function ForgotPasswordPage() {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [devLink, setDevLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,22 +28,21 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim().toLowerCase() }),
-        }
-      );
-
-      if (!res.ok) {
-        throw new Error(t("auth.forgot.errorFailed"));
-      }
+      const res = await apiFetch<ForgotResponse>("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
 
       setSent(true);
+      if (res?.devLink) {
+        setDevLink(res.devLink);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.forgot.errorGeneric"));
+      if (err instanceof ApiError) {
+        setError(err.body?.error || t("auth.forgot.errorFailed"));
+      } else {
+        setError(err instanceof Error ? err.message : t("auth.forgot.errorGeneric"));
+      }
     } finally {
       setLoading(false);
     }
@@ -87,12 +94,29 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
       ) : (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300"
-        >
-          {t("auth.forgot.sentBanner")}
+        <div className="space-y-4">
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300"
+          >
+            {t("auth.forgot.sentBanner")}
+          </div>
+
+          {devLink ? (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-semibold mb-2 flex items-center gap-1.5">
+                <ExternalLink className="h-4 w-4" />
+                {t("auth.forgot.devLink")}
+              </p>
+              <Link
+                href={devLink}
+                className="inline-block break-all text-xs font-mono underline text-amber-700 dark:text-amber-300 hover:text-orange-500"
+              >
+                {devLink}
+              </Link>
+            </div>
+          ) : null}
         </div>
       )}
 

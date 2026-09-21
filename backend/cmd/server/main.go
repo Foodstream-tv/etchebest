@@ -69,6 +69,8 @@ func main() {
 
 	var migrateModels = []any{
 		&user.User{},
+		&user.VerificationCode{},
+		&user.PasswordResetToken{},
 		&room.Room{},
 		&country.Country{},
 		&dish.Dish{},
@@ -81,6 +83,9 @@ func main() {
 	if err := db.AutoMigrate(migrateModels...); err != nil {
 		log.Fatal(err)
 	}
+
+	// Ensure ADMIN accounts are verified
+	db.Model(&user.User{}).Where("role = ? AND is_account_verified = ?", user.ADMIN, false).Update("is_account_verified", true)
 
 	routes.Routes(r, db, jwtKey, stunServerURL, webrtcIP)
 

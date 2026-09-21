@@ -16,6 +16,7 @@ type TextFieldProps = Readonly<{
   disabled?: boolean;
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   maxLength?: number;
+  hasError?: boolean;
 }>;
 
 export default function TextField({
@@ -29,9 +30,11 @@ export default function TextField({
   disabled = false,
   inputMode,
   maxLength,
+  hasError = false,
 }: TextFieldProps) {
   return (
     <AuthFieldShell
+      hasError={hasError}
       icon={
         <Icon
           className="h-5 w-5"

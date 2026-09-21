@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Mail, User, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AuthCard from "@/components/auth/AuthCard";
@@ -16,6 +16,10 @@ import { useAuthSubmit } from "@/lib/useAuthSubmit";
 import { useI18n } from "@/i18n";
 
 type RegisterResponse = {
+  message?: string;
+  userId?: string;
+  target?: string;
+  devCode?: string;
   token?: string;
   user?: {
     id: string;
@@ -32,11 +36,6 @@ function isValidEmail(value: string) {
 
 function minLen(value: string, min: number) {
   return value.trim().length >= min;
-}
-
-function inRange(value: string, min: number, max: number) {
-  const len = value.trim().length;
-  return len >= min && len <= max;
 }
 
 function isValidPhone(value: string) {
@@ -57,74 +56,160 @@ export default function SignUpPage() {
   const [description, setDescription] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const errorId = error ? "signup-error" : undefined;
 
-  const canSubmit = useMemo(() => {
-    return (
-      isValidEmail(email) &&
-      minLen(firstName, 2) &&
-      minLen(lastName, 2) &&
-      minLen(username, 3) &&
-      password.length >= 8 &&
-      inRange(description, 10, 500) &&
-      isValidPhone(phoneNumber)
-    );
-  }, [email, firstName, lastName, username, password, description, phoneNumber]);
+  const clearFieldError = (fieldName: string) => {
+    if (fieldErrors[fieldName]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+    }
+    if (error) setError(null);
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    clearFieldError("email");
+  };
+
+  const handleFirstNameChange = (val: string) => {
+    setFirstName(val);
+    clearFieldError("firstName");
+  };
+
+  const handleLastNameChange = (val: string) => {
+    setLastName(val);
+    clearFieldError("lastName");
+  };
+
+  const handleUsernameChange = (val: string) => {
+    setUsername(val);
+    clearFieldError("username");
+  };
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    clearFieldError("password");
+  };
+
+  const handlePhoneChange = (val: string) => {
+    setPhoneNumber(val);
+    clearFieldError("phone");
+  };
+
+  const handleDescriptionChange = (val: string) => {
+    setDescription(val);
+    clearFieldError("description");
+  };
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
-    if (!isValidEmail(email)) {
-      setError(t("auth.signin.invalidEmail"));
+    const errors: Record<string, string> = {};
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      errors.email = t("auth.signup.errorEmailRequired");
+    } else if (!isValidEmail(trimmedEmail)) {
+      errors.email = t("auth.signup.errorEmailInvalid");
+    }
+
+    const trimmedFirstName = firstName.trim();
+    if (!trimmedFirstName) {
+      errors.firstName = t("auth.signup.errorFirstNameRequired");
+    } else if (!minLen(trimmedFirstName, 2)) {
+      errors.firstName = t("auth.signup.errorFirstName");
+    }
+
+    const trimmedLastName = lastName.trim();
+    if (!trimmedLastName) {
+      errors.lastName = t("auth.signup.errorLastNameRequired");
+    } else if (!minLen(trimmedLastName, 2)) {
+      errors.lastName = t("auth.signup.errorLastName");
+    }
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      errors.username = t("auth.signup.errorUsernameRequired");
+    } else if (!minLen(trimmedUsername, 3)) {
+      errors.username = t("auth.signup.errorUsername");
+    }
+
+    if (!password) {
+      errors.password = t("auth.signup.errorPasswordRequired");
+    } else if (password.length < 8) {
+      errors.password = t("auth.signup.errorPassword");
+    }
+
+    const trimmedPhone = phoneNumber.trim();
+    if (!trimmedPhone) {
+      errors.phone = t("auth.signup.errorPhoneRequired");
+    } else if (!isValidPhone(trimmedPhone)) {
+      errors.phone = t("auth.signup.errorPhone");
+    }
+
+    const trimmedBio = description.trim();
+    if (!trimmedBio) {
+      errors.description = t("auth.signup.errorBioRequired");
+    } else if (trimmedBio.length < 10) {
+      errors.description = t("auth.signup.errorBioMin", { count: trimmedBio.length });
+    } else if (trimmedBio.length > 500) {
+      errors.description = t("auth.signup.errorBioMax");
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      setError(firstError || t("auth.signup.errorFixFields"));
       return;
     }
 
-    if (!minLen(firstName, 2)) {
-      setError(t("auth.signup.errorFirstName"));
-      return;
+    setFieldErrors({});
+
+    try {
+      const res = await submit("/register", {
+        email: trimmedEmail.toLowerCase(),
+        password,
+        username: trimmedUsername,
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        description: trimmedBio,
+        countryNumberPhone: countryCode.value,
+        numberPhone: trimmedPhone,
+        profileImage: "",
+      });
+
+      const params = new URLSearchParams();
+      if (res?.userId) params.set("userId", res.userId);
+      params.set("email", trimmedEmail.toLowerCase());
+      if (res?.devCode) params.set("devCode", res.devCode);
+
+      router.replace(`/verify?${params.toString()}`);
+    } catch (err: any) {
+      if (
+        err?.body?.code === "EMAIL_ALREADY_EXISTS" ||
+        err?.message?.toLowerCase().includes("email is already being used")
+      ) {
+        const errorMsg = t("auth.signup.errorEmailExists");
+        setFieldErrors((prev) => ({ ...prev, email: errorMsg }));
+        setError(errorMsg);
+      } else if (
+        err?.body?.code === "USERNAME_ALREADY_EXISTS" ||
+        err?.message?.toLowerCase().includes("username is already taken")
+      ) {
+        const errorMsg = t("auth.signup.errorUsernameExists");
+        setFieldErrors((prev) => ({ ...prev, username: errorMsg }));
+        setError(errorMsg);
+      }
     }
-
-    if (!minLen(lastName, 2)) {
-      setError(t("auth.signup.errorLastName"));
-      return;
-    }
-
-    if (!minLen(username, 3)) {
-      setError(t("auth.signup.errorUsername"));
-      return;
-    }
-
-    if (password.length < 8) {
-      setError(t("auth.signup.errorPassword"));
-      return;
-    }
-
-    if (!inRange(description, 10, 500)) {
-      setError(t("auth.signup.errorBioLen"));
-      return;
-    }
-
-    if (!isValidPhone(phoneNumber)) {
-      setError(t("auth.signup.errorPhone"));
-      return;
-    }
-
-    await submit("/register", {
-      email: email.trim().toLowerCase(),
-      password,
-      username: username.trim(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      description: description.trim(),
-      countryNumberPhone: countryCode.value,
-      numberPhone: phoneNumber.trim(),
-      profileImage: "",
-    });
-
-    router.replace("/signin");
   }
+
+  const bioLength = description.trim().length;
 
   return (
     <AuthCard
@@ -135,80 +220,151 @@ export default function SignUpPage() {
       bottomLinkHref="/signin"
       bottomLinkLabel={t("auth.signup.signinLink")}
     >
-      <form onSubmit={onSubmit} className="space-y-4">
-        <TextField
-          icon={Mail}
-          value={email}
-          onChange={setEmail}
-          placeholder={t("auth.signin.emailPlaceholder")}
-          type="email"
-          autoComplete="email"
-          required
-          disabled={loading}
-          aria-describedby={errorId}
-        />
+      <form onSubmit={onSubmit} noValidate className="space-y-4">
+        <div>
+          <TextField
+            icon={Mail}
+            value={email}
+            onChange={handleEmailChange}
+            placeholder={t("auth.signin.emailPlaceholder")}
+            type="email"
+            autoComplete="email"
+            disabled={loading}
+            hasError={Boolean(fieldErrors.email)}
+            aria-describedby={errorId}
+          />
+          {fieldErrors.email ? (
+            <p className="mt-1.5 px-1 text-xs font-medium text-red-500">
+              {fieldErrors.email}
+            </p>
+          ) : null}
+        </div>
 
-        <TextField
-          icon={User}
-          value={firstName}
-          onChange={setFirstName}
-          placeholder={t("auth.signup.firstName")}
-          autoComplete="given-name"
-          required
-          disabled={loading}
-          aria-describedby={errorId}
-        />
+        <div>
+          <TextField
+            icon={User}
+            value={firstName}
+            onChange={handleFirstNameChange}
+            placeholder={t("auth.signup.firstName")}
+            autoComplete="given-name"
+            disabled={loading}
+            hasError={Boolean(fieldErrors.firstName)}
+            aria-describedby={errorId}
+          />
+          {fieldErrors.firstName ? (
+            <p className="mt-1.5 px-1 text-xs font-medium text-red-500">
+              {fieldErrors.firstName}
+            </p>
+          ) : null}
+        </div>
 
-        <TextField
-          icon={User}
-          value={lastName}
-          onChange={setLastName}
-          placeholder={t("auth.signup.lastName")}
-          autoComplete="family-name"
-          required
-          disabled={loading}
-          aria-describedby={errorId}
-        />
+        <div>
+          <TextField
+            icon={User}
+            value={lastName}
+            onChange={handleLastNameChange}
+            placeholder={t("auth.signup.lastName")}
+            autoComplete="family-name"
+            disabled={loading}
+            hasError={Boolean(fieldErrors.lastName)}
+            aria-describedby={errorId}
+          />
+          {fieldErrors.lastName ? (
+            <p className="mt-1.5 px-1 text-xs font-medium text-red-500">
+              {fieldErrors.lastName}
+            </p>
+          ) : null}
+        </div>
 
-        <TextField
-          icon={User}
-          value={username}
-          onChange={setUsername}
-          placeholder={t("auth.signup.username")}
-          autoComplete="nickname"
-          required
-          disabled={loading}
-          aria-describedby={errorId}
-        />
+        <div>
+          <TextField
+            icon={User}
+            value={username}
+            onChange={handleUsernameChange}
+            placeholder={t("auth.signup.username")}
+            autoComplete="nickname"
+            disabled={loading}
+            hasError={Boolean(fieldErrors.username)}
+            aria-describedby={errorId}
+          />
+          {fieldErrors.username ? (
+            <p className="mt-1.5 px-1 text-xs font-medium text-red-500">
+              {fieldErrors.username}
+            </p>
+          ) : null}
+        </div>
 
-        <PasswordField
-          value={password}
-          onChange={setPassword}
-          placeholder={t("auth.signin.passwordPlaceholder")}
-          autoComplete="new-password"
-          disabled={loading}
-          aria-describedby={errorId}
-        />
+        <div>
+          <PasswordField
+            value={password}
+            onChange={handlePasswordChange}
+            placeholder={t("auth.signin.passwordPlaceholder")}
+            autoComplete="new-password"
+            disabled={loading}
+            hasError={Boolean(fieldErrors.password)}
+            aria-describedby={errorId}
+          />
+          {fieldErrors.password ? (
+            <p className="mt-1.5 px-1 text-xs font-medium text-red-500">
+              {fieldErrors.password}
+            </p>
+          ) : null}
+        </div>
 
-        <PhoneField
-          country={countryCode}
-          onCountryChange={setCountryCode}
-          phone={phoneNumber}
-          onPhoneChange={setPhoneNumber}
-          disabled={loading}
-          aria-describedby={errorId}
-        />
+        <div>
+          <PhoneField
+            country={countryCode}
+            onCountryChange={setCountryCode}
+            phone={phoneNumber}
+            onPhoneChange={handlePhoneChange}
+            disabled={loading}
+            hasError={Boolean(fieldErrors.phone)}
+            aria-describedby={errorId}
+          />
+          {fieldErrors.phone ? (
+            <p className="mt-1.5 px-1 text-xs font-medium text-red-500">
+              {fieldErrors.phone}
+            </p>
+          ) : null}
+        </div>
 
-        <TextAreaField
-          icon={FileText}
-          value={description}
-          onChange={setDescription}
-          placeholder={t("auth.signup.bioPlaceholder")}
-          required
-          disabled={loading}
-          maxLength={500}
-          aria-describedby={errorId}
-        />
+        <div>
+          <TextAreaField
+            icon={FileText}
+            value={description}
+            onChange={handleDescriptionChange}
+            placeholder={t("auth.signup.bioPlaceholder")}
+            disabled={loading}
+            maxLength={500}
+            hasError={Boolean(fieldErrors.description)}
+            aria-describedby={errorId}
+          />
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 px-1 text-xs">
+            {fieldErrors.description ? (
+              <p className="font-medium text-red-500">
+                {fieldErrors.description}
+              </p>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">
+                {bioLength < 10
+                  ? t("auth.signup.bioMinHelper", {
+                      count: 10 - bioLength,
+                      plural: 10 - bioLength > 1 ? "s" : "",
+                    })
+                  : t("auth.signup.bioValidHelper")}
+              </p>
+            )}
+            <span
+              className={`font-mono font-medium ${
+                bioLength < 10
+                  ? "text-amber-500 dark:text-amber-400"
+                  : "text-emerald-600 dark:text-emerald-400"
+              }`}
+            >
+              {bioLength} / 10 min (max 500)
+            </span>
+          </div>
+        </div>
 
         {error ? (
           <p
@@ -222,7 +378,7 @@ export default function SignUpPage() {
 
         <button
           type="submit"
-          disabled={loading || !canSubmit}
+          disabled={loading}
           className="auth-btn-primary"
         >
           {loading ? t("auth.signup.submitting") : t("auth.signup.submit")}
