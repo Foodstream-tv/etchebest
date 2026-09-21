@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { AlarmClock, CalendarClock, Radio, X } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { AlarmClock, CalendarClock, CalendarPlus, Download, Radio, X } from "lucide-react";
 
 import { getMyScheduledLive, type MyScheduledLive } from "@/lib/lives";
+import { getGoogleCalendarUrl, downloadIcsFile } from "@/lib/calendar";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import { useAuth } from "@/lib/useAuth";
 import { useI18n } from "@/i18n";
@@ -43,6 +43,7 @@ function formatTime(scheduledAt: string | null | undefined, locale: "fr" | "en" 
 }
 
 export default function ScheduledLiveToast() {
+  const router = useRouter();
   const pathname = usePathname();
   const { ready, user, token } = useAuth();
 
@@ -105,6 +106,10 @@ export default function ScheduledLiveToast() {
     window.sessionStorage.setItem(DISMISS_STORAGE_KEY, scheduledLive.room_id);
   };
 
+  const handleOpenStudio = () => {
+    router.push(`/broadcast/${encodeURIComponent(scheduledLive.room_id)}?mode=host`);
+  };
+
   const time = formatTime(scheduledLive.scheduled_at, locale);
 
   let title = "";
@@ -132,11 +137,21 @@ export default function ScheduledLiveToast() {
         ? "#dc2626"
         : "#0a0a0a";
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://foodstream.tv";
+  const calendarOptions = {
+    title: scheduledLive.title,
+    description: `Mon live Foodstream: ${origin}/broadcast/${encodeURIComponent(scheduledLive.room_id)}?mode=host`,
+    scheduledAt: scheduledLive.scheduled_at || new Date().toISOString(),
+    durationMinutes: 60,
+    liveUrl: `${origin}/broadcast/${encodeURIComponent(scheduledLive.room_id)}?mode=host`,
+  };
+
   return (
-    <Link
-      href={`/broadcast/${encodeURIComponent(scheduledLive.room_id)}?mode=host`}
+    <div
+      role="region"
       aria-label={`${title} : ${message}`}
-      className="fixed left-4 top-20 z-[9999] block w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl text-white shadow-2xl ring-1 ring-white/15 transition hover:scale-[1.02]"
+      onClick={handleOpenStudio}
+      className="fixed left-4 top-20 z-[9999] block w-[360px] max-w-[calc(100vw-2rem)] cursor-pointer overflow-hidden rounded-3xl text-white shadow-2xl ring-1 ring-white/15 transition hover:scale-[1.02]"
       style={{ background }}
     >
       <div className="flex gap-3 p-4">
@@ -155,6 +170,32 @@ export default function ScheduledLiveToast() {
           <p className="mt-0.5 text-sm text-white/85">
             {message}
           </p>
+
+          <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const url = getGoogleCalendarUrl(calendarOptions);
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white/30 active:scale-95"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              <span>Agenda</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadIcsFile(calendarOptions);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white/30 active:scale-95"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>.ics</span>
+            </button>
+          </div>
         </div>
 
         <button
@@ -166,6 +207,7 @@ export default function ScheduledLiveToast() {
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-    </Link>
+    </div>
   );
 }
+

@@ -1,6 +1,7 @@
 package room
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
 	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
 	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
+	"github.com/Foodstream-io/etchebest/internal/notify"
 	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -524,6 +526,20 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		liveRooms[room.ID] = &room
 		mu.Unlock()
 
+		if newLive.Status == "scheduled" && newLive.ScheduledAt != nil && currentUser.Email != "" {
+			appURL := os.Getenv("APP_URL")
+			if appURL == "" {
+				appURL = "http://localhost:3000"
+			}
+			liveURL := fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), room.ID)
+			notifier := notify.NewNotifier()
+			go func() {
+				if err := notifier.SendLiveScheduledEmail(currentUser.Email, currentUser.Username, newLive.Title, *newLive.ScheduledAt, liveURL); err != nil {
+					log.Printf("[NOTIFY ERROR] Failed to send live scheduled email to %s: %v", currentUser.Email, err)
+				}
+			}()
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"roomId":  room.ID,
 			"liveId":  newLive.ID,
@@ -562,6 +578,21 @@ func triggerRenegotiationForRoom(db *gorm.DB, logPrefix, roomID, newUserID strin
 // @Failure      404  {object}  map[string]string "error: Room not found"
 // @Failure      500  {object}  map[string]string "error: Failed to save reservation"
 // @Router       /api/rooms/{roomId}/reserve [post]
+// ReserveRoom godoc
+// @Summary      Reserve a spot in a room
+// @Description  Reserve a participant slot in a room in advance (max 5 registered viewers)
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
+// @Success      200  {object}  map[string]interface{} "message: reserved successfully"
+// @Failure      400  {object}  map[string]string "error: RoomID is required"
+// @Failure      401  {object}  map[string]string "error: Unauthorized"
+// @Failure      403  {object}  map[string]string "error: Room full, cannot reserve"
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Failure      500  {object}  map[string]string "error: Failed to save reservation"
+// @Router       /api/rooms/{roomId}/reserve [post]
 func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
@@ -572,15 +603,39 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
+		if currentUserId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		if room.Host == currentUserId {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "vous êtes l'hôte de ce live"})
+			return
+		}
+
+		registeredCount := 0
+		alreadyReserved := false
 		for _, p := range room.Participants {
+			if p != room.Host {
+				registeredCount++
+			}
 			if p == currentUserId {
-				c.JSON(http.StatusOK, gin.H{"message": "you already reserved this room"})
-				return
+				alreadyReserved = true
 			}
 		}
 
-		if len(room.Participants) >= room.MaxParticipants {
-			c.JSON(http.StatusForbidden, gin.H{"error": "room full, cannot reserve"})
+		if alreadyReserved {
+			c.JSON(http.StatusOK, gin.H{
+				"message":         "you already reserved this room",
+				"reserved":        true,
+				"registeredCount": registeredCount,
+				"maxParticipants": 5,
+			})
+			return
+		}
+
+		if registeredCount >= 5 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "cette room est complète (limite de 5 inscrits atteinte)"})
 			return
 		}
 
@@ -591,10 +646,129 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		mu.Lock()
+		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
+			liveRoom.Participants = room.Participants
+		}
 		triggerRenegotiationForRoom(db, "RESERVE_ROOM", roomId, currentUserId)
 		mu.Unlock()
 
-		c.JSON(http.StatusOK, gin.H{"message": "reserved successfully"})
+		// Send confirmation email to the user
+		currentUser, errUser := userModule.GetUserByID(db, currentUserId)
+		var live liveModule.Live
+		db.Where("room_id = ?", roomId).First(&live)
+		if errUser == nil && currentUser.Email != "" && live.ScheduledAt != nil {
+			appURL := os.Getenv("APP_URL")
+			if appURL == "" {
+				appURL = "http://localhost:3000"
+			}
+			liveURL := fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), roomId)
+			notifier := notify.NewNotifier()
+			go func() {
+				if err := notifier.SendReservationConfirmationEmail(currentUser.Email, currentUser.Username, live.Title, *live.ScheduledAt, liveURL); err != nil {
+					log.Printf("[NOTIFY ERROR] Failed to send reservation email: %v", err)
+				}
+			}()
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "reserved successfully",
+			"reserved":        true,
+			"registeredCount": registeredCount + 1,
+			"maxParticipants": 5,
+		})
+	}
+}
+
+// CancelReserveRoom godoc
+// @Summary      Cancel reservation in a room
+// @Description  Cancel a participant's reservation for a scheduled room
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
+// @Success      200  {object}  map[string]interface{} "message: reservation cancelled successfully"
+// @Failure      400  {object}  map[string]string "error: not reserved"
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Failure      500  {object}  map[string]string "error: Failed to cancel reservation"
+// @Router       /api/rooms/{roomId}/reserve [delete]
+func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
+		room, err := GetRoomById(db, roomId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			return
+		}
+
+		currentUserId := utils.GetContextString(c, "userId")
+		if currentUserId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		newParticipants := make(pq.StringArray, 0, len(room.Participants))
+		found := false
+		for _, p := range room.Participants {
+			if p == currentUserId && p != room.Host {
+				found = true
+				continue
+			}
+			newParticipants = append(newParticipants, p)
+		}
+
+		if !found {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "you have not reserved this room"})
+			return
+		}
+
+		room.Participants = newParticipants
+		if err = SaveRoom(db, room); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel reservation"})
+			return
+		}
+
+		mu.Lock()
+		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
+			liveRoom.Participants = room.Participants
+		}
+		mu.Unlock()
+
+		registeredCount := 0
+		for _, p := range room.Participants {
+			if p != room.Host {
+				registeredCount++
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "reservation cancelled successfully",
+			"reserved":        false,
+			"registeredCount": registeredCount,
+			"maxParticipants": 5,
+		})
+	}
+}
+
+// GetRoom godoc
+// @Summary      Get room by ID
+// @Description  Get details of a specific room including participants and reservation count
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Param        roomId path string true "Room ID"
+// @Success      200  {object}  Room
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Router       /api/rooms/{roomId} [get]
+func GetRoom(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
+		room, err := GetRoomById(db, roomId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			return
+		}
+		c.JSON(http.StatusOK, room)
 	}
 }
 

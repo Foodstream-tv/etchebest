@@ -107,8 +107,10 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))
+	api.GET("/rooms/:roomId", room.GetRoom(db))
 	api.POST("/rooms", room.CreateNewRoom(db))
 	api.POST("/rooms/:roomId/reserve", room.ReserveRoom(db))
+	api.DELETE("/rooms/:roomId/reserve", room.CancelReserveRoom(db))
 	api.POST("/rooms/participant", room.AddParticipant(db))
 	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
 
