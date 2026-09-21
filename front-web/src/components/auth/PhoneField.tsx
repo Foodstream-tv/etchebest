@@ -33,6 +33,7 @@ type PhoneFieldProps = Readonly<{
   phone: string;
   onPhoneChange: (value: string) => void;
   disabled?: boolean;
+  hasError?: boolean;
 }>;
 
 export default function PhoneField({
@@ -41,6 +42,7 @@ export default function PhoneField({
   phone,
   onPhoneChange,
   disabled = false,
+  hasError = false,
 }: PhoneFieldProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -72,7 +74,11 @@ export default function PhoneField({
 
   return (
     <div className="relative" ref={rootRef}>
-      <div className="auth-field">
+      <div
+        className={`auth-field ${
+          hasError ? "!border-red-500/80 !ring-2 !ring-red-400/20" : ""
+        }`}
+      >
         <Phone className="auth-field-icon" aria-hidden="true" />
 
         <button

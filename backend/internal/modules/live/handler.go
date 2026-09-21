@@ -2,6 +2,8 @@ package live
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -153,3 +155,58 @@ func GetMyScheduledLive(db *gorm.DB) gin.HandlerFunc {
 		}})
 	}
 }
+
+// DeleteLive deletes a live or replay owned by the authenticated user
+func DeleteLive(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idParam := c.Param("id")
+		currentUserID := c.GetString("userId")
+		if currentUserID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		var targetLive Live
+		var err error
+		if numericID, parseErr := strconv.Atoi(idParam); parseErr == nil {
+			err = db.Where("id = ?", numericID).First(&targetLive).Error
+		} else {
+			err = db.Where("room_id = ?", idParam).First(&targetLive).Error
+		}
+
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "live or replay not found"})
+			return
+		}
+
+		// Only the owner of the live/replay can delete it
+		if targetLive.UserID != currentUserID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you can only delete your own replays"})
+			return
+		}
+
+		// Clear tag associations
+		_ = db.Model(&targetLive).Association("Tags").Clear()
+
+		// Delete record from DB
+		if err := db.Delete(&targetLive).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete replay"})
+			return
+		}
+
+		// Clean up HLS replay files on disk asynchronously
+		if targetLive.RoomID != "" {
+			go func(roomID string) {
+				replayDir := filepath.Join("./storage/replays", roomID)
+				_ = os.RemoveAll(replayDir)
+			}(targetLive.RoomID)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "replay deleted successfully",
+			"id":      targetLive.ID,
+			"roomId":  targetLive.RoomID,
+		})
+	}
+}
+

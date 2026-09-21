@@ -13,6 +13,7 @@ import {
   getChatMessages,
   getRooms,
   postChatMessage,
+  kickParticipant,
   type ChatMessage,
   type RoomInfo,
 } from "@/services/streaming";
@@ -37,11 +38,14 @@ import {
 import {
   ArrowLeft,
   MessageCircle,
+  Mic,
+  MicOff,
   Radio,
   SendHorizonal,
   Square,
   Users,
   Video,
+  VideoOff,
 } from "lucide-react";
 
 const MAX_MSG = 500;
@@ -98,6 +102,10 @@ type LivePreviewProps = {
   localStream: MediaStream | null;
   isStreaming: boolean;
   emptyStateMessage: string;
+  isAudioMuted?: boolean;
+  isVideoMuted?: boolean;
+  onToggleAudio?: () => void;
+  onToggleVideo?: () => void;
 };
 
 function LivePreview({
@@ -105,6 +113,10 @@ function LivePreview({
   localStream,
   isStreaming,
   emptyStateMessage,
+  isAudioMuted,
+  isVideoMuted,
+  onToggleAudio,
+  onToggleVideo,
 }: Readonly<LivePreviewProps>) {
   const { t } = useI18n();
 
@@ -156,6 +168,37 @@ function LivePreview({
               className="h-2 w-2 animate-pulse rounded-full bg-white"
             />
             <span>LIVE</span>
+          </div>
+        ) : null}
+
+        {localStream && onToggleAudio && onToggleVideo ? (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-2xl bg-black/60 px-3 py-1.5 backdrop-blur-md border border-white/10 shadow-lg">
+            <button
+              type="button"
+              onClick={onToggleAudio}
+              title={isAudioMuted ? t("broadcast.unmuteMic") : t("broadcast.muteMic")}
+              aria-label={isAudioMuted ? t("broadcast.unmuteMic") : t("broadcast.muteMic")}
+              className={`grid h-9 w-9 place-items-center rounded-xl transition ${
+                isAudioMuted
+                  ? "bg-red-500 text-white hover:bg-red-600"
+                  : "bg-white/15 text-white hover:bg-white/25"
+              }`}
+            >
+              {isAudioMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={onToggleVideo}
+              title={isVideoMuted ? t("broadcast.enableCam") : t("broadcast.disableCam")}
+              aria-label={isVideoMuted ? t("broadcast.enableCam") : t("broadcast.disableCam")}
+              className={`grid h-9 w-9 place-items-center rounded-xl transition ${
+                isVideoMuted
+                  ? "bg-red-500 text-white hover:bg-red-600"
+                  : "bg-white/15 text-white hover:bg-white/25"
+              }`}
+            >
+              {isVideoMuted ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+            </button>
           </div>
         ) : null}
       </div>
@@ -297,9 +340,14 @@ export default function BroadcastRoomPage() {
     localStream,
     remoteStreams,
     error,
+    isAudioMuted,
+    isVideoMuted,
+    toggleAudio,
+    toggleVideo,
     hostExistingRoom,
     joinAsCoStreamer,
     stopLive,
+    removeRemoteStream,
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
@@ -354,6 +402,19 @@ export default function BroadcastRoomPage() {
   const handleStopLive = async () => {
     await stopLive();
     router.replace("/home");
+  };
+
+  const handleKickParticipant = async (_index: number, stream: MediaStream) => {
+    if (!displayRoom || !token) return;
+    if (!window.confirm(t("broadcast.kickConfirm"))) return;
+
+    try {
+      await kickParticipant(displayRoom, { streamId: stream.id }, token);
+    } catch (err) {
+      console.warn("Kick participant error:", err);
+    } finally {
+      removeRemoteStream(stream.id);
+    }
   };
 
   const fetchChat = useCallback(async () => {
@@ -663,6 +724,10 @@ export default function BroadcastRoomPage() {
               localStream={localStream}
               isStreaming={isStreaming}
               emptyStateMessage={emptyStateMessage}
+              isAudioMuted={isAudioMuted}
+              isVideoMuted={isVideoMuted}
+              onToggleAudio={toggleAudio}
+              onToggleVideo={toggleVideo}
             />
           </section>
 
@@ -695,6 +760,8 @@ export default function BroadcastRoomPage() {
                       key={stream.id}
                       stream={stream}
                       index={index}
+                      isHost={isHost}
+                      onKick={() => handleKickParticipant(index, stream)}
                     />
                   ))}
                 </div>

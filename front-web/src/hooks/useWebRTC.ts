@@ -26,11 +26,16 @@ interface UseWebRTCReturn {
   localStream: MediaStream | null;
   remoteStreams: MediaStream[];
   error: string | null;
+  isAudioMuted: boolean;
+  isVideoMuted: boolean;
+  toggleAudio: () => void;
+  toggleVideo: () => void;
   startLive: (roomName: string) => Promise<void>;
   hostExistingRoom: (existingRoomId: string) => Promise<void>;
   joinAsCoStreamer: (targetRoomId: string) => Promise<void>;
   stopLive: () => Promise<void>;
   leaveLive: () => Promise<void>;
+  removeRemoteStream: (streamId: string) => void;
 }
 
 export function useWebRTC(token?: string): UseWebRTCReturn {
@@ -39,6 +44,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<MediaStream[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const roomIdRef = useRef<string | null>(null);
@@ -71,9 +78,13 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
   const addRemoteStream = useCallback((stream: MediaStream) => {
     setRemoteStreams((prev) => {
-      const exists = prev.some((existingStream) => existingStream.id === stream.id);
-      if (exists) return prev;
-      return [...prev, stream];
+      const index = prev.findIndex((existingStream) => existingStream.id === stream.id);
+      if (index === -1) {
+        return [...prev, stream];
+      }
+      const updated = [...prev];
+      updated[index] = stream;
+      return updated;
     });
   }, []);
 
@@ -157,6 +168,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     localStreamRef.current = null;
     setLocalStream(null);
+    setIsAudioMuted(false);
+    setIsVideoMuted(false);
   }, []);
 
   const cleanupLocalState = useCallback(() => {
@@ -226,6 +239,14 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
       try {
         const message = JSON.parse(event.data);
 
+        if (message.type === "kicked") {
+          console.warn("[WebRTC] Kicked from room by host");
+          cleanupLocalState();
+          setState("disconnected");
+          setError("Vous avez été retiré de la room par le créateur.");
+          return;
+        }
+
         if (message.type === "offer" && message.offer && pcRef.current) {
           const pc = pcRef.current;
 
@@ -267,7 +288,11 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
       video: {
         facingMode: "user",
         width: 854,
@@ -278,6 +303,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     localStreamRef.current = stream;
     setLocalStream(stream);
+    setIsAudioMuted(false);
+    setIsVideoMuted(false);
 
     return stream;
   }, []);
@@ -322,8 +349,10 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
       };
 
       pc.ontrack = (event) => {
-        const incomingStream = event.streams?.[0];
-        if (!incomingStream) return;
+        let incomingStream = event.streams?.[0];
+        if (!incomingStream) {
+          incomingStream = new MediaStream([event.track]);
+        }
 
         const { track } = event;
 
@@ -335,6 +364,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         track.onunmute = () => {
           clearStreamTimeout(incomingStream.id);
+          addRemoteStream(incomingStream);
         };
 
         attachTrackEndedListener(track, () => {
@@ -506,16 +536,47 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     };
   }, [cleanupLocalStream, cleanupPeerConnection, cleanupWebSocket]);
 
+  const toggleAudio = useCallback(() => {
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const nextEnabled = !audioTracks[0].enabled;
+        audioTracks.forEach((track) => {
+          track.enabled = nextEnabled;
+        });
+        setIsAudioMuted(!nextEnabled);
+      }
+    }
+  }, []);
+
+  const toggleVideo = useCallback(() => {
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      if (videoTracks.length > 0) {
+        const nextEnabled = !videoTracks[0].enabled;
+        videoTracks.forEach((track) => {
+          track.enabled = nextEnabled;
+        });
+        setIsVideoMuted(!nextEnabled);
+      }
+    }
+  }, []);
+
   return {
     state,
     roomId,
     localStream,
     remoteStreams,
     error,
+    isAudioMuted,
+    isVideoMuted,
+    toggleAudio,
+    toggleVideo,
     startLive,
     hostExistingRoom,
     joinAsCoStreamer,
     stopLive,
     leaveLive,
+    removeRemoteStream,
   };
 }

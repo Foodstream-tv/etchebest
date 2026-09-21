@@ -13,6 +13,7 @@ type TextAreaFieldProps = Readonly<{
   disabled?: boolean;
   minRows?: number;
   maxLength?: number;
+  hasError?: boolean;
 }>;
 
 export default function TextAreaField({
@@ -24,10 +25,12 @@ export default function TextAreaField({
   disabled = false,
   minRows = 4,
   maxLength,
+  hasError = false,
 }: TextAreaFieldProps) {
   return (
     <AuthFieldShell
       textarea
+      hasError={hasError}
       icon={
         <Icon
           className="mt-0.5 h-5 w-5 self-start"
