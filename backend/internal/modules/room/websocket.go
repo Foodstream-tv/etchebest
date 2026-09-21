@@ -282,3 +282,35 @@ func isUserInRoom(room *Room, userID string) bool {
 	}
 	return false
 }
+
+// NotifyUserKicked sends a kicked message over WebSocket to a specific user
+func NotifyUserKicked(roomID, userID string) bool {
+	wsConnMu.RLock()
+	defer wsConnMu.RUnlock()
+
+	roomConns, exists := wsConnections[roomID]
+	if !exists {
+		return false
+	}
+
+	wsClient, exists := roomConns[userID]
+	if !exists {
+		return false
+	}
+
+	msg := WSMessage{
+		Type: "kicked",
+	}
+
+	select {
+	case wsClient.sendChan <- msg:
+		log.Printf("[WS] sent kicked notification to user %s in room %s", userID, roomID)
+		return true
+	case <-wsClient.done:
+		return false
+	default:
+		log.Printf("[WS] send channel full for user %s in room %s", userID, roomID)
+		return false
+	}
+}
+

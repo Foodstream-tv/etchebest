@@ -14,6 +14,7 @@ async function authHeaders(token?: string): Promise<Record<string, string>> {
 export interface RoomInfo {
   id: string;
   name: string;
+  host?: string;
   maxParticipants: number;
   participants: any[];
   viewers: number;
@@ -21,6 +22,11 @@ export interface RoomInfo {
 
 export async function getRooms(token?: string): Promise<RoomInfo[]> {
   return apiFetch<RoomInfo[]>("/rooms", { token, cache: "no-store" });
+}
+
+export async function getRoom(roomId: string, token?: string): Promise<RoomInfo> {
+  const rid = encodeURIComponent(roomId);
+  return apiFetch<RoomInfo>(`/rooms/${rid}`, { token, cache: "no-store" });
 }
 
 export async function createRoom(
@@ -36,13 +42,27 @@ export async function createRoom(
   return res.json();
 }
 
-export async function reserveRoom(roomId: string, token?: string): Promise<void> {
+export type ReservationResponse = {
+  message: string;
+  reserved: boolean;
+  registeredCount: number;
+  maxParticipants: number;
+};
+
+export async function reserveRoom(roomId: string, token?: string): Promise<ReservationResponse> {
   const rid = encodeURIComponent(roomId);
-  const res = await fetch(`${API_BASE_URL}/rooms/${rid}/reserve`, {
+  return apiFetch<ReservationResponse>(`/rooms/${rid}/reserve`, {
     method: "POST",
-    headers: await authHeaders(token),
+    token,
   });
-  if (!res.ok) throw new Error(`Failed to reserve room (${res.status})`);
+}
+
+export async function cancelReserveRoom(roomId: string, token?: string): Promise<ReservationResponse> {
+  const rid = encodeURIComponent(roomId);
+  return apiFetch<ReservationResponse>(`/rooms/${rid}/reserve`, {
+    method: "DELETE",
+    token,
+  });
 }
 
 export async function disconnectRoom(roomId: string, token?: string): Promise<void> {
@@ -149,3 +169,30 @@ export async function postChatMessage(roomId: string, message: string, token: st
     silent: true,
   });
 }
+
+// ---------- Moderation & Management ----------
+
+export async function kickParticipant(
+  roomId: string,
+  data: { streamId?: string; userId?: string },
+  token: string
+): Promise<{ message: string; participantId?: string }> {
+  const rid = encodeURIComponent(roomId);
+  return apiFetch<{ message: string; participantId?: string }>(`/rooms/${rid}/kick`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLive(
+  liveIdOrRoomId: string | number,
+  token: string
+): Promise<{ message: string; id?: number; roomId?: string }> {
+  const id = encodeURIComponent(String(liveIdOrRoomId));
+  return apiFetch<{ message: string; id?: number; roomId?: string }>(`/lives/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+

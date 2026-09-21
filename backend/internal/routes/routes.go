@@ -58,7 +58,15 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// Authentication
 	r.POST("/api/register", auth.Register(db))
+	r.POST("/api/verify", auth.VerifyCode(db, bJwtToken))
+	r.POST("/api/auth/verify", auth.VerifyCode(db, bJwtToken))
+	r.POST("/api/resend-code", auth.ResendVerificationCode(db))
+	r.POST("/api/auth/resend-code", auth.ResendVerificationCode(db))
 	r.POST("/api/login", auth.Login(db, bJwtToken))
+	r.POST("/api/forgot-password", auth.ForgotPassword(db))
+	r.POST("/api/auth/forgot-password", auth.ForgotPassword(db))
+	r.POST("/api/reset-password", auth.ResetPassword(db))
+	r.POST("/api/auth/reset-password", auth.ResetPassword(db))
 
 	// OAuth endpoints (public access)
 	r.GET("/api/auth/google", auth.GoogleStartAuth(googleClientID, googleRedirectURI))
@@ -99,10 +107,13 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// Rooms
 	api.GET("/rooms", room.GetAllRooms(db))
+	api.GET("/rooms/:roomId", room.GetRoom(db))
 	api.POST("/rooms", room.CreateNewRoom(db))
 	api.POST("/rooms/:roomId/reserve", room.ReserveRoom(db))
-	api.POST("/rooms/participant", room.AddParticipant(db))
+	api.DELETE("/rooms/:roomId/reserve", room.CancelReserveRoom(db))
 	api.POST("/rooms/:roomId/disconnect", room.HandleDisconnect(db))
+	api.POST("/rooms/:roomId/kick", room.KickParticipant(db))
+	api.DELETE("/lives/:id", live.DeleteLive(db))
 
 	// Chat
 	api.GET("/rooms/:roomId/chat", chat.GetAllChatsByRoom(db))

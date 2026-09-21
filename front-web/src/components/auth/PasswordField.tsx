@@ -13,6 +13,7 @@ type PasswordFieldProps = Readonly<{
   autoComplete?: string;
   required?: boolean;
   disabled?: boolean;
+  hasError?: boolean;
 }>;
 
 export default function PasswordField({
@@ -22,6 +23,7 @@ export default function PasswordField({
   autoComplete = "current-password",
   required = true,
   disabled = false,
+  hasError = false,
 }: PasswordFieldProps) {
   const { t } = useI18n();
   const [show, setShow] = useState(false);
@@ -29,6 +31,7 @@ export default function PasswordField({
 
   return (
     <AuthFieldShell
+      hasError={hasError}
       icon={<Lock className="h-5 w-5" aria-hidden="true" />}
       trailing={
         <button

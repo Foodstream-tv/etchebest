@@ -1,6 +1,7 @@
 package room
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
 	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
 	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
+	"github.com/Foodstream-io/etchebest/internal/notify"
 	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -524,6 +526,20 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		liveRooms[room.ID] = &room
 		mu.Unlock()
 
+		if newLive.Status == "scheduled" && newLive.ScheduledAt != nil && currentUser.Email != "" {
+			appURL := os.Getenv("APP_URL")
+			if appURL == "" {
+				appURL = "http://localhost:3000"
+			}
+			liveURL := fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), room.ID)
+			notifier := notify.NewNotifier()
+			go func() {
+				if err := notifier.SendLiveScheduledEmail(currentUser.Email, currentUser.Username, newLive.Title, *newLive.ScheduledAt, liveURL); err != nil {
+					log.Printf("[NOTIFY ERROR] Failed to send live scheduled email to %s: %v", currentUser.Email, err)
+				}
+			}()
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"roomId":  room.ID,
 			"liveId":  newLive.ID,
@@ -562,7 +578,125 @@ func triggerRenegotiationForRoom(db *gorm.DB, logPrefix, roomID, newUserID strin
 // @Failure      404  {object}  map[string]string "error: Room not found"
 // @Failure      500  {object}  map[string]string "error: Failed to save reservation"
 // @Router       /api/rooms/{roomId}/reserve [post]
+// ReserveRoom godoc
+// @Summary      Reserve a spot in a room
+// @Description  Reserve a participant slot in a room in advance (max 5 registered viewers)
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
+// @Success      200  {object}  map[string]interface{} "message: reserved successfully"
+// @Failure      400  {object}  map[string]string "error: RoomID is required"
+// @Failure      401  {object}  map[string]string "error: Unauthorized"
+// @Failure      403  {object}  map[string]string "error: Room full, cannot reserve"
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Failure      500  {object}  map[string]string "error: Failed to save reservation"
+// @Router       /api/rooms/{roomId}/reserve [post]
 func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
+		currentUserId := utils.GetContextString(c, "userId")
+		if currentUserId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		mu.Lock()
+		room, err := GetRoomById(db, roomId)
+		if err != nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			return
+		}
+
+		if room.Host == currentUserId {
+			mu.Unlock()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "vous êtes l'hôte de ce live"})
+			return
+		}
+
+		registeredCount := 0
+		alreadyReserved := false
+		for _, p := range room.Participants {
+			if p != room.Host {
+				registeredCount++
+			}
+			if p == currentUserId {
+				alreadyReserved = true
+			}
+		}
+
+		if alreadyReserved {
+			mu.Unlock()
+			c.JSON(http.StatusOK, gin.H{
+				"message":         "you already reserved this room",
+				"reserved":        true,
+				"registeredCount": registeredCount,
+				"maxParticipants": 5,
+			})
+			return
+		}
+
+		if registeredCount >= 5 {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{"error": "cette room est complète (limite de 5 inscrits atteinte)"})
+			return
+		}
+
+		room.Participants = append(room.Participants, currentUserId)
+		if err = SaveRoom(db, room); err != nil {
+			mu.Unlock()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
+			return
+		}
+
+		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
+			liveRoom.Participants = room.Participants
+		}
+		mu.Unlock()
+
+		// Send confirmation email to the user
+		currentUser, errUser := userModule.GetUserByID(db, currentUserId)
+		var live liveModule.Live
+		db.Where("room_id = ?", roomId).First(&live)
+		if errUser == nil && currentUser.Email != "" && live.ScheduledAt != nil {
+			appURL := os.Getenv("APP_URL")
+			if appURL == "" {
+				appURL = "http://localhost:3000"
+			}
+			liveURL := fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), roomId)
+			notifier := notify.NewNotifier()
+			go func() {
+				if err := notifier.SendReservationConfirmationEmail(currentUser.Email, currentUser.Username, live.Title, *live.ScheduledAt, liveURL); err != nil {
+					log.Printf("[NOTIFY ERROR] Failed to send reservation email: %v", err)
+				}
+			}()
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "reserved successfully",
+			"reserved":        true,
+			"registeredCount": registeredCount + 1,
+			"maxParticipants": 5,
+		})
+	}
+}
+
+// CancelReserveRoom godoc
+// @Summary      Cancel reservation in a room
+// @Description  Cancel a participant's reservation for a scheduled room
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
+// @Success      200  {object}  map[string]interface{} "message: reservation cancelled successfully"
+// @Failure      400  {object}  map[string]string "error: not reserved"
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Failure      500  {object}  map[string]string "error: Failed to cancel reservation"
+// @Router       /api/rooms/{roomId}/reserve [delete]
+func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
 		room, err := GetRoomById(db, roomId)
@@ -572,29 +706,185 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		currentUserId := utils.GetContextString(c, "userId")
-		for _, p := range room.Participants {
-			if p == currentUserId {
-				c.JSON(http.StatusOK, gin.H{"message": "you already reserved this room"})
-				return
-			}
-		}
-
-		if len(room.Participants) >= room.MaxParticipants {
-			c.JSON(http.StatusForbidden, gin.H{"error": "room full, cannot reserve"})
+		if currentUserId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 
-		room.Participants = append(room.Participants, currentUserId)
+		newParticipants := make(pq.StringArray, 0, len(room.Participants))
+		found := false
+		for _, p := range room.Participants {
+			if p == currentUserId && p != room.Host {
+				found = true
+				continue
+			}
+			newParticipants = append(newParticipants, p)
+		}
+
+		if !found {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "you have not reserved this room"})
+			return
+		}
+
+		room.Participants = newParticipants
 		if err = SaveRoom(db, room); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel reservation"})
 			return
 		}
 
 		mu.Lock()
-		triggerRenegotiationForRoom(db, "RESERVE_ROOM", roomId, currentUserId)
+		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
+			liveRoom.Participants = room.Participants
+		}
 		mu.Unlock()
 
-		c.JSON(http.StatusOK, gin.H{"message": "reserved successfully"})
+		registeredCount := 0
+		for _, p := range room.Participants {
+			if p != room.Host {
+				registeredCount++
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "reservation cancelled successfully",
+			"reserved":        false,
+			"registeredCount": registeredCount,
+			"maxParticipants": 5,
+		})
+	}
+}
+
+type KickParticipantRequest struct {
+	UserID   string `json:"userId"`
+	StreamID string `json:"streamId"`
+}
+
+// KickParticipant godoc
+// @Summary      Kick participant from room
+// @Description  Room host can remove an active participant or co-streamer from the room
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
+// @Param        participantId path string false "User ID of the participant"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/rooms/{roomId}/kick [post]
+func KickParticipant(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
+		currentUserId := utils.GetContextString(c, "userId")
+		if currentUserId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		var req KickParticipantRequest
+		_ = c.ShouldBindJSON(&req)
+
+		targetUserId := c.Param("participantId")
+		if targetUserId == "" {
+			targetUserId = req.UserID
+		}
+
+		mu.Lock()
+		room, err := getLiveRoom(db, roomId)
+		if err != nil || room == nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			return
+		}
+
+		// Only the room host can kick participants
+		if room.Host != currentUserId {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{"error": "seul l'hôte peut exclure des participants"})
+			return
+		}
+
+		// If streamId was provided, look up in room.Tracks to match the participant
+		var userPC *webrtc.PeerConnection
+		if req.StreamID != "" {
+			for _, ti := range room.Tracks {
+				if ti.Track != nil && ti.SourcePC != nil {
+					streamID := ti.Track.StreamID()
+					if streamID != "" && (streamID == req.StreamID || strings.Contains(req.StreamID, streamID) || strings.Contains(streamID, req.StreamID)) {
+						userPC = ti.SourcePC
+						for _, conn := range room.Connections {
+							if conn.PeerCon == userPC {
+								targetUserId = conn.UserID
+								break
+							}
+						}
+						break
+					}
+				}
+			}
+		}
+
+		// If we have targetUserId, ensure we find their userPC if not already found
+		if targetUserId != "" && userPC == nil {
+			for _, conn := range room.Connections {
+				if conn.UserID == targetUserId {
+					userPC = conn.PeerCon
+					break
+				}
+			}
+		}
+
+		// Prevent kicking the host
+		if targetUserId != "" && targetUserId == room.Host {
+			mu.Unlock()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "impossible d'exclure l'hôte de la salle"})
+			return
+		}
+
+		mu.Unlock()
+
+		if userPC != nil {
+			onPeerDisconnected(db, room, roomId, userPC)
+		} else if targetUserId != "" {
+			mu.Lock()
+			removeParticipantState(db, room, targetUserId)
+			mu.Unlock()
+		}
+
+		if targetUserId != "" {
+			mu.Lock()
+			if room.KickedUsers == nil {
+				room.KickedUsers = make(map[string]bool)
+			}
+			room.KickedUsers[targetUserId] = true
+			mu.Unlock()
+			NotifyUserKicked(roomId, targetUserId)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":       "participant exclu avec succès",
+			"participantId": targetUserId,
+		})
+	}
+}
+
+// GetRoom godoc
+// @Summary      Get room by ID
+// @Description  Get details of a specific room including participants and reservation count
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Param        roomId path string true "Room ID"
+// @Success      200  {object}  Room
+// @Failure      404  {object}  map[string]string "error: Room not found"
+// @Router       /api/rooms/{roomId} [get]
+func GetRoom(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
+		room, err := GetRoomById(db, roomId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			return
+		}
+		c.JSON(http.StatusOK, room)
 	}
 }
 
@@ -877,6 +1167,15 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 		if needsAnotherOffer {
 			room.NeedsRenegotiationByUser[userID] = false
 		}
+
+		// Request keyframes for any video tracks forwarded to this peer so its decoder starts immediately
+		for _, ti := range room.Tracks {
+			if ti.Track != nil && ti.Track.Kind() == webrtc.RTPCodecTypeVideo && ti.SourcePC != nil && ti.SourcePC != pc {
+				if _, ok := ti.LocalTracks[pc]; ok {
+					requestKeyframeBurst(ti.SourcePC, uint32(ti.Track.SSRC()))
+				}
+			}
+		}
 		mu.Unlock()
 
 		if needsAnotherOffer {
@@ -895,6 +1194,10 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 // auto-adds them when there is room. Returns an HTTP error and false when the
 // caller should abort.
 func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
+	if room.KickedUsers != nil && room.KickedUsers[userID] {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you have been kicked from this room"})
+		return false
+	}
 	for _, p := range room.Participants {
 		if p == userID {
 			return true
@@ -1007,7 +1310,7 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 			log.Printf("attachExistingTracks: add track: %v", err)
 			continue
 		}
-		startRTCPDrain(sender)
+		startRTCPRelay(sender, ti.SourcePC, uint32(ti.Track.SSRC()))
 		ti.LocalTracks[pc] = lt
 		ti.PeerPT[pc] = pt
 		ti.SendersByPeer[pc] = sender
@@ -1022,15 +1325,33 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 	}
 }
 
-func startRTCPDrain(sender *webrtc.RTPSender) {
+func startRTCPRelay(sender *webrtc.RTPSender, sourcePC *webrtc.PeerConnection, ssrc uint32) {
 	if sender == nil {
 		return
 	}
 	go func() {
 		rtcpBuf := make([]byte, 1500)
 		for {
-			if _, _, err := sender.Read(rtcpBuf); err != nil {
+			n, _, err := sender.Read(rtcpBuf)
+			if err != nil {
 				return
+			}
+			if sourcePC == nil || ssrc == 0 {
+				continue
+			}
+			pkts, err := rtcp.Unmarshal(rtcpBuf[:n])
+			if err != nil {
+				continue
+			}
+			for _, pkt := range pkts {
+				switch p := pkt.(type) {
+				case *rtcp.PictureLossIndication:
+					p.MediaSSRC = ssrc
+					_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
+				case *rtcp.FullIntraRequest:
+					p.MediaSSRC = ssrc
+					_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
+				}
 			}
 		}
 	}()
@@ -1100,7 +1421,7 @@ func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConne
 			log.Printf("broadcastTrackToPeers: add track to peer: %v", err)
 			continue
 		}
-		startRTCPDrain(sender)
+		startRTCPRelay(sender, sourcePc, uint32(ti.Track.SSRC()))
 
 		if ti.Track.Kind() == webrtc.RTPCodecTypeVideo {
 			requestKeyframeBurst(sourcePc, uint32(ti.Track.SSRC()))
@@ -1643,7 +1964,7 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 			continue
 		}
 
-		if pktCount%100 == 1 {
+		if pktCount%20 == 1 {
 			cachedPeers, cachedWriter = refreshPeerSnapshot(ti, room, pkt.PayloadType)
 		}
 

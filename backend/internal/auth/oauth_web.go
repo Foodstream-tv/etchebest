@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -189,17 +191,26 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		// Log the Google profile picture info for debugging
 		fmt.Printf("[DEBUG] Google OAuth: email=%s, picture=%s, picture_len=%d\n", userInfo.Email, userInfo.Picture, len(userInfo.Picture))
 
+		cleanOAuthEmail := strings.ToLower(strings.TrimSpace(userInfo.Email))
+
 		// Check if user exists by Google ID
 		var existingUser user.User
 		result := db.Where("google_id = ?", userInfo.ID).First(&existingUser)
 
 		if result.Error == gorm.ErrRecordNotFound {
 			// Check if user exists by email
-			emailResult := db.Where("email = ?", userInfo.Email).First(&existingUser)
+			emailResult := db.Where("LOWER(email) = ?", cleanOAuthEmail).First(&existingUser)
 			if emailResult.Error == nil {
 				// Link Google account to existing user
+				if !existingUser.IsAccountVerified {
+					// Scramble password to prevent pre-account takeover if account was unverified
+					randomPass, _ := bcrypt.GenerateFromPassword([]byte(uuid.New().String()), bcrypt.DefaultCost)
+					existingUser.Password = string(randomPass)
+				}
 				existingUser.GoogleID = &userInfo.ID
 				existingUser.OAuthProvider = strPtr("google")
+				existingUser.IsAccountVerified = true
+				existingUser.IsEmailVerified = true
 				if existingUser.ProfileImageURL == "" && userInfo.Picture != "" {
 					existingUser.ProfileImageURL = userInfo.Picture
 				}
@@ -219,15 +230,18 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 					profileImageURL = userInfo.Picture
 				}
 				newUser := user.User{
-					ID:              uuid.New().String(),
-					Email:           userInfo.Email,
-					FirstName:       userInfo.FirstName,
-					LastName:        userInfo.LastName,
-					Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-					ProfileImageURL: profileImageURL,
-					GoogleID:        &userInfo.ID,
-					OAuthProvider:   strPtr("google"),
-					Password:        uuid.New().String(), // Random password for OAuth users
+					ID:                uuid.New().String(),
+					Email:             cleanOAuthEmail,
+					FirstName:         userInfo.FirstName,
+					LastName:          userInfo.LastName,
+					Username:          generateUsername(userInfo.FirstName, userInfo.LastName),
+					ProfileImageURL:   profileImageURL,
+					GoogleID:          &userInfo.ID,
+					OAuthProvider:     strPtr("google"),
+					Password:          uuid.New().String(), // Random password for OAuth users
+					Role:              user.USER,
+					IsAccountVerified: true,
+					IsEmailVerified:   true,
 				}
 
 				if err := db.Create(&newUser).Error; err != nil {

@@ -9,6 +9,7 @@ import {
   Eye,
   PlayCircle,
   Radio,
+  Ticket,
   Users,
 } from "lucide-react";
 
@@ -267,13 +268,21 @@ export default function WatchTagSection({
                       </Link>
                     </div>
                   ) : (
-                    <Link
-                      href={`/watch/${rid}`}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200"
-                    >
-                      <CalendarDays className="h-4 w-4" />
-                      {t("watch.seeDetailsUpcoming")}
-                    </Link>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Link
+                        href={`/watch/${rid}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      >
+                        {t("watch.details")}
+                      </Link>
+                      <Link
+                        href={`/watch/${rid}`}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-blue-500"
+                      >
+                        <Ticket className="h-4 w-4" />
+                        {t("watch.room.reserve")}
+                      </Link>
+                    </div>
                   )
                 ) : (
                   <div className="inline-flex w-full items-center justify-center rounded-2xl border border-black/8 bg-black/[0.04] px-4 py-3 text-sm font-semibold text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/35">
