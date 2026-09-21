@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 
@@ -43,17 +44,21 @@ func GoogleMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
+		cleanOAuthEmail := strings.ToLower(strings.TrimSpace(userInfo.Email))
+
 		// Check if user already exists by Google ID
 		var existingUser user.User
 		result := db.Where("google_id = ?", userInfo.ID).First(&existingUser)
 
 		if result.Error == gorm.ErrRecordNotFound {
 			// Check if user exists by email
-			emailResult := db.Where("email = ?", userInfo.Email).First(&existingUser)
+			emailResult := db.Where("LOWER(email) = ?", cleanOAuthEmail).First(&existingUser)
 			if emailResult.Error == nil {
 				// Link Google account to existing user
 				existingUser.GoogleID = &userInfo.ID
 				existingUser.OAuthProvider = strPtr("google")
+				existingUser.IsAccountVerified = true
+				existingUser.IsEmailVerified = true
 				if existingUser.ProfileImageURL == "" && userInfo.Picture != "" {
 					existingUser.ProfileImageURL = userInfo.Picture
 				}
@@ -69,15 +74,18 @@ func GoogleMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 					profileImageURL = userInfo.Picture
 				}
 				newUser := user.User{
-					ID:              uuid.New().String(),
-					Email:           userInfo.Email,
-					FirstName:       userInfo.FirstName,
-					LastName:        userInfo.LastName,
-					Username:        generateUsername(userInfo.FirstName, userInfo.LastName),
-					ProfileImageURL: profileImageURL,
-					GoogleID:        &userInfo.ID,
-					OAuthProvider:   strPtr("google"),
-					Password:        uuid.New().String(),
+					ID:                uuid.New().String(),
+					Email:             cleanOAuthEmail,
+					FirstName:         userInfo.FirstName,
+					LastName:          userInfo.LastName,
+					Username:          generateUsername(userInfo.FirstName, userInfo.LastName),
+					ProfileImageURL:   profileImageURL,
+					GoogleID:          &userInfo.ID,
+					OAuthProvider:     strPtr("google"),
+					Password:          uuid.New().String(),
+					Role:              user.USER,
+					IsAccountVerified: true,
+					IsEmailVerified:   true,
 				}
 
 				if err := db.Create(&newUser).Error; err != nil {

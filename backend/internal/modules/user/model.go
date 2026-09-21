@@ -44,6 +44,10 @@ type User struct {
 	GoogleID      *string `json:"googleId" gorm:"index:idx_user_google"`
 	FacebookID    *string `json:"facebookId" gorm:"index:idx_user_facebook"`
 	OAuthProvider *string `json:"oauthProvider"` // "google" or "facebook"
+	// Verification fields
+	IsAccountVerified bool `json:"isAccountVerified" gorm:"default:false;index:idx_user_account_verified"`
+	IsEmailVerified   bool `json:"isEmailVerified" gorm:"default:false"`
+	IsPhoneVerified   bool `json:"isPhoneVerified" gorm:"default:false"`
 }
 
 type UserPatch struct {

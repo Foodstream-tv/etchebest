@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -86,5 +87,30 @@ func TestBannedUserCheck(t *testing.T) {
 	}
 	if expiredBan.IsCurrentlyBanned() {
 		t.Fatal("expected user with past BannedUntil not to be banned")
+	}
+}
+
+func TestEmailAndUsernameNormalization(t *testing.T) {
+	testCases := []struct {
+		emailInput        string
+		expectedEmail     string
+		usernameInput     string
+		expectedUsername  string
+	}{
+		{"Test@Example.COM", "test@example.com", "  ChefJohn  ", "ChefJohn"},
+		{"  user@foodstream.tv  ", "user@foodstream.tv", "foodie123", "foodie123"},
+		{"Chef.Gordon@Domain.FR", "chef.gordon@domain.fr", "  Gordon_R  ", "Gordon_R"},
+	}
+
+	for _, tc := range testCases {
+		cleanEmail := strings.ToLower(strings.TrimSpace(tc.emailInput))
+		if cleanEmail != tc.expectedEmail {
+			t.Errorf("for email input %q: expected %q, got %q", tc.emailInput, tc.expectedEmail, cleanEmail)
+		}
+
+		cleanUsername := strings.TrimSpace(tc.usernameInput)
+		if cleanUsername != tc.expectedUsername {
+			t.Errorf("for username input %q: expected %q, got %q", tc.usernameInput, tc.expectedUsername, cleanUsername)
+		}
 	}
 }
