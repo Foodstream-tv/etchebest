@@ -63,6 +63,19 @@ type RequestResetPassword struct {
 	Password string `json:"password" binding:"required,min=8" example:"Password123@"`
 }
 
+// isDevMode checks whether development mode helpers (returning devCode/devLink in responses) should be enabled.
+// If DEV_MODE is explicitly "false", it always returns false regardless of GIN_MODE.
+func isDevMode() bool {
+	devEnv := strings.ToLower(strings.TrimSpace(os.Getenv("DEV_MODE")))
+	if devEnv == "false" || devEnv == "0" {
+		return false
+	}
+	if devEnv == "true" || devEnv == "1" {
+		return true
+	}
+	return gin.Mode() != gin.ReleaseMode
+}
+
 // GenerateOTP generates a cryptographically secure 6-digit numeric string
 func GenerateOTP() (string, error) {
 	maxVal := big.NewInt(1000000)
@@ -196,8 +209,8 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 			"target":  notify.MaskEmail(user.Email),
 		}
 
-		// Return devCode if not in release mode or if DEV_MODE=true for testing
-		if os.Getenv("DEV_MODE") == "true" || gin.Mode() != gin.ReleaseMode {
+		// Return devCode if in dev mode
+		if isDevMode() {
 			response["devCode"] = vc.Code
 		}
 
@@ -402,7 +415,7 @@ func ResendVerificationCode(db *gorm.DB) gin.HandlerFunc {
 			"target":  notify.MaskEmail(user.Email),
 		}
 
-		if os.Getenv("DEV_MODE") == "true" || gin.Mode() != gin.ReleaseMode {
+		if isDevMode() {
 			response["devCode"] = vc.Code
 		}
 
@@ -566,7 +579,7 @@ func ForgotPassword(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// Return dev helper if in dev mode
-		if os.Getenv("DEV_MODE") == "true" || gin.Mode() != gin.ReleaseMode {
+		if isDevMode() {
 			genericResponse["devToken"] = tokenStr
 			genericResponse["devLink"] = resetLink
 		}
