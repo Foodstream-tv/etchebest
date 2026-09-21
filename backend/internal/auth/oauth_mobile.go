@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -55,6 +56,11 @@ func GoogleMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			emailResult := db.Where("LOWER(email) = ?", cleanOAuthEmail).First(&existingUser)
 			if emailResult.Error == nil {
 				// Link Google account to existing user
+				if !existingUser.IsAccountVerified {
+					// Scramble password to prevent pre-account takeover if account was unverified
+					randomPass, _ := bcrypt.GenerateFromPassword([]byte(uuid.New().String()), bcrypt.DefaultCost)
+					existingUser.Password = string(randomPass)
+				}
 				existingUser.GoogleID = &userInfo.ID
 				existingUser.OAuthProvider = strPtr("google")
 				existingUser.IsAccountVerified = true

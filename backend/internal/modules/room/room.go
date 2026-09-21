@@ -608,7 +608,16 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		mu.Lock()
+		room, err := GetRoomById(db, roomId)
+		if err != nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			return
+		}
+
 		if room.Host == currentUserId {
+			mu.Unlock()
 			c.JSON(http.StatusBadRequest, gin.H{"error": "vous êtes l'hôte de ce live"})
 			return
 		}
@@ -625,6 +634,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if alreadyReserved {
+			mu.Unlock()
 			c.JSON(http.StatusOK, gin.H{
 				"message":         "you already reserved this room",
 				"reserved":        true,
@@ -635,21 +645,21 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if registeredCount >= 5 {
+			mu.Unlock()
 			c.JSON(http.StatusForbidden, gin.H{"error": "cette room est complète (limite de 5 inscrits atteinte)"})
 			return
 		}
 
 		room.Participants = append(room.Participants, currentUserId)
 		if err = SaveRoom(db, room); err != nil {
+			mu.Unlock()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save reservation"})
 			return
 		}
 
-		mu.Lock()
 		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
 			liveRoom.Participants = room.Participants
 		}
-		triggerRenegotiationForRoom(db, "RESERVE_ROOM", roomId, currentUserId)
 		mu.Unlock()
 
 		// Send confirmation email to the user
@@ -804,7 +814,7 @@ func KickParticipant(db *gorm.DB) gin.HandlerFunc {
 			for _, ti := range room.Tracks {
 				if ti.Track != nil && ti.SourcePC != nil {
 					streamID := ti.Track.StreamID()
-					if streamID == req.StreamID || strings.Contains(req.StreamID, streamID) || strings.Contains(streamID, req.StreamID) {
+					if streamID != "" && (streamID == req.StreamID || strings.Contains(req.StreamID, streamID) || strings.Contains(streamID, req.StreamID)) {
 						userPC = ti.SourcePC
 						for _, conn := range room.Connections {
 							if conn.PeerCon == userPC {
@@ -846,6 +856,12 @@ func KickParticipant(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if targetUserId != "" {
+			mu.Lock()
+			if room.KickedUsers == nil {
+				room.KickedUsers = make(map[string]bool)
+			}
+			room.KickedUsers[targetUserId] = true
+			mu.Unlock()
 			NotifyUserKicked(roomId, targetUserId)
 		}
 
@@ -1184,6 +1200,10 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 // auto-adds them when there is room. Returns an HTTP error and false when the
 // caller should abort.
 func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
+	if room.KickedUsers != nil && room.KickedUsers[userID] {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you have been kicked from this room"})
+		return false
+	}
 	for _, p := range room.Participants {
 		if p == userID {
 			return true

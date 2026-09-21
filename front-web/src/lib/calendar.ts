@@ -60,10 +60,19 @@ export function downloadIcsFile({
   const endFormatted = formatIsoForGCal(end);
   const nowFormatted = formatIsoForGCal(new Date());
 
-  const fullDesc = (description
-    ? `${description}\\n\\nLien du live : ${liveUrl}`
-    : `Rejoindre le live sur FoodStream : ${liveUrl}`
-  ).replace(/\n/g, "\\n");
+  const escapeIcsText = (text: string) =>
+    text
+      .replace(/\\/g, "\\\\")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,")
+      .replace(/\r?\n/g, "\\n");
+
+  const cleanTitle = escapeIcsText(title);
+  const fullDesc = escapeIcsText(
+    description
+      ? `${description}\n\nLien du live : ${liveUrl}`
+      : `Rejoindre le live sur FoodStream : ${liveUrl}`
+  );
 
   const icsContent = [
     "BEGIN:VCALENDAR",
@@ -76,7 +85,7 @@ export function downloadIcsFile({
     `DTSTAMP:${nowFormatted}`,
     `DTSTART:${startFormatted}`,
     `DTEND:${endFormatted}`,
-    `SUMMARY:FoodStream : ${title}`,
+    `SUMMARY:FoodStream : ${cleanTitle}`,
     `DESCRIPTION:${fullDesc}`,
     `URL:${liveUrl}`,
     `LOCATION:${liveUrl}`,

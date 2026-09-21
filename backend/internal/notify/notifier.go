@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"mime"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -119,7 +120,8 @@ func (n *DefaultNotifier) SendLiveScheduledEmail(toEmail, hostName, title string
 		greeting = fmt.Sprintf("Bonjour %s", hostName)
 	}
 
-	subject := fmt.Sprintf("FoodStream - Votre live « %s » est programmé !", title)
+	cleanTitle := strings.ReplaceAll(strings.ReplaceAll(title, "\r", ""), "\n", " ")
+	subject := fmt.Sprintf("FoodStream - Votre live « %s » est programmé !", cleanTitle)
 	body := fmt.Sprintf(
 		"%s,\r\n\r\n"+
 			"Votre session en direct « %s » est bien programmée sur FoodStream.\r\n\r\n"+
@@ -128,7 +130,7 @@ func (n *DefaultNotifier) SendLiveScheduledEmail(toEmail, hostName, title string
 			"Ajouter cet horaire à votre agenda Google :\r\n%s\r\n\r\n"+
 			"Pensez à vous connecter quelques minutes avant l'heure prévue pour préparer votre recette et accueillir votre communauté !\r\n\r\n"+
 			"L'équipe FoodStream",
-		greeting, title, formattedDate, liveUrl, gcalLink)
+		greeting, cleanTitle, formattedDate, liveUrl, gcalLink)
 
 	return sendEmail(toEmail, subject, body, "Live scheduled confirmation email")
 }
@@ -169,7 +171,8 @@ func (n *DefaultNotifier) SendReservationConfirmationEmail(toEmail, userName, ti
 		greeting = fmt.Sprintf("Bonjour %s", userName)
 	}
 
-	subject := fmt.Sprintf("FoodStream - Votre place est réservée pour « %s »", title)
+	cleanTitle := strings.ReplaceAll(strings.ReplaceAll(title, "\r", ""), "\n", " ")
+	subject := fmt.Sprintf("FoodStream - Votre place est réservée pour « %s »", cleanTitle)
 	body := fmt.Sprintf(
 		"%s,\r\n\r\n"+
 			"Votre place pour le live « %s » a été réservée avec succès sur FoodStream ! 🎉\r\n\r\n"+
@@ -178,7 +181,7 @@ func (n *DefaultNotifier) SendReservationConfirmationEmail(toEmail, userName, ti
 			"Ajouter cet horaire à votre agenda Google :\r\n%s\r\n\r\n"+
 			"Rendez-vous à l'heure prévue pour suivre la session et cuisiner avec le chef !\r\n\r\n"+
 			"L'équipe FoodStream",
-		greeting, title, formattedDate, liveUrl, gcalLink)
+		greeting, cleanTitle, formattedDate, liveUrl, gcalLink)
 
 	return sendEmail(toEmail, subject, body, "Live reservation confirmation email")
 }
@@ -199,8 +202,13 @@ func sendEmail(toEmail, subject, body, desc string) error {
 		smtpPort = 587
 	}
 
+	cleanFrom := strings.ReplaceAll(strings.ReplaceAll(smtpFrom, "\r", ""), "\n", "")
+	cleanTo := strings.ReplaceAll(strings.ReplaceAll(toEmail, "\r", ""), "\n", "")
+	cleanSubject := strings.ReplaceAll(strings.ReplaceAll(subject, "\r", ""), "\n", " ")
+	encodedSubject := mime.QEncoding.Encode("UTF-8", cleanSubject)
+
 	domain := "foodstream.tv"
-	if parts := strings.Split(smtpFrom, "@"); len(parts) == 2 {
+	if parts := strings.Split(cleanFrom, "@"); len(parts) == 2 {
 		domain = parts[1]
 	}
 	messageID := fmt.Sprintf("<%s@%s>", uuid.New().String(), domain)
@@ -213,7 +221,7 @@ func sendEmail(toEmail, subject, body, desc string) error {
 		"Message-ID: %s\r\n"+
 		"MIME-Version: 1.0\r\n"+
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n"+
-		"%s", smtpFrom, toEmail, subject, dateStr, messageID, body)
+		"%s", cleanFrom, cleanTo, encodedSubject, dateStr, messageID, body)
 
 	addr := fmt.Sprintf("%s:%d", smtpHost, smtpPort)
 

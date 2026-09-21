@@ -150,8 +150,15 @@ export default function ScheduledLiveToast() {
     <div
       role="region"
       aria-label={`${title} : ${message}`}
+      tabIndex={0}
       onClick={handleOpenStudio}
-      className="fixed left-4 top-20 z-[9999] block w-[360px] max-w-[calc(100vw-2rem)] cursor-pointer overflow-hidden rounded-3xl text-white shadow-2xl ring-1 ring-white/15 transition hover:scale-[1.02]"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleOpenStudio();
+        }
+      }}
+      className="fixed left-4 top-20 z-[9999] block w-[360px] max-w-[calc(100vw-2rem)] cursor-pointer overflow-hidden rounded-3xl text-white shadow-2xl ring-1 ring-white/15 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-orange-400"
       style={{ background }}
     >
       <div className="flex gap-3 p-4">

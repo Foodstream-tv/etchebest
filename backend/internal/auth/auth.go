@@ -63,17 +63,11 @@ type RequestResetPassword struct {
 	Password string `json:"password" binding:"required,min=8" example:"Password123@"`
 }
 
-// isDevMode checks whether development mode helpers (returning devCode/devLink in responses) should be enabled.
-// If DEV_MODE is explicitly "false", it always returns false regardless of GIN_MODE.
+// isDevMode checks whether development mode helpers should be enabled.
+// Secure by default: requires DEV_MODE="true" or "1" AND gin.Mode() != ReleaseMode.
 func isDevMode() bool {
 	devEnv := strings.ToLower(strings.TrimSpace(os.Getenv("DEV_MODE")))
-	if devEnv == "false" || devEnv == "0" {
-		return false
-	}
-	if devEnv == "true" || devEnv == "1" {
-		return true
-	}
-	return gin.Mode() != gin.ReleaseMode
+	return (devEnv == "true" || devEnv == "1") && gin.Mode() != gin.ReleaseMode
 }
 
 // GenerateOTP generates a cryptographically secure 6-digit numeric string
@@ -547,6 +541,15 @@ func ForgotPassword(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Cooldown check (60s) to prevent spamming and DoS on active reset tokens
+		var latestToken userModule.PasswordResetToken
+		if err := db.Where("user_id = ?", user.ID).Order("created_at desc").First(&latestToken).Error; err == nil {
+			if time.Since(latestToken.CreatedAt) < 60*time.Second {
+				c.JSON(http.StatusOK, genericResponse)
+				return
+			}
+		}
+
 		// Invalidate previous unused reset tokens for this user
 		db.Model(&userModule.PasswordResetToken{}).
 			Where("user_id = ? AND used = ?", user.ID, false).
@@ -578,10 +581,9 @@ func ForgotPassword(db *gorm.DB) gin.HandlerFunc {
 			log.Printf("[NOTIFY ERROR] Failed to send password reset email to %s: %v", user.Email, err)
 		}
 
-		// Return dev helper if in dev mode
+		// In dev mode, log the reset link to server console for testing without exposing in API response
 		if isDevMode() {
-			genericResponse["devToken"] = tokenStr
-			genericResponse["devLink"] = resetLink
+			log.Printf("[DEV MODE] Password reset link for %s: %s", user.Email, resetLink)
 		}
 
 		c.JSON(http.StatusOK, genericResponse)
