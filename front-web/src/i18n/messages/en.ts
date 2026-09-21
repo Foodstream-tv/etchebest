@@ -519,6 +519,10 @@ export const en: Record<keyof typeof fr, string> = {
   "broadcast.kickConfirm": "Are you sure you want to kick this participant from the live?",
   "broadcast.participantOptionsAria": "Participant options",
   "broadcast.kickedSuccess": "Participant was removed from the room.",
+  "broadcast.unmuteMic": "Unmute microphone",
+  "broadcast.muteMic": "Mute microphone",
+  "broadcast.enableCam": "Turn on camera",
+  "broadcast.disableCam": "Turn off camera",
 
   // Auth (Sign In, Sign Up, Forgot Password)
   "auth.signin.title": "Welcome back",

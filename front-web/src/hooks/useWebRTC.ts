@@ -26,6 +26,10 @@ interface UseWebRTCReturn {
   localStream: MediaStream | null;
   remoteStreams: MediaStream[];
   error: string | null;
+  isAudioMuted: boolean;
+  isVideoMuted: boolean;
+  toggleAudio: () => void;
+  toggleVideo: () => void;
   startLive: (roomName: string) => Promise<void>;
   hostExistingRoom: (existingRoomId: string) => Promise<void>;
   joinAsCoStreamer: (targetRoomId: string) => Promise<void>;
@@ -40,6 +44,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<MediaStream[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const roomIdRef = useRef<string | null>(null);
@@ -162,6 +168,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     localStreamRef.current = null;
     setLocalStream(null);
+    setIsAudioMuted(false);
+    setIsVideoMuted(false);
   }, []);
 
   const cleanupLocalState = useCallback(() => {
@@ -280,7 +288,11 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
       video: {
         facingMode: "user",
         width: 854,
@@ -291,6 +303,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     localStreamRef.current = stream;
     setLocalStream(stream);
+    setIsAudioMuted(false);
+    setIsVideoMuted(false);
 
     return stream;
   }, []);
@@ -522,12 +536,42 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     };
   }, [cleanupLocalStream, cleanupPeerConnection, cleanupWebSocket]);
 
+  const toggleAudio = useCallback(() => {
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const nextEnabled = !audioTracks[0].enabled;
+        audioTracks.forEach((track) => {
+          track.enabled = nextEnabled;
+        });
+        setIsAudioMuted(!nextEnabled);
+      }
+    }
+  }, []);
+
+  const toggleVideo = useCallback(() => {
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      if (videoTracks.length > 0) {
+        const nextEnabled = !videoTracks[0].enabled;
+        videoTracks.forEach((track) => {
+          track.enabled = nextEnabled;
+        });
+        setIsVideoMuted(!nextEnabled);
+      }
+    }
+  }, []);
+
   return {
     state,
     roomId,
     localStream,
     remoteStreams,
     error,
+    isAudioMuted,
+    isVideoMuted,
+    toggleAudio,
+    toggleVideo,
     startLive,
     hostExistingRoom,
     joinAsCoStreamer,

@@ -517,6 +517,10 @@ export const fr = {
   "broadcast.kickConfirm": "Voulez-vous vraiment exclure ce participant du live ?",
   "broadcast.participantOptionsAria": "Options du participant",
   "broadcast.kickedSuccess": "Le participant a été retiré de la room.",
+  "broadcast.unmuteMic": "Activer le micro",
+  "broadcast.muteMic": "Couper le micro",
+  "broadcast.enableCam": "Activer la caméra",
+  "broadcast.disableCam": "Couper la caméra",
 
   // Auth (Sign In, Sign Up, Forgot Password)
   "auth.signin.title": "Bienvenue",
