@@ -72,9 +72,13 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
   const addRemoteStream = useCallback((stream: MediaStream) => {
     setRemoteStreams((prev) => {
-      const exists = prev.some((existingStream) => existingStream.id === stream.id);
-      if (exists) return prev;
-      return [...prev, stream];
+      const index = prev.findIndex((existingStream) => existingStream.id === stream.id);
+      if (index === -1) {
+        return [...prev, stream];
+      }
+      const updated = [...prev];
+      updated[index] = stream;
+      return updated;
     });
   }, []);
 
@@ -331,8 +335,10 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
       };
 
       pc.ontrack = (event) => {
-        const incomingStream = event.streams?.[0];
-        if (!incomingStream) return;
+        let incomingStream = event.streams?.[0];
+        if (!incomingStream) {
+          incomingStream = new MediaStream([event.track]);
+        }
 
         const { track } = event;
 
@@ -344,6 +350,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         track.onunmute = () => {
           clearStreamTimeout(incomingStream.id);
+          addRemoteStream(incomingStream);
         };
 
         attachTrackEndedListener(track, () => {

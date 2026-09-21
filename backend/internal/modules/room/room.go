@@ -1157,6 +1157,15 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 		if needsAnotherOffer {
 			room.NeedsRenegotiationByUser[userID] = false
 		}
+
+		// Request keyframes for any video tracks forwarded to this peer so its decoder starts immediately
+		for _, ti := range room.Tracks {
+			if ti.Track != nil && ti.Track.Kind() == webrtc.RTPCodecTypeVideo && ti.SourcePC != nil && ti.SourcePC != pc {
+				if _, ok := ti.LocalTracks[pc]; ok {
+					requestKeyframeBurst(ti.SourcePC, uint32(ti.Track.SSRC()))
+				}
+			}
+		}
 		mu.Unlock()
 
 		if needsAnotherOffer {
@@ -1287,7 +1296,7 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 			log.Printf("attachExistingTracks: add track: %v", err)
 			continue
 		}
-		startRTCPDrain(sender)
+		startRTCPRelay(sender, ti.SourcePC, uint32(ti.Track.SSRC()))
 		ti.LocalTracks[pc] = lt
 		ti.PeerPT[pc] = pt
 		ti.SendersByPeer[pc] = sender
@@ -1302,15 +1311,33 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 	}
 }
 
-func startRTCPDrain(sender *webrtc.RTPSender) {
+func startRTCPRelay(sender *webrtc.RTPSender, sourcePC *webrtc.PeerConnection, ssrc uint32) {
 	if sender == nil {
 		return
 	}
 	go func() {
 		rtcpBuf := make([]byte, 1500)
 		for {
-			if _, _, err := sender.Read(rtcpBuf); err != nil {
+			n, _, err := sender.Read(rtcpBuf)
+			if err != nil {
 				return
+			}
+			if sourcePC == nil || ssrc == 0 {
+				continue
+			}
+			pkts, err := rtcp.Unmarshal(rtcpBuf[:n])
+			if err != nil {
+				continue
+			}
+			for _, pkt := range pkts {
+				switch p := pkt.(type) {
+				case *rtcp.PictureLossIndication:
+					p.MediaSSRC = ssrc
+					_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
+				case *rtcp.FullIntraRequest:
+					p.MediaSSRC = ssrc
+					_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
+				}
 			}
 		}
 	}()
@@ -1380,7 +1407,7 @@ func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConne
 			log.Printf("broadcastTrackToPeers: add track to peer: %v", err)
 			continue
 		}
-		startRTCPDrain(sender)
+		startRTCPRelay(sender, sourcePc, uint32(ti.Track.SSRC()))
 
 		if ti.Track.Kind() == webrtc.RTPCodecTypeVideo {
 			requestKeyframeBurst(sourcePc, uint32(ti.Track.SSRC()))
@@ -1923,7 +1950,7 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 			continue
 		}
 
-		if pktCount%100 == 1 {
+		if pktCount%20 == 1 {
 			cachedPeers, cachedWriter = refreshPeerSnapshot(ti, room, pkt.PayloadType)
 		}
 
