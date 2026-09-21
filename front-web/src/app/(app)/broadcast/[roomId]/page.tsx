@@ -13,6 +13,7 @@ import {
   getChatMessages,
   getRooms,
   postChatMessage,
+  kickParticipant,
   type ChatMessage,
   type RoomInfo,
 } from "@/services/streaming";
@@ -300,6 +301,7 @@ export default function BroadcastRoomPage() {
     hostExistingRoom,
     joinAsCoStreamer,
     stopLive,
+    removeRemoteStream,
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
@@ -354,6 +356,19 @@ export default function BroadcastRoomPage() {
   const handleStopLive = async () => {
     await stopLive();
     router.replace("/home");
+  };
+
+  const handleKickParticipant = async (_index: number, stream: MediaStream) => {
+    if (!displayRoom || !token) return;
+    if (!window.confirm(t("broadcast.kickConfirm"))) return;
+
+    try {
+      await kickParticipant(displayRoom, { streamId: stream.id }, token);
+    } catch (err) {
+      console.warn("Kick participant error:", err);
+    } finally {
+      removeRemoteStream(stream.id);
+    }
   };
 
   const fetchChat = useCallback(async () => {
@@ -695,6 +710,8 @@ export default function BroadcastRoomPage() {
                       key={stream.id}
                       stream={stream}
                       index={index}
+                      isHost={isHost}
+                      onKick={() => handleKickParticipant(index, stream)}
                     />
                   ))}
                 </div>

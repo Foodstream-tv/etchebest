@@ -750,6 +750,112 @@ func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+type KickParticipantRequest struct {
+	UserID   string `json:"userId"`
+	StreamID string `json:"streamId"`
+}
+
+// KickParticipant godoc
+// @Summary      Kick participant from room
+// @Description  Room host can remove an active participant or co-streamer from the room
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        roomId path string true "Room ID"
+// @Param        participantId path string false "User ID of the participant"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/rooms/{roomId}/kick [post]
+func KickParticipant(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roomId := c.Param("roomId")
+		currentUserId := utils.GetContextString(c, "userId")
+		if currentUserId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		var req KickParticipantRequest
+		_ = c.ShouldBindJSON(&req)
+
+		targetUserId := c.Param("participantId")
+		if targetUserId == "" {
+			targetUserId = req.UserID
+		}
+
+		mu.Lock()
+		room, err := getLiveRoom(db, roomId)
+		if err != nil || room == nil {
+			mu.Unlock()
+			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			return
+		}
+
+		// Only the room host can kick participants
+		if room.Host != currentUserId {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{"error": "seul l'hôte peut exclure des participants"})
+			return
+		}
+
+		// If streamId was provided, look up in room.Tracks to match the participant
+		var userPC *webrtc.PeerConnection
+		if req.StreamID != "" {
+			for _, ti := range room.Tracks {
+				if ti.Track != nil && ti.SourcePC != nil {
+					streamID := ti.Track.StreamID()
+					if streamID == req.StreamID || strings.Contains(req.StreamID, streamID) || strings.Contains(streamID, req.StreamID) {
+						userPC = ti.SourcePC
+						for _, conn := range room.Connections {
+							if conn.PeerCon == userPC {
+								targetUserId = conn.UserID
+								break
+							}
+						}
+						break
+					}
+				}
+			}
+		}
+
+		// If we have targetUserId, ensure we find their userPC if not already found
+		if targetUserId != "" && userPC == nil {
+			for _, conn := range room.Connections {
+				if conn.UserID == targetUserId {
+					userPC = conn.PeerCon
+					break
+				}
+			}
+		}
+
+		// Prevent kicking the host
+		if targetUserId != "" && targetUserId == room.Host {
+			mu.Unlock()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "impossible d'exclure l'hôte de la salle"})
+			return
+		}
+
+		mu.Unlock()
+
+		if userPC != nil {
+			onPeerDisconnected(db, room, roomId, userPC)
+		} else if targetUserId != "" {
+			mu.Lock()
+			removeParticipantState(db, room, targetUserId)
+			mu.Unlock()
+		}
+
+		if targetUserId != "" {
+			NotifyUserKicked(roomId, targetUserId)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":       "participant exclu avec succès",
+			"participantId": targetUserId,
+		})
+	}
+}
+
 // GetRoom godoc
 // @Summary      Get room by ID
 // @Description  Get details of a specific room including participants and reservation count

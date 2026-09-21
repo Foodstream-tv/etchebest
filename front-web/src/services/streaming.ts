@@ -169,3 +169,30 @@ export async function postChatMessage(roomId: string, message: string, token: st
     silent: true,
   });
 }
+
+// ---------- Moderation & Management ----------
+
+export async function kickParticipant(
+  roomId: string,
+  data: { streamId?: string; userId?: string },
+  token: string
+): Promise<{ message: string; participantId?: string }> {
+  const rid = encodeURIComponent(roomId);
+  return apiFetch<{ message: string; participantId?: string }>(`/rooms/${rid}/kick`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLive(
+  liveIdOrRoomId: string | number,
+  token: string
+): Promise<{ message: string; id?: number; roomId?: string }> {
+  const id = encodeURIComponent(String(liveIdOrRoomId));
+  return apiFetch<{ message: string; id?: number; roomId?: string }>(`/lives/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
