@@ -16,15 +16,21 @@ import {
   ChefHat,
   CalendarClock,
   CalendarDays,
+  CalendarPlus,
+  Check,
 } from "lucide-react";
 import {
   getHLSUrl,
   getChatMessages,
   postChatMessage,
   getRooms,
+  getRoom,
+  reserveRoom,
+  cancelReserveRoom,
   ChatMessage,
   RoomInfo,
 } from "@/services/streaming";
+import { getGoogleCalendarUrl, downloadIcsFile } from "@/lib/calendar";
 import { useAuth } from "@/lib/useAuth";
 import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
@@ -141,9 +147,14 @@ export default function WatchRoomPage() {
       if (isInitial) {
         setRoomLoading(true);
       }
-      const rooms = await getRooms(token);
-      const currentRoom = rooms?.find((item) => item.id === roomId) ?? null;
-      setRoom(currentRoom);
+      try {
+        const singleRoom = await getRoom(roomId, token);
+        if (singleRoom) setRoom(singleRoom);
+      } catch {
+        const rooms = await getRooms(token);
+        const currentRoom = rooms?.find((item) => item.id === roomId) ?? null;
+        setRoom(currentRoom);
+      }
 
       try {
         const liveData = await getLiveByRoomId(roomId, token);
@@ -160,6 +171,78 @@ export default function WatchRoomPage() {
       }
     }
   }, [roomId, token]);
+
+  const registeredCount = useMemo(() => {
+    if (!room?.participants) return 0;
+    const hostId = room.host || liveInfo?.user?.id;
+    return room.participants.filter((p: any) => String(p) !== String(hostId)).length;
+  }, [room?.participants, room?.host, liveInfo?.user?.id]);
+
+  const isReserved = useMemo(() => {
+    if (!user?.id || !room?.participants) return false;
+    const hostId = room.host || liveInfo?.user?.id;
+    if (String(user.id) === String(hostId)) return false;
+    return room.participants.some((p: any) => String(p) === String(user.id));
+  }, [user?.id, room?.participants, room?.host, liveInfo?.user?.id]);
+
+  const isFull = registeredCount >= 5;
+
+  const [reserving, setReserving] = useState(false);
+  const [reservationMsg, setReservationMsg] = useState<{ text: string; isError?: boolean } | null>(null);
+
+  const onReserve = async () => {
+    if (!roomId) return;
+    if (!token) {
+      setReservationMsg({ text: t("watch.room.loginToReserve"), isError: true });
+      return;
+    }
+    setReserving(true);
+    setReservationMsg(null);
+    try {
+      await reserveRoom(roomId, token);
+      setReservationMsg({ text: t("watch.room.reservationSuccess") });
+      await fetchRoom();
+    } catch (err: any) {
+      setReservationMsg({ text: err?.message || "Erreur de réservation", isError: true });
+    } finally {
+      setReserving(false);
+    }
+  };
+
+  const onCancelReserve = async () => {
+    if (!roomId || !token) return;
+    setReserving(true);
+    setReservationMsg(null);
+    try {
+      await cancelReserveRoom(roomId, token);
+      setReservationMsg({ text: t("watch.room.cancelSuccess") });
+      await fetchRoom();
+    } catch (err: any) {
+      setReservationMsg({ text: err?.message || "Erreur d'annulation", isError: true });
+    } finally {
+      setReserving(false);
+    }
+  };
+
+  const calendarOptions = useMemo(() => {
+    const liveUrl = typeof window !== "undefined" ? window.location.href : `https://foodstream.tv/watch/${roomId}`;
+    return {
+      title: liveTitle,
+      description: liveDescription,
+      scheduledAt: liveInfo?.scheduled_at || new Date().toISOString(),
+      durationMinutes: 60,
+      liveUrl,
+    };
+  }, [liveTitle, liveDescription, liveInfo?.scheduled_at, roomId]);
+
+  const onGoogleCalendar = () => {
+    const url = getGoogleCalendarUrl(calendarOptions);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const onDownloadIcs = () => {
+    downloadIcsFile(calendarOptions);
+  };
 
   const applyQuality = useCallback((value: string, hlsInstance?: Hls | null) => {
     const hls = hlsInstance ?? hlsRef.current;
@@ -524,13 +607,35 @@ export default function WatchRoomPage() {
                           date: formatScheduledDate(liveInfo?.scheduled_at, locale, t("watch.upcomingDate")),
                         })}
                       </p>
-                      <Link
-                        href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
-                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(249,115,22,0.35)] transition hover:bg-orange-400 hover:scale-105 active:scale-95"
-                      >
-                        <Radio className="h-4 w-4" />
-                        {t("watch.room.hostScheduledBtn")}
-                      </Link>
+                      <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-orange-300 backdrop-blur-md">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>{t("watch.room.spotsLeft", { count: registeredCount, max: 5 })}</span>
+                      </div>
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <Link
+                          href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(249,115,22,0.35)] transition hover:bg-orange-400 hover:scale-105 active:scale-95"
+                        >
+                          <Radio className="h-4 w-4" />
+                          {t("watch.room.hostScheduledBtn")}
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={onGoogleCalendar}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
+                        >
+                          <CalendarPlus className="h-4 w-4" />
+                          {t("watch.room.googleCalendar")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onDownloadIcs}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
+                        >
+                          <CalendarDays className="h-4 w-4" />
+                          {t("watch.room.downloadIcs")}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-blue-950 via-neutral-900 to-black text-white">
@@ -544,7 +649,80 @@ export default function WatchRoomPage() {
                           creator: liveInfo?.user?.username ? ` ${t("common.by", { name: liveInfo.user.username })}` : "",
                         })}
                       </p>
-                      <p className="mt-2 text-xs text-gray-400">
+
+                      {/* Jauge des places réservées */}
+                      <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/15 px-4 py-1.5 text-xs font-semibold text-blue-200">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>{isFull ? t("watch.room.full") : t("watch.room.spotsLeft", { count: registeredCount, max: 5 })}</span>
+                      </div>
+
+                      {reservationMsg ? (
+                        <p className={`mt-3 text-xs font-medium ${reservationMsg.isError ? "text-red-400" : "text-green-400"}`}>
+                          {reservationMsg.text}
+                        </p>
+                      ) : null}
+
+                      {/* Boutons d'action pour le spectateur */}
+                      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                        {isReserved ? (
+                          <>
+                            <span className="inline-flex items-center gap-1.5 rounded-2xl bg-green-500/20 border border-green-400/40 px-4 py-3 text-sm font-bold text-green-300">
+                              <Check className="h-4 w-4" />
+                              {t("watch.room.reserved")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={onGoogleCalendar}
+                              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-blue-500 active:scale-95"
+                            >
+                              <CalendarPlus className="h-4 w-4" />
+                              {t("watch.room.googleCalendar")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={onDownloadIcs}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                            >
+                              <CalendarDays className="h-4 w-4" />
+                              {t("watch.room.downloadIcs")}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={reserving}
+                              onClick={onCancelReserve}
+                              className="inline-flex items-center gap-1.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                            >
+                              {reserving ? t("watch.room.cancelling") : t("watch.room.cancelReservation")}
+                            </button>
+                          </>
+                        ) : isFull ? (
+                          <div className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-gray-400">
+                            {t("watch.room.full")}
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled={reserving}
+                              onClick={onReserve}
+                              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                            >
+                              <Users className="h-4 w-4" />
+                              {reserving ? t("watch.room.reserving") : t("watch.room.reserve")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={onGoogleCalendar}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
+                            >
+                              <CalendarPlus className="h-4 w-4" />
+                              {t("watch.room.googleCalendar")}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      <p className="mt-4 text-xs text-gray-400 max-w-sm">
                         {t("watch.room.viewerScheduledNote")}
                       </p>
                     </div>

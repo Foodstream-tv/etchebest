@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/smtp"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +17,8 @@ import (
 type Notifier interface {
 	SendVerificationEmail(toEmail, code string) error
 	SendPasswordResetEmail(toEmail, resetLink string) error
+	SendLiveScheduledEmail(toEmail, hostName, title string, scheduledAt time.Time, liveUrl string) error
+	SendReservationConfirmationEmail(toEmail, userName, title string, scheduledAt time.Time, liveUrl string) error
 }
 
 type DefaultNotifier struct{}
@@ -78,6 +81,106 @@ func (n *DefaultNotifier) SendPasswordResetEmail(toEmail, resetLink string) erro
 			"L'équipe FoodStream", resetLink)
 
 	return sendEmail(toEmail, subject, body, "Password reset email")
+}
+
+// SendLiveScheduledEmail sends a confirmation email to the host when they schedule a live stream.
+func (n *DefaultNotifier) SendLiveScheduledEmail(toEmail, hostName, title string, scheduledAt time.Time, liveUrl string) error {
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPortStr := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPass := os.Getenv("SMTP_PASSWORD")
+
+	formattedDate := scheduledAt.Format("02/01/2006 à 15h04 (UTC)")
+	startTime := scheduledAt.UTC().Format("20060102T150405Z")
+	endTime := scheduledAt.Add(1 * time.Hour).UTC().Format("20060102T150405Z")
+	gcalLink := fmt.Sprintf(
+		"https://calendar.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s&details=%s&location=%s",
+		url.QueryEscape("FoodStream Live : "+title),
+		startTime,
+		endTime,
+		url.QueryEscape("Votre live culinaire sur FoodStream : "+liveUrl),
+		url.QueryEscape(liveUrl),
+	)
+
+	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
+		log.Printf("\n=======================================================\n"+
+			"[SIMULATION] LIVE SCHEDULED CONFIRMATION EMAIL\n"+
+			"To:          %s\n"+
+			"Title:       %s\n"+
+			"ScheduledAt: %s\n"+
+			"LiveURL:     %s\n"+
+			"GCal:        %s\n"+
+			"=======================================================\n", toEmail, title, formattedDate, liveUrl, gcalLink)
+		return nil
+	}
+
+	greeting := "Bonjour"
+	if hostName != "" {
+		greeting = fmt.Sprintf("Bonjour %s", hostName)
+	}
+
+	subject := fmt.Sprintf("FoodStream - Votre live « %s » est programmé !", title)
+	body := fmt.Sprintf(
+		"%s,\r\n\r\n"+
+			"Votre session en direct « %s » est bien programmée sur FoodStream.\r\n\r\n"+
+			"📅 Date et heure : %s\r\n"+
+			"🔗 Lien de votre live : %s\r\n\r\n"+
+			"Ajouter cet horaire à votre agenda Google :\r\n%s\r\n\r\n"+
+			"Pensez à vous connecter quelques minutes avant l'heure prévue pour préparer votre recette et accueillir votre communauté !\r\n\r\n"+
+			"L'équipe FoodStream",
+		greeting, title, formattedDate, liveUrl, gcalLink)
+
+	return sendEmail(toEmail, subject, body, "Live scheduled confirmation email")
+}
+
+// SendReservationConfirmationEmail sends a confirmation email to a viewer who reserved a spot in a scheduled live.
+func (n *DefaultNotifier) SendReservationConfirmationEmail(toEmail, userName, title string, scheduledAt time.Time, liveUrl string) error {
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPortStr := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPass := os.Getenv("SMTP_PASSWORD")
+
+	formattedDate := scheduledAt.Format("02/01/2006 à 15h04 (UTC)")
+	startTime := scheduledAt.UTC().Format("20060102T150405Z")
+	endTime := scheduledAt.Add(1 * time.Hour).UTC().Format("20060102T150405Z")
+	gcalLink := fmt.Sprintf(
+		"https://calendar.google.com/calendar/render?action=TEMPLATE&text=%s&dates=%s/%s&details=%s&location=%s",
+		url.QueryEscape("FoodStream Live : "+title),
+		startTime,
+		endTime,
+		url.QueryEscape("Votre session culinaire réservée sur FoodStream : "+liveUrl),
+		url.QueryEscape(liveUrl),
+	)
+
+	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
+		log.Printf("\n=======================================================\n"+
+			"[SIMULATION] LIVE RESERVATION CONFIRMATION EMAIL\n"+
+			"To:          %s\n"+
+			"Title:       %s\n"+
+			"ScheduledAt: %s\n"+
+			"LiveURL:     %s\n"+
+			"GCal:        %s\n"+
+			"=======================================================\n", toEmail, title, formattedDate, liveUrl, gcalLink)
+		return nil
+	}
+
+	greeting := "Bonjour"
+	if userName != "" {
+		greeting = fmt.Sprintf("Bonjour %s", userName)
+	}
+
+	subject := fmt.Sprintf("FoodStream - Votre place est réservée pour « %s »", title)
+	body := fmt.Sprintf(
+		"%s,\r\n\r\n"+
+			"Votre place pour le live « %s » a été réservée avec succès sur FoodStream ! 🎉\r\n\r\n"+
+			"📅 Date et heure : %s\r\n"+
+			"🔗 Accéder au direct : %s\r\n\r\n"+
+			"Ajouter cet horaire à votre agenda Google :\r\n%s\r\n\r\n"+
+			"Rendez-vous à l'heure prévue pour suivre la session et cuisiner avec le chef !\r\n\r\n"+
+			"L'équipe FoodStream",
+		greeting, title, formattedDate, liveUrl, gcalLink)
+
+	return sendEmail(toEmail, subject, body, "Live reservation confirmation email")
 }
 
 func sendEmail(toEmail, subject, body, desc string) error {
