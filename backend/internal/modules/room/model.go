@@ -37,6 +37,7 @@ type Room struct {
 	PendingOfferByUser       map[string]webrtc.SessionDescription `json:"-" gorm:"-"`
 	RenegotiatingByUser      map[string]bool                      `json:"-" gorm:"-"`
 	NeedsRenegotiationByUser map[string]bool                      `json:"-" gorm:"-"`
+	KickedUsers              map[string]bool                      `json:"-" gorm:"-"`
 	HLSWriter                *hls.HLSWriter                       `json:"-" gorm:"-"`
 	// HostPeerCon is the PeerConnection of the room host (publisher).
 	// Only tracks received from this peer are relayed and fed to HLS.

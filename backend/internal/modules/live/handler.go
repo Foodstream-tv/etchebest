@@ -2,6 +2,8 @@ package live
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -190,6 +192,14 @@ func DeleteLive(db *gorm.DB) gin.HandlerFunc {
 		if err := db.Delete(&targetLive).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete replay"})
 			return
+		}
+
+		// Clean up HLS replay files on disk asynchronously
+		if targetLive.RoomID != "" {
+			go func(roomID string) {
+				replayDir := filepath.Join("./storage/replays", roomID)
+				_ = os.RemoveAll(replayDir)
+			}(targetLive.RoomID)
 		}
 
 		c.JSON(http.StatusOK, gin.H{
