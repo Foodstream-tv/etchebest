@@ -31,6 +31,7 @@ interface UseWebRTCReturn {
   joinAsCoStreamer: (targetRoomId: string) => Promise<void>;
   stopLive: () => Promise<void>;
   leaveLive: () => Promise<void>;
+  removeRemoteStream: (streamId: string) => void;
 }
 
 export function useWebRTC(token?: string): UseWebRTCReturn {
@@ -225,6 +226,14 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     ws.onmessage = async (event) => {
       try {
         const message = JSON.parse(event.data);
+
+        if (message.type === "kicked") {
+          console.warn("[WebRTC] Kicked from room by host");
+          cleanupLocalState();
+          setState("disconnected");
+          setError("Vous avez été retiré de la room par le créateur.");
+          return;
+        }
 
         if (message.type === "offer" && message.offer && pcRef.current) {
           const pc = pcRef.current;
@@ -517,5 +526,6 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     joinAsCoStreamer,
     stopLive,
     leaveLive,
+    removeRemoteStream,
   };
 }

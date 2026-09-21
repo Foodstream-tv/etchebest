@@ -6,6 +6,8 @@ import { PlayCircle, RefreshCw, Search, Video } from "lucide-react";
 
 import HomeFooter from "@/components/home/HomeFooter";
 import { getLives, type LiveDTO } from "@/lib/lives";
+import { deleteLive } from "@/services/streaming";
+import { useAuth } from "@/lib/useAuth";
 import ReplayCarouselSection from "@/components/watch/ReplayCarouselSection";
 import { useI18n } from "@/i18n/LanguageContext";
 
@@ -27,11 +29,25 @@ const BASE_TAGS = [
 
 export default function ReplaysPage() {
   const { t, locale } = useI18n();
+  const { token } = useAuth();
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("Tout");
   const [replays, setReplays] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDeleteReplay = async (replay: LiveDTO) => {
+    if (!token) return;
+    try {
+      await deleteLive(replay.room_id || replay.id, token);
+      setReplays((prev) =>
+        prev.filter((r) => r.id !== replay.id && r.room_id !== replay.room_id)
+      );
+    } catch (err: any) {
+      console.error("Failed to delete replay:", err);
+      alert(err?.message || "Erreur lors de la suppression de la rediffusion");
+    }
+  };
 
   const tags = useMemo(() => ["Tout", ...BASE_TAGS], []);
 
@@ -243,6 +259,7 @@ export default function ReplaysPage() {
                   key={section.tagName}
                   title={section.tagName}
                   replays={section.lives}
+                  onDeleteReplay={handleDeleteReplay}
                 />
               ))}
             </div>

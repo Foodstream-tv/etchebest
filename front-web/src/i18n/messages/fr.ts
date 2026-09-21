@@ -266,6 +266,11 @@ export const fr = {
   "replays.videoError": "Impossible de lire cette rediffusion.",
   "replays.notFound": "Rediffusion introuvable.",
   "replays.shareText": "Voir cette rediffusion",
+  "replays.share": "Partager",
+  "replays.copied": "Lien copié !",
+  "replays.delete": "Supprimer la rediffusion",
+  "replays.deleteConfirm": "Voulez-vous vraiment supprimer définitivement cette rediffusion ?",
+  "replays.optionsAria": "Options de la rediffusion",
 
   // Studio
   "studio.steps.step1": "1. Source & Infos",
@@ -508,6 +513,10 @@ export const fr = {
   "broadcast.statusIdle": "Prêt",
   "broadcast.participantLabel": "Participant {index}",
   "broadcast.participantStreamAria": "Flux vidéo de {name}",
+  "broadcast.kickParticipant": "Exclure",
+  "broadcast.kickConfirm": "Voulez-vous vraiment exclure ce participant du live ?",
+  "broadcast.participantOptionsAria": "Options du participant",
+  "broadcast.kickedSuccess": "Le participant a été retiré de la room.",
 
   // Auth (Sign In, Sign Up, Forgot Password)
   "auth.signin.title": "Bienvenue",

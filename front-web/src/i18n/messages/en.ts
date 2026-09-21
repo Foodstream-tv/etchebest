@@ -268,6 +268,11 @@ export const en: Record<keyof typeof fr, string> = {
   "replays.videoError": "Unable to play this replay.",
   "replays.notFound": "Replay not found.",
   "replays.shareText": "Watch this replay",
+  "replays.share": "Share",
+  "replays.copied": "Link copied!",
+  "replays.delete": "Delete replay",
+  "replays.deleteConfirm": "Are you sure you want to permanently delete this replay?",
+  "replays.optionsAria": "Replay options",
 
   // Studio
   "studio.steps.step1": "1. Source & Info",
@@ -510,6 +515,10 @@ export const en: Record<keyof typeof fr, string> = {
   "broadcast.statusIdle": "Ready",
   "broadcast.participantLabel": "Participant {index}",
   "broadcast.participantStreamAria": "Video stream of {name}",
+  "broadcast.kickParticipant": "Kick",
+  "broadcast.kickConfirm": "Are you sure you want to kick this participant from the live?",
+  "broadcast.participantOptionsAria": "Participant options",
+  "broadcast.kickedSuccess": "Participant was removed from the room.",
 
   // Auth (Sign In, Sign Up, Forgot Password)
   "auth.signin.title": "Welcome back",
