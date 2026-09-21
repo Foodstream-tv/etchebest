@@ -596,12 +596,6 @@ func triggerRenegotiationForRoom(db *gorm.DB, logPrefix, roomID, newUserID strin
 func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roomId := c.Param("roomId")
-		room, err := GetRoomById(db, roomId)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
-			return
-		}
-
 		currentUserId := utils.GetContextString(c, "userId")
 		if currentUserId == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
