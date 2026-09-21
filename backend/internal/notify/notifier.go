@@ -8,6 +8,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type Notifier interface {
@@ -30,10 +33,10 @@ func (n *DefaultNotifier) SendVerificationEmail(toEmail, code string) error {
 
 	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
 		log.Printf("\n=======================================================\n"+
-			"[DEV/SIMULATION] EMAIL VERIFICATION CODE\n"+
+			"[SIMULATION] EMAIL NOT SENT - SMTP IS NOT CONFIGURED!\n"+
 			"To:   %s\n"+
 			"Code: %s\n"+
-			"Valid for 15 minutes\n"+
+			"To send real emails, set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD in .env\n"+
 			"=======================================================\n", toEmail, code)
 		return nil
 	}
@@ -57,10 +60,10 @@ func (n *DefaultNotifier) SendPasswordResetEmail(toEmail, resetLink string) erro
 
 	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
 		log.Printf("\n=======================================================\n"+
-			"[DEV/SIMULATION] PASSWORD RESET LINK\n"+
+			"[SIMULATION] EMAIL NOT SENT - SMTP IS NOT CONFIGURED!\n"+
 			"To:   %s\n"+
 			"Link: %s\n"+
-			"Valid for 30 minutes\n"+
+			"To send real emails, set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD in .env\n"+
 			"=======================================================\n", toEmail, resetLink)
 		return nil
 	}
@@ -93,12 +96,21 @@ func sendEmail(toEmail, subject, body, desc string) error {
 		smtpPort = 587
 	}
 
+	domain := "foodstream.tv"
+	if parts := strings.Split(smtpFrom, "@"); len(parts) == 2 {
+		domain = parts[1]
+	}
+	messageID := fmt.Sprintf("<%s@%s>", uuid.New().String(), domain)
+	dateStr := time.Now().Format(time.RFC1123Z)
+
 	msg := fmt.Sprintf("From: %s\r\n"+
 		"To: %s\r\n"+
 		"Subject: %s\r\n"+
+		"Date: %s\r\n"+
+		"Message-ID: %s\r\n"+
 		"MIME-Version: 1.0\r\n"+
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n"+
-		"%s", smtpFrom, toEmail, subject, body)
+		"%s", smtpFrom, toEmail, subject, dateStr, messageID, body)
 
 	addr := fmt.Sprintf("%s:%d", smtpHost, smtpPort)
 
@@ -145,10 +157,11 @@ func sendEmail(toEmail, subject, body, desc string) error {
 
 	auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
 	if err := smtp.SendMail(addr, auth, smtpFrom, []string{toEmail}, []byte(msg)); err != nil {
+		log.Printf("[NOTIFY ERROR] %s failed via SMTP (%s) to %s: %v", desc, addr, toEmail, err)
 		return fmt.Errorf("failed to send email via SMTP: %w", err)
 	}
 
-	log.Printf("[NOTIFY] %s sent to %s", desc, MaskEmail(toEmail))
+	log.Printf("[NOTIFY SUCCESS] %s sent to %s via %s (from: %s)", desc, MaskEmail(toEmail), addr, smtpFrom)
 	return nil
 }
 
