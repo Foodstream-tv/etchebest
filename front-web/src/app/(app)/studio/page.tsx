@@ -799,9 +799,21 @@ export default function StudioPage() {
                         aria-label={t("studio.source.label")}
                         value={sourceUrl}
                         onChange={(e) => {
-                          setSourceUrl(e.target.value);
-                          if (e.target.value.includes("marmiton.org")) {
-                            setSourceName("Marmiton");
+                          const value = e.target.value;
+                          setSourceUrl(value);
+
+                          try {
+                            const host = new URL(value).hostname.toLowerCase();
+                            if (
+                              host === "marmiton.org" ||
+                              host.endsWith(".marmiton.org")
+                            ) {
+                              setSourceName("Marmiton");
+                            } else {
+                              setSourceName("");
+                            }
+                          } catch {
+                            setSourceName("");
                           }
                         }}
                         placeholder={t("studio.source.placeholder")}
