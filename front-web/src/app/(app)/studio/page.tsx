@@ -17,6 +17,8 @@ import {
   ArrowRight,
   ArrowLeft,
   Check,
+  ExternalLink,
+  Pencil,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -147,6 +149,32 @@ export default function StudioPage() {
 
   const [prepSteps, setPrepSteps] = useState<string[]>([]);
   const [newPrepStep, setNewPrepStep] = useState("");
+  const [editingPrepStepIdx, setEditingPrepStepIdx] = useState<number | null>(null);
+  const [editingPrepStepText, setEditingPrepStepText] = useState("");
+
+  const startEditPrepStep = (idx: number) => {
+    setEditingPrepStepIdx(idx);
+    setEditingPrepStepText(prepSteps[idx]);
+  };
+
+  const saveEditPrepStep = () => {
+    if (editingPrepStepIdx === null) return;
+    const trimmed = editingPrepStepText.trim();
+    if (trimmed) {
+      setPrepSteps((prev) => {
+        const next = [...prev];
+        next[editingPrepStepIdx] = trimmed;
+        return next;
+      });
+    }
+    setEditingPrepStepIdx(null);
+    setEditingPrepStepText("");
+  };
+
+  const cancelEditPrepStep = () => {
+    setEditingPrepStepIdx(null);
+    setEditingPrepStepText("");
+  };
 
   const [prepTime, setPrepTime] = useState<number>(0);
   const [restTime, setRestTime] = useState<number>(0);
@@ -155,6 +183,8 @@ export default function StudioPage() {
   const [newUtensil, setNewUtensil] = useState("");
 
   const [marmitonUrl, setMarmitonUrl] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceName, setSourceName] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [importSuccess, setImportSuccess] = useState("");
@@ -204,10 +234,6 @@ export default function StudioPage() {
       if (response.description) {
         setDesc(response.description.slice(0, 500));
       }
-      if (response.image) {
-        setImageUrl(response.image);
-        setThumbnailFile(null);
-      }
 
       // Populate ingredients
       if (response.ingredients && Array.isArray(response.ingredients)) {
@@ -252,11 +278,14 @@ export default function StudioPage() {
         setUtensils(response.utensils);
       }
 
+      // Save source URL for attribution / citation right
+      setSourceUrl(url);
+      setSourceName("Marmiton");
       setMarmitonUrl("");
-      setImportSuccess("Recette importée avec succès ! Les informations ont été pré-remplies.");
+      setImportSuccess(t("studio.marmiton.success"));
     } catch (e: any) {
       console.error(e);
-      setImportError(e?.message || "Erreur lors de l'importation de la recette Marmiton.");
+      setImportError(e?.message || t("studio.marmiton.errorGeneric"));
     } finally {
       setImporting(false);
     }
@@ -464,6 +493,8 @@ export default function StudioPage() {
         utensils,
         prepTimeMins: prepTime,
         restTimeMins: restTime,
+        sourceUrl: sourceUrl.trim() || undefined,
+        sourceName: sourceName.trim() || (sourceUrl.trim() ? "Source originale" : undefined),
       };
       finalDescription = `${finalDescription}\n\n---FOODSTREAM_RECIPE---\n${JSON.stringify(
         recipeData
@@ -738,12 +769,71 @@ export default function StudioPage() {
                   )}
 
                   {importSuccess && (
-                    <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      <Check className="h-4 w-4" />
-                      <span>{importSuccess}</span>
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <Check className="h-4 w-4" />
+                        <span>{importSuccess}</span>
+                      </div>
+                      <p className="rounded-xl border border-orange-500/15 bg-white/70 p-2.5 text-xs text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
+                        📸 {t("studio.marmiton.imageTip")}
+                      </p>
                     </div>
                   )}
+
+                  <p className="mt-3 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+                    ℹ️ {t("studio.marmiton.disclaimer")}
+                  </p>
                 </div>
+
+                {/* Recipe Source Citation (optional or prefilled) */}
+                <Field label={t("studio.source.label")}>
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs text-gray-500 dark:text-white/45">
+                        {t("studio.source.citationNotice")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ExternalLink className="h-4 w-4 text-gray-400 shrink-0" />
+                      <input
+                        aria-label={t("studio.source.label")}
+                        value={sourceUrl}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setSourceUrl(value);
+
+                          try {
+                            const host = new URL(value).hostname.toLowerCase();
+                            if (
+                              host === "marmiton.org" ||
+                              host.endsWith(".marmiton.org")
+                            ) {
+                              setSourceName("Marmiton");
+                            } else {
+                              setSourceName("");
+                            }
+                          } catch {
+                            setSourceName("");
+                          }
+                        }}
+                        placeholder={t("studio.source.placeholder")}
+                        className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                      />
+                      {sourceUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSourceUrl("");
+                            setSourceName("");
+                          }}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </Field>
 
                 {/* Title */}
                 <Field label={t("studio.info.liveTitle")}>
@@ -1062,6 +1152,15 @@ export default function StudioPage() {
                   {/* Preparation Steps Section */}
                   <Field label={t("studio.recipe.steps")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                      {prepSteps.length > 0 && (
+                        <div className="mb-3 flex items-center gap-2 rounded-xl bg-orange-500/[0.07] px-3 py-2 text-xs text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
+                          <span>💡</span>
+                          <span className="leading-relaxed">
+                            {t("studio.recipe.stepsDraftTip")}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex gap-2">
                         <input
                           aria-label={t("studio.recipe.steps")}
@@ -1091,20 +1190,60 @@ export default function StudioPage() {
                           {prepSteps.map((step, idx) => (
                             <li
                               key={idx}
-                              className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
+                              className="rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
                             >
-                              <span className="font-semibold">
-                                {idx + 1}. {step}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => removePrepStep(idx)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                                title={t("common.delete")}
-                                aria-label={t("common.delete")}
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
+                              {editingPrepStepIdx === idx ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editingPrepStepText}
+                                    onChange={(e) => setEditingPrepStepText(e.target.value)}
+                                    rows={2}
+                                    className="w-full rounded-lg border border-orange-400/40 bg-white p-2 text-xs text-gray-900 outline-none focus:border-orange-500 dark:bg-[#120b05] dark:text-white"
+                                  />
+                                  <div className="flex justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditPrepStep}
+                                      className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-gray-500 hover:bg-black/5 dark:hover:bg-white/10"
+                                    >
+                                      {t("studio.recipe.cancelEdit")}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={saveEditPrepStep}
+                                      className="rounded-lg bg-orange-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-orange-400"
+                                    >
+                                      {t("studio.recipe.saveStep")}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="font-medium leading-relaxed">
+                                    <strong className="text-orange-500 mr-1">{idx + 1}.</strong> {step}
+                                  </span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditPrepStep(idx)}
+                                      className="text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 p-1"
+                                      title={t("studio.recipe.editStep")}
+                                      aria-label={t("studio.recipe.editStep")}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removePrepStep(idx)}
+                                      className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-1"
+                                      title={t("common.delete")}
+                                      aria-label={t("common.delete")}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </li>
                           ))}
                         </ol>

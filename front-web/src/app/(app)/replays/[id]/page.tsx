@@ -16,6 +16,7 @@ import {
   Timer,
   User,
   Utensils,
+  ExternalLink,
 } from "lucide-react";
 
 import HomeFooter from "@/components/home/HomeFooter";
@@ -35,6 +36,8 @@ type ParsedRecipe = {
   utensils?: string[];
   prepTimeMins?: number;
   restTimeMins?: number;
+  sourceUrl?: string;
+  sourceName?: string;
 };
 
 function getPublicMediaUrl(path: string) {
@@ -630,6 +633,28 @@ export default function ReplayDetailPage() {
                       </div>
                     </div>
                   ) : null}
+
+                  {/* Source Citation */}
+                  {parsedRecipe.sourceUrl && (
+                    <div className="mt-6 rounded-2xl border border-black/8 bg-black/[0.02] p-4 text-xs text-gray-500 dark:border-white/10 dark:bg-white/[0.02] dark:text-gray-400">
+                      <div className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+                        <ExternalLink className="h-4 w-4 text-orange-500 shrink-0" />
+                        <span>{t("recipe.sourceCitation")}{" "}
+                          <a
+                            href={parsedRecipe.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-orange-600 underline hover:text-orange-500 dark:text-orange-400"
+                          >
+                            {parsedRecipe.sourceName || "Marmiton"}
+                          </a>
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                        {t("recipe.citationLegal")}
+                      </p>
+                    </div>
+                  )}
                 </section>
               ) : null}
             </div>

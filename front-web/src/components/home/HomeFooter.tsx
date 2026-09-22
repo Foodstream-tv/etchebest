@@ -84,6 +84,11 @@ export default function HomeFooter() {
 
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
               <li>
+                <Link href="/cgu" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
+                  {t("footer.terms")}
+                </Link>
+              </li>
+              <li>
                 <Link href="/confidentialite" className="hover:text-orange-500 dark:hover:text-orange-400 transition">
                   {t("footer.privacy")}
                 </Link>
