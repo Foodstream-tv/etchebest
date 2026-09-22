@@ -13,6 +13,7 @@ import {
   Users,
   ChefHat,
   Info,
+  ExternalLink,
 } from "lucide-react";
 
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
@@ -40,6 +41,8 @@ type Recipe = {
   utensils?: string[];
   prepTimeMins?: number;
   restTimeMins?: number;
+  sourceUrl?: string;
+  sourceName?: string;
 };
 
 const RECIPES: Record<string, Recipe> = {
@@ -165,6 +168,8 @@ type Props = {
     utensils?: string[];
     prepTimeMins?: number;
     restTimeMins?: number;
+    sourceUrl?: string;
+    sourceName?: string;
   } | null;
 };
 
@@ -210,6 +215,8 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
         utensils: recipeData.utensils || [],
         prepTimeMins: recipeData.prepTimeMins || 0,
         restTimeMins: recipeData.restTimeMins || 0,
+        sourceUrl: recipeData.sourceUrl,
+        sourceName: recipeData.sourceName,
       };
     }
 
@@ -648,6 +655,27 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                 </li>
               ))}
             </ol>
+          </div>
+        )}
+
+        {recipe?.sourceUrl && (
+          <div className="mt-4 rounded-2xl border border-black/8 bg-black/[0.02] p-3 text-xs text-gray-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
+            <p className="flex items-center gap-1.5 font-medium text-gray-700 dark:text-gray-300">
+              <ExternalLink className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+              <span>{t("recipe.sourceCitation")}{" "}
+                <a
+                  href={recipe.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-orange-600 underline hover:text-orange-500 dark:text-orange-400"
+                >
+                  {recipe.sourceName || "Marmiton"}
+                </a>
+              </span>
+            </p>
+            <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+              {t("recipe.citationLegal")}
+            </p>
           </div>
         )}
       </div>
