@@ -37,22 +37,57 @@ func parseISODuration(d string) int {
 	return 0
 }
 
+var (
+	htmlTagRegex    = regexp.MustCompile(`<[^>]*>`)
+	stepPrefixRegex = regexp.MustCompile(`^(?:(?:É|E)tape\s*\d+\s*[:\.\-]\s*|\d+[\.\)\-]\s*)`)
+	whitespaceRegex = regexp.MustCompile(`\s+`)
+)
+
+func cleanInstruction(s string) string {
+	// Strip HTML tags
+	s = htmlTagRegex.ReplaceAllString(s, " ")
+	// Decode common HTML entities
+	s = strings.ReplaceAll(s, "&nbsp;", " ")
+	s = strings.ReplaceAll(s, "&#39;", "'")
+	s = strings.ReplaceAll(s, "&apos;", "'")
+	s = strings.ReplaceAll(s, "&quot;", "\"")
+	s = strings.ReplaceAll(s, "&amp;", "&")
+	s = strings.ReplaceAll(s, "&eacute;", "é")
+	s = strings.ReplaceAll(s, "&egrave;", "è")
+	s = strings.ReplaceAll(s, "&agrave;", "à")
+	s = strings.ReplaceAll(s, "&ccedil;", "ç")
+	s = strings.ReplaceAll(s, "&ugrave;", "ù")
+	// Normalize spaces
+	s = whitespaceRegex.ReplaceAllString(s, " ")
+	s = strings.TrimSpace(s)
+	// Strip redundant step prefix e.g. "Étape 1 : "
+	s = stepPrefixRegex.ReplaceAllString(s, "")
+	return strings.TrimSpace(s)
+}
+
 func extractInstructions(raw any) []string {
 	var steps []string
+	addStep := func(s string) {
+		cleaned := cleanInstruction(s)
+		if len(cleaned) > 5 {
+			steps = append(steps, cleaned)
+		}
+	}
+
 	switch v := raw.(type) {
 	case []any:
 		for _, item := range v {
 			switch m := item.(type) {
 			case string:
-				steps = append(steps, m)
+				addStep(m)
 			case map[string]any:
 				if txt, ok := m["text"].(string); ok {
-					steps = append(steps, txt)
+					addStep(txt)
 				}
 			}
 		}
 	case string:
-		steps = append(steps, v)
+		addStep(v)
 	}
 	return steps
 }
@@ -105,7 +140,7 @@ func ScrapeMarmiton() gin.HandlerFunc {
 		htmlContent := string(bodyBytes)
 
 		// 1. Parse JSON-LD
-		var recipeTitle, recipeDesc, recipeImage string
+		var recipeTitle, recipeDesc string
 		var ingredients []string
 		var steps []string
 		var prepTime, cookTime, restTime int
@@ -136,22 +171,7 @@ func ScrapeMarmiton() gin.HandlerFunc {
 				if desc, ok := recipeObj["description"].(string); ok {
 					recipeDesc = desc
 				}
-				// Image
-				if img, ok := recipeObj["image"].(string); ok {
-					recipeImage = img
-				} else if imgList, ok := recipeObj["image"].([]any); ok && len(imgList) > 0 {
-					if imgStr, ok := imgList[0].(string); ok {
-						recipeImage = imgStr
-					} else if imgMap, ok := imgList[0].(map[string]any); ok {
-						if urlStr, ok := imgMap["url"].(string); ok {
-							recipeImage = urlStr
-						}
-					}
-				} else if imgMap, ok := recipeObj["image"].(map[string]any); ok {
-					if urlStr, ok := imgMap["url"].(string); ok {
-						recipeImage = urlStr
-					}
-				}
+				// Note: We deliberately do NOT scrape or host copyrighted images from Marmiton
 				// Ingredients
 				if ings, ok := recipeObj["recipeIngredient"].([]any); ok {
 					for _, ing := range ings {
@@ -172,14 +192,6 @@ func ScrapeMarmiton() gin.HandlerFunc {
 					cookTime = parseISODuration(ct)
 				}
 				break
-			}
-		}
-
-		// Fallback image from og:image
-		if recipeImage == "" {
-			imgRegex := regexp.MustCompile(`(?i)<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']`)
-			if iMatch := imgRegex.FindStringSubmatch(htmlContent); len(iMatch) >= 2 {
-				recipeImage = strings.TrimSpace(iMatch[1])
 			}
 		}
 
@@ -237,7 +249,10 @@ func ScrapeMarmiton() gin.HandlerFunc {
 				singleMatches := singleStepRegex.FindAllStringSubmatch(stepListMatch, -1)
 				for _, sm := range singleMatches {
 					if len(sm) >= 2 {
-						steps = append(steps, strings.TrimSpace(sm[1]))
+						cleaned := cleanInstruction(sm[1])
+						if len(cleaned) > 5 {
+							steps = append(steps, cleaned)
+						}
 					}
 				}
 			}
@@ -261,7 +276,6 @@ func ScrapeMarmiton() gin.HandlerFunc {
 			CookTimeMins: cookTime,
 			RestTimeMins: restTime,
 			Utensils:     utensils,
-			Image:        recipeImage,
 		})
 	}
 }
