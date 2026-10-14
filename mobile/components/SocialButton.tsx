@@ -1,54 +1,77 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+
+import { makeStyles } from '@/contexts/ThemeContext';
 
 interface SocialButtonProps {
     label: string;
     onPress: () => void;
     icon: React.ReactNode;
+    disabled?: boolean;
+    testID?: string;
 }
 
-const SocialButton = React.memo(function SocialButton({ label, onPress, icon }: SocialButtonProps) {
+/** Outlined provider button (Google…): themed surface, rounded-2xl like the web `OAuthButton`. */
+const SocialButton = React.memo(function SocialButton({ label, onPress, icon, disabled = false, testID }: SocialButtonProps) {
+    const styles = useStyles();
     return (
-        <TouchableOpacity style={styles.socialButton} onPress={onPress}>
-            <View style={styles.socialButtonContent}>
-                <View style={styles.socialIconBadge}>{icon}</View>
-                <Text style={styles.socialText}>{label}</Text>
+        <Pressable
+            style={({ pressed }) => [styles.button, disabled && styles.disabled, pressed && !disabled && styles.pressed]}
+            onPress={disabled ? undefined : onPress}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityState={{ disabled }}
+            testID={testID}
+        >
+            <View style={styles.content}>
+                <View style={styles.iconBadge}>{icon}</View>
+                <Text style={styles.text} numberOfLines={1}>
+                    {label}
+                </Text>
             </View>
-        </TouchableOpacity>
+        </Pressable>
     );
 });
 
 export default SocialButton;
 
-const styles = StyleSheet.create({
-    socialButton: {
-        borderRadius: 18,
-        paddingVertical: 14,
-        paddingHorizontal: 18,
-        marginBottom: 16,
-        backgroundColor: '#fff',
+const useStyles = makeStyles(({ colors, radii }) => ({
+    button: {
+        borderRadius: radii.lg,
+        minHeight: 56,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: '#e8e8e8',
+        borderColor: colors.border,
         width: '100%',
+        justifyContent: 'center',
     },
-    socialButtonContent: {
+    disabled: {
+        opacity: 0.55,
+    },
+    pressed: {
+        opacity: 0.85,
+    },
+    content: {
         flexDirection: 'row',
         alignItems: 'center',
-        flex: 1,
+        justifyContent: 'center',
+        gap: 12,
     },
-    socialIconBadge: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: '#f4f4f4',
+    iconBadge: {
+        width: 36,
+        height: 36,
+        borderRadius: radii.md,
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: colors.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    socialText: {
-        flex: 1,
+    text: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000',
-        marginLeft: 18,
+        color: colors.text,
     },
-});
+}));
