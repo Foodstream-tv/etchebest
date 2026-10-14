@@ -1,5 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import storage from './storage';
 
 export type NotificationChannel = 'site' | 'email' | 'mobile';
 
@@ -31,21 +30,6 @@ const DEFAULT_PREFERENCES: AppPreferences = {
     },
 };
 
-const storage = {
-    async setItem(key: string, value: string): Promise<void> {
-        if (Platform.OS === 'web') {
-            localStorage.setItem(key, value);
-        } else {
-            await SecureStore.setItemAsync(key, value);
-        }
-    },
-    async getItem(key: string): Promise<string | null> {
-        if (Platform.OS === 'web') {
-            return localStorage.getItem(key);
-        }
-        return SecureStore.getItemAsync(key);
-    },
-};
 
 const resolveChannel = (channel: string | undefined): NotificationChannel => {
     if (channel === 'email' || channel === 'mobile' || channel === 'site') {

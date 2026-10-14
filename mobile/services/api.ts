@@ -1,5 +1,6 @@
-// API Configuration
-import envConfig from '../config/env';
+import { ApiError, request } from './http';
+
+export { ApiError };
 
 export interface LoginRequest {
   email: string;
@@ -18,18 +19,33 @@ export interface RegisterRequest {
   profileImage?: string;
 }
 
+/** `/login` only returns the token; `user` is present on verify / Google sign-in. */
 export interface AuthResponse {
   token: string;
-  user: {
+  user?: {
     id: string;
     email: string;
-    username: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
   };
 }
 
-export interface ApiError {
+export interface RegisterResponse {
   message: string;
-  error?: string;
+  userId: string;
+  /** Masked email the code was sent to */
+  target: string;
+  /** Only returned by the backend in dev mode */
+  devCode?: string;
+}
+
+export interface ResendCodeResponse {
+  message: string;
+  userId?: string;
+  target?: string;
+  devCode?: string;
 }
 
 export interface UserProfile {
@@ -71,171 +87,33 @@ export interface UpdateProfileRequest {
   numberPhone?: string;
 }
 
-export interface Room {
-  id: string;
-  name: string;
-  host: string;
-  participants: string[];
-  viewers: number;
-  maxParticipants: number;
-}
-
-export interface Live {
-  id: number;
-  title: string;
-  description: string;
-  dish_name: string;
-  user_id: number;
-  country_id: number;
-  dish_id: number;
-  view_count: number;
-  current_viewers: number;
-  status: 'scheduled' | 'live' | 'ended';
-  started_at?: string;
-  thumbnail_url: string;
-  user?: {
-    id: number;
-    username: string;
-    profile_image_url?: string;
-  };
-}
-
-export interface Category {
-  id: number;
-  name: string;
-  code: string;
-  image_url: string;
-  live_count?: number;
-}
-
-export interface Dish {
-  id: number;
-  name: string;
-  description: string;
-  image_url: string;
-  country: Category;
-  live_count: number;
-  total_views: number;
-}
-
-export interface DiscoverData {
-  trending_country: Category;
-  categories: Category[];
-  top_dishes: Dish[];
-}
-
-export interface DiscoverFilters {
-  page?: number;
-  limit?: number;
-  sort?: 'views' | 'viewers' | 'recent';
-  'filters[status]'?: string;
-  'filters[dish_id]'?: number;
-  'filters[min_viewers]'?: number;
-  'filters[hours_ago]'?: number;
-}
-
-export interface CategoryLivesResponse {
-  lives: Live[];
-  category: Category;
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-  };
-}
+const trimmed = (value: string | undefined) => (value === undefined ? undefined : value.trim());
 
 class ApiService {
-  private readonly baseUrl: string;
-  private readonly timeout: number;
-
-  constructor(baseUrl: string = envConfig.apiBaseUrl, timeout: number = envConfig.apiTimeout) {
-    this.baseUrl = baseUrl;
-    this.timeout = timeout;
-  }
-
-  /**
-   * Fetch with timeout support
-   */
-  private async fetchWithTimeout(
-    url: string,
-    options: RequestInit,
-    timeout = this.timeout
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('La requête a expiré. Vérifiez votre connexion.');
-      }
-      if (error instanceof TypeError) {
-        // Typical network failures (DNS, connexion refusée, hors ligne, etc.)
-        const details = error.message ? ` (${error.message})` : '';
-        throw new Error(`Erreur réseau lors de la requête${details}. Vérifiez votre connexion ou réessayez plus tard.`);
-      }
-      let details = '';
-      if (error instanceof Error) {
-        details = error.message;
-      } else if (typeof error === 'string') {
-        details = error;
-      }
-      const suffix = details ? ` Détails : ${details}` : '';
-      throw new Error(`Erreur réseau inattendue.${suffix}`);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  private async handleResponse<T>(response: Response): Promise<T> {
-    if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({
-        message: `HTTP error! status: ${response.status}`,
-      }));
-      throw new Error(error.message || error.error || "Une erreur s'est produite");
-    }
-    return response.json();
-  }
-
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/login`, {
+    return request<AuthResponse>('/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      auth: 'none',
+      body: {
         email: credentials.email.trim().toLowerCase(),
         password: credentials.password,
-      }),
+      },
     });
-    return this.handleResponse<AuthResponse>(response);
   }
 
   async loginWithGoogle(accessToken: string): Promise<AuthResponse> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/google/mobile`, {
+    return request<AuthResponse>('/auth/google/mobile', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        access_token: accessToken,
-      }),
+      auth: 'none',
+      body: { access_token: accessToken },
     });
-    return this.handleResponse<AuthResponse>(response);
   }
 
-  async register(data: RegisterRequest): Promise<AuthResponse> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/register`, {
+  async register(data: RegisterRequest): Promise<RegisterResponse> {
+    return request<RegisterResponse>('/register', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      auth: 'none',
+      body: {
         ...data,
         email: data.email.trim().toLowerCase(),
         username: data.username.trim(),
@@ -243,117 +121,86 @@ class ApiService {
         lastName: data.lastName.trim(),
         description: data.description.trim(),
         numberPhone: data.numberPhone.trim(),
-      }),
-    });
-    return this.handleResponse<AuthResponse>(response);
-  }
-
-  async getProfile(token: string): Promise<UserProfile> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
-    return this.handleResponse<UserProfile>(response);
   }
 
-  async updateProfile(token: string, data: UpdateProfileRequest): Promise<UserProfile> {
+  /** Confirms the 6-digit code; the backend answers with a ready-to-use token. */
+  async verifyAccount(params: { userId?: string; email?: string; code: string }): Promise<AuthResponse> {
+    return request<AuthResponse>('/verify', {
+      method: 'POST',
+      auth: 'none',
+      body: {
+        userId: params.userId || undefined,
+        email: params.email?.trim().toLowerCase() || undefined,
+        code: params.code.trim(),
+      },
+    });
+  }
+
+  async resendVerificationCode(params: { userId?: string; email?: string }): Promise<ResendCodeResponse> {
+    return request<ResendCodeResponse>('/resend-code', {
+      method: 'POST',
+      auth: 'none',
+      body: {
+        userId: params.userId || undefined,
+        email: params.email?.trim().toLowerCase() || undefined,
+      },
+    });
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    return request<{ message: string }>('/forgot-password', {
+      method: 'POST',
+      auth: 'none',
+      body: { email: email.trim().toLowerCase() },
+    });
+  }
+
+  async getProfile(token?: string): Promise<UserProfile> {
+    return this.authed<UserProfile>('/users/me', { method: 'GET' }, token);
+  }
+
+  async updateProfile(token: string | undefined, data: UpdateProfileRequest): Promise<UserProfile> {
     const payload: UpdateProfileRequest = {};
 
     if (data.email !== undefined) payload.email = data.email.trim().toLowerCase();
-    if (data.firstName !== undefined) payload.firstName = data.firstName.trim();
-    if (data.lastName !== undefined) payload.lastName = data.lastName.trim();
-    if (data.username !== undefined) payload.username = data.username.trim();
-    if (data.profileImageUrl !== undefined) payload.profileImageUrl = data.profileImageUrl.trim();
-    if (data.description !== undefined) payload.description = data.description.trim();
+    if (data.firstName !== undefined) payload.firstName = trimmed(data.firstName);
+    if (data.lastName !== undefined) payload.lastName = trimmed(data.lastName);
+    if (data.username !== undefined) payload.username = trimmed(data.username);
+    if (data.profileImageUrl !== undefined) payload.profileImageUrl = trimmed(data.profileImageUrl);
+    if (data.description !== undefined) payload.description = trimmed(data.description);
     if (data.countryNumberPhone !== undefined) payload.countryNumberPhone = data.countryNumberPhone;
-    if (data.numberPhone !== undefined) payload.numberPhone = data.numberPhone.trim();
+    if (data.numberPhone !== undefined) payload.numberPhone = trimmed(data.numberPhone);
 
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    return this.handleResponse<UserProfile>(response);
+    return this.authed<UserProfile>('/users/me', { method: 'PATCH', body: payload }, token);
   }
 
-  async updatePassword(token: string, data: PasswordUpdateRequest): Promise<PasswordUpdateResponse> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me/password`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      }),
-    });
-    return this.handleResponse<PasswordUpdateResponse>(response);
-  }
-
-  async deleteCurrentUser(token: string): Promise<void> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/users/me`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({
-        message: `HTTP error! status: ${response.status}`,
-      }));
-      throw new Error(error.message || error.error || "Une erreur s'est produite");
-    }
-  }
-
-  async getRooms(token: string): Promise<Room[]> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/rooms`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    return this.handleResponse<Room[]>(response);
-  }
-
-  async getDiscover(): Promise<DiscoverData> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/discover`, {
-      method: 'GET',
-    });
-    return this.handleResponse<DiscoverData>(response);
-  }
-
-  async getCategories(): Promise<Category[]> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/discover/categories`, {
-      method: 'GET',
-    });
-    return this.handleResponse<Category[]>(response);
-  }
-
-  async getCategoryLives(id: number, filters: DiscoverFilters = {}): Promise<CategoryLivesResponse> {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined) {
-        params.append(key, String(value));
-      }
-    });
-
-    const response = await this.fetchWithTimeout(
-      `${this.baseUrl}/discover/categories/${id}/lives?${params.toString()}`,
+  async updatePassword(token: string | undefined, data: PasswordUpdateRequest): Promise<PasswordUpdateResponse> {
+    return this.authed<PasswordUpdateResponse>(
+      '/users/me/password',
       {
-        method: 'GET',
-      }
+        method: 'PATCH',
+        body: { currentPassword: data.currentPassword, newPassword: data.newPassword },
+      },
+      token
     );
-    return this.handleResponse<CategoryLivesResponse>(response);
+  }
+
+  async deleteCurrentUser(token?: string): Promise<void> {
+    await this.authed<unknown>('/users/me', { method: 'DELETE' }, token);
+  }
+
+  /**
+   * Calls an authenticated endpoint. An explicit token (right after login,
+   * before it is persisted) is sent as-is; otherwise the stored one is used.
+   */
+  private async authed<T>(
+    path: string,
+    options: { method: 'GET' | 'PATCH' | 'DELETE'; body?: unknown },
+    explicitToken?: string
+  ): Promise<T> {
+    return request<T>(path, { ...options, token: explicitToken });
   }
 }
 
