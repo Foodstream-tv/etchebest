@@ -115,6 +115,13 @@ export default function ReplayDetailPage() {
     }
   }, []);
 
+  // The translation function changes with the language: keep it out of the player effect's dependencies
+  // (a language switch must not destroy hls.js and restart playback at 0).
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
   const handleQualityChange = (value: string) => {
     setSelectedQuality(value);
     applyQuality(value);
@@ -128,6 +135,7 @@ export default function ReplayDetailPage() {
     setVideoLoading(true);
     setQualities([{ label: "Auto", value: "auto" }]);
     setSelectedQuality("auto");
+    let mediaRecoveries = 0;
 
     if (hlsRef.current) {
       try {
@@ -168,14 +176,18 @@ export default function ReplayDetailPage() {
           })),
         ]);
 
-        applyQuality(selectedQuality, hls);
+        // A new source always starts on Auto. (Reading `selectedQuality` here made every manual quality
+        // change re-run this effect: hls.js was destroyed, the choice reset and the replay restarted at 0.)
+        applyQuality("auto", hls);
         setVideoLoading(false);
       });
 
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (!data?.fatal) return;
 
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        // Bounded recovery: a persistent decode error must not loop forever.
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < 3) {
+          mediaRecoveries += 1;
           hls.recoverMediaError();
           return;
         }
@@ -216,7 +228,7 @@ export default function ReplayDetailPage() {
     const onLoaded = () => setVideoLoading(false);
     const onError = () => {
       setVideoLoading(false);
-      setVideoError(t("replays.videoError"));
+      setVideoError(tRef.current("replays.videoError"));
     };
 
     video.addEventListener("loadedmetadata", onLoaded);
@@ -226,7 +238,7 @@ export default function ReplayDetailPage() {
       video.removeEventListener("loadedmetadata", onLoaded);
       video.removeEventListener("error", onError);
     };
-  }, [replayUrl, isHlsReplay, applyQuality, selectedQuality, t]);
+  }, [replayUrl, isHlsReplay, applyQuality]);
 
   const dateLabel = useMemo(() => {
     if (!replay?.created_at) return locale === "en" ? "Unknown date" : "Date inconnue";
