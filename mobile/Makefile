@@ -1,17 +1,18 @@
 .PHONY: help run start update restart rebuild clean install dev ios android web clear-cache test test-watch test-coverage sync-ip
 
-SET_IP := ../set-ip.sh
+# 8081 is the backend's port: Metro runs on 8082.
+METRO_PORT ?= 8082
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  make run          - Sync IP then start the Expo development server"
+	@echo "  make run          - Start the Expo development server (port $(METRO_PORT))"
 	@echo "  make start        - Alias for 'make run'"
-	@echo "  make dev          - Sync IP then start with cache cleared"
-	@echo "  make ios          - Sync IP then start on iOS simulator"
-	@echo "  make android      - Sync IP then start on Android device/emulator"
+	@echo "  make dev          - Start with cache cleared"
+	@echo "  make ios          - Start on iOS simulator"
+	@echo "  make android      - Start on Android device/emulator"
 	@echo "  make web          - Start web version"
-	@echo "  make sync-ip      - Detect LAN IP and update .env + restart backend"
+	@echo "  make sync-ip      - Refresh WEBRTC_IP in the root .env (the app finds the API from Metro)"
 	@echo "  make update       - Update all dependencies"
 	@echo "  make restart      - Restart the development server"
 	@echo "  make rebuild      - Clean and reinstall everything"
@@ -22,32 +23,32 @@ help:
 	@echo "  make test-watch   - Run tests in watch mode"
 	@echo "  make test-coverage - Run tests with coverage report"
 
-# Sync LAN IP into .env files and restart backend
+# Refresh WEBRTC_IP in the root .env (and restart the backend if it changed and is running)
 sync-ip:
-	@bash $(SET_IP)
+	@bash ../set-ip.sh
 
 # Start the development server
-run: sync-ip
-	npx expo start
+run:
+	npx expo start --port $(METRO_PORT)
 
 # Alias for run
 start: run
 
 # Start with cache cleared
-dev: sync-ip
-	npx expo start --clear
+dev:
+	npx expo start --port $(METRO_PORT) --clear
 
 # Start on iOS
-ios: sync-ip
-	npx expo start --ios
+ios:
+	npx expo start --port $(METRO_PORT) --ios
 
 # Start on Android
-android: sync-ip
-	npx expo start --android
+android:
+	npx expo start --port $(METRO_PORT) --android
 
 # Start web version
 web:
-	npx expo start --web
+	npx expo start --port $(METRO_PORT) --web
 
 # Install dependencies
 install:
@@ -60,7 +61,7 @@ update:
 
 # Clear cache
 clear-cache:
-	npx expo start --clear
+	npx expo start --port $(METRO_PORT) --clear
 	npm cache clean --force
 
 # Restart server (stop and start fresh)
@@ -68,7 +69,7 @@ restart:
 	@echo "Restarting Expo server..."
 	@pkill -f "expo start" || true
 	@sleep 1
-	npx expo start --clear
+	npx expo start --port $(METRO_PORT) --clear
 
 # Clean everything
 clean:
@@ -83,7 +84,7 @@ rebuild: clean
 	@echo "Installing dependencies..."
 	npm install
 	@echo "Starting development server..."
-	npx expo start --clear
+	npx expo start --port $(METRO_PORT) --clear
 
 # Run unit tests
 test:

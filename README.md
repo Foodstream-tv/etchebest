@@ -37,6 +37,45 @@ Le projet est structuré en plusieurs sous-projets :
 
 ---
 
+## Démarrage rapide (développement)
+
+Prérequis : Docker (Compose v2), Node 22 ; Go 1.25 pour lancer les tests du backend.
+
+```bash
+make dev
+```
+
+Cette seule commande :
+
+1. crée `.env` depuis `.env.example` s'il n'existe pas (génère `JWT_SECRET`, active `DEV_MODE` pour afficher les codes de vérification) ;
+2. règle `WEBRTC_IP` sur l'adresse IP de votre machine sur le réseau local ;
+3. démarre PostgreSQL et le backend, et attend qu'ils soient prêts (`up --wait`) ;
+4. lance Metro pour l'application mobile sur le port **8082** (le backend occupe le 8081).
+
+L'application mobile trouve l'API toute seule à partir de l'adresse de Metro : plus rien à synchroniser quand vous changez de réseau.
+
+| Commande | Rôle |
+| :--- | :--- |
+| `make dev` | Tout démarrer (backend + Metro) |
+| `make up` / `make mobile` | Le backend seul / Metro seul |
+| `make logs` | Suivre les logs du backend |
+| `make restart` | Reconstruire et relancer le backend |
+| `make down` | Arrêter les conteneurs (les données sont conservées) |
+| `make reset` | **Tout supprimer** (base, replays, uploads) après confirmation |
+| `make test` | Lancer tous les tests (backend, mobile, web, scripts) |
+| `make help` | Lister toutes les commandes |
+
+### Dépannage
+
+- **« Port 8081 déjà utilisé »** : c'est souvent Metro lancé sur son port par défaut. Arrêtez-le et utilisez `make mobile` (port 8082).
+- **« Erreur réseau » sur le téléphone** : vérifiez que le PC et le téléphone sont sur le même Wi-Fi, que `curl http://<IP du PC>:8081/api/lives` répond, puis le pare-feu. Sous Fedora : `sudo firewall-cmd --add-port=8081/tcp --add-port=50000-50100/udp` (ajoutez `--permanent` pour le conserver).
+- **La caméra ne se connecte pas depuis un autre appareil** : `WEBRTC_IP` doit être l'IP du PC sur le réseau (`make setup` la met à jour ; relancez le backend avec `make restart`).
+- **Émulateur Android** : l'application joint le PC via `10.0.2.2` automatiquement.
+- **Code de vérification à l'inscription** : avec `DEV_MODE=true`, il est affiché dans les logs du backend (`make logs`) et l'application propose de le pré-remplir.
+- **Replays et uploads** : ils sont dans le volume Docker `backend_data` et survivent aux reconstructions. Avant la toute première recréation du conteneur backend sur une installation plus ancienne, sauvegardez-les : `docker cp backend-foodstream:/foodstream/storage ./backup-storage`.
+
+---
+
 ## Démarrage rapide avec Docker
 
 L'ensemble de la stack (Base de données, Backend API, Frontend Web et Dashboard Analytics) démarre d'un coup :
@@ -80,13 +119,7 @@ La valeur par défaut `WEBRTC_IP=127.0.0.1` dans `.env` fonctionne directement g
 
 ### Pour tester avec des téléphones ou d'autres machines sur le réseau local (LAN)
 
-Exécutez le script d'auto-détection IP :
-
-```bash
-./set-ip.sh
-```
-
-Ce script détecte automatiquement votre adresse IP LAN (ex: `192.168.1.50`) et met à jour `WEBRTC_IP` dans `.env` ainsi que `mobile/.env`.
+Lancez `make setup` (ou `./set-ip.sh`) : le script détecte votre adresse IP LAN (ex: `192.168.1.50`) et met à jour `WEBRTC_IP` dans `.env`. Une valeur choisie volontairement (IP publique, nom d'hôte) n'est jamais écrasée. Côté mobile, rien à configurer : l'application déduit l'adresse de l'API de celle de Metro.
 
 ---
 
