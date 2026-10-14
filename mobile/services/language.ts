@@ -1,25 +1,9 @@
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import storage from './storage';
 
 export type Locale = 'fr' | 'en';
 
 const LANGUAGE_KEY = 'app_language';
 
-const storage = {
-    async setItem(key: string, value: string): Promise<void> {
-        if (Platform.OS === 'web') {
-            localStorage.setItem(key, value);
-        } else {
-            await SecureStore.setItemAsync(key, value);
-        }
-    },
-    async getItem(key: string): Promise<string | null> {
-        if (Platform.OS === 'web') {
-            return localStorage.getItem(key);
-        }
-        return SecureStore.getItemAsync(key);
-    },
-};
 
 class LanguageService {
     private locale: Locale | null = null;
