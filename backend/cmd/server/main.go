@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
 	"github.com/Foodstream-io/etchebest/internal/modules/chat"
@@ -65,6 +66,13 @@ func main() {
 	if webrtcIP == "" {
 		webrtcIP = "127.0.0.1" // default for local development
 		log.Printf("WEBRTC_IP not set, defaulting to %s", webrtcIP)
+	}
+	// Remote clients (phones, other PCs) can only reach the media server through this address:
+	// with a loopback value ICE succeeds only for a browser on the same machine and fails silently
+	// for everybody else.
+	if ip := net.ParseIP(webrtcIP); ip != nil && ip.IsLoopback() {
+		log.Printf("WARNING: WEBRTC_IP=%s is a loopback address. Only clients running on this machine can "+
+			"publish or watch over WebRTC. Set WEBRTC_IP to the server's LAN or public IP for phones and other devices.", webrtcIP)
 	}
 
 	var migrateModels = []any{
