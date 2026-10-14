@@ -2,31 +2,31 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { brandTheme } from '@/constants/brandTheme';
+import { orbs } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type BrandBackdropProps = {
     compact?: boolean;
 };
 
+/** Decorative orange orbs of the web background (AppBackground.tsx), themed. */
 export default function BrandBackdrop({ compact = false }: Readonly<BrandBackdropProps>) {
+    const { scheme } = useTheme();
+    const palette = orbs[scheme];
 
     return (
-        <View style={styles.overlay}>
+        <View style={styles.overlay} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <LinearGradient
-                colors={brandTheme.gradients.orbMain}
+                colors={palette.main}
                 start={{ x: 0.3, y: 0.3 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.orb, compact ? styles.orbMainCompact : styles.orbMain]}
             />
             <LinearGradient
-                colors={brandTheme.gradients.orbSecondary}
+                colors={palette.secondary}
                 start={{ x: 0.8, y: 0.2 }}
                 end={{ x: 0.3, y: 0.9 }}
                 style={[styles.orb, compact ? styles.orbSecondaryCompact : styles.orbSecondary]}
-            />
-            <LinearGradient
-                colors={['rgba(249, 115, 22, 0.18)', 'rgba(249, 115, 22, 0)']}
-                style={styles.orbSmall}
             />
         </View>
     );
@@ -35,44 +35,33 @@ export default function BrandBackdrop({ compact = false }: Readonly<BrandBackdro
 const styles = StyleSheet.create({
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        pointerEvents: 'none',
     },
     orb: {
         borderRadius: 999,
         position: 'absolute',
-        borderWidth: 1,
-        borderColor: 'rgba(249, 115, 22, 0.12)',
     },
     orbMain: {
         width: 360,
         height: 360,
-        top: -120,
-        right: -110,
+        top: -140,
+        right: -140,
     },
     orbMainCompact: {
         width: 280,
         height: 280,
         top: -110,
-        right: -90,
+        right: -100,
     },
     orbSecondary: {
-        width: 220,
-        height: 220,
-        bottom: 120,
-        left: -90,
+        width: 260,
+        height: 260,
+        bottom: -100,
+        left: -110,
     },
     orbSecondaryCompact: {
-        width: 160,
-        height: 160,
-        bottom: 80,
-        left: -70,
-    },
-    orbSmall: {
-        position: 'absolute',
-        width: 86,
-        height: 86,
-        borderRadius: 999,
-        top: 100,
-        left: 30,
+        width: 180,
+        height: 180,
+        bottom: -70,
+        left: -80,
     },
 });
