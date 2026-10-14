@@ -51,8 +51,13 @@ const errRoomNotFound = "room not found"
 
 
 var (
-	mu        sync.Mutex
-	liveRooms = make(map[string]*Room)
+	// mu guards the *contents* of rooms (connections, participants, peer state).
+	mu sync.Mutex
+
+	// liveRoomsMu guards only the liveRooms map itself. It is a leaf lock: it is never held while
+	// taking mu or doing I/O, so it is safe to use whether or not the caller already holds mu.
+	liveRoomsMu sync.Mutex
+	liveRooms   = make(map[string]*Room)
 )
 
 func normalizeFmtp(fmtp string) string {
@@ -122,19 +127,41 @@ func findCodec(
 // getLiveRoom returns the shared in-memory Room pointer.
 // If not yet tracked, it loads from the DB and registers it.
 func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
-	if r, ok := liveRooms[id]; ok {
+	if r := peekLiveRoom(id); r != nil {
 		return r, nil
 	}
-	r, err := GetRoomById(db, id)
+	// Load outside the map lock (DB I/O), then keep the first registered pointer if another
+	// goroutine loaded the same room meanwhile: every caller must share one *Room.
+	loaded, err := GetRoomById(db, id)
 	if err != nil {
 		return nil, err
 	}
-	liveRooms[id] = r
-	return r, nil
+	liveRoomsMu.Lock()
+	defer liveRoomsMu.Unlock()
+	if existing, ok := liveRooms[id]; ok {
+		return existing, nil
+	}
+	liveRooms[id] = loaded
+	return loaded, nil
+}
+
+// peekLiveRoom returns the tracked room, or nil when it is not in memory.
+func peekLiveRoom(id string) *Room {
+	liveRoomsMu.Lock()
+	defer liveRoomsMu.Unlock()
+	return liveRooms[id]
+}
+
+func setLiveRoom(id string, room *Room) {
+	liveRoomsMu.Lock()
+	liveRooms[id] = room
+	liveRoomsMu.Unlock()
 }
 
 func removeLiveRoom(id string) {
+	liveRoomsMu.Lock()
 	delete(liveRooms, id)
+	liveRoomsMu.Unlock()
 }
 
 func markLiveAsEndedByRoomID(db *gorm.DB, roomID string, replayURL string) {
@@ -523,7 +550,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		mu.Lock()
-		liveRooms[room.ID] = &room
+		setLiveRoom(room.ID, &room)
 		mu.Unlock()
 
 		if newLive.Status == "scheduled" && newLive.ScheduledAt != nil && currentUser.Email != "" {
@@ -651,7 +678,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
+		if liveRoom := peekLiveRoom(roomId); liveRoom != nil {
 			liveRoom.Participants = room.Participants
 		}
 		mu.Unlock()
@@ -733,7 +760,7 @@ func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		mu.Lock()
-		if liveRoom, exists := liveRooms[roomId]; exists && liveRoom != nil {
+		if liveRoom := peekLiveRoom(roomId); liveRoom != nil {
 			liveRoom.Participants = room.Participants
 		}
 		mu.Unlock()
@@ -1194,6 +1221,11 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 // auto-adds them when there is room. Returns an HTTP error and false when the
 // caller should abort.
 func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
+	// Participants / KickedUsers are shared with reserve, cancel, kick and disconnect: check-then-append
+	// must be atomic with them.
+	mu.Lock()
+	defer mu.Unlock()
+
 	if room.KickedUsers != nil && room.KickedUsers[userID] {
 		c.JSON(http.StatusForbidden, gin.H{"error": "you have been kicked from this room"})
 		return false
@@ -1708,7 +1740,25 @@ type hlsVideoState struct {
 	receivedPPS    bool
 	paramsGateTime time.Time
 	pliSentCount   int
+	lastPLI        time.Time
 	seqNum         uint16
+}
+
+// pliGateInterval is how often a PLI is repeated while waiting for SPS/PPS.
+const pliGateInterval = 150 * time.Millisecond
+
+// shouldSendGatePLI reports whether another PLI is due at `now`, and records it. It is time based:
+// the previous `elapsed%150ms == 0` test was only true when a packet happened to arrive on an exact
+// multiple of 150 ms, i.e. practically never, so the gate only ever opened through its 2 s timeout.
+func (s *hlsVideoState) shouldSendGatePLI(now time.Time) bool {
+	if s.pliSentCount >= 15 {
+		return false
+	}
+	if !s.lastPLI.IsZero() && now.Sub(s.lastPLI) < pliGateInterval {
+		return false
+	}
+	s.lastPLI = now
+	return true
 }
 
 // sendPLIBurst sends n PLI packets to request SPS/PPS from the sender.
@@ -1750,7 +1800,7 @@ func (s *hlsVideoState) runParamsPLIGate(pc *webrtc.PeerConnection, ssrc uint32)
 		return
 	}
 	elapsed := time.Since(s.paramsGateTime)
-	if elapsed > 0 && int(elapsed.Milliseconds())%150 == 0 && s.pliSentCount < 15 {
+	if elapsed > 0 && s.shouldSendGatePLI(time.Now()) {
 		if err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: ssrc}}); err == nil {
 			s.pliSentCount++
 		}

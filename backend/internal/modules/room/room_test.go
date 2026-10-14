@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
@@ -83,4 +85,73 @@ func TestNormalizeFmtp(t *testing.T) {
 	if norm1 != norm2 {
 		t.Fatalf("expected normalized fmtp strings to match: %q vs %q", norm1, norm2)
 	}
+}
+
+func TestShouldSendGatePLIIsTimeBased(t *testing.T) {
+	var s hlsVideoState
+	start := time.Now()
+
+	if !s.shouldSendGatePLI(start) {
+		t.Fatal("the first PLI must be sent immediately")
+	}
+	s.pliSentCount++
+	// packets arriving at arbitrary instants (never on an exact multiple of 150 ms) must not starve it
+	if s.shouldSendGatePLI(start.Add(40 * time.Millisecond)) {
+		t.Fatal("PLI must be rate limited to one per interval")
+	}
+	if !s.shouldSendGatePLI(start.Add(151 * time.Millisecond)) {
+		t.Fatal("a PLI is due once the interval elapsed, whatever the packet arrival time")
+	}
+}
+
+func TestShouldSendGatePLIIsCapped(t *testing.T) {
+	var s hlsVideoState
+	s.pliSentCount = 15
+	if s.shouldSendGatePLI(time.Now()) {
+		t.Fatal("no more PLI after the cap")
+	}
+}
+
+func TestUnregisterWSConnectionKeepsTheNewerRegistration(t *testing.T) {
+	oldClient := &WSClientConn{roomID: "r", userID: "u", done: make(chan struct{})}
+	newClient := &WSClientConn{roomID: "r", userID: "u", done: make(chan struct{})}
+
+	wsConnMu.Lock()
+	wsConnections = map[string]map[string]*WSClientConn{"r": {"u": newClient}}
+	wsConnMu.Unlock()
+
+	// The replaced connection finishes its cleanup after the newer one registered.
+	unregisterWSConnection(oldClient)
+
+	wsConnMu.RLock()
+	got := wsConnections["r"]["u"]
+	wsConnMu.RUnlock()
+	if got != newClient {
+		t.Fatal("cleanup of an old connection must not remove the new registration")
+	}
+
+	unregisterWSConnection(newClient)
+	wsConnMu.RLock()
+	_, stillThere := wsConnections["r"]
+	wsConnMu.RUnlock()
+	if stillThere {
+		t.Fatal("removing the current connection should clear the room entry")
+	}
+}
+
+func TestLiveRoomsRegistryIsSafeForConcurrentUse(t *testing.T) {
+	const roomID = "concurrent-room"
+	t.Cleanup(func() { removeLiveRoom(roomID) })
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			setLiveRoom(roomID, &Room{ID: roomID})
+			_ = peekLiveRoom(roomID)
+			removeLiveRoom(roomID)
+		}()
+	}
+	wg.Wait()
 }
