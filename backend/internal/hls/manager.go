@@ -1,6 +1,7 @@
 package hls
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -107,6 +108,11 @@ func finalizeOnePlaylist(path string) error {
 		return err
 	}
 
+	// #EXT-X-ENDLIST is only valid in media playlists, never in the master playlist.
+	if filepath.Base(path) == "master.m3u8" {
+		return nil
+	}
+
 	content := string(data)
 
 	if strings.Contains(content, "#EXT-X-ENDLIST") {
@@ -143,8 +149,16 @@ func StopStream(roomID string) (string, error) {
 		log.Printf("[REPLAY] replay generated: %s", replayURL)
 	}
 
-	if err := os.RemoveAll(filepath.Join("./hls", roomID)); err != nil {
-		log.Printf("[HLS] cleanup failed for room %s: %v", roomID, err)
+	// Only delete the recording once it is safely stored as a replay (or when there was nothing to
+	// keep). A failed replay (disk full, copy error) must never also destroy its only source.
+	sourceDir := filepath.Join("./hls", roomID)
+	switch {
+	case err == nil, errors.Is(err, ErrNoReplayContent):
+		if rmErr := os.RemoveAll(sourceDir); rmErr != nil {
+			log.Printf("[HLS] cleanup failed for room %s: %v", roomID, rmErr)
+		}
+	default:
+		log.Printf("[HLS] replay failed for room %s: keeping the recording in %s for recovery", roomID, sourceDir)
 	}
 
 	return replayURL, err
