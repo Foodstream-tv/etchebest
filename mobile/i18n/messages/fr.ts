@@ -1,80 +1,27 @@
+import { fr as auth } from './areas/auth';
+import { fr as base } from './areas/base';
+import { fr as common } from './areas/common';
+import { fr as home } from './areas/home';
+import { fr as profile } from './areas/profile';
+import { fr as settings } from './areas/settings';
+import { fr as studio } from './areas/studio';
+import { fr as live } from './areas/live';
+import sharedFr from './shared.fr';
+
+/**
+ * Wording shared with the web (generated, see scripts/sync-i18n.mjs) overridden by
+ * mobile-only keys. English lives in ./en.ts and must define exactly the same keys.
+ */
 const fr = {
-    'common.user': 'Utilisateur',
-    'common.connected': 'Connecté',
-    'common.link': 'Lier',
-    'common.cancel': 'Annuler',
-    'common.save': 'Enregistrer',
-    'common.languages.fr': 'FR',
-    'common.languages.en': 'EN',
-
-    'tabs.home': 'Accueil',
-    'tabs.discover': 'Découvrir',
-    'tabs.favorites': 'Favoris',
-    'tabs.profile': 'Profil',
-
-    'profile.title': 'Profil',
-    'profile.section.preferences': 'Préférences',
-    'profile.section.stats': 'Statistiques',
-    'profile.section.badges': 'Médailles & Badges',
-    'profile.section.connections': 'Comptes connectés',
-    'profile.section.activity': 'Activité récente',
-
-    'profile.edit.button': 'Modifier',
-    'profile.edit.modalTitle': 'Modifier mon profil',
-    'profile.edit.firstName': 'Prénom',
-    'profile.edit.lastName': 'Nom',
-    'profile.edit.username': "Nom d'utilisateur",
-    'profile.edit.email': 'Email',
-    'profile.edit.bio': 'Bio',
-    'profile.edit.placeholder.firstName': 'Entrez votre prénom',
-    'profile.edit.placeholder.lastName': 'Entrez votre nom',
-    'profile.edit.placeholder.username': 'Entrez votre pseudo',
-    'profile.edit.placeholder.email': 'email@exemple.com',
-    'profile.edit.placeholder.bio': 'Parlez un peu de vous',
-    'profile.edit.error.firstNameRequired': 'Le prénom est requis.',
-    'profile.edit.error.lastNameRequired': 'Le nom est requis.',
-    'profile.edit.error.usernameMin': "Le nom d'utilisateur doit contenir au moins 3 caractères.",
-    'profile.edit.error.emailRequired': "L'email est requis.",
-    'profile.edit.error.emailInvalid': 'Adresse email invalide.',
-    'profile.edit.error.updateFailed': 'Impossible de mettre à jour le profil.',
-    'profile.edit.alert.sessionTitle': 'Session expirée',
-    'profile.edit.alert.sessionMessage': 'Reconnectez-vous pour modifier votre profil.',
-
-    'profile.preferences.theme': 'Thème',
-    'profile.preferences.theme.light': 'Clair',
-    'profile.preferences.theme.dark': 'Sombre',
-    'profile.preferences.theme.system': 'Système',
-    'profile.preferences.theme.helper': 'Switch pour essayer le mode sombre',
-    'profile.preferences.notifications': 'Notifications',
-    'profile.preferences.notifications.lives': 'Lives',
-    'profile.preferences.notifications.replays': 'Replays',
-    'profile.preferences.notifications.newChefs': 'Nouveaux chefs',
-    'profile.preferences.language': 'Langue',
-
-    'profile.stats.watchTime': 'Temps de visionnage',
-    'profile.stats.recipes': 'Recettes cuisinées',
-    'profile.stats.streak': 'Streak',
-    'profile.stats.streakValue': '7 jours',
-    'profile.stats.followedChefs': 'Chefs suivis',
-    'profile.progress.level': 'Niveau de Chef',
-    'profile.progress.weeklyGoal': 'Objectif hebdo (5h)',
-
-    'profile.badges.beginner.title': 'Chef Débutant',
-    'profile.badges.beginner.description': '5 lives suivis',
-    'profile.badges.curious.title': 'Gourmet Curieux',
-    'profile.badges.curious.description': '10 recettes sauvegardées',
-    'profile.badges.chatKing.title': 'Roi du Chat',
-    'profile.badges.chatKing.description': '100 messages envoyes',
-    'profile.badges.earlyBird.title': 'Matinal',
-    'profile.badges.earlyBird.description': '3 lives à 8h',
-    'profile.badges.nightOwl.title': 'Noctambule',
-    'profile.badges.nightOwl.description': '3 lives après minuit',
-    'profile.badges.ambassador.title': 'Ambassadeur',
-    'profile.badges.ambassador.description': '5 parrainages',
-
-    'profile.activity.item1': 'A rejoint "Ramen Tonkotsu Ultimes"',
-    'profile.activity.item2': 'A sauvegardé "Bao buns ultra moelleux"',
-    'profile.activity.item3': 'A suivi le chef "Camille Dupont"',
+    ...sharedFr,
+    ...auth,
+    ...base,
+    ...common,
+    ...home,
+    ...profile,
+    ...settings,
+    ...studio,
+    ...live,
 } as const;
 
 export default fr;

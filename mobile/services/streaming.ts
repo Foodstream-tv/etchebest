@@ -1,174 +1,133 @@
 import envConfig from '../config/env';
-import auth from './auth';
+import { request, seg, UnauthorizedError } from './http';
 
-const BASE_URL = envConfig.apiBaseUrl;
+export { UnauthorizedError };
 
-export class UnauthorizedError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = 'UnauthorizedError';
-    }
-}
-
-async function requireAuthHeaders(): Promise<Record<string, string>> {
-    const token = await auth.getToken();
-    if (!token) {
-        throw new UnauthorizedError('Vous devez vous connecter pour accéder aux lives.');
-    }
-
-    return {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-    };
-}
-
-async function throwIfUnauthorized(res: Response): Promise<void> {
-    if (res.status === 401) {
-        await auth.logout();
-        throw new UnauthorizedError('Session expirée. Reconnectez-vous pour continuer.');
-    }
-}
-
-async function getErrorMessage(res: Response, fallback: string): Promise<string> {
-    const err = await res.json().catch(() => ({}));
-    return err.error || fallback;
-}
-
-async function authHeaders(): Promise<Record<string, string>> {
-    return requireAuthHeaders();
-}
-
-// ---------- Room endpoints ----------
-
-export interface CreateRoomResponse {
-    roomId: string;
-    message: string;
-}
-
-export async function createRoom(name: string): Promise<CreateRoomResponse> {
-    const res = await fetch(`${BASE_URL}/rooms`, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ name }),
-    });
-    await throwIfUnauthorized(res);
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `Failed to create room (${res.status})`));
-    }
-    return res.json();
-}
-
-export async function reserveRoom(roomId: string): Promise<{ message: string }> {
-    const res = await fetch(`${BASE_URL}/rooms/${roomId}/reserve`, {
-        method: 'POST',
-        headers: await authHeaders(),
-    });
-    await throwIfUnauthorized(res);
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `Failed to reserve room (${res.status})`));
-    }
-    return res.json();
-}
-
-export async function disconnectRoom(roomId: string): Promise<void> {
-    const res = await fetch(`${BASE_URL}/rooms/${roomId}/disconnect`, {
-        method: 'POST',
-        headers: await authHeaders(),
-    });
-    await throwIfUnauthorized(res);
-}
+// ---------- Rooms ----------
 
 export interface RoomInfo {
-    id: string;
-    name: string;
-    host: string;
-    participants: string[];
-    viewers: number;
-    maxParticipants: number;
+  id: string;
+  name: string;
+  host?: string;
+  participants: string[];
+  viewers: number;
+  maxParticipants: number;
+}
+
+export interface CreateRoomResponse {
+  roomId: string;
+  message?: string;
+}
+
+export interface ReservationResponse {
+  message: string;
+  reserved: boolean;
+  registeredCount: number;
+  maxParticipants: number;
 }
 
 export async function getRooms(): Promise<RoomInfo[]> {
-    const res = await fetch(`${BASE_URL}/rooms`, {
-        method: 'GET',
-        headers: await authHeaders(),
-    });
-    await throwIfUnauthorized(res);
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `Failed to fetch rooms (${res.status})`));
-    }
-    return res.json();
+  const rooms = await request<RoomInfo[] | null>('/rooms');
+  return Array.isArray(rooms) ? rooms : [];
+}
+
+export async function getRoom(roomId: string): Promise<RoomInfo> {
+  return request<RoomInfo>(`/rooms/${seg(roomId)}`);
+}
+
+/** Optional metadata the backend persists on the live at creation (web Studio payload). */
+export interface CreateRoomOptions {
+  title?: string;
+  description?: string;
+  tags?: string[];
+}
+
+export async function createRoom(name: string, options: CreateRoomOptions = {}): Promise<CreateRoomResponse> {
+  const body: Record<string, unknown> = { name };
+  if (options.title) body.title = options.title;
+  if (options.description) body.description = options.description;
+  if (options.tags && options.tags.length > 0) body.tags = options.tags;
+  return request<CreateRoomResponse>('/rooms', { method: 'POST', body });
+}
+
+export async function reserveRoom(roomId: string): Promise<ReservationResponse> {
+  return request<ReservationResponse>(`/rooms/${seg(roomId)}/reserve`, { method: 'POST' });
+}
+
+export async function cancelReserveRoom(roomId: string): Promise<ReservationResponse> {
+  return request<ReservationResponse>(`/rooms/${seg(roomId)}/reserve`, { method: 'DELETE' });
+}
+
+export async function disconnectRoom(roomId: string): Promise<void> {
+  await request<unknown>(`/rooms/${seg(roomId)}/disconnect`, { method: 'POST' });
 }
 
 // ---------- WebRTC signaling ----------
 
-export async function sendOffer(
-    roomId: string,
-    sdp: string
-): Promise<{ sdp: string }> {
-    const res = await fetch(`${BASE_URL}/webrtc?roomId=${roomId}`, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ type: 'offer', sdp }),
-    });
-    await throwIfUnauthorized(res);
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `SDP exchange failed (${res.status})`));
-    }
-    return res.json();
+export async function sendOffer(roomId: string, sdp: string): Promise<{ sdp: string }> {
+  return request<{ sdp: string }>('/webrtc', {
+    method: 'POST',
+    query: { roomId },
+    body: { type: 'offer', sdp },
+  });
 }
 
-export async function sendICECandidate(
-    roomId: string,
-    candidate: RTCIceCandidateInit
-): Promise<void> {
-    const res = await fetch(`${BASE_URL}/ice?roomId=${roomId}`, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify(candidate),
-    });
-    await throwIfUnauthorized(res);
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `ICE candidate failed (${res.status})`));
-    }
+/** Only forwards the fields the backend understands (same as the web client). */
+export async function sendICECandidate(roomId: string, candidate: RTCIceCandidateInit): Promise<void> {
+  const safeCandidate: Record<string, unknown> = { candidate: candidate.candidate };
+
+  if (typeof candidate.sdpMid === 'string') safeCandidate.sdpMid = candidate.sdpMid;
+  if (typeof candidate.sdpMLineIndex === 'number') safeCandidate.sdpMLineIndex = candidate.sdpMLineIndex;
+  if (typeof candidate.usernameFragment === 'string') safeCandidate.usernameFragment = candidate.usernameFragment;
+
+  await request<unknown>('/ice', { method: 'POST', query: { roomId }, body: safeCandidate });
 }
 
 export interface RenegotiationOffer {
-    type: 'offer';
-    sdp: string;
+  type: 'offer';
+  sdp: string;
 }
 
+/** Resolves null when no renegotiation is pending (HTTP 204). */
 export async function fetchRenegotiationOffer(roomId: string): Promise<RenegotiationOffer | null> {
-    const res = await fetch(`${BASE_URL}/webrtc/offers/next?roomId=${roomId}`, {
-        method: 'GET',
-        headers: await authHeaders(),
-    });
-    await throwIfUnauthorized(res);
-
-    if (res.status === 204) {
-        return null;
-    }
-
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `Renegotiation poll failed (${res.status})`));
-    }
-
-    return res.json();
+  const offer = await request<RenegotiationOffer | null>('/webrtc/offers/next', { query: { roomId } });
+  return offer?.sdp ? offer : null;
 }
 
 export async function sendRenegotiationAnswer(roomId: string, sdp: string): Promise<void> {
-    const res = await fetch(`${BASE_URL}/webrtc/answer?roomId=${roomId}`, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ type: 'answer', sdp }),
-    });
-    await throwIfUnauthorized(res);
-    if (!res.ok) {
-        throw new Error(await getErrorMessage(res, `Renegotiation answer failed (${res.status})`));
-    }
+  await request<unknown>('/webrtc/answer', {
+    method: 'POST',
+    query: { roomId },
+    body: { type: 'answer', sdp },
+  });
 }
 
 // ---------- HLS ----------
 
 export function getHLSUrl(roomId: string): string {
-    return `${BASE_URL}/hls/${roomId}/master.m3u8`;
+  return `${envConfig.apiBaseUrl.replace(/\/+$/, '')}/hls/${seg(roomId)}/master.m3u8`;
+}
+
+// ---------- Chat ----------
+
+export interface ChatMessage {
+  id: string;
+  username: string;
+  message: string;
+}
+
+export const MAX_CHAT_MESSAGE_LENGTH = 500;
+
+export async function getChatMessages(roomId: string): Promise<ChatMessage[]> {
+  const messages = await request<ChatMessage[] | null>(`/rooms/${seg(roomId)}/chat`);
+  return Array.isArray(messages) ? messages : [];
+}
+
+export async function postChatMessage(roomId: string, message: string): Promise<void> {
+  const text = message.trim();
+  if (!text) return;
+  await request<unknown>(`/rooms/${seg(roomId)}/chat`, {
+    method: 'POST',
+    body: { message: text.slice(0, MAX_CHAT_MESSAGE_LENGTH) },
+  });
 }

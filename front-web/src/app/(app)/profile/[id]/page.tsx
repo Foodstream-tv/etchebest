@@ -21,7 +21,7 @@ import { useI18n } from "@/i18n/LanguageContext";
 
 function getDisplayName(user: UserSummary) {
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
-  return user.username || fullName || user.email || "Utilisateur";
+  return user.username || fullName || "Utilisateur";
 }
 
 export default function PublicProfilePage() {
@@ -54,8 +54,8 @@ export default function PublicProfilePage() {
         const foundUser = await getUserById(userId, token ?? undefined);
         setProfile(foundUser);
 
-        setFollowersCount(foundUser.followersIDS?.length ?? 0);
-        setFollowingCount(foundUser.followingIDS?.length ?? 0);
+        setFollowersCount(foundUser.followersIds?.length ?? 0);
+        setFollowingCount(foundUser.followingIds?.length ?? 0);
       } finally {
         setLoading(false);
       }

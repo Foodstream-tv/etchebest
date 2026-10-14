@@ -1,404 +1,385 @@
-import BrandBackdrop from '@/components/BrandBackdrop';
-import { brandTheme } from '@/constants/brandTheme';
-import { createShadowStyle } from '@/utils/shadow';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getRooms, RoomInfo, UnauthorizedError } from '../../services/streaming';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
-const ORANGE_GRADIENT = brandTheme.gradients.primary;
-const BACKGROUND = brandTheme.colors.bg;
-const CARD = brandTheme.colors.surface;
-const SURFACE_STRONG = brandTheme.colors.surfaceStrong;
-const BORDER = brandTheme.colors.border;
-const TEXT = brandTheme.colors.text;
-const MUTED = brandTheme.colors.muted;
+import AppHeader from '@/components/home/AppHeader';
+import FiltersSheet from '@/components/home/FiltersSheet';
+import Avatar from '@/components/ui/Avatar';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import LiveCard from '@/components/ui/LiveCard';
+import Screen from '@/components/ui/Screen';
+import SearchBar from '@/components/ui/SearchBar';
+import SectionHeader from '@/components/ui/SectionHeader';
+import Skeleton from '@/components/ui/Skeleton';
+import { EmptyState, ErrorState } from '@/components/ui/States';
+import { HOME_CATEGORIES, TAGS_SEPARATOR } from '@/constants/tags';
+import { useI18n } from '@/contexts/LanguageContext';
+import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { usePolling } from '@/hooks/usePolling';
+import { getLives, liveHostImage, LiveDTO } from '@/services/lives';
 
-function RoomCard({ room, onWatch, onJoin }: Readonly<{ room: RoomInfo; onWatch: () => void; onJoin: () => void }>) {
-    const spotsLeft = room.maxParticipants - room.participants.length;
+const FEATURED_COUNT = 4;
+const POLL_MS = 15_000;
 
-    return (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View style={styles.liveDot} />
-                <Text style={styles.cardTitle} numberOfLines={1}>{room.name}</Text>
-            </View>
+type CreatorEntry = { id: string; name: string; image?: string };
 
-            <View style={styles.cardStats}>
-                <View style={styles.stat}>
-                    <Ionicons name="people-outline" size={14} color={MUTED} />
-                    <Text style={styles.statText}>
-                        {room.participants.length}/{room.maxParticipants} streamers
-                    </Text>
-                </View>
-                <View style={styles.stat}>
-                    <Ionicons name="eye-outline" size={14} color={MUTED} />
-                    <Text style={styles.statText}>{room.viewers} spectateurs</Text>
-                </View>
-            </View>
-
-            <View style={styles.cardActions}>
-                {/* Watch as viewer (HLS) */}
-                <TouchableOpacity onPress={onWatch} style={styles.watchButton}>
-                    <Ionicons name="play-circle-outline" size={18} color="#FF7A00" />
-                    <Text style={styles.watchText}>Regarder</Text>
-                </TouchableOpacity>
-
-                {/* Join as co-streamer (WebRTC) */}
-                {spotsLeft > 0 ? (
-                    <TouchableOpacity onPress={onJoin} activeOpacity={0.85}>
-                        <LinearGradient
-                            colors={ORANGE_GRADIENT}
-                            start={{ x: 0, y: 0.5 }}
-                            end={{ x: 1, y: 0.5 }}
-                            style={styles.joinButton}
-                        >
-                            <Ionicons name="videocam-outline" size={16} color="#fff" />
-                            <Text style={styles.joinText}>Rejoindre</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                ) : (
-                    <View style={styles.fullBadge}>
-                        <Text style={styles.fullText}>Complet</Text>
-                    </View>
-                )}
-            </View>
-        </View>
-    );
-}
-
-function RoomListContent({
-    error,
-    rooms,
-    refreshing,
-    onRefresh,
-    onRetry,
-    onWatch,
-    onJoin,
-}: {
-    readonly error: string | null;
-    readonly rooms: RoomInfo[];
-    readonly refreshing: boolean;
-    readonly onRefresh: () => void;
-    readonly onRetry: () => void;
-    readonly onWatch: (room: RoomInfo) => void;
-    readonly onJoin: (room: RoomInfo) => void;
-}) {
-    if (error) {
-        return (
-            <View style={styles.center}>
-                <Ionicons name="cloud-offline-outline" size={48} color={MUTED} />
-                <Text style={styles.emptyText}>{error}</Text>
-                <TouchableOpacity onPress={onRetry} style={styles.retryBtn}>
-                    <Text style={styles.retryBtnText}>Réessayer</Text>
-                </TouchableOpacity>
-            </View>
-        );
+/** Distinct hosts of the lives currently on the platform ("Chefs à découvrir"). */
+export function creatorsFromLives(lives: readonly LiveDTO[]): CreatorEntry[] {
+    const seen = new Map<string, CreatorEntry>();
+    for (const live of lives) {
+        const id = live.user?.id;
+        if (!id || seen.has(id)) continue;
+        seen.set(id, { id, name: live.user?.username || 'Foodstream', image: liveHostImage(live) });
     }
-    if (rooms.length === 0) {
-        return (
-            <View style={styles.center}>
-                <Ionicons name="radio-outline" size={48} color={MUTED} />
-                <Text style={styles.emptyText}>Aucun live en cours</Text>
-                <Text style={styles.emptySubtext}>Sois le premier à lancer un live !</Text>
-            </View>
-        );
-    }
-    return (
-        <FlatList
-            data={rooms}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            renderItem={({ item }) => (
-                <RoomCard
-                    room={item}
-                    onWatch={() => onWatch(item)}
-                    onJoin={() => onJoin(item)}
-                />
-            )}
-            refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandTheme.colors.orange} />
-            }
-        />
-    );
+    return Array.from(seen.values());
 }
 
 export default function HomeScreen() {
+    const styles = useStyles();
+    const { colors } = useTheme();
+    const { t } = useI18n();
     const router = useRouter();
-    const [rooms, setRooms] = useState<RoomInfo[]>([]);
+
+    const [query, setQuery] = useState('');
+    const [tags, setTags] = useState<string[]>([]);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [lives, setLives] = useState<LiveDTO[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<unknown>(null);
 
-    const fetchRooms = useCallback(async () => {
+    const livesRef = useRef<LiveDTO[]>([]);
+    const debouncedQuery = useDebouncedValue(query.trim(), 350);
+    const tagsKey = tags.join('\n');
+
+    const load = useCallback(async () => {
         try {
+            // scheduled + live: featured = the live ones, creators = hosts of both
+            const page = await getLives({ q: debouncedQuery, tag: tags, limit: 24 });
+            livesRef.current = page.lives;
+            setLives(page.lives);
             setError(null);
-            const data = await getRooms();
-            setRooms(data || []);
-        } catch (err: any) {
-            if (err instanceof UnauthorizedError) {
-                router.replace('/login' as any);
-                return;
+        } catch (err) {
+            // keep the previous list on a background failure
+            if (livesRef.current.length === 0) {
+                setError(err);
             }
-            setError(err.message || 'Impossible de charger les salles');
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedQuery, tagsKey]);
 
-    useEffect(() => {
-        fetchRooms();
-    }, [fetchRooms]);
+    usePolling(load, POLL_MS, [debouncedQuery, tagsKey]);
 
-    const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        fetchRooms();
-    }, [fetchRooms]);
+    const featured = useMemo(() => lives.filter((live) => live.status === 'live').slice(0, FEATURED_COUNT), [lives]);
+    const creators = useMemo(() => creatorsFromLives(lives), [lives]);
+    const filtersActive = debouncedQuery.length > 0 || tags.length > 0;
 
-    const handleWatch = (room: RoomInfo) => {
-        router.push({
-            pathname: '/live-viewer',
-            params: { roomId: room.id, roomName: room.name },
-        });
-    };
+    const openLives = useCallback(
+        (params?: { q?: string; tag?: string; tags?: string }) => router.push({ pathname: '/(tabs)/lives', params } as never),
+        [router]
+    );
+    const openLive = useCallback(
+        (live: LiveDTO) => router.push({ pathname: '/live-viewer', params: { roomId: live.room_id, roomName: live.title } } as never),
+        [router]
+    );
 
-    const handleJoinAsCoStreamer = (room: RoomInfo) => {
-        router.push({
-            pathname: '/live-streaming',
-            params: { roomId: room.id, mode: 'join' },
-        });
-    };
-
-    const handleCreateLive = () => {
-        router.push({ pathname: '/live-streaming', params: { mode: 'host' } });
-    };
+    const submitSearch = () => openLives({ q: query.trim() || undefined, tags: tags.length > 0 ? tags.join(TAGS_SEPARATOR) : undefined });
 
     return (
-        <SafeAreaView edges={['top']} style={styles.container}>
-            <BrandBackdrop compact />
-            {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Lives en cours</Text>
-                <TouchableOpacity onPress={fetchRooms} style={styles.refreshBtn}>
-                    <Ionicons name="refresh-outline" size={22} color={MUTED} />
-                </TouchableOpacity>
-            </View>
-
-            {loading ? (
-                <View style={styles.center}>
-                    <ActivityIndicator size="large" color={brandTheme.colors.orange} />
-                </View>
-            ) : (
-                <RoomListContent
-                    error={error}
-                    rooms={rooms}
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                    onRetry={fetchRooms}
-                    onWatch={handleWatch}
-                    onJoin={handleJoinAsCoStreamer}
-                />
-            )}
-
-            {/* FAB: Create new live */}
-            <TouchableOpacity
-                onPress={handleCreateLive}
-                activeOpacity={0.85}
-                style={styles.fab}
+        <Screen testID="home-screen">
+            <ScrollView
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => {
+                            setRefreshing(true);
+                            void load();
+                        }}
+                        tintColor={colors.orange}
+                    />
+                }
             >
-                <LinearGradient
-                    colors={ORANGE_GRADIENT}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={styles.fabGradient}
-                >
-                    <Ionicons name="radio-outline" size={24} color="#fff" />
-                </LinearGradient>
-            </TouchableOpacity>
-        </SafeAreaView>
+                <AppHeader />
+
+                <View style={styles.hero}>
+                    <Text style={styles.heroTitle} accessibilityRole="header">
+                        {t('home.hero.title')}
+                    </Text>
+                    <Text style={styles.heroSubtitle}>{t('home.hero.subtitle')}</Text>
+
+                    <Card style={styles.searchCard}>
+                        <SearchBar
+                            testID="home-search"
+                            value={query}
+                            onChangeText={setQuery}
+                            placeholder={t('home.hero.searchPlaceholder')}
+                            onSubmit={submitSearch}
+                        />
+                        <View style={styles.searchActions}>
+                            <Button label={t('home.hero.discover')} onPress={submitSearch} style={styles.discover} testID="home-discover" />
+                            <Pressable
+                                onPress={() => setFiltersOpen(true)}
+                                style={[styles.filterButton, tags.length > 0 && styles.filterButtonActive]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('home.hero.filters')}
+                                testID="home-filters"
+                            >
+                                <Ionicons name="options-outline" size={20} color={tags.length > 0 ? colors.onBrand : colors.text} />
+                                {tags.length > 0 ? <Text style={styles.filterCount}>{tags.length}</Text> : null}
+                            </Pressable>
+                        </View>
+                    </Card>
+                </View>
+
+                <View style={styles.section}>
+                    <SectionHeader
+                        tag={t('common.live')}
+                        tagIcon="flame"
+                        title={t('home.featured.title')}
+                        subtitle={t('home.featured.desc')}
+                        actionLabel={t('home.featured.viewAll')}
+                        onAction={() => openLives({ q: debouncedQuery || undefined, tags: tags.length > 0 ? tags.join(TAGS_SEPARATOR) : undefined })}
+                    />
+                    {loading ? (
+                        <View accessibilityRole="progressbar" accessibilityLabel={t('home.featured.loadingAria')} style={styles.skeletons}>
+                            {[0, 1].map((key) => (
+                                <Card key={key}>
+                                    <Skeleton height={170} radius={0} />
+                                    <View style={styles.skeletonBody}>
+                                        <Skeleton height={16} width="75%" />
+                                        <Skeleton height={12} width="45%" />
+                                    </View>
+                                </Card>
+                            ))}
+                        </View>
+                    ) : error && featured.length === 0 ? (
+                        <Card>
+                            <ErrorState title={t('watch.loadError')} error={error} onRetry={() => void load()} testID="home-error" />
+                        </Card>
+                    ) : featured.length > 0 ? (
+                        <View style={styles.liveList}>
+                            {featured.map((live) => (
+                                <LiveCard key={live.id} live={live} onPress={openLive} />
+                            ))}
+                        </View>
+                    ) : (
+                        <Card>
+                            <EmptyState
+                                icon="radio-outline"
+                                title={t('home.featured.empty')}
+                                description={filtersActive ? t('home.empty') : t('home.hero.noLiveDesc')}
+                                actionLabel={filtersActive ? t('home.hero.resetFilters') : t('home.hero.goToStudio')}
+                                onAction={() => {
+                                    if (filtersActive) {
+                                        setQuery('');
+                                        setTags([]);
+                                    } else {
+                                        router.push('/(tabs)/studio' as never);
+                                    }
+                                }}
+                                testID="home-empty"
+                            />
+                        </Card>
+                    )}
+                </View>
+
+                <View style={styles.section}>
+                    <SectionHeader
+                        title={t('home.categories.title')}
+                        subtitle={t('home.categories.subtitle')}
+                        actionLabel={t('home.categories.exploreAll')}
+                        onAction={() => openLives()}
+                    />
+                    <View style={styles.categoryGrid}>
+                        {HOME_CATEGORIES.map((category) => (
+                            <Pressable
+                                key={category.tag}
+                                style={({ pressed }) => [styles.categoryCard, pressed && styles.pressed]}
+                                onPress={() => openLives({ tag: category.tag })}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${t('home.categories.seeLives')}: ${t(category.labelKey)}`}
+                                testID={`category-${category.tag}`}
+                            >
+                                <View style={styles.emojiBox}>
+                                    <Text style={styles.emoji}>{category.emoji}</Text>
+                                </View>
+                                <Text style={styles.categoryTitle}>{t(category.labelKey)}</Text>
+                                <Text style={styles.categoryDesc} numberOfLines={2}>
+                                    {t(category.descKey)}
+                                </Text>
+                            </Pressable>
+                        ))}
+                    </View>
+                </View>
+
+                {creators.length > 0 ? (
+                    <View style={[styles.section, styles.lastSection]}>
+                        <SectionHeader
+                            tag={t('home.creators.tag')}
+                            tagIcon="star"
+                            title={t('home.creators.heading')}
+                            subtitle={t('home.creators.subtitle')}
+                        />
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.creators}>
+                            {creators.map((creator) => (
+                                <Pressable
+                                    key={creator.id}
+                                    style={styles.creator}
+                                    onPress={() => router.push({ pathname: '/profile/[id]', params: { id: creator.id } } as never)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={creator.name}
+                                    testID={`creator-${creator.id}`}
+                                >
+                                    <Avatar uri={creator.image} name={creator.name} size={64} />
+                                    <Text style={styles.creatorName} numberOfLines={1}>
+                                        {creator.name}
+                                    </Text>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </View>
+                ) : null}
+            </ScrollView>
+
+            <FiltersSheet visible={filtersOpen} value={tags} onClose={() => setFiltersOpen(false)} onApply={setTags} />
+        </Screen>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: BACKGROUND,
+const useStyles = makeStyles(({ colors, radii }) => ({
+    content: {
+        paddingBottom: 32,
     },
-    header: {
+    hero: {
+        paddingHorizontal: 20,
+        paddingTop: 8,
+    },
+    heroTitle: {
+        color: colors.text,
+        fontSize: 34,
+        fontWeight: '700',
+        letterSpacing: -0.8,
+        lineHeight: 38,
+    },
+    heroSubtitle: {
+        color: colors.muted,
+        fontSize: 15,
+        lineHeight: 22,
+        marginTop: 10,
+    },
+    searchCard: {
+        marginTop: 20,
+        padding: 12,
+        gap: 12,
+    },
+    searchActions: {
         flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        gap: 12,
+        gap: 10,
     },
-    refreshBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: SURFACE_STRONG,
-        justifyContent: 'center',
+    discover: {
+        flex: 1,
+    },
+    filterButton: {
+        minWidth: 52,
+        minHeight: 52,
+        flexDirection: 'row',
+        gap: 6,
         alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.lg,
         borderWidth: 1,
-        borderColor: BORDER,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+        paddingHorizontal: 14,
     },
-    headerTitle: {
-        flex: 1,
-        fontSize: 24,
-        fontWeight: '800',
-        color: TEXT,
+    filterButtonActive: {
+        backgroundColor: colors.orange,
+        borderColor: colors.orange,
     },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 12,
-        padding: 24,
-    },
-    emptyText: {
-        fontSize: 16,
-        color: MUTED,
-        textAlign: 'center',
-    },
-    emptySubtext: {
+    filterCount: {
+        color: colors.onBrand,
         fontSize: 14,
-        color: MUTED,
-    },
-    retryBtn: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#FF7A00',
-        marginTop: 4,
-    },
-    retryBtnText: {
-        color: '#FF7A00',
         fontWeight: '700',
     },
-    list: {
-        padding: 16,
-        gap: 12,
+    section: {
+        paddingHorizontal: 20,
+        marginTop: 32,
     },
-    card: {
-        backgroundColor: CARD,
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: BORDER,
-        gap: 12,
-        marginBottom: 12,
+    lastSection: {
+        marginBottom: 8,
     },
-    cardHeader: {
+    skeletons: {
+        gap: 16,
+    },
+    skeletonBody: {
+        padding: 16,
+        gap: 10,
+    },
+    liveList: {
+        gap: 16,
+    },
+    categoryGrid: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    categoryCard: {
+        width: '48%',
+        flexGrow: 1,
+        backgroundColor: colors.card,
+        borderColor: colors.border,
+        borderWidth: 1,
+        borderRadius: radii.card,
+        padding: 18,
+    },
+    pressed: {
+        opacity: 0.85,
+    },
+    emojiBox: {
+        width: 52,
+        height: 52,
+        borderRadius: radii.lg,
+        backgroundColor: colors.orangeSoft,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 14,
+    },
+    emoji: {
+        fontSize: 28,
+    },
+    categoryTitle: {
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    categoryDesc: {
+        color: colors.muted,
+        fontSize: 13,
+        lineHeight: 18,
+        marginTop: 4,
+    },
+    creators: {
+        gap: 16,
+        paddingRight: 8,
+    },
+    creator: {
+        width: 76,
         alignItems: 'center',
         gap: 8,
     },
-    liveDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#FF3B30',
-    },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: TEXT,
-        flex: 1,
-    },
-    cardStats: {
-        flexDirection: 'row',
-        gap: 16,
-    },
-    stat: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    statText: {
-        color: MUTED,
+    creatorName: {
+        color: colors.text,
         fontSize: 13,
+        fontWeight: '600',
+        maxWidth: 76,
     },
-    cardActions: {
-        flexDirection: 'row',
-        gap: 10,
-        alignItems: 'center',
-    },
-    watchButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: BORDER,
-        backgroundColor: SURFACE_STRONG,
-        flex: 1,
-        justifyContent: 'center',
-    },
-    watchText: {
-        color: '#FF7A00',
-        fontWeight: '700',
-        fontSize: 13,
-    },
-    joinButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 12,
-        flex: 1,
-    },
-    joinText: {
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: 13,
-    },
-    fullBadge: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 12,
-        backgroundColor: SURFACE_STRONG,
-    },
-    fullText: {
-        color: MUTED,
-        fontWeight: '700',
-        fontSize: 13,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 24,
-        right: 20,
-    },
-    fabGradient: {
-        width: 60,
-        height: 60,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...createShadowStyle({
-            color: '#FF7A00',
-            offset: { width: 0, height: 4 },
-            opacity: 0.3,
-            radius: 8,
-            elevation: 6,
-        }),
-    },
-});
+}));

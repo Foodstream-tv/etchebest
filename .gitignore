@@ -52,3 +52,7 @@ etchebest
 nginx.local.conf
 backend/server
 ssl/
+
+# backend runtime media (live HLS, replays, uploads) — never commit user content
+backend/hls/
+backend/storage/

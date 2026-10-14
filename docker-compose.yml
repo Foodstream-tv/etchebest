@@ -22,7 +22,11 @@ services:
       postgres:
         condition: service_healthy
     build: ./backend
+    restart: unless-stopped
     env_file: ./.env
+    volumes:
+      # live HLS, replays and uploads (see backend/Dockerfile)
+      - backend_data:/foodstream/data
     ports:
       - '${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
       - '${WEBRTC_PORT_MIN:-50000}-${WEBRTC_PORT_MAX:-50100}:${WEBRTC_PORT_MIN:-50000}-${WEBRTC_PORT_MAX:-50100}/udp'
@@ -87,6 +91,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  backend_data:
     driver: local
 
 networks:
