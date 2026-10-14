@@ -1,49 +1,55 @@
 import { Link, Stack } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Text, View } from 'react-native';
 
-import BrandBackdrop from '@/components/BrandBackdrop';
-import { brandTheme } from '@/constants/brandTheme';
+import Screen from '@/components/ui/Screen';
+import { useI18n } from '@/contexts/LanguageContext';
+import { makeStyles } from '@/contexts/ThemeContext';
 
 export default function NotFoundScreen() {
+	const styles = useStyles();
+	const { t } = useI18n();
+
 	return (
-		<>
-			<Stack.Screen options={{ title: 'Oops!' }} />
+		<Screen>
+			<Stack.Screen options={{ headerShown: false }} />
 			<View style={styles.container}>
-				<BrandBackdrop compact />
-				<Text style={styles.title}>Page introuvable</Text>
-				<Text style={styles.description}>Le contenu que vous cherchez n&apos;existe pas ou a été déplacé.</Text>
-				<Link href="/" style={styles.link}>Retour à l&apos;accueil</Link>
+				<Text style={styles.title} accessibilityRole="header">
+					{t('common.notFoundTitle')}
+				</Text>
+				<Text style={styles.description}>{t('common.notFoundDescription')}</Text>
+				<Link href="/" style={styles.link} accessibilityRole="link">
+					{t('common.backHome')}
+				</Link>
 			</View>
-		</>
+		</Screen>
 	);
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
 	container: {
 		flex: 1,
-		backgroundColor: brandTheme.colors.bg,
 		alignItems: 'center',
 		justifyContent: 'center',
 		padding: 24,
+		gap: 12,
 	},
 	title: {
-		fontSize: 28,
-		fontWeight: '800',
-		color: brandTheme.colors.text,
-		marginBottom: 10,
+		color: colors.text,
+		fontSize: 26,
+		fontWeight: '700',
+		textAlign: 'center',
 	},
 	description: {
+		color: colors.muted,
 		fontSize: 15,
 		lineHeight: 22,
-		color: brandTheme.colors.muted,
 		textAlign: 'center',
-		maxWidth: 320,
 	},
 	link: {
-		marginTop: 20,
+		color: colors.orange,
 		fontSize: 16,
 		fontWeight: '700',
-		color: brandTheme.colors.orange,
-		textDecorationLine: 'underline',
+		paddingVertical: 12,
 	},
-});
+}));

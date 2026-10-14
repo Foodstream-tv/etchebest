@@ -22,3 +22,12 @@ func UserToDTO(user User) UserDTO {
 		FollowersIDs:    stringArrayToSlice(user.FollowersIDS),
 	}
 }
+
+// usersToDTOs converts users to their public representation (no e-mail, phone, ban or OAuth data).
+func usersToDTOs(users []User) []UserDTO {
+	dtos := make([]UserDTO, 0, len(users))
+	for _, u := range users {
+		dtos = append(dtos, UserToDTO(u))
+	}
+	return dtos
+}

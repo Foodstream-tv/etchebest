@@ -132,7 +132,8 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.Static("/api/uploads", "./storage/uploads")
 
 	// HLS - public access (video players can't send Authorization headers)
-	r.Static("/api/hls", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/master.m3u8`;
+	hlsGroup := r.Group("/api/hls", middleware.MediaHeaders(true))
+	hlsGroup.Static("/", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/master.m3u8`;
 
 	// Discover (public)
 	r.GET("/api/discover", discover.GetDiscover(db))
@@ -140,7 +141,8 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.GET("/api/discover/categories/:id/lives", discover.GetCategoryLives(db))
 	r.GET("/api/lives", live.GetLives(db))
 	r.GET("/api/lives/:roomId", live.GetLiveByRoomID(db))
-	r.Static("/replays-storage", "./storage/replays")
+	replaysGroup := r.Group("/replays-storage", middleware.MediaHeaders(false))
+	replaysGroup.Static("/", "./storage/replays")
 	r.GET("/api/scrape/marmiton", scrape.ScrapeMarmiton())
 
 	// Not found

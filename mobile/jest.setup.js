@@ -1,14 +1,24 @@
-// Mock expo-router
-jest.mock('expo-router', () => ({
-    useRouter: () => ({
-        push: jest.fn(),
-        replace: jest.fn(),
-        back: jest.fn(),
-    }),
-    Stack: {
-        Screen: 'Screen',
-    },
-}));
+// Mock expo-router (tests needing to assert navigation override this with their own jest.mock)
+jest.mock('expo-router', () => {
+    const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
+    const mockNavigation = { addListener: jest.fn(() => jest.fn()), setOptions: jest.fn(), dispatch: jest.fn() };
+    return {
+        __mockRouter: mockRouter,
+        __mockNavigation: mockNavigation,
+        useNavigation: () => mockNavigation,
+        useRouter: () => mockRouter,
+        useLocalSearchParams: jest.fn(() => ({})),
+        // Runs the effect once on mount, like a focused screen.
+        useFocusEffect: (effect) => {
+            const React = require('react');
+            React.useEffect(() => effect(), [effect]);
+        },
+        Redirect: 'Redirect',
+        Link: 'Link',
+        Stack: { Screen: 'Screen' },
+        Tabs: { Screen: 'Screen' },
+    };
+});
 
 // Mock @expo/vector-icons
 jest.mock('@expo/vector-icons', () => ({

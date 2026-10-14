@@ -1,45 +1,65 @@
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
+import ToastManager from 'toastify-react-native';
 
-import { brandTheme } from '@/constants/brandTheme';
+import SessionGuard from '@/components/SessionGuard';
+import { LanguageProvider } from '@/contexts/LanguageContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 
-const appTheme = {
-	...DarkTheme,
-	colors: {
-		...DarkTheme.colors,
-		primary: brandTheme.colors.orange,
-		background: brandTheme.colors.bg,
-		card: '#100a06',
-		text: brandTheme.colors.text,
-		border: brandTheme.colors.border,
-		notification: brandTheme.colors.orange,
-	},
-};
+function ThemedStack() {
+	const { scheme, colors, ready } = useTheme();
 
-export default function RootLayout() {
-	const [loaded] = useFonts({
-		SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-	});
-	if (!loaded) {
+	const navigationTheme = React.useMemo(() => {
+		const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+		return {
+			...base,
+			colors: {
+				...base.colors,
+				primary: colors.orange,
+				background: colors.bg,
+				card: colors.cardSolid,
+				text: colors.text,
+				border: colors.border,
+				notification: colors.orange,
+			},
+		};
+	}, [scheme, colors]);
+
+	// Wait for the stored theme so the app never flashes the wrong palette.
+	if (!ready) {
 		return null;
 	}
 
 	return (
-		<ThemeProvider value={appTheme}>
-			<Stack>
-				<Stack.Screen name="index" options={{ headerShown: false }} />
-				<Stack.Screen name="login" options={{ headerShown: false }} />
-				<Stack.Screen name="register" options={{ headerShown: false }} />
-				<Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-				<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-				<Stack.Screen name="live-streaming" options={{ headerShown: false, orientation: 'portrait' }} />
-				<Stack.Screen name="live-viewer" options={{ headerShown: false, orientation: 'all' }} />
-				<Stack.Screen name="live-rooms" options={{ headerShown: false }} />
+		<NavigationThemeProvider value={navigationTheme}>
+			<Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+				<Stack.Screen name="index" />
+				<Stack.Screen name="login" />
+				<Stack.Screen name="register" />
+				<Stack.Screen name="verify" />
+				<Stack.Screen name="forgot-password" />
+				<Stack.Screen name="(tabs)" />
+				<Stack.Screen name="live-streaming" options={{ orientation: 'portrait' }} />
+				<Stack.Screen name="live-viewer" options={{ orientation: 'all' }} />
+				<Stack.Screen name="profile/[id]" />
+				<Stack.Screen name="search" />
+				<Stack.Screen name="settings" />
 			</Stack>
-			<StatusBar style="light" />
+			<StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+			<SessionGuard />
+			<ToastManager />
+		</NavigationThemeProvider>
+	);
+}
+
+export default function RootLayout() {
+	return (
+		<ThemeProvider>
+			<LanguageProvider>
+				<ThemedStack />
+			</LanguageProvider>
 		</ThemeProvider>
 	);
 }

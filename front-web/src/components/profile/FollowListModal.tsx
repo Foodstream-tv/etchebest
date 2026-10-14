@@ -17,7 +17,7 @@ type FollowListModalProps = Readonly<{
 function getDisplayName(user: UserSummary) {
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
 
-  return user.username || fullName || user.email || "Utilisateur";
+  return user.username || fullName || "Utilisateur";
 }
 
 function getProfileImage(user: UserSummary) {

@@ -1,6 +1,7 @@
 package room
 
 import (
+	"time"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -108,24 +109,23 @@ func HandleWebSocketOffer(db *gorm.DB) gin.HandlerFunc {
 		log.Printf("[WS] authenticated as user %s", userID)
 
 		// Verify room exists and user is connected to it
+		// Room contents are shared with the signaling handlers: read them under mu.
+		mu.Lock()
 		room, err := getLiveRoom(db, roomID)
 		if err != nil {
+			mu.Unlock()
 			log.Printf("[WS] room %s not found: %v", roomID, err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return
 		}
-		log.Printf("[WS] room %s found, has %d connections", roomID, len(room.Connections))
+		connectionCount := len(room.Connections)
+		inRoom := isUserInRoom(room, userID)
+		mu.Unlock()
+		log.Printf("[WS] room %s found, has %d connections", roomID, connectionCount)
 
 		// Verify user is in this room
-		if !isUserInRoom(room, userID) {
-			log.Printf("[WS] user %s NOT in room %s. Connections: %v", userID, roomID,
-				func(conns []PeerConnection) []string {
-					var userIDs []string
-					for _, c := range conns {
-						userIDs = append(userIDs, c.UserID)
-					}
-					return userIDs
-				}(room.Connections))
+		if !inRoom {
+			log.Printf("[WS] user %s NOT in room %s", userID, roomID)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not in room"})
 			return
 		}
@@ -156,6 +156,13 @@ func HandleWebSocketOffer(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+const (
+	wsMaxMessageSize = 4096
+	wsPongWait       = 60 * time.Second
+	wsPingPeriod     = 25 * time.Second
+	wsWriteWait      = 10 * time.Second
+)
+
 // registerWSConnection stores the WebSocket connection
 func registerWSConnection(wsClient *WSClientConn) {
 	wsConnMu.Lock()
@@ -179,7 +186,10 @@ func unregisterWSConnection(wsClient *WSClientConn) {
 	defer wsConnMu.Unlock()
 
 	if roomConns, exists := wsConnections[wsClient.roomID]; exists {
-		if _, userExists := roomConns[wsClient.userID]; userExists {
+		// Only remove the registration if it is still *this* connection: when a client reconnects,
+		// registerWSConnection replaces (and closes) the old one, whose deferred cleanup would
+		// otherwise delete the new registration and silence offers/kick messages for that user.
+		if current, userExists := roomConns[wsClient.userID]; userExists && current == wsClient {
 			delete(roomConns, wsClient.userID)
 			if len(roomConns) == 0 {
 				delete(wsConnections, wsClient.roomID)
@@ -196,13 +206,33 @@ func handleWSConnection(wsClient *WSClientConn) {
 		log.Printf("[WS] User %s disconnected from room %s", wsClient.userID, wsClient.roomID)
 	}()
 
+	// A half-open socket (phone that lost its network) must not keep a goroutine, a map entry and
+	// an offer queue alive forever: bound message size, require pongs, bound writes.
+	wsClient.conn.SetReadLimit(wsMaxMessageSize)
+	_ = wsClient.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	wsClient.conn.SetPongHandler(func(string) error {
+		return wsClient.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+
 	// Start message sender goroutine
 	go func() {
+		ping := time.NewTicker(wsPingPeriod)
+		defer ping.Stop()
 		for {
 			select {
 			case msg := <-wsClient.sendChan:
+				_ = wsClient.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 				if err := wsClient.conn.WriteJSON(msg); err != nil {
 					log.Printf("[WS] write error: %v", err)
+					// Unblock the reader and mark the connection dead so offers are not
+					// reported as "delivered" to a writer that no longer exists.
+					wsClient.close()
+					return
+				}
+			case <-ping.C:
+				_ = wsClient.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+				if err := wsClient.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					wsClient.close()
 					return
 				}
 			case <-wsClient.done:

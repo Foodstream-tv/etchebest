@@ -6,6 +6,8 @@ type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastOptions {
   position?: 'top' | 'bottom' | 'center';
+  /** Show even when in-app notifications are disabled (session expired, ban…) */
+  force?: boolean;
 }
 
 /**
@@ -17,16 +19,18 @@ export function showToast(
   options: ToastOptions = {}
 ): void {
   const run = async () => {
-    const { position = 'bottom' } = options;
+    const { position = 'bottom', force = false } = options;
 
-    try {
-      const notifications = await preferencesService.getNotificationPreferences();
-      const canShowInApp = notifications.global && notifications.channel === 'site';
-      if (!canShowInApp) {
-        return;
+    if (!force) {
+      try {
+        const notifications = await preferencesService.getNotificationPreferences();
+        const canShowInApp = notifications.global && notifications.channel === 'site';
+        if (!canShowInApp) {
+          return;
+        }
+      } catch {
+        // In case preference loading fails, keep toasts enabled by default.
       }
-    } catch {
-      // In case preference loading fails, keep toasts enabled by default.
     }
 
     switch (type) {

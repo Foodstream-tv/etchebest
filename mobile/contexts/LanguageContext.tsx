@@ -59,10 +59,13 @@ export function LanguageProvider({ children }: Readonly<{ children: React.ReactN
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
+const FALLBACK: LanguageContextValue = {
+    locale: 'fr',
+    setLocale: async () => {},
+    t: (key, values) => interpolate(fr[key] ?? String(key), values),
+};
+
+/** Falls back to French outside a LanguageProvider (isolated component renders) instead of throwing. */
 export function useI18n(): LanguageContextValue {
-    const context = useContext(LanguageContext);
-    if (!context) {
-        throw new Error('useI18n must be used inside LanguageProvider');
-    }
-    return context;
+    return useContext(LanguageContext) ?? FALLBACK;
 }

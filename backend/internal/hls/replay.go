@@ -1,12 +1,17 @@
 package hls
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"io"
 	"path/filepath"
 )
+
+// ErrNoReplayContent means the live produced nothing worth keeping (no master playlist yet, e.g. it
+// ended before the first segment). The source directory is then safe to delete.
+var ErrNoReplayContent = errors.New("no replay content")
 
 func copyDir(src string, dst string) error {
 	srcInfo, err := os.Stat(src)
@@ -74,15 +79,25 @@ func GenerateReplay(roomID string) (string, error) {
 
 	masterPath := filepath.Join(sourceDir, "master.m3u8")
 	if _, err := os.Stat(masterPath); err != nil {
-		return "", fmt.Errorf("master playlist not found for room %s: %w", roomID, err)
+		return "", fmt.Errorf("master playlist not found for room %s: %w: %w", roomID, ErrNoReplayContent, err)
 	}
 
 	if err := os.RemoveAll(replayDir); err != nil {
 		return "", fmt.Errorf("clean replay dir: %w", err)
 	}
+	if err := os.MkdirAll(filepath.Dir(replayDir), 0o755); err != nil {
+		return "", fmt.Errorf("create replays dir: %w", err)
+	}
 
-	if err := copyDir(sourceDir, replayDir); err != nil {
-		return "", fmt.Errorf("copy hls replay: %w", err)
+	// Moving the directory is instant and atomic on the same filesystem (a 2 h live is several GB:
+	// copying it took minutes). Fall back to a copy only when the rename is not possible.
+	if err := os.Rename(sourceDir, replayDir); err != nil {
+		log.Printf("[REPLAY] rename failed for room %s (%v), falling back to copy", roomID, err)
+		if err := copyDir(sourceDir, replayDir); err != nil {
+			// Do not leave a half-copied replay behind: the source is still intact and is kept.
+			_ = os.RemoveAll(replayDir)
+			return "", fmt.Errorf("copy hls replay: %w", err)
+		}
 	}
 
 	publicURL := "/replays-storage/" + roomID + "/master.m3u8"

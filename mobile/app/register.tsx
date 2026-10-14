@@ -1,47 +1,55 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import ToastManager from 'toastify-react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import BrandBackdrop from '../components/BrandBackdrop';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import { brandHeadlineFont, brandTheme } from '../constants/brandTheme';
-import { LanguageProvider, useI18n } from '../contexts/LanguageContext';
-import apiService from '../services/api';
-import toast from '../utils/toast';
-import { validateEmail, validateLengthRange, validateMinLength, validatePassword, validatePhone } from '../utils/validation';
+import AuthLayout from '@/components/auth/AuthLayout';
+import GoogleAuthButton from '@/components/auth/GoogleAuthButton';
+import { blurActiveElementOnWeb, inputRef } from '@/components/auth/helpers';
+import FloatingLabelInput from '@/components/FloatingLabelInput';
+import Button from '@/components/ui/Button';
+import { useI18n } from '@/contexts/LanguageContext';
+import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import apiService from '@/services/api';
+import { bodyString, isApiError } from '@/utils/authErrors';
+import { toast } from '@/utils/toast';
+import {
+    LIMITS,
+    RegisterFieldErrors,
+    RegisterFieldName,
+    ValidationCode,
+    validateRegisterForm,
+} from '@/utils/validation';
 
-const COUNTRY_CODES = [
-    { code: '+33', country: 'France', flag: 'FR', value: 33 },
-    { code: '+1', country: 'Etats-Unis', flag: 'US', value: 1 },
-    { code: '+1', country: 'Canada', flag: 'CA', value: 1 },
-    { code: '+44', country: 'Royaume-Uni', flag: 'GB', value: 44 },
-    { code: '+49', country: 'Allemagne', flag: 'DE', value: 49 },
-    { code: '+34', country: 'Espagne', flag: 'ES', value: 34 },
-    { code: '+39', country: 'Italie', flag: 'IT', value: 39 },
-    { code: '+32', country: 'Belgique', flag: 'BE', value: 32 },
-    { code: '+41', country: 'Suisse', flag: 'CH', value: 41 },
-    { code: '+352', country: 'Luxembourg', flag: 'LU', value: 352 },
-    { code: '+212', country: 'Maroc', flag: 'MA', value: 212 },
-    { code: '+213', country: 'Algerie', flag: 'DZ', value: 213 },
-    { code: '+216', country: 'Tunisie', flag: 'TN', value: 216 },
-];
-
-type FocusedField = 'email' | 'firstName' | 'lastName' | 'username' | 'password' | 'phone' | 'description' | null;
-
-type FieldErrors = {
-    email: string | null;
-    firstName: string | null;
-    lastName: string | null;
-    username: string | null;
-    password: string | null;
-    phone: string | null;
-    description: string | null;
+type CountryCode = {
+    code: string;
+    flag: string;
+    value: number;
+    name: { fr: string; en: string };
 };
 
-const NO_ERRORS: FieldErrors = {
+// Same list as the web PhoneField (front-web/src/components/auth/PhoneField.tsx).
+const COUNTRY_CODES: CountryCode[] = [
+    { code: '+33', flag: '🇫🇷', value: 33, name: { fr: 'France', en: 'France' } },
+    { code: '+1', flag: '🇺🇸', value: 1, name: { fr: 'États-Unis', en: 'United States' } },
+    { code: '+1', flag: '🇨🇦', value: 1, name: { fr: 'Canada', en: 'Canada' } },
+    { code: '+44', flag: '🇬🇧', value: 44, name: { fr: 'Royaume-Uni', en: 'United Kingdom' } },
+    { code: '+49', flag: '🇩🇪', value: 49, name: { fr: 'Allemagne', en: 'Germany' } },
+    { code: '+34', flag: '🇪🇸', value: 34, name: { fr: 'Espagne', en: 'Spain' } },
+    { code: '+39', flag: '🇮🇹', value: 39, name: { fr: 'Italie', en: 'Italy' } },
+    { code: '+32', flag: '🇧🇪', value: 32, name: { fr: 'Belgique', en: 'Belgium' } },
+    { code: '+41', flag: '🇨🇭', value: 41, name: { fr: 'Suisse', en: 'Switzerland' } },
+    { code: '+352', flag: '🇱🇺', value: 352, name: { fr: 'Luxembourg', en: 'Luxembourg' } },
+    { code: '+212', flag: '🇲🇦', value: 212, name: { fr: 'Maroc', en: 'Morocco' } },
+    { code: '+213', flag: '🇩🇿', value: 213, name: { fr: 'Algérie', en: 'Algeria' } },
+    { code: '+216', flag: '🇹🇳', value: 216, name: { fr: 'Tunisie', en: 'Tunisia' } },
+];
+
+const sameCountry = (a: CountryCode, b: CountryCode) => a.code === b.code && a.name.fr === b.name.fr;
+
+type FieldMessages = Record<RegisterFieldName, string | null>;
+
+const NO_ERRORS: FieldMessages = {
     email: null,
     firstName: null,
     lastName: null,
@@ -52,92 +60,10 @@ const NO_ERRORS: FieldErrors = {
 };
 
 export default function RegisterScreen() {
-    return (
-        <LanguageProvider>
-            <RegisterScreenContent />
-        </LanguageProvider>
-    );
-}
-
-type RegisterCopy = {
-    backToLogin: string;
-    headlineTop: string;
-    headlineAccent: string;
-    subline: string;
-    formLabel: string;
-    emailLabel: string;
-    firstNameLabel: string;
-    lastNameLabel: string;
-    usernameLabel: string;
-    passwordLabel: string;
-    phoneLabel: string;
-    descriptionLabel: string;
-    submit: string;
-    divider: string;
-    signupGoogleAttempt: string;
-    countryModalTitle: string;
-    registerSuccess: string;
-    registerError: string;
-    validationFirstName: string;
-    validationLastName: string;
-    validationUsername: string;
-    validationDescription: string;
-};
-
-const REGISTER_COPY: Record<'fr' | 'en', RegisterCopy> = {
-    fr: {
-        backToLogin: 'Login',
-        headlineTop: 'Rejoins le',
-        headlineAccent: 'cercle des chefs.',
-        subline: 'Cree ton profil et lance ton premier live culinaire securise.',
-        formLabel: 'Inscription',
-        emailLabel: 'Adresse e-mail',
-        firstNameLabel: 'Prenom',
-        lastNameLabel: 'Nom',
-        usernameLabel: 'Identifiant',
-        passwordLabel: 'Mot de passe',
-        phoneLabel: 'Numero de telephone',
-        descriptionLabel: 'Description',
-        submit: 'Inscription',
-        divider: 'Ou',
-        signupGoogleAttempt: "Tentative d'inscription avec Google",
-        countryModalTitle: 'Selectionner un indicatif',
-        registerSuccess: 'Inscription reussie !',
-        registerError: "Erreur d'inscription",
-        validationFirstName: 'Le prenom',
-        validationLastName: 'Le nom',
-        validationUsername: "L'identifiant",
-        validationDescription: 'La description',
-    },
-    en: {
-        backToLogin: 'Login',
-        headlineTop: 'Join the',
-        headlineAccent: 'chef circle.',
-        subline: 'Build your profile and start your first secure live cooking room.',
-        formLabel: 'Sign up',
-        emailLabel: 'Email address',
-        firstNameLabel: 'First name',
-        lastNameLabel: 'Last name',
-        usernameLabel: 'Username',
-        passwordLabel: 'Password',
-        phoneLabel: 'Phone number',
-        descriptionLabel: 'Description',
-        submit: 'Create account',
-        divider: 'Or',
-        signupGoogleAttempt: 'Google sign-up attempt',
-        countryModalTitle: 'Select country code',
-        registerSuccess: 'Registration successful!',
-        registerError: 'Registration error',
-        validationFirstName: 'First name',
-        validationLastName: 'Last name',
-        validationUsername: 'Username',
-        validationDescription: 'Description',
-    },
-};
-
-function RegisterScreenContent() {
-    const { locale } = useI18n();
-    const copy = REGISTER_COPY[locale];
+    const { t, locale } = useI18n();
+    const { colors } = useTheme();
+    const styles = useStyles();
+    const router = useRouter();
 
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
@@ -146,44 +72,105 @@ function RegisterScreenContent() {
     const [lastName, setLastName] = useState('');
     const [description, setDescription] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
-    const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]);
+    const [countryCode, setCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
     const [obscurePassword, setObscurePassword] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [focusedField, setFocusedField] = useState<FocusedField>(null);
-    const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
+    const [googleBusy, setGoogleBusy] = useState(false);
+    const [focusedField, setFocusedField] = useState<RegisterFieldName | null>(null);
+    const [errors, setErrors] = useState<FieldMessages>(NO_ERRORS);
+    const [formError, setFormError] = useState<string | null>(null);
 
-    const router = useRouter();
+    const firstNameRef = useRef<TextInput>(null);
+    const lastNameRef = useRef<TextInput>(null);
+    const usernameRef = useRef<TextInput>(null);
+    const passwordRef = useRef<TextInput>(null);
+    const phoneRef = useRef<TextInput>(null);
+    const descriptionRef = useRef<TextInput>(null);
+    const submittingRef = useRef(false);
 
-    const clearError = useCallback(
-        (field: keyof FieldErrors) => setErrors((prev) => ({ ...prev, [field]: null })),
-        [],
-    );
+    const clearError = useCallback((field: RegisterFieldName) => {
+        setErrors((prev) => (prev[field] ? { ...prev, [field]: null } : prev));
+        setFormError(null);
+    }, []);
 
     const handleBackToLogin = useCallback(() => {
-        router.replace('/login' as any);
+        blurActiveElementOnWeb();
+        router.replace('/login' as never);
     }, [router]);
 
-    const handleRegister = useCallback(async () => {
-        const validations: FieldErrors = {
-            email: validateEmail(email).error ?? null,
-            firstName: validateMinLength(firstName, 2, copy.validationFirstName).error ?? null,
-            lastName: validateMinLength(lastName, 2, copy.validationLastName).error ?? null,
-            username: validateMinLength(username, 3, copy.validationUsername).error ?? null,
-            password: validatePassword(password).error ?? null,
-            description: validateLengthRange(description, 10, 500, copy.validationDescription).error ?? null,
-            phone: validatePhone(phoneNumber).error ?? null,
-        };
+    const messageFor = useCallback(
+        (field: RegisterFieldName, code: ValidationCode): string => {
+            const required: Record<RegisterFieldName, string> = {
+                email: t('auth.signup.errorEmailRequired'),
+                firstName: t('auth.signup.errorFirstNameRequired'),
+                lastName: t('auth.signup.errorLastNameRequired'),
+                username: t('auth.signup.errorUsernameRequired'),
+                password: t('auth.signup.errorPasswordRequired'),
+                phone: t('auth.signup.errorPhoneRequired'),
+                description: t('auth.signup.errorBioRequired'),
+            };
+            if (code === 'required') return required[field];
 
-        const hasError = Object.values(validations).some(Boolean);
-        setErrors(validations);
-        if (hasError) {
+            switch (field) {
+                case 'email':
+                    return t('auth.signup.errorEmailInvalid');
+                case 'firstName':
+                    return t('auth.signup.errorFirstName');
+                case 'lastName':
+                    return t('auth.signup.errorLastName');
+                case 'username':
+                    return t('auth.signup.errorUsername');
+                case 'password':
+                    return t('auth.signup.errorPassword');
+                case 'phone':
+                    return t('auth.signup.errorPhone');
+                default:
+                    return code === 'tooLong'
+                        ? t('auth.signup.errorBioMax')
+                        : t('auth.signup.errorBioMin', { count: description.trim().length });
+            }
+        },
+        [description, t]
+    );
+
+    const toMessages = useCallback(
+        (codes: RegisterFieldErrors): FieldMessages => {
+            const messages: FieldMessages = { ...NO_ERRORS };
+            (Object.keys(codes) as RegisterFieldName[]).forEach((field) => {
+                const code = codes[field];
+                if (code) messages[field] = messageFor(field, code);
+            });
+            return messages;
+        },
+        [messageFor]
+    );
+
+    const handleRegister = useCallback(async () => {
+        if (submittingRef.current) return;
+        setFormError(null);
+
+        const codes = validateRegisterForm({
+            email,
+            firstName,
+            lastName,
+            username,
+            password,
+            phone: phoneNumber,
+            description,
+        });
+        const messages = toMessages(codes);
+        setErrors(messages);
+        if (Object.keys(codes).length > 0) {
+            setFormError(t('auth.signup.errorFixFields'));
             return;
         }
 
+        submittingRef.current = true;
         setLoading(true);
         try {
-            await apiService.register({
+            const normalizedEmail = email.trim().toLowerCase();
+            const response = await apiService.register({
                 email,
                 password,
                 username,
@@ -194,214 +181,281 @@ function RegisterScreenContent() {
                 numberPhone: phoneNumber,
                 profileImage: '',
             });
-            toast.success(copy.registerSuccess);
-            router.replace('/login' as any);
+
+            // The account exists but is not verified yet: the e-mail code is entered on /verify.
+            const params: Record<string, string> = { email: normalizedEmail };
+            if (response?.userId) params.userId = response.userId;
+            if (response?.devCode) params.devCode = response.devCode;
+            blurActiveElementOnWeb();
+            router.replace({ pathname: '/verify', params } as never);
         } catch (error) {
-            console.error('Registration error:', error instanceof Error ? error.message : 'Unknown error');
-            toast.error(error instanceof Error ? error.message : copy.registerError);
+            const code = bodyString(error, 'code');
+            const message = error instanceof Error ? error.message.toLowerCase() : '';
+
+            if (code === 'EMAIL_ALREADY_EXISTS' || message.includes('email is already being used')) {
+                setErrors((prev) => ({ ...prev, email: t('auth.signup.errorEmailExists') }));
+                setFormError(t('auth.signup.errorEmailExists'));
+            } else if (code === 'USERNAME_ALREADY_EXISTS' || message.includes('username is already taken')) {
+                setErrors((prev) => ({ ...prev, username: t('auth.signup.errorUsernameExists') }));
+                setFormError(t('auth.signup.errorUsernameExists'));
+            } else {
+                const text = isApiError(error) && error.status === 429 ? t('auth.signup.errorRateLimit') : t('auth.signup.errorGeneric');
+                setFormError(text);
+                toast.error(text);
+            }
         } finally {
+            submittingRef.current = false;
             setLoading(false);
         }
-    }, [email, firstName, lastName, username, password, description, phoneNumber, countryCode, router, copy]);
+    }, [
+        countryCode,
+        description,
+        email,
+        firstName,
+        lastName,
+        password,
+        phoneNumber,
+        router,
+        t,
+        toMessages,
+        username,
+    ]);
+
+    const bioLength = description.trim().length;
+    const bioMissing = LIMITS.descriptionMin - bioLength;
+    const countryName = countryCode.name[locale];
 
     return (
         <>
-            <View style={styles.background}>
-                <BrandBackdrop />
-                <ScrollView
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                    showsHorizontalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        activeOpacity={0.7}
-                        onPress={handleBackToLogin}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            <AuthLayout
+                testID="register-screen"
+                back={{ label: t('common.back'), onPress: handleBackToLogin, testID: 'register-back' }}
+                label={t('auth.signup.label')}
+                title={t('auth.signup.title')}
+                subtitle={t('auth.signup.subtitle')}
+                bottomText={t('auth.signup.hasAccount')}
+                bottomLinkLabel={t('auth.signup.signinLink')}
+                onBottomLinkPress={handleBackToLogin}
+            >
+                <FloatingLabelInput
+                    label={t('auth.signin.emailPlaceholder')}
+                    iconName="mail-outline"
+                    focused={focusedField === 'email'}
+                    value={email}
+                    onChangeText={(value) => {
+                        setEmail(value);
+                        clearError('email');
+                    }}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => setFocusedField(null)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => firstNameRef.current?.focus()}
+                    editable={!loading}
+                    error={errors.email}
+                />
+
+                <FloatingLabelInput
+                    {...inputRef(firstNameRef)}
+                    label={t('auth.signup.firstName')}
+                    iconName="person-outline"
+                    focused={focusedField === 'firstName'}
+                    value={firstName}
+                    onChangeText={(value) => {
+                        setFirstName(value);
+                        clearError('firstName');
+                    }}
+                    onFocus={() => setFocusedField('firstName')}
+                    onBlur={() => setFocusedField(null)}
+                    autoCapitalize="words"
+                    autoComplete="given-name"
+                    textContentType="givenName"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => lastNameRef.current?.focus()}
+                    editable={!loading}
+                    error={errors.firstName}
+                />
+
+                <FloatingLabelInput
+                    {...inputRef(lastNameRef)}
+                    label={t('auth.signup.lastName')}
+                    iconName="person-outline"
+                    focused={focusedField === 'lastName'}
+                    value={lastName}
+                    onChangeText={(value) => {
+                        setLastName(value);
+                        clearError('lastName');
+                    }}
+                    onFocus={() => setFocusedField('lastName')}
+                    onBlur={() => setFocusedField(null)}
+                    autoCapitalize="words"
+                    autoComplete="family-name"
+                    textContentType="familyName"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => usernameRef.current?.focus()}
+                    editable={!loading}
+                    error={errors.lastName}
+                />
+
+                <FloatingLabelInput
+                    {...inputRef(usernameRef)}
+                    label={t('auth.signup.username')}
+                    iconName="at-outline"
+                    focused={focusedField === 'username'}
+                    value={username}
+                    onChangeText={(value) => {
+                        setUsername(value);
+                        clearError('username');
+                    }}
+                    onFocus={() => setFocusedField('username')}
+                    onBlur={() => setFocusedField(null)}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="username-new"
+                    textContentType="username"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                    editable={!loading}
+                    error={errors.username}
+                />
+
+                <FloatingLabelInput
+                    {...inputRef(passwordRef)}
+                    label={t('auth.signin.passwordPlaceholder')}
+                    iconName="lock-closed-outline"
+                    focused={focusedField === 'password'}
+                    value={password}
+                    onChangeText={(value) => {
+                        setPassword(value);
+                        clearError('password');
+                    }}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField(null)}
+                    secureTextEntry={obscurePassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="new-password"
+                    textContentType="newPassword"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => phoneRef.current?.focus()}
+                    editable={!loading}
+                    error={errors.password}
+                    trailingIcon={
+                        <Pressable
+                            onPress={() => setObscurePassword((value) => !value)}
+                            accessibilityRole="button"
+                            accessibilityLabel={obscurePassword ? t('auth.password.show') : t('auth.password.hide')}
+                            hitSlop={10}
+                            style={styles.eyeButton}
+                        >
+                            <Ionicons
+                                name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                                size={22}
+                                color={colors.muted}
+                            />
+                        </Pressable>
+                    }
+                />
+
+                <FloatingLabelInput
+                    {...inputRef(phoneRef)}
+                    label={t('auth.signup.phone')}
+                    iconName="call-outline"
+                    focused={focusedField === 'phone'}
+                    value={phoneNumber}
+                    onChangeText={(value) => {
+                        setPhoneNumber(value);
+                        clearError('phone');
+                    }}
+                    onFocus={() => setFocusedField('phone')}
+                    onBlur={() => setFocusedField(null)}
+                    keyboardType="phone-pad"
+                    autoComplete="tel-national"
+                    textContentType="telephoneNumber"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => descriptionRef.current?.focus()}
+                    editable={!loading}
+                    error={errors.phone}
+                    trailingIcon={
+                        <Pressable
+                            style={styles.countryCodeButton}
+                            onPress={() => setShowCountryPicker(true)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('auth.phone.chooseCountryAria', {
+                                country: countryName,
+                                code: countryCode.code,
+                            })}
+                            testID="country-picker-button"
+                            hitSlop={8}
+                        >
+                            <Text style={styles.countryCodeText}>
+                                {countryCode.flag} {countryCode.code}
+                            </Text>
+                            <Ionicons name="chevron-down-outline" size={16} color={colors.muted} />
+                        </Pressable>
+                    }
+                />
+
+                <FloatingLabelInput
+                    {...inputRef(descriptionRef)}
+                    label={t('auth.signup.bio')}
+                    iconName="document-text-outline"
+                    focused={focusedField === 'description'}
+                    value={description}
+                    onChangeText={(value) => {
+                        setDescription(value);
+                        clearError('description');
+                    }}
+                    onFocus={() => setFocusedField('description')}
+                    onBlur={() => setFocusedField(null)}
+                    multiline
+                    maxLength={LIMITS.descriptionMax}
+                    editable={!loading}
+                    error={errors.description}
+                />
+                {bioLength > 0 && !errors.description ? (
+                    <Text
+                        style={[styles.helper, bioMissing > 0 ? styles.helperWarn : styles.helperOk]}
+                        testID="bio-helper"
                     >
-                        <Ionicons name="arrow-back" size={20} color={brandTheme.colors.text} />
-                        <Text style={styles.backButtonText}>{copy.backToLogin}</Text>
-                    </TouchableOpacity>
+                        {bioMissing > 0
+                            ? t('auth.signup.bioMinHelper', { count: bioMissing, plural: bioMissing > 1 ? 's' : '' })
+                            : t('auth.signup.bioValidHelper')}
+                    </Text>
+                ) : null}
 
-                    <View style={styles.hero}>
-                        <Text style={styles.headline}>
-                            {copy.headlineTop}{"\n"}
-                            <Text style={styles.headlineAccent}>{copy.headlineAccent}</Text>
-                        </Text>
-                        <Text style={styles.subline}>
-                            {copy.subline}
-                        </Text>
-                    </View>
+                {formError ? (
+                    <Text style={styles.formError} accessibilityRole="alert">
+                        {formError}
+                    </Text>
+                ) : null}
 
-                    <View style={styles.card}>
-                        <Text style={styles.formLabel}>{copy.formLabel}</Text>
+                <Button
+                    label={loading ? t('auth.signup.submitting') : t('auth.signup.submit')}
+                    onPress={handleRegister}
+                    loading={loading}
+                    disabled={googleBusy}
+                    testID="register-submit"
+                />
 
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.emailLabel}
-                            iconName="mail-outline"
-                            focused={focusedField === 'email'}
-                            value={email}
-                            onChangeText={(v) => {
-                                setEmail(v);
-                                clearError('email');
-                            }}
-                            onFocus={() => setFocusedField('email')}
-                            onBlur={() => setFocusedField(null)}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            error={errors.email}
-                        />
+                <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerLabel}>{t('auth.signin.or')}</Text>
+                    <View style={styles.dividerLine} />
+                </View>
 
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.firstNameLabel}
-                            iconName="person-outline"
-                            focused={focusedField === 'firstName'}
-                            value={firstName}
-                            onChangeText={(v) => {
-                                setFirstName(v);
-                                clearError('firstName');
-                            }}
-                            onFocus={() => setFocusedField('firstName')}
-                            onBlur={() => setFocusedField(null)}
-                            autoCapitalize="words"
-                            error={errors.firstName}
-                        />
-
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.lastNameLabel}
-                            iconName="person-outline"
-                            focused={focusedField === 'lastName'}
-                            value={lastName}
-                            onChangeText={(v) => {
-                                setLastName(v);
-                                clearError('lastName');
-                            }}
-                            onFocus={() => setFocusedField('lastName')}
-                            onBlur={() => setFocusedField(null)}
-                            autoCapitalize="words"
-                            error={errors.lastName}
-                        />
-
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.usernameLabel}
-                            iconName="at-outline"
-                            focused={focusedField === 'username'}
-                            value={username}
-                            onChangeText={(v) => {
-                                setUsername(v);
-                                clearError('username');
-                            }}
-                            onFocus={() => setFocusedField('username')}
-                            onBlur={() => setFocusedField(null)}
-                            autoCapitalize="none"
-                            error={errors.username}
-                        />
-
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.passwordLabel}
-                            iconName="lock-closed-outline"
-                            focused={focusedField === 'password'}
-                            value={password}
-                            onChangeText={(v) => {
-                                setPassword(v);
-                                clearError('password');
-                            }}
-                            onFocus={() => setFocusedField('password')}
-                            onBlur={() => setFocusedField(null)}
-                            secureTextEntry={obscurePassword}
-                            error={errors.password}
-                            trailingIcon={
-                                <TouchableOpacity onPress={() => setObscurePassword((v) => !v)}>
-                                    <Ionicons
-                                        name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                        size={20}
-                                        color={brandTheme.colors.muted}
-                                    />
-                                </TouchableOpacity>
-                            }
-                        />
-
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.phoneLabel}
-                            iconName="call-outline"
-                            focused={focusedField === 'phone'}
-                            value={phoneNumber}
-                            onChangeText={(v) => {
-                                setPhoneNumber(v);
-                                clearError('phone');
-                            }}
-                            onFocus={() => setFocusedField('phone')}
-                            onBlur={() => setFocusedField(null)}
-                            keyboardType="phone-pad"
-                            error={errors.phone}
-                            trailingIcon={
-                                <TouchableOpacity style={styles.countryCodeButton} onPress={() => setShowCountryPicker(true)}>
-                                    <Text style={styles.countryCodeText}>
-                                        {countryCode.flag} {countryCode.code}
-                                    </Text>
-                                    <Ionicons name="chevron-down-outline" size={16} color={brandTheme.colors.muted} />
-                                </TouchableOpacity>
-                            }
-                        />
-
-                        <FloatingLabelInput
-                            variant="login"
-                            label={copy.descriptionLabel}
-                            iconName="chatbubble-outline"
-                            focused={focusedField === 'description'}
-                            value={description}
-                            onChangeText={(v) => {
-                                setDescription(v);
-                                clearError('description');
-                            }}
-                            onFocus={() => setFocusedField('description')}
-                            onBlur={() => setFocusedField(null)}
-                            multiline
-                            error={errors.description}
-                        />
-
-                        <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
-                            <LinearGradient
-                                colors={brandTheme.gradients.primary}
-                                start={{ x: 0, y: 0.5 }}
-                                end={{ x: 1, y: 0.5 }}
-                                style={styles.primaryGradient}
-                            >
-                                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{copy.submit}</Text>}
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        <View style={styles.dividerRow}>
-                            <View style={styles.line} />
-                            <Text style={styles.dividerLabel}>{copy.divider}</Text>
-                            <View style={styles.line} />
-                        </View>
-
-                        <View style={styles.socialIconsRow}>
-                            <TouchableOpacity
-                                style={styles.socialIconButton}
-                                onPress={() => {
-                                    toast.info(copy.signupGoogleAttempt);
-                                }}
-                            >
-                                <Image
-                                    source={require('@/assets/images/google_logo.png')}
-                                    style={styles.socialIcon}
-                                    resizeMode="contain"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </ScrollView>
-            </View>
+                <GoogleAuthButton disabled={loading} onBusyChange={setGoogleBusy} testID="google-register-button" />
+            </AuthLayout>
 
             <Modal
                 visible={showCountryPicker}
@@ -412,189 +466,118 @@ function RegisterScreenContent() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{copy.countryModalTitle}</Text>
-                            <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
-                                <Ionicons name="close-outline" size={28} color={brandTheme.colors.text} />
-                            </TouchableOpacity>
+                            <Text style={styles.modalTitle} accessibilityRole="header">
+                                {t('auth.signup.countryPickerTitle')}
+                            </Text>
+                            <Pressable
+                                onPress={() => setShowCountryPicker(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('common.close')}
+                                hitSlop={10}
+                                style={styles.modalClose}
+                            >
+                                <Ionicons name="close-outline" size={28} color={colors.text} />
+                            </Pressable>
                         </View>
-                        <ScrollView style={styles.countryList}>
-                            {COUNTRY_CODES.map((country) => (
-                                <TouchableOpacity
-                                    key={`${country.code}-${country.country}`}
-                                    style={[
-                                        styles.countryItem,
-                                        countryCode.code === country.code && countryCode.country === country.country
-                                            ? styles.countryItemSelected
-                                            : undefined,
-                                    ]}
-                                    onPress={() => {
-                                        setCountryCode(country);
-                                        setShowCountryPicker(false);
-                                    }}
-                                >
-                                    <Text style={styles.countryFlag}>{country.flag}</Text>
-                                    <View style={styles.countryInfo}>
-                                        <Text style={styles.countryName}>{country.country}</Text>
-                                        <Text style={styles.countryCodeLabel}>{country.code}</Text>
-                                    </View>
-                                    {countryCode.code === country.code && countryCode.country === country.country && (
-                                        <Ionicons name="checkmark-outline" size={24} color={brandTheme.colors.orange} />
-                                    )}
-                                </TouchableOpacity>
-                            ))}
+                        <ScrollView accessibilityLabel={t('auth.phone.countryListAria')}>
+                            {COUNTRY_CODES.map((country) => {
+                                const selected = sameCountry(countryCode, country);
+                                return (
+                                    <Pressable
+                                        key={`${country.code}-${country.name.fr}`}
+                                        style={[styles.countryItem, selected && styles.countryItemSelected]}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected }}
+                                        accessibilityLabel={`${country.name[locale]} ${country.code}`}
+                                        onPress={() => {
+                                            setCountryCode(country);
+                                            setShowCountryPicker(false);
+                                        }}
+                                    >
+                                        <Text style={styles.countryFlag}>{country.flag}</Text>
+                                        <View style={styles.countryInfo}>
+                                            <Text style={styles.countryName}>{country.name[locale]}</Text>
+                                            <Text style={styles.countryCodeLabel}>{country.code}</Text>
+                                        </View>
+                                        {selected ? <Ionicons name="checkmark-outline" size={24} color={colors.orange} /> : null}
+                                    </Pressable>
+                                );
+                            })}
                         </ScrollView>
                     </View>
                 </View>
             </Modal>
-
-            <ToastManager />
         </>
     );
 }
 
-const styles = StyleSheet.create({
-    background: {
-        flex: 1,
-        backgroundColor: brandTheme.colors.bg,
-        overflow: 'hidden',
+const useStyles = makeStyles(({ colors }) => ({
+    eyeButton: {
+        padding: 4,
+        marginLeft: 8,
     },
-    scrollView: {
-        overflow: 'hidden',
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 20,
-        paddingTop: 60,
-        paddingBottom: 40,
-    },
-    backButton: {
-        alignSelf: 'flex-start',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 18,
-    },
-    backButtonText: {
-        color: brandTheme.colors.text,
-        fontSize: 15,
-        fontWeight: '700',
-    },
-    hero: {
-        marginBottom: 20,
-        gap: 10,
-    },
-    headline: {
-        color: brandTheme.colors.text,
-        fontSize: 34,
-        lineHeight: 38,
-        fontFamily: brandHeadlineFont,
-        fontWeight: '700',
-    },
-    headlineAccent: {
-        color: brandTheme.colors.orange,
-        fontStyle: 'italic',
-    },
-    subline: {
-        color: brandTheme.colors.muted,
-        fontSize: 15,
-        lineHeight: 23,
-    },
-    card: {
-        borderRadius: brandTheme.radii.xxl,
-        paddingVertical: 20,
-        paddingHorizontal: 16,
-        backgroundColor: brandTheme.colors.surface,
-        borderWidth: 1,
-        borderColor: brandTheme.colors.border,
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.35)',
-    },
-    formLabel: {
+    helper: {
+        marginTop: -8,
+        marginBottom: 14,
+        marginLeft: 4,
         fontSize: 12,
-        fontWeight: '600',
-        letterSpacing: 1.4,
-        textTransform: 'uppercase',
-        color: brandTheme.colors.muted,
+        fontWeight: '500',
+    },
+    helperWarn: {
+        color: colors.muted,
+    },
+    helperOk: {
+        color: colors.success,
+    },
+    formError: {
         marginBottom: 12,
-    },
-    primaryButton: {
-        borderRadius: 16,
-        overflow: 'hidden',
-        width: '100%',
-        marginTop: 4,
-    },
-    primaryGradient: {
-        paddingVertical: 16,
-        borderRadius: 16,
-        width: '100%',
-        alignItems: 'center',
-    },
-    primaryButtonText: {
-        textAlign: 'center',
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#fff',
+        color: colors.danger,
+        fontSize: 14,
+        fontWeight: '500',
     },
     dividerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 28,
+        gap: 12,
+        marginVertical: 20,
     },
-    line: {
+    dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: brandTheme.colors.border,
+        backgroundColor: colors.border,
     },
     dividerLabel: {
-        marginHorizontal: 12,
-        color: brandTheme.colors.muted,
-        fontWeight: '600',
-    },
-    socialIconsRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 16,
-    },
-    socialIconButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 16,
-        backgroundColor: brandTheme.colors.surfaceStrong,
-        borderWidth: 1,
-        borderColor: brandTheme.colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    socialIcon: {
-        width: 24,
-        height: 24,
+        color: colors.muted,
+        fontSize: 14,
     },
     countryCodeButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingRight: 8,
-        borderRightWidth: 1,
-        borderRightColor: brandTheme.colors.border,
-        marginRight: 8,
+        gap: 4,
+        paddingLeft: 8,
+        marginLeft: 8,
+        minHeight: 44,
+        borderLeftWidth: 1,
+        borderLeftColor: colors.border,
     },
     countryCodeText: {
         fontSize: 14,
-        color: brandTheme.colors.text,
-        marginRight: 4,
+        color: colors.text,
         fontWeight: '600',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: colors.overlay,
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#17110a',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        backgroundColor: colors.cardSolid,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
         maxHeight: '80%',
         paddingBottom: 20,
         borderWidth: 1,
-        borderColor: brandTheme.colors.border,
+        borderColor: colors.border,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -602,30 +585,34 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
         borderBottomWidth: 1,
-        borderBottomColor: brandTheme.colors.border,
+        borderBottomColor: colors.border,
     },
     modalTitle: {
         fontSize: 20,
-        fontWeight: '700',
-        color: brandTheme.colors.text,
+        fontWeight: '600',
+        color: colors.text,
     },
-    countryList: {
-        flex: 1,
+    modalClose: {
+        minWidth: 44,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     countryItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        minHeight: 56,
         borderBottomWidth: 1,
-        borderBottomColor: brandTheme.colors.border,
+        borderBottomColor: colors.border,
     },
     countryItemSelected: {
-        backgroundColor: 'rgba(249, 115, 22, 0.12)',
+        backgroundColor: colors.orangeSoft,
     },
     countryFlag: {
-        fontSize: 16,
-        marginRight: 12,
-        color: brandTheme.colors.text,
+        fontSize: 22,
+        marginRight: 14,
         width: 34,
     },
     countryInfo: {
@@ -634,11 +621,11 @@ const styles = StyleSheet.create({
     countryName: {
         fontSize: 16,
         fontWeight: '600',
-        color: brandTheme.colors.text,
+        color: colors.text,
         marginBottom: 2,
     },
     countryCodeLabel: {
         fontSize: 14,
-        color: brandTheme.colors.muted,
+        color: colors.muted,
     },
-});
+}));

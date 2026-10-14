@@ -27,10 +27,16 @@ make test-coverage
 
 ## Test Files Location
 
-Tests are located in `app/__tests__/` directory:
+Tests live next to the code they cover (`__tests__/` folders):
 
-- `login.test.tsx` - Tests for login screen
-- `register.test.tsx` - Tests for register screen
+- `app/__tests__/` — screens (auth, verify, tabs, search, viewer, streaming, studio, profile, settings)
+- `components/**/__tests__/`, `hooks/__tests__/`, `services/__tests__/`, `contexts/__tests__/`,
+  `constants/__tests__/` (theme tokens + WCAG contrast), `i18n/__tests__/` (FR/EN parity), `utils/__tests__/`
+
+Helpers: `test-utils/render.tsx` (`renderWithProviders`), `test-utils/fixtures.ts`. `expo-router` is globally
+mocked in `jest.setup.js`. See `UI_GUIDE.md` for the design/i18n conventions.
+
+Other checks: `npm run typecheck`, `npm run lint`.
 
 ## Example Test Structure
 
