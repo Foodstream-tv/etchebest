@@ -7,7 +7,7 @@ COMPOSE ?= docker compose
 METRO_PORT ?= 8082
 
 .DEFAULT_GOAL := help
-.PHONY: help setup up dev mobile down restart logs ps reset test test-backend test-mobile test-web test-scripts
+.PHONY: help setup up full dev mobile seed down restart logs ps reset test test-backend test-mobile test-web test-scripts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -21,12 +21,20 @@ up: setup ## Start Postgres + backend and wait until they are healthy
 	@echo "  API      http://localhost:8081/api    (Swagger: /api/swagger/index.html)"
 	@echo "  Logs     make logs"
 
+full: setup ## Start everything: Postgres, backend, web front and analytics dashboard
+	$(COMPOSE) up -d --build --wait
+	@echo
+	@echo "  Web      http://localhost:3000    Analytics  http://localhost:3001    API  http://localhost:8081/api"
+
 dev: up mobile ## Backend + Metro (the whole mobile dev loop)
 
 mobile: ## Start Metro for the mobile app (port 8082, override with METRO_PORT=...)
 	@[ -d mobile/node_modules ] || (cd mobile && npm install)
 	@echo "Metro on port $(METRO_PORT). In the dev client choose http://<this machine's IP>:$(METRO_PORT) or scan the QR code."
 	cd mobile && npx expo start --port $(METRO_PORT)
+
+seed: ## Create demo accounts (demo.host / demo.viewer @example.com) and a scheduled live (needs DEV_MODE=true)
+	@./scripts/seed.sh
 
 down: ## Stop the containers (data is kept)
 	$(COMPOSE) down
@@ -55,5 +63,6 @@ test-mobile: ## Mobile: types, lint, jest
 test-web: ## Web: types
 	cd front-web && npx tsc --noEmit
 
-test-scripts: ## Shell tests of scripts/dev-setup.sh
+test-scripts: ## Shell tests of the dev scripts (dev-setup, seed)
 	@./scripts/test-dev-setup.sh
+	@./scripts/test-seed.sh 2>&1 | grep -v -E '^(-{10,}|Traceback|  File|    |Exception occurred|KeyError)'

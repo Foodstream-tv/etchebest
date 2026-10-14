@@ -58,6 +58,8 @@ L'application mobile trouve l'API toute seule à partir de l'adresse de Metro : 
 | :--- | :--- |
 | `make dev` | Tout démarrer (backend + Metro) |
 | `make up` / `make mobile` | Le backend seul / Metro seul |
+| `make full` | Tout démarrer, y compris le front web (`:3000`) et l'analytics (`:3001`) |
+| `make seed` | Créer 2 comptes de démo vérifiés (`demo.host@example.com`, `demo.viewer@example.com`, mot de passe `Demo1234!`) et un live planifié (nécessite `DEV_MODE=true`) |
 | `make logs` | Suivre les logs du backend |
 | `make restart` | Reconstruire et relancer le backend |
 | `make down` | Arrêter les conteneurs (les données sont conservées) |

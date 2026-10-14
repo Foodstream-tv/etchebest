@@ -56,3 +56,6 @@ ssl/
 # backend runtime media (live HLS, replays, uploads) — never commit user content
 backend/hls/
 backend/storage/
+
+# local backup of replays/uploads taken before recreating the backend container (see README)
+backup-storage/
