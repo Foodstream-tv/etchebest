@@ -1,9 +1,18 @@
-const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-// `localhost` is only a development convenience. A release build that was made without
-// EXPO_PUBLIC_API_BASE_URL must not silently talk to localhost (every request would fail, cleartext
-// being blocked anyway): it has no API URL and requests fail with an explicit configuration error.
-const apiBaseUrl = configuredApiBaseUrl || (__DEV__ ? 'http://localhost:8081/api' : '');
+import { resolveApiBaseUrl } from './apiUrl';
+
+// In development the API address follows Metro's (see ./apiUrl). `localhost` is only a dev convenience:
+// a release build made without EXPO_PUBLIC_API_BASE_URL must not silently talk to localhost (every
+// request would fail, cleartext being blocked anyway): it has no API URL and requests fail with an
+// explicit configuration error.
+const apiBaseUrl = resolveApiBaseUrl({
+  configured: process.env.EXPO_PUBLIC_API_BASE_URL,
+  hostUri: Constants.expoConfig?.hostUri,
+  isDev: __DEV__,
+  platform: Platform.OS,
+});
 
 if (!__DEV__ && !apiBaseUrl) {
   console.error('EXPO_PUBLIC_API_BASE_URL is not set: set it in the EAS build profile (https URL).');
