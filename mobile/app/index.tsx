@@ -1,39 +1,39 @@
 import { Redirect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 
-import BrandBackdrop from '@/components/BrandBackdrop';
-import { brandTheme } from '@/constants/brandTheme';
+import Screen from '@/components/ui/Screen';
+import { useTheme } from '@/contexts/ThemeContext';
 import { authService } from '../services/auth';
 
+/** Entry point: signed in -> tabs, otherwise login. */
 export default function Index() {
-    const [checking, setChecking] = useState(true);
-    const [authenticated, setAuthenticated] = useState(false);
+    const { colors } = useTheme();
+    const [state, setState] = useState<'checking' | 'authenticated' | 'anonymous'>('checking');
 
     useEffect(() => {
-        authService.isAuthenticated().then((isAuth) => {
-            setAuthenticated(isAuth);
-            setChecking(false);
-        });
+        let active = true;
+        authService
+            .isAuthenticated()
+            .then((isAuth) => {
+                if (active) setState(isAuth ? 'authenticated' : 'anonymous');
+            })
+            // Secure storage unreadable (keychain locked…): treat as signed out instead of spinning forever.
+            .catch(() => {
+                if (active) setState('anonymous');
+            });
+        return () => {
+            active = false;
+        };
     }, []);
 
-    if (checking) {
+    if (state === 'checking') {
         return (
-            <View style={styles.loadingContainer}>
-                <BrandBackdrop compact />
-                <ActivityIndicator size="large" color={brandTheme.colors.orange} />
-            </View>
+            <Screen plain edges={[]} testID="index-loading">
+                <ActivityIndicator size="large" color={colors.orange} style={{ flex: 1 }} />
+            </Screen>
         );
     }
 
-    return <Redirect href={(authenticated ? '/(tabs)' : '/login') as any} />;
+    return <Redirect href={(state === 'authenticated' ? '/(tabs)' : '/login') as never} />;
 }
-
-const styles = StyleSheet.create({
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: brandTheme.colors.bg,
-    },
-});
