@@ -1,0 +1,68 @@
+// Mobile-only auth keys (hero, Google sign-in, backend error mapping). Web wording lives in shared.*.ts (`auth.*`).
+export const fr = {
+    'auth.brand.logoAlt': 'Logo FoodStream',
+    'auth.hero.top': 'Cuisinez en live.',
+    'auth.hero.middle': 'Apprenez avec les',
+    'auth.hero.accent': 'meilleurs chefs.',
+    'auth.hero.description': 'Lives culinaires, masterclass privées et une communauté qui cuisine ensemble.',
+
+    'auth.google.notSupported': 'Connexion Google indisponible sur cet appareil.',
+    'auth.google.expoGo': 'Connexion Google non disponible dans Expo Go. Utilisez le web ou un build de développement.',
+    'auth.google.notConfigured': 'Configuration Google manquante. Vérifiez EXPO_PUBLIC_GOOGLE_CLIENT_ID.',
+    'auth.google.promptUnavailable': 'Connexion Google indisponible pour le moment. Réessayez.',
+    'auth.google.tokenMissing': 'Impossible de récupérer le jeton d’accès Google.',
+    'auth.google.cancelled': 'Connexion annulée.',
+    'auth.google.inProgress': 'Connexion déjà en cours.',
+    'auth.google.playServices': 'Google Play Services indisponible sur cet appareil.',
+    'auth.google.unknown': 'Erreur inattendue de connexion avec Google.',
+
+    'auth.signup.errorGeneric': 'Impossible de créer le compte. Réessayez.',
+    'auth.signup.errorRateLimit': 'Trop de tentatives. Patientez un instant avant de réessayer.',
+    'auth.signup.countryPickerTitle': 'Sélectionner un indicatif',
+
+    'auth.verify.sentTo': 'Code envoyé à :',
+    'auth.verify.devFill': 'Remplir et valider',
+    'auth.verify.successSubtitle': 'Compte vérifié avec succès !',
+    'auth.verify.successBody': 'Votre compte est désormais activé. Redirection en cours…',
+    'auth.verify.errorTooMany': 'Trop de tentatives invalides. Demandez un nouveau code.',
+    'auth.verify.resendTooSoon': 'Veuillez patienter {seconds}s avant de demander un nouveau code.',
+    'auth.verify.alreadyVerified': 'Ce compte est déjà vérifié. Vous pouvez vous connecter.',
+    'auth.verify.missingAccount': 'Compte introuvable. Reprenez l’inscription ou connectez-vous.',
+    'auth.verify.resendAria': 'Renvoyer le code de vérification',
+    'auth.verify.codeHint': 'Saisissez les 6 chiffres reçus par e-mail.',
+    'auth.verify.fallbackTarget': 'votre adresse e-mail',
+} as const;
+
+export const en: Record<keyof typeof fr, string> = {
+    'auth.brand.logoAlt': 'FoodStream logo',
+    'auth.hero.top': 'Cook live.',
+    'auth.hero.middle': 'Learn from the',
+    'auth.hero.accent': 'best chefs.',
+    'auth.hero.description': 'Live cooking sessions, private masterclasses, and a community that cooks together.',
+
+    'auth.google.notSupported': 'Google sign-in is unavailable on this device.',
+    'auth.google.expoGo': 'Google sign-in is not available in Expo Go. Use web or a development build.',
+    'auth.google.notConfigured': 'Google OAuth is not configured. Check EXPO_PUBLIC_GOOGLE_CLIENT_ID.',
+    'auth.google.promptUnavailable': 'Google sign-in is not ready yet. Please try again.',
+    'auth.google.tokenMissing': 'Unable to retrieve the Google access token.',
+    'auth.google.cancelled': 'Sign-in cancelled.',
+    'auth.google.inProgress': 'Sign-in already in progress.',
+    'auth.google.playServices': 'Google Play Services is unavailable on this device.',
+    'auth.google.unknown': 'Unexpected Google sign-in error.',
+
+    'auth.signup.errorGeneric': 'Unable to create the account. Please try again.',
+    'auth.signup.errorRateLimit': 'Too many attempts. Wait a moment before trying again.',
+    'auth.signup.countryPickerTitle': 'Select a country code',
+
+    'auth.verify.sentTo': 'Code sent to:',
+    'auth.verify.devFill': 'Fill and confirm',
+    'auth.verify.successSubtitle': 'Account verified successfully!',
+    'auth.verify.successBody': 'Your account is now active. Redirecting…',
+    'auth.verify.errorTooMany': 'Too many invalid attempts. Request a new code.',
+    'auth.verify.resendTooSoon': 'Please wait {seconds}s before requesting a new code.',
+    'auth.verify.alreadyVerified': 'This account is already verified. You can sign in.',
+    'auth.verify.missingAccount': 'Account not found. Sign up again or sign in.',
+    'auth.verify.resendAria': 'Resend the verification code',
+    'auth.verify.codeHint': 'Enter the 6 digits you received by email.',
+    'auth.verify.fallbackTarget': 'your email address',
+};
