@@ -1,0 +1,7 @@
+# Local media and secrets must never be baked into the image (replays/uploads live in the data volume).
+hls
+storage
+.env
+.env.*
+.git
+*.md
