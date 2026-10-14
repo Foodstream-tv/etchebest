@@ -1,836 +1,321 @@
 import { Ionicons } from '@expo/vector-icons';
-import { makeRedirectUri } from 'expo-auth-session';
-import * as GoogleAuth from 'expo-auth-session/providers/google';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import React, { useCallback, useState } from 'react';
-import {
-    ActivityIndicator,
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
-} from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
-import { brandHeadlineFont, brandTheme } from '@/constants/brandTheme';
-import { LanguageProvider, useI18n } from '@/contexts/LanguageContext';
-import { createShadowStyle } from '@/utils/shadow';
-import appConfig from '../config/env';
-import apiService from '../services/api';
-import { authService } from '../services/auth';
-import { validateEmail, validatePassword } from '../utils/validation';
+import AuthLayout from '@/components/auth/AuthLayout';
+import GoogleAuthButton from '@/components/auth/GoogleAuthButton';
+import { blurActiveElementOnWeb, inputRef } from '@/components/auth/helpers';
+import FloatingLabelInput from '@/components/FloatingLabelInput';
+import Button from '@/components/ui/Button';
+import { useI18n } from '@/contexts/LanguageContext';
+import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import apiService from '@/services/api';
+import { formatBanMessage } from '@/services/session';
+import { bodyString, isApiError, isBannedError, isUnverifiedError } from '@/utils/authErrors';
+import { completeSignIn, ProfileUnavailableError } from '@/utils/completeSignIn';
+import { validateLoginEmail, validateLoginPassword } from '@/utils/validation';
 
-const isExpoGo =
-    Platform.OS !== 'web' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-const isNativeGoogleSignInSupported = Platform.OS !== 'web' && !isExpoGo;
-const googleWebClientId = appConfig.googleClientId;
-const googleAndroidClientId = appConfig.googleAndroidClientId || googleWebClientId;
-const googleIosClientId = appConfig.googleIosClientId || googleWebClientId;
-const configuredGoogleRedirectUri = appConfig.googleRedirectUri.trim().replace(/\/+$/, '');
-const defaultGoogleWebRedirectUri =
-    Platform.OS === 'web' && globalThis.window !== undefined ? globalThis.window.location.origin : '';
-const defaultGoogleNativeRedirectUri =
-    Platform.OS === 'web' ? '' : makeRedirectUri({ scheme: 'foodstream', path: 'oauthredirect' });
-const googleRedirectUri =
-    Platform.OS === 'web'
-        ? configuredGoogleRedirectUri || defaultGoogleWebRedirectUri
-        : defaultGoogleNativeRedirectUri;
-
-WebBrowser.maybeCompleteAuthSession();
-
-type LoginCopy = {
-    invalidEmail: string;
-    invalidPassword: string;
-    unknownError: string;
-    googleNotSupported: string;
-    googleExpoGoUnsupported: string;
-    googleNotConfigured: string;
-    googlePromptUnavailable: string;
-    googleTokenMissing: string;
-    googleCancelled: string;
-    googleInProgress: string;
-    googlePlayServicesMissing: string;
-    googleUnknown: string;
-    headlineTop: string;
-    headlineMiddle: string;
-    headlineAccent: string;
-    heroDescription: string;
-    sectionLabel: string;
-    emailPlaceholder: string;
-    passwordPlaceholder: string;
-    loginButton: string;
-    divider: string;
-    continueGoogle: string;
-    forgotPassword: string;
-    noAccount: string;
-    register: string;
-};
-
-const LOGIN_COPY: Record<'fr' | 'en', LoginCopy> = {
-    fr: {
-        invalidEmail: 'Email invalide',
-        invalidPassword: 'Mot de passe invalide',
-        unknownError: 'Desole, une erreur inattendue est survenue.',
-        googleNotSupported: 'Connexion Google indisponible sur cet appareil.',
-        googleExpoGoUnsupported: 'Connexion Google non disponible dans Expo Go. Utilisez le web ou un build de developpement.',
-        googleNotConfigured: 'Configuration Google manquante. Verifiez EXPO_PUBLIC_GOOGLE_CLIENT_ID.',
-        googlePromptUnavailable: 'Connexion Google indisponible pour le moment. Reessayez.',
-        googleTokenMissing: "Impossible de recuperer le jeton d'acces Google.",
-        googleCancelled: 'Connexion annulee',
-        googleInProgress: 'Connexion deja en cours',
-        googlePlayServicesMissing: 'Google Play Services indisponible sur cet appareil',
-        googleUnknown: 'Erreur inattendue de connexion avec Google.',
-        headlineTop: 'Cuisinez en live.',
-        headlineMiddle: 'Apprenez avec les',
-        headlineAccent: 'meilleurs chefs.',
-        heroDescription: 'Lives culinaires, masterclass privees et une communaute qui cuisine ensemble.',
-        sectionLabel: 'CONNEXION',
-        emailPlaceholder: 'Adresse e-mail',
-        passwordPlaceholder: 'Mot de passe',
-        loginButton: 'Se connecter',
-        divider: 'Ou',
-        continueGoogle: 'Continuer avec Google',
-        forgotPassword: 'Mot de passe oublie ?',
-        noAccount: "Vous n'avez pas de compte ? ",
-        register: 'Inscrivez-vous',
-    },
-    en: {
-        invalidEmail: 'Invalid email',
-        invalidPassword: 'Invalid password',
-        unknownError: 'Sorry, an unexpected error occurred.',
-        googleNotSupported: 'Google sign-in is unavailable on this device.',
-        googleExpoGoUnsupported: 'Google sign-in is not available in Expo Go. Use web or a development build.',
-        googleNotConfigured: 'Google OAuth is not configured. Check EXPO_PUBLIC_GOOGLE_CLIENT_ID.',
-        googlePromptUnavailable: 'Google sign-in is not ready yet. Please try again.',
-        googleTokenMissing: 'Unable to retrieve Google access token.',
-        googleCancelled: 'Sign in cancelled',
-        googleInProgress: 'Sign in already in progress',
-        googlePlayServicesMissing: 'Google Play Services unavailable on this device',
-        googleUnknown: 'Unexpected Google sign-in error.',
-        headlineTop: 'Cook live.',
-        headlineMiddle: 'Learn from the',
-        headlineAccent: 'best chefs.',
-        heroDescription: 'Live cooking sessions, private masterclasses, and a community that cooks together.',
-        sectionLabel: 'SIGN IN',
-        emailPlaceholder: 'Email address',
-        passwordPlaceholder: 'Password',
-        loginButton: 'Sign in',
-        divider: 'Or',
-        continueGoogle: 'Continue with Google',
-        forgotPassword: 'Forgot password?',
-        noAccount: "Don't have an account? ",
-        register: 'Sign up',
-    },
-};
+type FocusedField = 'email' | 'password' | null;
+type UnverifiedInfo = { userId?: string; email: string };
 
 export default function LoginScreen() {
-    return (
-        <LanguageProvider>
-            <LoginScreenContent />
-        </LanguageProvider>
-    );
-}
-
-function LoginScreenContent() {
-    const { locale } = useI18n();
-    const copy = LOGIN_COPY[locale];
-    const { height } = useWindowDimensions();
-    const useCompactHero = height < 830;
+    const { t, locale } = useI18n();
+    const { colors } = useTheme();
+    const styles = useStyles();
+    const router = useRouter();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [obscurePassword, setObscurePassword] = useState(true);
-    const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
+    const [focusedField, setFocusedField] = useState<FocusedField>(null);
     const [loading, setLoading] = useState(false);
+    const [googleBusy, setGoogleBusy] = useState(false);
     const [emailError, setEmailError] = useState<string | null>(null);
     const [passwordError, setPasswordError] = useState<string | null>(null);
-    const [socialMessage, setSocialMessage] = useState<string | null>(null);
     const [apiError, setApiError] = useState<string | null>(null);
+    const [unverified, setUnverified] = useState<UnverifiedInfo | null>(null);
 
-    const router = useRouter();
-    const [googleAuthRequest, , promptGoogleAuth] = GoogleAuth.useAuthRequest({
-        clientId: googleWebClientId || undefined,
-        webClientId: googleWebClientId || undefined,
-        androidClientId: isNativeGoogleSignInSupported ? googleAndroidClientId || undefined : undefined,
-        iosClientId: isNativeGoogleSignInSupported ? googleIosClientId || undefined : undefined,
-        redirectUri: googleRedirectUri || undefined,
-        responseType: 'token',
-        scopes: ['openid', 'profile', 'email'],
-    });
+    const passwordRef = useRef<TextInput>(null);
+    const submittingRef = useRef(false);
 
-    const handleLogin = useCallback(async () => {
-        const emailValidation = validateEmail(email);
-        const passwordValidation = validatePassword(password);
-
-        setEmailError(emailValidation.isValid ? null : (emailValidation.error ?? copy.invalidEmail));
-        setPasswordError(passwordValidation.isValid ? null : (passwordValidation.error ?? copy.invalidPassword));
-        setApiError(null);
-
-        if (!emailValidation.isValid || !passwordValidation.isValid) {
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const response = await apiService.login({ email, password });
-            await authService.saveAuth(response.token, response.user);
-
-            try {
-                const profile = await apiService.getProfile(response.token);
-                await authService.saveAuth(response.token, {
-                    id: profile.id,
-                    email: profile.email,
-                    username: profile.username,
-                    firstName: profile.firstName,
-                    lastName: profile.lastName,
-                    description: profile.description,
-                } as any);
-            } catch {
-                // Keep the basic auth payload if profile enrichment fails.
-            }
-
-            router.replace('/');
-        } catch (error) {
-            console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
-            setApiError(error instanceof Error ? error.message : copy.unknownError);
-        } finally {
-            setLoading(false);
-        }
-    }, [email, password, router, copy]);
-
-    const completeGoogleLogin = useCallback(
-        async (accessToken: string) => {
-            const authRes = await apiService.loginWithGoogle(accessToken);
-            await authService.saveAuth(authRes.token, authRes.user);
-
-            try {
-                const profile = await apiService.getProfile(authRes.token);
-                await authService.saveAuth(authRes.token, {
-                    id: profile.id,
-                    email: profile.email,
-                    username: profile.username,
-                    firstName: profile.firstName,
-                    lastName: profile.lastName,
-                    description: profile.description,
-                } as any);
-            } catch {
-                // Keep the basic auth payload if profile enrichment fails.
-            }
-
-            router.replace('/');
+    const goToVerify = useCallback(
+        (info: UnverifiedInfo) => {
+            blurActiveElementOnWeb();
+            const params: Record<string, string> = { email: info.email };
+            if (info.userId) params.userId = info.userId;
+            router.push({ pathname: '/verify', params } as never);
         },
         [router]
     );
 
-    const handleWebGoogleLogin = useCallback(async () => {
-        if (!googleWebClientId) {
-            setSocialMessage(copy.googleNotConfigured);
-            return;
-        }
+    const handleLogin = useCallback(async () => {
+        if (submittingRef.current) return;
 
-        if (!googleAuthRequest) {
-            setSocialMessage(copy.googlePromptUnavailable);
-            return;
-        }
+        // Sign-in only checks the e-mail shape and a non-empty password (web parity):
+        // complexity rules must never lock out an existing account.
+        const emailCheck = validateLoginEmail(email);
+        const passwordCheck = validateLoginPassword(password);
 
-        const webAuthResult = await promptGoogleAuth();
-
-        if (webAuthResult.type !== 'success') {
-            setSocialMessage(copy.googleCancelled);
-            return;
-        }
-
-        const accessTokenFromAuthentication =
-            'authentication' in webAuthResult ? webAuthResult.authentication?.accessToken : null;
-        const accessTokenFromParams =
-            'params' in webAuthResult && typeof webAuthResult.params?.access_token === 'string'
-                ? webAuthResult.params.access_token
-                : null;
-        const accessToken = accessTokenFromAuthentication ?? accessTokenFromParams;
-
-        if (!accessToken) {
-            setSocialMessage(copy.googleTokenMissing);
-            return;
-        }
-
-        await completeGoogleLogin(accessToken);
-    }, [completeGoogleLogin, copy, googleAuthRequest, promptGoogleAuth]);
-
-    const handleNativeGoogleLogin = useCallback(async () => {
-        if (!isNativeGoogleSignInSupported) {
-            setSocialMessage(copy.googleNotSupported);
-            return;
-        }
-
-        let nativeGoogleModule: typeof import('@react-native-google-signin/google-signin');
-        try {
-            nativeGoogleModule = await import('@react-native-google-signin/google-signin');
-        } catch {
-            setSocialMessage(copy.googleNotSupported);
-            return;
-        }
-
-        const { GoogleSignin } = nativeGoogleModule;
-
-        GoogleSignin.configure({
-            webClientId: googleWebClientId,
-            offlineAccess: true,
-            forceCodeForRefreshToken: true,
-        });
-
-        await GoogleSignin.hasPlayServices();
-        await GoogleSignin.signIn();
-        const { accessToken } = await GoogleSignin.getTokens();
-
-        if (!accessToken) {
-            setSocialMessage(copy.googleTokenMissing);
-            return;
-        }
-
-        await completeGoogleLogin(accessToken);
-    }, [completeGoogleLogin, copy]);
-
-    const handleGoogleLoginError = useCallback(
-        async (error: any) => {
-            console.error('Google Signin Error:', error);
-
-            if (isNativeGoogleSignInSupported) {
-                const nativeGoogleStatusCodes = (await import('@react-native-google-signin/google-signin')).statusCodes;
-
-                if (nativeGoogleStatusCodes && error.code === nativeGoogleStatusCodes.SIGN_IN_CANCELLED) {
-                    setSocialMessage(copy.googleCancelled);
-                } else if (nativeGoogleStatusCodes && error.code === nativeGoogleStatusCodes.IN_PROGRESS) {
-                    setSocialMessage(copy.googleInProgress);
-                } else if (nativeGoogleStatusCodes && error.code === nativeGoogleStatusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                    setSocialMessage(copy.googlePlayServicesMissing);
-                } else {
-                    setApiError(copy.googleUnknown);
-                }
-                return;
-            }
-
-            if (error?.type === 'cancel' || error?.type === 'dismiss') {
-                setSocialMessage(copy.googleCancelled);
-                return;
-            }
-
-            setApiError(copy.googleUnknown);
-        },
-        [copy]
-    );
-
-    const handleGoogleLogin = useCallback(async () => {
-        setLoading(true);
-        setSocialMessage(null);
+        setEmailError(emailCheck.isValid ? null : t('auth.signin.invalidEmail'));
+        setPasswordError(passwordCheck.isValid ? null : t('auth.signin.emptyPassword'));
         setApiError(null);
+        setUnverified(null);
 
+        if (!emailCheck.isValid || !passwordCheck.isValid) {
+            return;
+        }
+
+        submittingRef.current = true;
+        setLoading(true);
         try {
-            if (isExpoGo) {
-                setSocialMessage(copy.googleExpoGoUnsupported);
+            const login = await apiService.login({ email, password });
+            if (!login?.token) {
+                setApiError(t('auth.signin.serverError'));
                 return;
             }
 
-            if (Platform.OS === 'web') {
-                await handleWebGoogleLogin();
-                return;
+            await completeSignIn(login.token);
+            router.replace('/');
+        } catch (error) {
+            if (isUnverifiedError(error)) {
+                const info = {
+                    userId: bodyString(error, 'userId'),
+                    email: bodyString(error, 'email') ?? email.trim(),
+                };
+                setUnverified(info);
+                setApiError(t('auth.signin.notVerified'));
+                goToVerify(info);
+            } else if (isBannedError(error)) {
+                setApiError(formatBanMessage(bodyString(error, 'bannedUntil'), locale));
+            } else if (isApiError(error) && (error.status === 401 || error.status === 400)) {
+                // 400: the backend refuses passwords shorter than 8 characters, they can never match an account.
+                setApiError(t('auth.signin.invalidCreds'));
+            } else if (error instanceof ProfileUnavailableError) {
+                setApiError(
+                    isBannedError(error.cause)
+                        ? formatBanMessage(bodyString(error.cause, 'bannedUntil'), locale)
+                        : t('auth.signin.fetchProfileError')
+                );
+            } else {
+                setApiError(t('auth.signin.genericError'));
             }
-
-            await handleNativeGoogleLogin();
-        } catch (error: any) {
-            await handleGoogleLoginError(error);
         } finally {
+            submittingRef.current = false;
             setLoading(false);
         }
-    }, [copy, handleGoogleLoginError, handleNativeGoogleLogin, handleWebGoogleLogin]);
-
-    const blurActiveElementOnWeb = useCallback(() => {
-        if (Platform.OS === 'web') {
-            const activeElement = document.activeElement as HTMLElement | null;
-            activeElement?.blur?.();
-        }
-    }, []);
-
-    const handleTogglePassword = useCallback(() => {
-        setObscurePassword((prev) => !prev);
-    }, []);
+    }, [email, password, goToVerify, locale, router, t]);
 
     const handleForgotPassword = useCallback(() => {
         blurActiveElementOnWeb();
         router.push('/forgot-password');
-    }, [blurActiveElementOnWeb, router]);
+    }, [router]);
 
     const handleRegister = useCallback(() => {
         blurActiveElementOnWeb();
         router.push('/register');
-    }, [blurActiveElementOnWeb, router]);
+    }, [router]);
+
+    const hero = (
+        <View style={styles.hero}>
+            <Text style={styles.headline} accessibilityRole="header">
+                {t('auth.hero.top')}
+                {'\n'}
+                {t('auth.hero.middle')}
+                {'\n'}
+                <Text style={styles.headlineAccent}>{t('auth.hero.accent')}</Text>
+            </Text>
+            <Text style={styles.heroDescription}>{t('auth.hero.description')}</Text>
+        </View>
+    );
 
     return (
-        <View style={styles.screen}>
-            <LinearGradient
-                colors={['#0A0503', '#070302', '#050201']}
-                start={{ x: 0.1, y: 0 }}
-                end={{ x: 0.9, y: 1 }}
-                style={styles.backgroundGradient}
+        <AuthLayout
+            testID="login-screen"
+            hero={hero}
+            label={t('auth.signin.label')}
+            title={t('auth.signin.title')}
+            subtitle={t('auth.signin.subtitle')}
+            bottomText={t('auth.signin.noAccount')}
+            bottomLinkLabel={t('auth.signin.signupLink')}
+            onBottomLinkPress={handleRegister}
+        >
+            <FloatingLabelInput
+                label={t('auth.signin.emailPlaceholder')}
+                iconName="mail-outline"
+                focused={focusedField === 'email'}
+                value={email}
+                onChangeText={(value) => {
+                    setEmail(value);
+                    setEmailError(null);
+                }}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                editable={!loading}
+                error={emailError}
             />
 
-            <View style={styles.orbLayer}>
-                <LinearGradient
-                    colors={['rgba(255, 122, 26, 0.28)', 'rgba(255, 122, 26, 0.03)']}
-                    style={[styles.orb, styles.orbTopRight]}
-                />
-                <LinearGradient
-                    colors={['rgba(255, 122, 26, 0.2)', 'rgba(255, 122, 26, 0.03)']}
-                    style={[styles.orb, styles.orbMidLeft]}
-                />
-                <LinearGradient
-                    colors={['rgba(255, 122, 26, 0.24)', 'rgba(255, 122, 26, 0.03)']}
-                    style={[styles.orb, styles.orbBottomLeft]}
-                />
+            <FloatingLabelInput
+                {...inputRef(passwordRef)}
+                label={t('auth.signin.passwordPlaceholder')}
+                iconName="lock-closed-outline"
+                focused={focusedField === 'password'}
+                value={password}
+                onChangeText={(value) => {
+                    setPassword(value);
+                    setPasswordError(null);
+                }}
+                onFocus={() => setFocusedField('password')}
+                onBlur={() => setFocusedField(null)}
+                secureTextEntry={obscurePassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="current-password"
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
+                editable={!loading}
+                error={passwordError}
+                trailingIcon={
+                    <Pressable
+                        onPress={() => setObscurePassword((value) => !value)}
+                        accessibilityRole="button"
+                        accessibilityLabel={obscurePassword ? t('auth.password.show') : t('auth.password.hide')}
+                        hitSlop={10}
+                        style={styles.eyeButton}
+                    >
+                        <Ionicons
+                            name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
+                            size={22}
+                            color={colors.muted}
+                        />
+                    </Pressable>
+                }
+            />
+
+            <Pressable
+                onPress={handleForgotPassword}
+                accessibilityRole="link"
+                accessibilityLabel={t('auth.signin.forgotPassword')}
+                hitSlop={8}
+                style={styles.forgotWrap}
+            >
+                <Text style={styles.forgotText}>{t('auth.signin.forgotPassword')}</Text>
+            </Pressable>
+
+            {apiError ? (
+                <View style={styles.errorBlock}>
+                    <Text style={styles.errorText} accessibilityRole="alert">
+                        {apiError}
+                    </Text>
+                    {unverified ? (
+                        <Pressable
+                            onPress={() => goToVerify(unverified)}
+                            accessibilityRole="link"
+                            accessibilityLabel={t('auth.signin.verifyNow')}
+                            hitSlop={8}
+                            style={styles.verifyLinkWrap}
+                        >
+                            <Text style={styles.verifyLink}>{t('auth.signin.verifyNow')} →</Text>
+                        </Pressable>
+                    ) : null}
+                </View>
+            ) : null}
+
+            <Button
+                label={loading ? t('auth.signin.submitting') : t('auth.signin.submit')}
+                onPress={handleLogin}
+                loading={loading}
+                disabled={googleBusy}
+                testID="login-submit"
+            />
+
+            <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerLabel}>{t('auth.signin.or')}</Text>
+                <View style={styles.dividerLine} />
             </View>
 
-            <ScrollView
-                contentContainerStyle={[styles.scrollContent, useCompactHero && styles.scrollContentCompact]}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-            >
-                <View style={[styles.heroSection, useCompactHero && styles.heroSectionCompact]}>
-                    <View style={[styles.brandRow, useCompactHero && styles.brandRowCompact]}>
-                        <Image source={require('@/assets/images/logo.png')} style={[styles.brandLogo, useCompactHero && styles.brandLogoCompact]} resizeMode="cover" />
-                        <Text style={[styles.brandTitle, useCompactHero && styles.brandTitleCompact]}>
-                            foodstream
-                            <Text style={styles.brandTitleAccent}>.tv</Text>
-                        </Text>
-                    </View>
-
-                    <Text style={[styles.heroHeadline, useCompactHero && styles.heroHeadlineCompact]}>
-                        {copy.headlineTop}{"\n"}
-                        {copy.headlineMiddle}{"\n"}
-                        <Text style={styles.heroHeadlineAccent}>{copy.headlineAccent}</Text>
-                    </Text>
-
-                    <Text style={[styles.heroDescription, useCompactHero && styles.heroDescriptionCompact]}>
-                        {copy.heroDescription}
-                    </Text>
-                </View>
-
-                <View style={[styles.card, useCompactHero && styles.cardCompact]}>
-                    <Text style={styles.sectionLabel}>{copy.sectionLabel}</Text>
-
-                    {!!apiError && (
-                        <View style={styles.apiErrorContainer}>
-                            <Ionicons name="warning" size={18} color="#F6A5A5" />
-                            <Text style={styles.apiErrorText}>{apiError}</Text>
-                        </View>
-                    )}
-
-                    <View style={styles.inputWrapper}>
-                        <View style={[styles.inputField, focusedField === 'email' && styles.inputFieldFocused, !!emailError && styles.inputFieldError]}>
-                            <Ionicons name="mail-outline" size={22} color="rgba(250, 244, 234, 0.56)" style={styles.inputLeadingIcon} />
-                            <TextInput
-                                value={email}
-                                onChangeText={(value) => {
-                                    setEmail(value);
-                                    setEmailError(null);
-                                }}
-                                onFocus={() => setFocusedField('email')}
-                                onBlur={() => setFocusedField(null)}
-                                style={styles.inputText}
-                                placeholder={copy.emailPlaceholder}
-                                placeholderTextColor="rgba(250, 244, 234, 0.4)"
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                keyboardAppearance="dark"
-                                textContentType="emailAddress"
-                            />
-                        </View>
-                        {!!emailError && <Text style={styles.inputErrorText}>{emailError}</Text>}
-                    </View>
-
-                    <View style={styles.inputWrapper}>
-                        <View style={[styles.inputField, focusedField === 'password' && styles.inputFieldFocused, !!passwordError && styles.inputFieldError]}>
-                            <Ionicons name="lock-closed-outline" size={22} color="rgba(250, 244, 234, 0.56)" style={styles.inputLeadingIcon} />
-                            <TextInput
-                                value={password}
-                                onChangeText={(value) => {
-                                    setPassword(value);
-                                    setPasswordError(null);
-                                }}
-                                onFocus={() => setFocusedField('password')}
-                                onBlur={() => setFocusedField(null)}
-                                style={styles.inputText}
-                                placeholder={copy.passwordPlaceholder}
-                                placeholderTextColor="rgba(250, 244, 234, 0.4)"
-                                secureTextEntry={obscurePassword}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                keyboardAppearance="dark"
-                                textContentType="password"
-                            />
-                            <TouchableOpacity onPress={handleTogglePassword} style={styles.eyeButton}>
-                                <Ionicons
-                                    name={obscurePassword ? 'eye-off-outline' : 'eye-outline'}
-                                    size={22}
-                                    color="rgba(250, 244, 234, 0.56)"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                        {!!passwordError && <Text style={styles.inputErrorText}>{passwordError}</Text>}
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
-                        onPress={handleLogin}
-                        disabled={loading}
-                    >
-                        <LinearGradient
-                            colors={brandTheme.gradients.primary}
-                            start={{ x: 0, y: 0.5 }}
-                            end={{ x: 1, y: 0.5 }}
-                            style={styles.primaryButtonGradient}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#FFF7EF" />
-                            ) : (
-                                <Text style={styles.primaryButtonText}>{copy.loginButton}</Text>
-                            )}
-                        </LinearGradient>
-                    </TouchableOpacity>
-
-                    <View style={styles.dividerRow}>
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerLabel}>{copy.divider}</Text>
-                        <View style={styles.dividerLine} />
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.socialButton}
-                        onPress={handleGoogleLogin}
-                        testID="google-login-button"
-                    >
-                        <View style={styles.socialButtonContent}>
-                            <View style={styles.socialIconBadge}>
-                                <Image source={require('@/assets/images/google_logo.png')} style={styles.googleIcon} resizeMode="contain" />
-                            </View>
-                            <Text style={styles.socialText}>{copy.continueGoogle}</Text>
-                        </View>
-                    </TouchableOpacity>
-
-                    {!!socialMessage && <Text style={styles.socialMessage}>{socialMessage}</Text>}
-
-                    <View style={styles.footerRow}>
-                        <Text style={styles.footerText}>{copy.noAccount}</Text>
-                        <TouchableOpacity onPress={handleRegister}>
-                            <Text style={styles.footerLink}>{copy.register}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </ScrollView>
-        </View>
+            <GoogleAuthButton disabled={loading} onBusyChange={setGoogleBusy} />
+        </AuthLayout>
     );
 }
 
-const styles = StyleSheet.create({
-    screen: {
-        flex: 1,
-        backgroundColor: '#050201',
+const useStyles = makeStyles(({ colors }) => ({
+    hero: {
+        marginBottom: 22,
     },
-    backgroundGradient: {
-        ...StyleSheet.absoluteFillObject,
+    headline: {
+        color: colors.text,
+        fontSize: 32,
+        lineHeight: 38,
+        fontWeight: '600',
+        letterSpacing: -0.8,
     },
-    orbLayer: {
-        ...StyleSheet.absoluteFillObject,
-        pointerEvents: 'none',
-    },
-    orb: {
-        position: 'absolute',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 122, 26, 0.14)',
-    },
-    orbTopRight: {
-        width: 360,
-        height: 360,
-        top: -92,
-        right: -112,
-    },
-    orbMidLeft: {
-        width: 112,
-        height: 112,
-        top: 156,
-        left: 18,
-    },
-    orbBottomLeft: {
-        width: 254,
-        height: 254,
-        bottom: 34,
-        left: -140,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 18,
-        paddingTop: Platform.OS === 'ios' ? 54 : 36,
-        paddingBottom: 26,
-    },
-    scrollContentCompact: {
-        paddingTop: Platform.OS === 'ios' ? 42 : 28,
-        paddingBottom: 18,
-    },
-    heroSection: {
-        marginBottom: 20,
-        paddingHorizontal: 0,
-    },
-    heroSectionCompact: {
-        marginBottom: 12,
-    },
-    brandRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 18,
-    },
-    brandRowCompact: {
-        marginBottom: 12,
-    },
-    brandLogo: {
-        width: 46,
-        height: 46,
-        borderRadius: 999,
-        marginRight: 12,
-    },
-    brandLogoCompact: {
-        width: 40,
-        height: 40,
-        marginRight: 10,
-    },
-    brandTitle: {
-        color: '#F5EFE8',
-        fontSize: 22,
-        fontWeight: '800',
-        letterSpacing: 0.2,
-    },
-    brandTitleCompact: {
-        fontSize: 20,
-    },
-    brandTitleAccent: {
-        color: '#FF7A1A',
-    },
-    heroHeadline: {
-        color: '#F8F1E9',
-        fontSize: 34,
-        lineHeight: 46,
-        fontFamily: brandHeadlineFont,
-        fontWeight: '700',
-    },
-    heroHeadlineCompact: {
-        fontSize: 28,
-        lineHeight: 36,
-    },
-    heroHeadlineAccent: {
-        color: '#FF7A1A',
-        fontStyle: 'italic',
+    headlineAccent: {
+        color: colors.orange,
     },
     heroDescription: {
-        marginTop: 18,
-        color: 'rgba(248, 241, 233, 0.48)',
+        marginTop: 12,
+        color: colors.muted,
         fontSize: 15,
         lineHeight: 22,
-        maxWidth: 352,
-    },
-    heroDescriptionCompact: {
-        marginTop: 12,
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    card: {
-        marginTop: 4,
-        borderRadius: 34,
-        backgroundColor: 'rgba(19, 12, 9, 0.93)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.12)',
-        paddingHorizontal: 20,
-        paddingTop: 24,
-        paddingBottom: 24,
-        ...createShadowStyle({
-            color: '#000000',
-            offset: { width: 0, height: 20 },
-            opacity: 0.34,
-            radius: 28,
-            elevation: 16,
-        }),
-    },
-    cardCompact: {
-        marginTop: 0,
-    },
-    sectionLabel: {
-        color: 'rgba(248, 241, 233, 0.58)',
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 3.2,
-        marginBottom: 16,
-    },
-    apiErrorContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(145, 33, 33, 0.28)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 125, 125, 0.4)',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 14,
-        marginBottom: 12,
-    },
-    apiErrorText: {
-        color: '#F7C0C0',
-        fontSize: 13,
-        marginLeft: 8,
-        flex: 1,
-    },
-    inputWrapper: {
-        marginBottom: 14,
-    },
-    inputField: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.13)',
-        backgroundColor: 'rgba(255, 255, 255, 0.047)',
-        borderRadius: 24,
-        minHeight: 60,
-        paddingHorizontal: 16,
-    },
-    inputFieldFocused: {
-        borderColor: '#FF8B21',
-    },
-    inputFieldError: {
-        borderColor: '#EB8F8F',
-    },
-    inputLeadingIcon: {
-        marginRight: 14,
-    },
-    inputText: {
-        flex: 1,
-        color: '#F8F1E9',
-        fontSize: 17,
-        paddingVertical: 14,
     },
     eyeButton: {
         padding: 4,
-        marginLeft: 10,
+        marginLeft: 8,
     },
-    inputErrorText: {
-        marginTop: 6,
-        marginLeft: 4,
-        color: '#F2A1A1',
-        fontSize: 12,
+    forgotWrap: {
+        alignSelf: 'flex-end',
+        minHeight: 44,
+        justifyContent: 'center',
+        marginTop: -6,
+    },
+    forgotText: {
+        color: colors.orangeText,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    errorBlock: {
+        marginBottom: 12,
+        gap: 4,
+    },
+    errorText: {
+        color: colors.danger,
+        fontSize: 14,
         fontWeight: '500',
     },
-    primaryButton: {
-        borderRadius: 22,
-        overflow: 'hidden',
-        marginTop: 10,
-    },
-    primaryButtonDisabled: {
-        opacity: 0.8,
-    },
-    primaryButtonGradient: {
-        minHeight: 58,
-        alignItems: 'center',
+    verifyLinkWrap: {
+        minHeight: 44,
         justifyContent: 'center',
     },
-    primaryButtonText: {
-        color: '#FFF8EF',
-        fontSize: 17,
-        fontWeight: '800',
+    verifyLink: {
+        color: colors.orangeText,
+        fontSize: 13,
+        fontWeight: '700',
+        textDecorationLine: 'underline',
     },
     dividerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 24,
+        gap: 12,
+        marginVertical: 20,
     },
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.11)',
+        backgroundColor: colors.border,
     },
     dividerLabel: {
-        marginHorizontal: 12,
-        color: 'rgba(248, 241, 233, 0.56)',
+        color: colors.muted,
         fontSize: 14,
-        fontWeight: '700',
     },
-    socialButton: {
-        borderRadius: 22,
-        paddingVertical: 14,
-        paddingHorizontal: 14,
-        marginBottom: 14,
-        backgroundColor: 'rgba(255, 255, 255, 0.048)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.13)',
-        width: '100%',
-    },
-    socialButtonContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    socialIconBadge: {
-        width: 40,
-        height: 40,
-        borderRadius: 11,
-        backgroundColor: 'rgba(255, 255, 255, 0.12)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    googleIcon: {
-        width: 22,
-        height: 22,
-    },
-    socialText: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#F8F1E9',
-        marginLeft: 16,
-    },
-    socialMessage: {
-        color: '#F2A1A1',
-        textAlign: 'center',
-        fontSize: 13,
-        marginTop: -2,
-        marginBottom: 8,
-    },
-    forgotPasswordWrap: {
-        alignSelf: 'center',
-        marginTop: 6,
-    },
-    forgotPasswordText: {
-        color: '#F7EFE6',
-        textDecorationLine: 'underline',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    footerRow: {
-        marginTop: 12,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    footerText: {
-        color: 'rgba(248, 241, 233, 0.56)',
-        fontSize: 15,
-    },
-    footerLink: {
-        color: '#FF7A1A',
-        fontSize: 15,
-        fontWeight: '800',
-    },
-});
+}));
