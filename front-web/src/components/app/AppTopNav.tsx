@@ -208,7 +208,7 @@ export default function AppTopNav() {
 
                           {results.users.map((chef) => {
                             const chefName =
-                              chef.username || chef.email || "Chef FoodStream";
+                              chef.username || "Chef FoodStream";
 
                             return (
                               <Link
@@ -237,7 +237,7 @@ export default function AppTopNav() {
                                       className="grid h-full w-full place-items-center text-sm font-bold"
                                       aria-hidden="true"
                                     >
-                                      {initialsOf(chef.username, chef.email)}
+                                      {initialsOf(chef.username)}
                                     </div>
                                   )}
                                 </div>
@@ -266,14 +266,14 @@ export default function AppTopNav() {
                           {results.lives.map((live) => (
                             <Link
                               key={live.id}
-                              href={`/watch/${encodeURIComponent(live.id)}`}
+                              href={`/watch/${encodeURIComponent(live.room_id)}`}
                               onClick={() => setSearchOpen(false)}
                               className="flex items-center gap-3 rounded-2xl px-3 py-2 transition hover:bg-orange-50 dark:hover:bg-white/5"
                             >
                               <div className="relative h-12 w-16 overflow-hidden rounded-xl bg-gray-200 dark:bg-white/10">
-                                {live.thumbnailUrl ? (
+                                {live.thumbnail_url ? (
                                   <Image
-                                    src={live.thumbnailUrl}
+                                    src={live.thumbnail_url}
                                     alt={`Miniature du live ${
                                       live.title || t("nav.untitledLive")
                                     }`}
@@ -290,9 +290,9 @@ export default function AppTopNav() {
                                   {live.title || t("nav.untitledLive")}
                                 </p>
 
-                                {live.dishName ? (
+                                {live.dish_name ? (
                                   <p className="text-xs text-gray-500">
-                                    {live.dishName}
+                                    {live.dish_name}
                                   </p>
                                 ) : null}
                               </div>

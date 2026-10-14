@@ -411,7 +411,7 @@ func GetUserFollowers(db *gorm.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"count":     len(followerIds),
-			"followers": followers,
+			"followers": usersToDTOs(followers),
 		})
 	}
 }
@@ -441,7 +441,7 @@ func GetUserFollowing(db *gorm.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"count":     len(followingIds),
-			"following": following,
+			"following": usersToDTOs(following),
 		})
 	}
 }
@@ -467,6 +467,7 @@ func GetUserById(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, foundUser)
+		// Public profile: never expose e-mail, phone, ban details or OAuth ids of other users.
+		c.JSON(http.StatusOK, UserToDTO(*foundUser))
 	}
 }
