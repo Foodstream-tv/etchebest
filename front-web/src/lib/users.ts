@@ -9,8 +9,8 @@ export interface UserSummary {
   profileImageUrl?: string;
   profile_image_url?: string;
   description?: string;
-  followersIDS?: string[];
-  followingIDS?: string[];
+  followersIds?: string[];
+  followingIds?: string[];
 }
 
 export interface FollowListResponse {

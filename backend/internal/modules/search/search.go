@@ -10,8 +10,8 @@ import (
 )
 
 type SearchResponse struct {
-	Users []user.User `json:"users"`
-	Lives []live.Live `json:"lives"`
+	Users []user.UserDTO `json:"users"`
+	Lives []live.LiveDTO `json:"lives"`
 }
 
 func GlobalSearch(db *gorm.DB) gin.HandlerFunc {
@@ -20,8 +20,8 @@ func GlobalSearch(db *gorm.DB) gin.HandlerFunc {
 
 		if query == "" {
 			c.JSON(200, SearchResponse{
-				Users: []user.User{},
-				Lives: []live.Live{},
+				Users: []user.UserDTO{},
+				Lives: []live.LiveDTO{},
 			})
 			return
 		}
@@ -43,9 +43,19 @@ func GlobalSearch(db *gorm.DB) gin.HandlerFunc {
 			Limit(5).
 			Find(&lives)
 
+		// Public DTOs only: the raw models carry e-mail, phone, ban and OAuth data.
+		userDTOs := make([]user.UserDTO, 0, len(users))
+		for _, u := range users {
+			userDTOs = append(userDTOs, user.UserToDTO(u))
+		}
+		liveDTOs := make([]live.LiveDTO, 0, len(lives))
+		for _, l := range lives {
+			liveDTOs = append(liveDTOs, live.LiveToDTO(l))
+		}
+
 		c.JSON(200, SearchResponse{
-			Users: users,
-			Lives: lives,
+			Users: userDTOs,
+			Lives: liveDTOs,
 		})
 	}
 }
