@@ -1,15 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Linking, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import RecipeModal from '@/components/cooking/RecipeModal';
 import StreamView from '@/components/StreamView';
 import Button from '@/components/ui/Button';
 import { withAlpha } from '@/constants/theme';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import { useCookingProgress } from '@/hooks/useCookingProgress';
 import { StreamingState, useWebRTC, type WebRTCErrorCode } from '@/hooks/useWebRTC';
+import { getLiveByRoomId, parseLiveDescription } from '@/services/lives';
+import { parseRecipe } from '@/utils/recipe';
 import { haptics } from '@/utils/haptics';
 import { confirmAction } from '@/utils/confirm';
 import {
@@ -187,6 +191,29 @@ export default function LiveStreamingScreen() {
 
     const [hasStarted, setHasStarted] = useState(false);
     const autoJoinedRef = useRef<string | null>(null);
+
+    // The recipe to follow while cooking: typed in the Studio for a live we create, read from the live otherwise.
+    const [fetchedDescription, setFetchedDescription] = useState<string | undefined>();
+    const [recipeOpen, setRecipeOpen] = useState(false);
+    useEffect(() => {
+        if (!targetRoomId) return;
+        let cancelled = false;
+        getLiveByRoomId(targetRoomId)
+            .then((live) => {
+                if (!cancelled) setFetchedDescription(live.description);
+            })
+            .catch(() => {
+                // The recipe is a bonus: the broadcast works without it.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [targetRoomId]);
+    const recipe = useMemo(
+        () => parseRecipe(parseLiveDescription(targetRoomId ? fetchedDescription : liveDescription).recipe),
+        [targetRoomId, fetchedDescription, liveDescription]
+    );
+    const cooking = useCookingProgress(roomId ?? targetRoomId ?? 'new-live', recipe);
 
     const active = state === 'creating' || state === 'connecting' || state === 'live' || state === 'reconnecting';
     const failed = state === 'error' || state === 'disconnected';
@@ -375,30 +402,37 @@ export default function LiveStreamingScreen() {
     } else if (active) {
         controls = (
             <View style={styles.controlsColumn}>
-                {localStream ? (
+                {localStream || recipe ? (
                     <View style={styles.roundRow}>
-                        <RoundControl
-                            icon={isAudioMuted ? 'mic-off-outline' : 'mic-outline'}
-                            label={t(isAudioMuted ? 'broadcast.unmuteMic' : 'broadcast.muteMic')}
-                            active={isAudioMuted}
-                            onPress={toggleAudio}
-                            testID="toggle-audio"
-                        />
-                        <RoundControl
-                            icon={isVideoMuted ? 'videocam-off-outline' : 'videocam-outline'}
-                            label={t(isVideoMuted ? 'broadcast.enableCam' : 'broadcast.disableCam')}
-                            active={isVideoMuted}
-                            onPress={toggleVideo}
-                            testID="toggle-video"
-                        />
-                        <RoundControl
-                            icon="camera-reverse-outline"
-                            label={t('golive.switchCamera')}
-                            onPress={switchCamera}
-                            // the native camera is stopped while the video is off
-                            disabled={isVideoMuted}
-                            testID="switch-camera"
-                        />
+                        {localStream ? (
+                            <>
+                                <RoundControl
+                                    icon={isAudioMuted ? 'mic-off-outline' : 'mic-outline'}
+                                    label={t(isAudioMuted ? 'broadcast.unmuteMic' : 'broadcast.muteMic')}
+                                    active={isAudioMuted}
+                                    onPress={toggleAudio}
+                                    testID="toggle-audio"
+                                />
+                                <RoundControl
+                                    icon={isVideoMuted ? 'videocam-off-outline' : 'videocam-outline'}
+                                    label={t(isVideoMuted ? 'broadcast.enableCam' : 'broadcast.disableCam')}
+                                    active={isVideoMuted}
+                                    onPress={toggleVideo}
+                                    testID="toggle-video"
+                                />
+                                <RoundControl
+                                    icon="camera-reverse-outline"
+                                    label={t('golive.switchCamera')}
+                                    onPress={switchCamera}
+                                    // the native camera is stopped while the video is off
+                                    disabled={isVideoMuted}
+                                    testID="switch-camera"
+                                />
+                            </>
+                        ) : null}
+                        {recipe && cooking.ready ? (
+                            <RoundControl icon="restaurant-outline" label={t('live.recipe.open')} onPress={() => setRecipeOpen(true)} testID="open-recipe" />
+                        ) : null}
                     </View>
                 ) : null}
                 <Button
@@ -516,6 +550,7 @@ export default function LiveStreamingScreen() {
 
                 <View style={styles.controls}>{controls}</View>
             </SafeAreaView>
+            {recipe && cooking.ready ? <RecipeModal visible={recipeOpen} recipe={recipe} progress={cooking} onClose={() => setRecipeOpen(false)} /> : null}
         </View>
     );
 }

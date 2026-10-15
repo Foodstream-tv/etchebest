@@ -61,3 +61,10 @@ jest.mock('@react-native-community/datetimepicker', () => ({
     default: 'DateTimePicker',
     DateTimePickerAndroid: { open: jest.fn() },
 }));
+
+// The recipe assistant keeps the screen on while it is open.
+jest.mock('expo-keep-awake', () => ({
+    useKeepAwake: jest.fn(),
+    activateKeepAwakeAsync: jest.fn(),
+    deactivateKeepAwake: jest.fn(),
+}));

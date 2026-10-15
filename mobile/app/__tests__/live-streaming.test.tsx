@@ -5,6 +5,16 @@ import { Alert, BackHandler, Linking } from 'react-native';
 
 import LiveStreamingScreen from '../live-streaming';
 import { useWebRTC } from '@/hooks/useWebRTC';
+import { getLiveByRoomId } from '@/services/lives';
+
+jest.mock('@/services/lives', () => ({
+    ...jest.requireActual('@/services/lives'),
+    getLiveByRoomId: jest.fn(),
+}));
+jest.mock('@/services/storage', () => {
+    const api = { getItem: jest.fn(async () => null), setItem: jest.fn(async () => undefined), removeItem: jest.fn(async () => undefined) };
+    return { __esModule: true, default: api, storage: api };
+});
 
 jest.mock('@/hooks/useWebRTC', () => ({
     useWebRTC: jest.fn(),
@@ -16,6 +26,7 @@ jest.mock('@/components/StreamView', () => {
 });
 
 const mockedUseWebRTC = useWebRTC as jest.Mock;
+const mockedGetLive = getLiveByRoomId as jest.Mock;
 const mockedParams = useLocalSearchParams as jest.Mock;
 
 function hookState(overrides: Record<string, unknown> = {}) {
@@ -45,6 +56,7 @@ const router = (useRouter as unknown as () => { back: jest.Mock; replace: jest.M
 beforeEach(() => {
     jest.clearAllMocks();
     router.canGoBack.mockReturnValue(true);
+    mockedGetLive.mockResolvedValue({ description: '' });
 });
 
 describe('LiveStreamingScreen - host', () => {
@@ -466,5 +478,58 @@ describe('LiveStreamingScreen - join', () => {
         const { getByText } = renderWithProviders(<LiveStreamingScreen />);
         expect(getByText(/Live introuvable/)).toBeTruthy();
         expect(hook.joinAsCoStreamer).not.toHaveBeenCalled();
+    });
+});
+
+describe('LiveStreamingScreen - recipe while broadcasting', () => {
+    const MARKER = '---FOODSTREAM_RECIPE---';
+    const recipeText = (extra = '') =>
+        `Une tarte\n\n${MARKER}\n${JSON.stringify({ ingredients: [{ name: 'Pommes', qty: '4' }], cookingTimer: 600, ...(extra ? JSON.parse(extra) : {}) })}`;
+    const flush = async () => {
+        await act(async () => {
+            await Promise.resolve();
+        });
+    };
+
+    it('lets the host open the recipe typed in the Studio, then come back to the live', async () => {
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' }, roomId: 'room-9' }));
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Tarte aux pommes', description: recipeText() });
+
+        const { findByTestId, getByTestId, queryByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        fireEvent.press(await findByTestId('open-recipe'));
+
+        expect(getByTestId('cooking-assistant')).toBeTruthy();
+        expect(getByTestId('ingredient-0')).toBeTruthy();
+        fireEvent.press(getByTestId('ingredient-0'));
+
+        fireEvent.press(getByTestId('recipe-close'));
+        expect(queryByTestId('open-recipe')).toBeTruthy(); // still broadcasting
+        expect(mockedGetLive).not.toHaveBeenCalled(); // the host's own recipe is not fetched
+    });
+
+    it('reads the recipe of the live a co-streamer joins', async () => {
+        mockedGetLive.mockResolvedValue({ description: recipeText() });
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' }, roomId: 'room-5' }));
+        mockedParams.mockReturnValue({ mode: 'join', roomId: 'room-5' });
+
+        const { findByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        expect(await findByTestId('open-recipe')).toBeTruthy();
+        expect(mockedGetLive).toHaveBeenCalledWith('room-5');
+    });
+
+    it('has no recipe button for a live without recipe, or when the live cannot be read', async () => {
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' }, roomId: 'room-5' }));
+        mockedParams.mockReturnValue({ mode: 'join', roomId: 'room-5' });
+
+        const first = renderWithProviders(<LiveStreamingScreen />);
+        await flush();
+        expect(first.queryByTestId('open-recipe')).toBeNull();
+        first.unmount();
+
+        mockedGetLive.mockRejectedValue(new Error('network'));
+        const second = renderWithProviders(<LiveStreamingScreen />);
+        await flush();
+        expect(second.queryByTestId('open-recipe')).toBeNull();
+        expect(second.getByTestId('stop-live')).toBeTruthy(); // the broadcast itself is unaffected
     });
 });

@@ -13,6 +13,9 @@ import {
     View,
 } from 'react-native';
 
+import CookingAssistant from '@/components/cooking/CookingAssistant';
+import CookingStrip from '@/components/cooking/CookingStrip';
+import KeepAwake from '@/components/cooking/KeepAwake';
 import HLSPlayer from '@/components/HLSPlayer';
 import ChatPanel from '@/components/live/ChatPanel';
 import { formatScheduledDate } from '@/components/live/format';
@@ -28,13 +31,15 @@ import Screen from '@/components/ui/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import { useCookingProgress } from '@/hooks/useCookingProgress';
 import { getGoogleCalendarUrl, getLiveWebUrl } from '@/lib/calendar';
 import { parseLiveDescription } from '@/services/lives';
 import { cancelReserveRoom, getHLSUrl, reserveRoom } from '@/services/streaming';
 import { showToast } from '@/utils/toast';
 import { haptics } from '@/utils/haptics';
+import { parseRecipe } from '@/utils/recipe';
 
-type Tab = 'chat' | 'info';
+type Tab = 'chat' | 'recipe' | 'info';
 
 const firstParam = (value: string | string[] | undefined): string | undefined =>
     (Array.isArray(value) ? value[0] : value) || undefined;
@@ -150,7 +155,9 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
         };
     }, []);
 
-    const { description } = useMemo(() => parseLiveDescription(live?.description), [live?.description]);
+    const { description, recipe: rawRecipe } = useMemo(() => parseLiveDescription(live?.description), [live?.description]);
+    const cookingRecipe = useMemo(() => parseRecipe(rawRecipe), [rawRecipe]);
+    const cooking = useCookingProgress(roomId, cookingRecipe);
     const title = room?.name || live?.title || roomNameParam || t('live.untitled');
     const dateLabel = formatScheduledDate(live?.scheduled_at, locale, t('watch.upcomingDate'));
     const replayUrl = useMemo(() => getPublicMediaUrl(live?.replay_url), [live?.replay_url]);
@@ -307,6 +314,15 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
         />
     );
 
+    // Boxed under the info (replay, scheduled live); bare inside the recipe tab, which already has its own padding.
+    const recipeBlock =
+        cookingRecipe && cooking.ready ? (
+            <View style={styles.recipeBlock}>
+                <CookingAssistant recipe={cookingRecipe} progress={cooking} />
+            </View>
+        ) : null;
+    const recipeTabBody = cookingRecipe && cooking.ready ? <CookingAssistant recipe={cookingRecipe} progress={cooking} /> : null;
+
     // ---- scheduled / ended without player: a single scrollable page ----
     if (!showPlayer) {
         let stage: React.ReactNode;
@@ -354,6 +370,7 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
                 >
                     {stage}
                     {infoCard}
+                    {recipeBlock}
                 </ScrollView>
             </Screen>
         );
@@ -422,9 +439,10 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
         </View>
     ) : null;
 
+    const tabLabel = (key: Tab) => (key === 'chat' ? t('watch.room.tabChat') : key === 'recipe' ? t('live.tab.recipe') : t('live.tab.info'));
     const tabs = showLivePlayer ? (
         <View style={styles.tabs} accessibilityRole="tablist" accessibilityLabel={t('live.tabsAria')}>
-            {(['chat', 'info'] as const).map((key) => {
+            {((cookingRecipe ? ['chat', 'recipe', 'info'] : ['chat', 'info']) as readonly Tab[]).map((key) => {
                 const selected = tab === key;
                 return (
                     <Pressable
@@ -432,17 +450,17 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
                         onPress={() => setTab(key)}
                         accessibilityRole="tab"
                         accessibilityState={{ selected }}
-                        accessibilityLabel={key === 'chat' ? t('watch.room.tabChat') : t('live.tab.info')}
+                        accessibilityLabel={tabLabel(key)}
                         style={[styles.tab, selected && styles.tabSelected]}
                         testID={`tab-${key}`}
                     >
                         <Ionicons
-                            name={key === 'chat' ? 'chatbubble-outline' : 'information-circle-outline'}
+                            name={key === 'chat' ? 'chatbubble-outline' : key === 'recipe' ? 'restaurant-outline' : 'information-circle-outline'}
                             size={18}
                             color={selected ? colors.orangeText : colors.muted}
                         />
                         <Text style={[styles.tabLabel, { color: selected ? colors.orangeText : colors.muted }]}>
-                            {key === 'chat' ? t('watch.room.tabChat') : t('live.tab.info')}
+                            {tabLabel(key)}
                         </Text>
                     </Pressable>
                 );
@@ -453,11 +471,18 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
     const side = showLivePlayer ? (
         <View style={styles.side}>
             {liveActions}
+            {cookingRecipe && cooking.ready && tab !== 'recipe' ? <CookingStrip recipe={cookingRecipe} progress={cooking} onPress={() => setTab('recipe')} /> : null}
             {tabs}
             <View style={styles.sideBody}>
                 <View style={[styles.fill, tab !== 'chat' && styles.hidden]}>
                     <ChatPanel roomId={roomId} signedIn={signedIn} username={user?.username} onSignIn={openLogin} />
                 </View>
+                {tab === 'recipe' && recipeTabBody ? (
+                    <ScrollView contentContainerStyle={styles.pageContent} testID="recipe-tab">
+                        <KeepAwake />
+                        {recipeTabBody}
+                    </ScrollView>
+                ) : null}
                 {tab === 'info' ? (
                     <ScrollView contentContainerStyle={styles.pageContent} testID="info-tab">
                         {infoCard}
@@ -472,6 +497,7 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onPullToRefresh} tintColor={colors.orange} />}
         >
             {infoCard}
+            {recipeBlock}
         </ScrollView>
     );
 
@@ -599,6 +625,13 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     pageContent: {
         padding: 16,
         gap: 16,
+    },
+    recipeBlock: {
+        padding: 16,
+        borderRadius: radii.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
     },
     stage: {
         padding: 28,
