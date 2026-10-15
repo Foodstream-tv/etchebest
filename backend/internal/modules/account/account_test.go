@@ -277,3 +277,39 @@ func TestExportMeHasEverythingAndNoSecrets(t *testing.T) {
 		t.Error("the export contains another user's data")
 	}
 }
+
+func TestPurgeExpiredCredentials(t *testing.T) {
+	db := testDB(t)
+	newUser(t, db, "alice", nil)
+	now := time.Now()
+	mk := func(id string, expires time.Time, used bool, created time.Time) {
+		t.Helper()
+		if err := db.Create(&user.VerificationCode{ID: "v-" + id, UserID: "alice", Code: id, Type: "email", Target: "alice@example.com", ExpiresAt: expires, Used: used, CreatedAt: created}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&user.PasswordResetToken{ID: "p-" + id, UserID: "alice", Email: "alice@example.com", Token: "tok-" + id, ExpiresAt: expires, Used: used, CreatedAt: created}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("fresh", now.Add(10*time.Minute), false, now)                          // still valid: kept
+	mk("expired-recently", now.Add(-time.Hour), false, now.Add(-2*time.Hour)) // inside the grace period: kept
+	mk("expired-old", now.Add(-48*time.Hour), false, now.Add(-49*time.Hour))  // purged
+	mk("used-old", now.Add(10*time.Minute), true, now.Add(-30*time.Hour))     // used long ago: purged
+	mk("used-recently", now.Add(10*time.Minute), true, now.Add(-time.Hour))   // kept
+
+	n, err := PurgeExpiredCredentials(db, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 4 { // two rows per scenario, two scenarios purged
+		t.Errorf("removed %d rows, want 4", n)
+	}
+	for id, want := range map[string]int64{"fresh": 1, "expired-recently": 1, "used-recently": 1, "expired-old": 0, "used-old": 0} {
+		if got := count(t, db, "verification_codes", "id = ?", "v-"+id); got != want {
+			t.Errorf("verification code %s: %d row(s), want %d", id, got, want)
+		}
+		if got := count(t, db, "password_reset_tokens", "id = ?", "p-"+id); got != want {
+			t.Errorf("reset token %s: %d row(s), want %d", id, got, want)
+		}
+	}
+}
