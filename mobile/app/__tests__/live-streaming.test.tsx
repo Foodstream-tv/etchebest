@@ -6,6 +6,7 @@ import { Alert, BackHandler, Linking } from 'react-native';
 import LiveStreamingScreen from '../live-streaming';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { getLiveByRoomId } from '@/services/lives';
+import { clearLiveDrafts, setLiveDraft } from '@/utils/liveDraft';
 
 jest.mock('@/services/lives', () => ({
     ...jest.requireActual('@/services/lives'),
@@ -57,6 +58,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     router.canGoBack.mockReturnValue(true);
     mockedGetLive.mockResolvedValue({ description: '' });
+    clearLiveDrafts();
 });
 
 describe('LiveStreamingScreen - host', () => {
@@ -102,6 +104,36 @@ describe('LiveStreamingScreen - host', () => {
             durationMinutes: 90,
             thumbnailUrl: '/api/uploads/t.jpg',
         });
+    });
+
+    it('takes the description and the thumbnail of the Studio from the draft, not from the route', () => {
+        const recipe = JSON.stringify({ ingredients: [{ name: 'Farine', qty: '200 g' }], cookingTimer: 300 });
+        const draft = setLiveDraft({ description: `Fraîche\n\n---FOODSTREAM_RECIPE---\n${recipe}`, thumbnailUrl: '/api/uploads/t.jpg' });
+        const hook = hookState();
+        mockedUseWebRTC.mockReturnValue(hook);
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Pasta maison', durationMinutes: '45', draft });
+
+        const { getByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        fireEvent.press(getByTestId('launch-live'));
+
+        expect(hook.startLive).toHaveBeenCalledWith('Pasta maison', {
+            title: 'Pasta maison',
+            description: `Fraîche\n\n---FOODSTREAM_RECIPE---\n${recipe}`,
+            tags: [],
+            level: undefined,
+            durationMinutes: 45,
+            thumbnailUrl: '/api/uploads/t.jpg',
+        });
+    });
+
+    it('falls back to the route params without a draft (deep link, old navigation state)', () => {
+        const hook = hookState();
+        mockedUseWebRTC.mockReturnValue(hook);
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Pasta maison', description: 'Fraîche', draft: 'draft-unknown' });
+
+        const { getByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        fireEvent.press(getByTestId('launch-live'));
+        expect(hook.startLive).toHaveBeenCalledWith('Pasta maison', expect.objectContaining({ description: 'Fraîche' }));
     });
 
     it('ignores tampered Studio params (bad level, duration, thumbnail, broken recipe)', () => {

@@ -23,6 +23,7 @@ import { getPublicMediaUrl } from '@/utils/media';
 import { buildDescription, recipeFromMarmiton, type MarmitonRecipe } from '@/utils/studioRecipe';
 import { buildScheduledAt } from '@/utils/studioSchedule';
 import { haptics } from '@/utils/haptics';
+import { setLiveDraft } from '@/utils/liveDraft';
 import { sanitizeDescription, sanitizeTitle, serializeTags } from '@/utils/webrtcParams';
 
 type Busy = 'idle' | 'uploading' | 'scheduling';
@@ -138,16 +139,17 @@ export default function StudioScreen() {
         navigatingRef.current = true;
         leftForLiveRef.current = true;
         haptics.tap();
+        // The description (recipe included) and the thumbnail go through memory, not the route (see liveDraft).
+        const draft = setLiveDraft({ description: buildDescription(sanitizeDescription(form.description), form.recipe), thumbnailUrl });
         router.push({
             pathname: '/live-streaming',
             params: {
                 mode: 'host',
                 title: sanitizeTitle(form.title),
-                description: buildDescription(sanitizeDescription(form.description), form.recipe),
                 ...(form.tags.length > 0 ? { tags: serializeTags(form.tags) } : {}),
                 level: form.level,
                 durationMinutes: String(form.durationMinutes),
-                ...(thumbnailUrl ? { thumbnailUrl } : {}),
+                draft,
             },
         });
     };

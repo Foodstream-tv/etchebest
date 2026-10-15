@@ -15,6 +15,7 @@ import { StreamingState, useWebRTC, type WebRTCErrorCode } from '@/hooks/useWebR
 import { getLiveByRoomId, parseLiveDescription } from '@/services/lives';
 import { parseRecipe } from '@/utils/recipe';
 import { haptics } from '@/utils/haptics';
+import { getLiveDraft } from '@/utils/liveDraft';
 import { confirmAction } from '@/utils/confirm';
 import {
     firstParam,
@@ -156,17 +157,20 @@ export default function LiveStreamingScreen() {
         level?: string | string[];
         durationMinutes?: string | string[];
         thumbnailUrl?: string | string[];
+        draft?: string | string[];
     }>();
 
     const isHost = firstParam(params.mode) !== 'join';
     const targetRoomId = firstParam(params.roomId);
     // Params can be tampered with (deep links): validate again, never trust them.
     const liveTitle = validTitleOrNull(firstParam(params.title));
-    const liveDescription = sanitizeLiveDescription(firstParam(params.description));
+    // The Studio's description and thumbnail come from memory (see liveDraft); route params stay as a fallback.
+    const draft = getLiveDraft(firstParam(params.draft));
+    const liveDescription = sanitizeLiveDescription(draft?.description ?? firstParam(params.description));
     const liveTags = parseTags(firstParam(params.tags));
     const liveLevel = parseLevel(firstParam(params.level));
     const liveDuration = parseDuration(firstParam(params.durationMinutes));
-    const liveThumbnail = parseThumbnailUrl(firstParam(params.thumbnailUrl));
+    const liveThumbnail = parseThumbnailUrl(draft?.thumbnailUrl ?? firstParam(params.thumbnailUrl));
     const hostsExistingRoom = isHost && !!targetRoomId;
     const canStartHost = hostsExistingRoom || liveTitle !== null;
 

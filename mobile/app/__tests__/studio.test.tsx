@@ -8,6 +8,7 @@ import { ApiError } from '@/services/http';
 import { getMyScheduledLive } from '@/services/social';
 import { scheduleLive, scrapeMarmiton, stopMyActiveLive, uploadThumbnail } from '@/services/studio';
 import { RECIPE_MARKER } from '@/services/lives';
+import { clearLiveDrafts, getLiveDraft } from '@/utils/liveDraft';
 
 jest.mock('@/services/social', () => ({
     getMyScheduledLive: jest.fn(),
@@ -46,6 +47,7 @@ function pickFutureSlot(view: View) {
 }
 
 beforeEach(() => {
+    clearLiveDrafts();
     jest.clearAllMocks();
     mockedScheduled.mockResolvedValue(null);
     mockedSchedule.mockResolvedValue('room-new');
@@ -338,8 +340,12 @@ describe('StudioScreen - go live now', () => {
         expect(router.push).toHaveBeenCalledTimes(1);
         expect(router.push).toHaveBeenCalledWith({
             pathname: '/live-streaming',
-            params: { mode: 'host', title: 'Pasta maison', description: '', level: 'Débutant', durationMinutes: '60' },
+            params: { mode: 'host', title: 'Pasta maison', level: 'Débutant', durationMinutes: '60', draft: expect.any(String) },
         });
+        // the description and the thumbnail do not travel in the route
+        const params = router.push.mock.calls[0][0].params;
+        expect(params).not.toHaveProperty('description');
+        expect(getLiveDraft(params.draft)).toEqual({ description: '', thumbnailUrl: undefined });
     });
 
     it('passes tags, description, recipe and a pasted thumbnail url', async () => {
@@ -366,12 +372,43 @@ describe('StudioScreen - go live now', () => {
             title: 'Pasta maison',
             tags: 'Italien,Français',
             durationMinutes: '90',
-            thumbnailUrl: 'https://img.example/pasta.jpg',
         });
-        const [text, recipe] = params.description.split(`\n\n${RECIPE_MARKER}\n`);
+        expect(params).not.toHaveProperty('thumbnailUrl');
+        const draft = getLiveDraft(params.draft)!;
+        expect(draft.thumbnailUrl).toBe('https://img.example/pasta.jpg');
+        const [text, recipe] = draft.description.split(`\n\n${RECIPE_MARKER}\n`);
         expect(text).toBe('Tagliatelles fraîches');
         expect(JSON.parse(recipe)).toMatchObject({ ingredients: [{ name: 'Farine', qty: '200 g' }], cookingTimer: 720 });
         expect(mockedUpload).not.toHaveBeenCalled();
+    });
+
+    it('hands a large imported recipe over intact (regression: a live was created with an empty description)', async () => {
+        const long = (n: number) => `Étape ${n} : mélanger 50 % du sucre & la farine à 180 °C, puis réserver (100% maison) ; ok ?`.repeat(4);
+        mockedScrape.mockResolvedValue({
+            title: 'Fini le riz ou les pommes de terre',
+            description: 'Une recette avec un “guillemet”, des œufs & du 100 % bon.',
+            ingredients: Array.from({ length: 14 }, (_, i) => `${i + 1} c. à soupe de produit n°${i}`),
+            steps: Array.from({ length: 12 }, (_, i) => long(i)),
+            cook_time_mins: 20,
+        });
+        const view = await renderStudio();
+        fireEvent.changeText(view.getByTestId('marmiton-url'), 'https://www.marmiton.org/recettes/x.aspx');
+        await act(async () => {
+            fireEvent.press(view.getByTestId('marmiton-import-button'));
+        });
+        goTo(view, 3);
+        await act(async () => {
+            fireEvent.press(view.getByTestId('go-live'));
+        });
+
+        const params = router.push.mock.calls[0][0].params;
+        const draft = getLiveDraft(params.draft)!;
+        const [text, json] = draft.description.split(`\n\n${RECIPE_MARKER}\n`);
+        expect(text).toBe('Une recette avec un “guillemet”, des œufs & du 100 % bon.');
+        const recipe = JSON.parse(json);
+        expect(recipe.ingredients).toHaveLength(14);
+        expect(recipe.prepSteps).toHaveLength(12);
+        expect(recipe.cookingTimer).toBe(1200);
     });
 
     it('uploads the photo picked on the device and passes the resulting path', async () => {
@@ -393,7 +430,7 @@ describe('StudioScreen - go live now', () => {
         });
 
         expect(mockedUpload).toHaveBeenCalledWith(expect.objectContaining({ uri: 'file:///photos/p.heic', mimeType: 'image/jpeg', name: 'thumbnail.jpg' }));
-        expect(router.push.mock.calls[0][0].params.thumbnailUrl).toBe('/api/uploads/thumb.jpg');
+        expect(getLiveDraft(router.push.mock.calls[0][0].params.draft)?.thumbnailUrl).toBe('/api/uploads/thumb.jpg');
     });
 
     it('refuses a photo over 5 MB and a cancelled picker changes nothing', async () => {
