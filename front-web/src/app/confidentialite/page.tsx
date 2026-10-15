@@ -10,7 +10,7 @@ const sections = [
   {
     title: "Responsable du traitement",
     content:
-      "FoodStream est responsable des données traitées pour la création du compte, la gestion des sessions et le fonctionnement du service. Les prestataires techniques n'agissent que sur instruction.",
+      "FoodStream, service porté par l'équipe FoodStream, est responsable des données traitées pour la création du compte, la gestion des sessions et le fonctionnement du service. Les prestataires techniques n'agissent que sur instruction.",
   },
   {
     title: "Données traitées",
@@ -33,6 +33,11 @@ const sections = [
       "Les lives sont enregistrés et peuvent être rediffusés en replay public : votre image et votre voix apparaissent dans l'enregistrement, ainsi que celles des co-streamers qui participent à votre live. Les messages du chat sont visibles par les personnes présentes dans le live. Vous pouvez supprimer vos replays depuis la page Replays ; la suppression du compte supprime aussi vos lives, replays et messages.",
   },
   {
+    title: "Âge minimum",
+    content:
+      "FoodStream est réservé aux personnes âgées d'au moins 15 ans. Vous le confirmez en créant votre compte. Si vous pensez qu'une personne plus jeune a créé un compte, signalez-le à l'équipe : le compte et ses données seront supprimés.",
+  },
+  {
     title: "Cookies",
     content:
       "Les cookies strictement nécessaires sont utilisés pour l&apos;authentification, la langue, le thème et certaines préférences. Aucun traceur non essentiel n&apos;est activé sans consentement explicite.",
@@ -45,7 +50,7 @@ const sections = [
   {
     title: "Conservation",
     content:
-      "Les données de votre compte, vos lives, replays et messages sont conservés tant que votre compte existe, puis supprimés lorsque vous le supprimez. Les codes de vérification et liens de réinitialisation sont supprimés au plus tard 24 heures après leur expiration. Les journaux techniques ne sont conservés que le temps nécessaire à la sécurité du service. Certaines données peuvent être conservées plus longtemps si une obligation légale ou la défense de droits l'exige.",
+      "Les données de votre compte et vos lives sont conservés tant que votre compte existe, puis supprimés lorsque vous le supprimez. Les replays restent disponibles tant que vous ne les supprimez pas. Les messages du chat sont supprimés 12 mois après le live, les notifications au bout de 90 jours et les journaux techniques (adresse IP) au bout de 30 jours. Un compte inactif pendant 3 ans est supprimé après vous en avoir prévenu par e-mail. Les codes de vérification et liens de réinitialisation sont supprimés au plus tard 24 heures après leur expiration. Certaines données peuvent être conservées plus longtemps si une obligation légale ou la défense de droits l'exige.",
   },
   {
     title: "Transferts",
@@ -64,7 +69,12 @@ const sections = [
   },
 ];
 
+// Read at request time: the contact address is configuration (PRIVACY_CONTACT_EMAIL), not code.
+export const dynamic = "force-dynamic";
+
 export default function ConfidentialitePage() {
+  const contactEmail = process.env.PRIVACY_CONTACT_EMAIL?.trim();
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl px-6 py-12 sm:py-16">
       <div className="mb-10 max-w-3xl space-y-5">
@@ -106,7 +116,21 @@ export default function ConfidentialitePage() {
 
         <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-gray-300">
           Pour exercer vos droits ou poser une question sur la confidentialité,
-          contactez l&apos;équipe FoodStream depuis le support du produit.
+          contactez l&apos;équipe FoodStream
+          {contactEmail ? (
+            <>
+              {" "}à l&apos;adresse{" "}
+              <a
+                href={`mailto:${contactEmail}`}
+                className="font-medium underline hover:text-orange-500"
+              >
+                {contactEmail}
+              </a>
+              .
+            </>
+          ) : (
+            " depuis le support du produit."
+          )}
         </p>
 
         <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-gray-300">

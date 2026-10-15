@@ -26,6 +26,8 @@ class H(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or "{}")
         p = self.path
         if p == "/api/register":
+            if body.get("ageConfirmed") is not True:
+                return self.send(400, {"error": "invalid request body"})
             if body["email"] in users:
                 return self.send(400, {"error": "this email is already being used", "code": "EMAIL_ALREADY_EXISTS"})
             uid = "u%d" % (len(users) + 1); users[body["email"]] = uid; codes[uid] = "123456"

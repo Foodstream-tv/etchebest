@@ -22,7 +22,6 @@ export const LIMITS = {
   lastNameMin: 2,
   usernameMin: 3,
   passwordMin: 8,
-  descriptionMin: 10,
   descriptionMax: 500,
   phoneDigitsMin: 6,
   phoneDigitsMax: 15,
@@ -183,6 +182,20 @@ export function validateLengthRange(
 }
 
 /**
+ * Validate an optional text field: empty is fine, no minimum, only a maximum length.
+ */
+export function validateOptionalMaxLength(value: string, maxLength: number, fieldName: string): ValidationResult {
+  if (value.trim().length > maxLength) {
+    return {
+      isValid: false,
+      code: 'tooLong',
+      error: `${fieldName} ne peut pas dépasser ${maxLength} caractères`,
+    };
+  }
+  return OK;
+}
+
+/**
  * Validate phone number: 6 to 15 digits (web parity), spaces, dots, dashes,
  * parentheses and a leading "+" are tolerated, letters are not.
  */
@@ -232,8 +245,9 @@ export function validateRegisterForm(values: RegisterValues): RegisterFieldError
     lastName: validateMinLength(values.lastName, LIMITS.lastNameMin, 'lastName'),
     username: validateMinLength(values.username, LIMITS.usernameMin, 'username'),
     password: validateNewPassword(values.password),
-    phone: validatePhone(values.phone),
-    description: validateLengthRange(values.description, LIMITS.descriptionMin, LIMITS.descriptionMax, 'description'),
+    // Phone and bio are optional (GDPR data minimisation): only validated when typed.
+    phone: values.phone.trim() ? validatePhone(values.phone) : OK,
+    description: validateOptionalMaxLength(values.description, LIMITS.descriptionMax, 'description'),
   };
 
   const errors: RegisterFieldErrors = {};

@@ -8,6 +8,7 @@ import {
     validateMinLength,
     validateNewPassword,
     validatePassword,
+    validateOptionalMaxLength,
     validatePhone,
     validateRegisterForm,
 } from '../validation';
@@ -121,6 +122,18 @@ describe('validateMinLength / validateLengthRange', () => {
     });
 });
 
+describe('validateOptionalMaxLength', () => {
+    it('accepts empty values and anything up to the max', () => {
+        expect(validateOptionalMaxLength('', 500, 'Bio').isValid).toBe(true);
+        expect(validateOptionalMaxLength('x', 500, 'Bio').isValid).toBe(true);
+        expect(validateOptionalMaxLength('x'.repeat(500), 500, 'Bio').isValid).toBe(true);
+    });
+
+    it('rejects values past the max', () => {
+        expect(validateOptionalMaxLength('x'.repeat(501), 500, 'Bio')).toMatchObject({ code: 'tooLong' });
+    });
+});
+
 describe('validatePhone', () => {
     it.each(['0612345678', '+33 6 12 34 56 78', '06-12-34-56-78', '(555) 123-4567', '123456', '1'.repeat(15)])('accepts %p', (value) => {
         expect(validatePhone(value).isValid).toBe(true);
@@ -164,15 +177,13 @@ describe('validateRegisterForm', () => {
         expect(validateRegisterForm(valid)).toEqual({});
     });
 
-    it('matches the web minimums (first/last name 2, username 3, bio 10..500)', () => {
+    it('matches the web minimums (first/last name 2, username 3, bio max 500)', () => {
         expect(validateRegisterForm({ ...valid, firstName: 'J', lastName: 'D', username: 'ab' })).toEqual({
             firstName: 'tooShort',
             lastName: 'tooShort',
             username: 'tooShort',
         });
-        expect(validateRegisterForm({ ...valid, description: 'x'.repeat(LIMITS.descriptionMin - 1) })).toEqual({
-            description: 'tooShort',
-        });
+        expect(validateRegisterForm({ ...valid, description: 'x' })).toEqual({});
         expect(validateRegisterForm({ ...valid, description: 'x'.repeat(LIMITS.descriptionMax + 1) })).toEqual({
             description: 'tooLong',
         });
@@ -195,9 +206,21 @@ describe('validateRegisterForm', () => {
             lastName: 'required',
             username: 'required',
             password: 'required',
-            phone: 'required',
-            description: 'required',
         });
+    });
+
+    it('accepts an empty or blank phone and bio (optional fields)', () => {
+        expect(validateRegisterForm({ ...valid, phone: '', description: '' })).toEqual({});
+        expect(validateRegisterForm({ ...valid, phone: '  ', description: '   ' })).toEqual({});
+    });
+
+    it('validates the phone format only when typed', () => {
+        expect(validateRegisterForm({ ...valid, phone: '12' })).toEqual({ phone: 'invalid' });
+        expect(validateRegisterForm({ ...valid, phone: 'abcdefg' })).toEqual({ phone: 'invalid' });
+    });
+
+    it('accepts a bio of exactly 500 characters', () => {
+        expect(validateRegisterForm({ ...valid, description: 'x'.repeat(LIMITS.descriptionMax) })).toEqual({});
     });
 
     it('does not require password complexity (server does not)', () => {

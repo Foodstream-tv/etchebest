@@ -57,6 +57,7 @@ export default function SignUpPage() {
   const [description, setDescription] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const errorId = error ? "signup-error" : undefined;
@@ -107,6 +108,11 @@ export default function SignUpPage() {
     clearFieldError("description");
   };
 
+  const handleAgeChange = (checked: boolean) => {
+    setAgeConfirmed(checked);
+    clearFieldError("age");
+  };
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -148,19 +154,17 @@ export default function SignUpPage() {
     }
 
     const trimmedPhone = phoneNumber.trim();
-    if (!trimmedPhone) {
-      errors.phone = t("auth.signup.errorPhoneRequired");
-    } else if (!isValidPhone(trimmedPhone)) {
+    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
       errors.phone = t("auth.signup.errorPhone");
     }
 
     const trimmedBio = description.trim();
-    if (!trimmedBio) {
-      errors.description = t("auth.signup.errorBioRequired");
-    } else if (trimmedBio.length < 10) {
-      errors.description = t("auth.signup.errorBioMin", { count: trimmedBio.length });
-    } else if (trimmedBio.length > 500) {
+    if (trimmedBio.length > 500) {
       errors.description = t("auth.signup.errorBioMax");
+    }
+
+    if (!ageConfirmed) {
+      errors.age = t("auth.signup.errorAge");
     }
 
     if (Object.keys(errors).length > 0) {
@@ -179,9 +183,11 @@ export default function SignUpPage() {
         username: trimmedUsername,
         firstName: trimmedFirstName,
         lastName: trimmedLastName,
-        description: trimmedBio,
-        countryNumberPhone: countryCode.value,
-        numberPhone: trimmedPhone,
+        ...(trimmedBio ? { description: trimmedBio } : {}),
+        ...(trimmedPhone
+          ? { countryNumberPhone: countryCode.value, numberPhone: trimmedPhone }
+          : {}),
+        ageConfirmed: true,
         profileImage: "",
       });
 
@@ -346,23 +352,10 @@ export default function SignUpPage() {
                 {fieldErrors.description}
               </p>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">
-                {bioLength < 10
-                  ? t("auth.signup.bioMinHelper", {
-                      count: 10 - bioLength,
-                      plural: 10 - bioLength > 1 ? "s" : "",
-                    })
-                  : t("auth.signup.bioValidHelper")}
-              </p>
+              <span />
             )}
-            <span
-              className={`font-mono font-medium ${
-                bioLength < 10
-                  ? "text-amber-500 dark:text-amber-400"
-                  : "text-emerald-600 dark:text-emerald-400"
-              }`}
-            >
-              {bioLength} / 10 min (max 500)
+            <span className="font-mono font-medium text-gray-500 dark:text-gray-400">
+              {bioLength} / 500
             </span>
           </div>
         </div>
@@ -376,6 +369,34 @@ export default function SignUpPage() {
             {error}
           </p>
         ) : null}
+
+        <div>
+          <label
+            htmlFor="signup-age"
+            className="flex cursor-pointer items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300"
+          >
+            <input
+              id="signup-age"
+              type="checkbox"
+              checked={ageConfirmed}
+              onChange={(e) => handleAgeChange(e.target.checked)}
+              disabled={loading}
+              aria-invalid={Boolean(fieldErrors.age)}
+              aria-describedby={fieldErrors.age ? "signup-age-error" : undefined}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-neutral-900 dark:focus-visible:ring-offset-neutral-900"
+            />
+            <span>{t("auth.signup.ageConfirm")}</span>
+          </label>
+          {fieldErrors.age ? (
+            <p
+              id="signup-age-error"
+              role="alert"
+              className="mt-1.5 px-1 text-xs font-medium text-red-500"
+            >
+              {fieldErrors.age}
+            </p>
+          ) : null}
+        </div>
 
         <button
           type="submit"
@@ -406,6 +427,9 @@ export default function SignUpPage() {
 
       <div className="space-y-3">
         <OAuthButton provider="google" disabled={loading} />
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+          {t("auth.signup.googleAgeNotice")}
+        </p>
       </div>
     </AuthCard>
   );

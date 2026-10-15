@@ -13,10 +13,14 @@ export interface RegisterRequest {
   username: string;
   firstName: string;
   lastName: string;
-  description: string;
-  countryNumberPhone: number;
-  numberPhone: string;
+  /** Optional: omitted when empty. */
+  description?: string;
+  /** Optional: omitted together with `numberPhone` when no phone is given. */
+  countryNumberPhone?: number;
+  numberPhone?: string;
   profileImage?: string;
+  /** Required: the user confirmed being at least 15 years old. */
+  ageConfirmed: boolean;
 }
 
 /** `/login` only returns the token; `user` is present on verify / Google sign-in. */
@@ -119,8 +123,10 @@ class ApiService {
         username: data.username.trim(),
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
-        description: data.description.trim(),
-        numberPhone: data.numberPhone.trim(),
+        // Optional fields: JSON.stringify drops `undefined`, so they are omitted when empty.
+        description: data.description?.trim() || undefined,
+        numberPhone: data.numberPhone?.trim() || undefined,
+        countryNumberPhone: data.numberPhone?.trim() ? data.countryNumberPhone : undefined,
       },
     });
   }

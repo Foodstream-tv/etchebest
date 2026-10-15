@@ -81,6 +81,8 @@ export default function RegisterScreen() {
     const [focusedField, setFocusedField] = useState<RegisterFieldName | null>(null);
     const [errors, setErrors] = useState<FieldMessages>(NO_ERRORS);
     const [formError, setFormError] = useState<string | null>(null);
+    const [ageConfirmed, setAgeConfirmed] = useState(false);
+    const [ageError, setAgeError] = useState(false);
 
     const firstNameRef = useRef<TextInput>(null);
     const lastNameRef = useRef<TextInput>(null);
@@ -102,16 +104,14 @@ export default function RegisterScreen() {
 
     const messageFor = useCallback(
         (field: RegisterFieldName, code: ValidationCode): string => {
-            const required: Record<RegisterFieldName, string> = {
+            const required: Record<Exclude<RegisterFieldName, 'phone' | 'description'>, string> = {
                 email: t('auth.signup.errorEmailRequired'),
                 firstName: t('auth.signup.errorFirstNameRequired'),
                 lastName: t('auth.signup.errorLastNameRequired'),
                 username: t('auth.signup.errorUsernameRequired'),
                 password: t('auth.signup.errorPasswordRequired'),
-                phone: t('auth.signup.errorPhoneRequired'),
-                description: t('auth.signup.errorBioRequired'),
             };
-            if (code === 'required') return required[field];
+            if (code === 'required' && field !== 'phone' && field !== 'description') return required[field];
 
             switch (field) {
                 case 'email':
@@ -127,12 +127,10 @@ export default function RegisterScreen() {
                 case 'phone':
                     return t('auth.signup.errorPhone');
                 default:
-                    return code === 'tooLong'
-                        ? t('auth.signup.errorBioMax')
-                        : t('auth.signup.errorBioMin', { count: description.trim().length });
+                    return t('auth.signup.errorBioMax');
             }
         },
-        [description, t]
+        [t]
     );
 
     const toMessages = useCallback(
@@ -162,8 +160,9 @@ export default function RegisterScreen() {
         });
         const messages = toMessages(codes);
         setErrors(messages);
-        if (Object.keys(codes).length > 0) {
-            setFormError(t('auth.signup.errorFixFields'));
+        setAgeError(!ageConfirmed);
+        if (Object.keys(codes).length > 0 || !ageConfirmed) {
+            if (Object.keys(codes).length > 0) setFormError(t('auth.signup.errorFixFields'));
             return;
         }
 
@@ -171,16 +170,19 @@ export default function RegisterScreen() {
         setLoading(true);
         try {
             const normalizedEmail = email.trim().toLowerCase();
+            const trimmedPhone = phoneNumber.trim();
+            const trimmedBio = description.trim();
             const response = await apiService.register({
                 email,
                 password,
                 username,
                 firstName,
                 lastName,
-                description,
-                countryNumberPhone: countryCode.value,
-                numberPhone: phoneNumber,
+                // Phone and bio are optional: omitted from the body when empty.
+                ...(trimmedBio ? { description } : {}),
+                ...(trimmedPhone ? { countryNumberPhone: countryCode.value, numberPhone: phoneNumber } : {}),
                 profileImage: '',
+                ageConfirmed: true,
             });
 
             // The account exists but is not verified yet: the e-mail code is entered on /verify.
@@ -209,6 +211,7 @@ export default function RegisterScreen() {
             setLoading(false);
         }
     }, [
+        ageConfirmed,
         countryCode,
         description,
         email,
@@ -222,8 +225,6 @@ export default function RegisterScreen() {
         username,
     ]);
 
-    const bioLength = description.trim().length;
-    const bioMissing = LIMITS.descriptionMin - bioLength;
     const countryName = countryCode.name[locale];
 
     return (
@@ -424,20 +425,38 @@ export default function RegisterScreen() {
                     editable={!loading}
                     error={errors.description}
                 />
-                {bioLength > 0 && !errors.description ? (
-                    <Text
-                        style={[styles.helper, bioMissing > 0 ? styles.helperWarn : styles.helperOk]}
-                        testID="bio-helper"
-                    >
-                        {bioMissing > 0
-                            ? t('auth.signup.bioMinHelper', { count: bioMissing, plural: bioMissing > 1 ? 's' : '' })
-                            : t('auth.signup.bioValidHelper')}
-                    </Text>
-                ) : null}
-
                 {formError ? (
                     <Text style={styles.formError} accessibilityRole="alert">
                         {formError}
+                    </Text>
+                ) : null}
+
+                <Pressable
+                    style={styles.ageRow}
+                    onPress={() => {
+                        setAgeConfirmed((value) => !value);
+                        setAgeError(false);
+                    }}
+                    disabled={loading}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: ageConfirmed, disabled: loading }}
+                    accessibilityLabel={t('auth.signup.ageConfirm')}
+                    testID="register-age-checkbox"
+                >
+                    <View
+                        style={[
+                            styles.checkbox,
+                            ageConfirmed && styles.checkboxChecked,
+                            ageError && !ageConfirmed && styles.checkboxError,
+                        ]}
+                    >
+                        {ageConfirmed ? <Ionicons name="checkmark" size={16} color={'#fff'} /> : null}
+                    </View>
+                    <Text style={styles.ageLabel}>{t('auth.signup.ageConfirm')}</Text>
+                </Pressable>
+                {ageError ? (
+                    <Text style={styles.ageError} accessibilityRole="alert" testID="register-age-error">
+                        {t('auth.signup.errorAge')}
                     </Text>
                 ) : null}
 
@@ -478,6 +497,9 @@ export default function RegisterScreen() {
                 </View>
 
                 <GoogleAuthButton disabled={loading} onBusyChange={setGoogleBusy} testID="google-register-button" />
+                <Text style={styles.googleNotice} testID="register-google-age-notice">
+                    {t('auth.signup.googleAgeNotice')}
+                </Text>
             </AuthLayout>
 
             <Modal
@@ -539,18 +561,47 @@ const useStyles = makeStyles(({ colors }) => ({
         padding: 4,
         marginLeft: 8,
     },
-    helper: {
-        marginTop: -8,
-        marginBottom: 14,
-        marginLeft: 4,
-        fontSize: 12,
+    ageRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        minHeight: 44,
+        marginBottom: 8,
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkboxChecked: {
+        borderColor: colors.orange,
+        backgroundColor: colors.orange,
+    },
+    checkboxError: {
+        borderColor: colors.danger,
+    },
+    ageLabel: {
+        flex: 1,
+        color: colors.text,
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    ageError: {
+        marginBottom: 8,
+        color: colors.danger,
+        fontSize: 13,
         fontWeight: '500',
     },
-    helperWarn: {
+    googleNotice: {
+        marginTop: 10,
         color: colors.muted,
-    },
-    helperOk: {
-        color: colors.success,
+        fontSize: 12,
+        lineHeight: 18,
+        textAlign: 'center',
     },
     legal: {
         marginTop: 12,

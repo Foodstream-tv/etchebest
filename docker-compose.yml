@@ -73,6 +73,8 @@ services:
     restart: unless-stopped
     environment:
       API_PROXY_TARGET: http://backend:8081
+      # Contact address shown in the privacy policy (optional; the policy points to the product support when empty)
+      PRIVACY_CONTACT_EMAIL: ${PRIVACY_CONTACT_EMAIL:-}
 
   analytics:
     container_name: analytics-foodstream
