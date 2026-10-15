@@ -37,6 +37,9 @@ class MockPC {
         this.localDescription = desc;
     });
     setRemoteDescription = jest.fn(async () => undefined);
+    /** Tracks currently received (what getReceivers() reports); tests change it to simulate the SFU removing a sender. */
+    receivedTracks: Array<{ id: string }> = [];
+    getReceivers = () => this.receivedTracks.map((track) => ({ track }));
     constructor() {
         MockPC.instances.push(this);
     }
@@ -625,6 +628,79 @@ describe('useWebRTC - connection lifecycle', () => {
         });
         expect(remoteTrack.removeEventListener).toHaveBeenCalledWith('ended', expect.any(Function));
         expect(result.current.remoteStreams).toEqual([]);
+    });
+
+    it('shows one tile per remote source stream even when the SFU delivers it several times', async () => {
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+
+        const source = new MockStream();
+        source.id = 'host-stream';
+        const delivery = (id: string) => {
+            const track: any = { kind: 'video', id, readyState: 'live', addEventListener: jest.fn(), removeEventListener: jest.fn() };
+            const stream = new MockStream();
+            stream.id = 'host-stream';
+            stream.tracks = [track];
+            return { track, stream };
+        };
+        const first = delivery('t1');
+        const second = delivery('t2');
+        const third = delivery('t3');
+        act(() => {
+            pc().ontrack?.({ track: first.track, streams: [first.stream] });
+            pc().ontrack?.({ track: second.track, streams: [second.stream] });
+            pc().ontrack?.({ track: third.track, streams: [third.stream] });
+        });
+
+        expect(result.current.remoteStreams).toHaveLength(1);
+
+        // the first delivery ending must not remove the newer one that replaced it
+        const onEnded = first.track.addEventListener.mock.calls.find((c: unknown[]) => c[0] === 'ended')[1];
+        act(() => onEnded());
+        expect(result.current.remoteStreams).toHaveLength(1);
+    });
+
+    it('does not render a remote stream whose video track has ended', async () => {
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+
+        const track: any = { kind: 'video', id: 'dead', readyState: 'ended', addEventListener: jest.fn(), removeEventListener: jest.fn() };
+        const remote = new MockStream();
+        remote.tracks = [track];
+        act(() => {
+            pc().ontrack?.({ track, streams: [remote] });
+        });
+        expect(result.current.remoteStreams).toEqual([]);
+    });
+
+    it('drops the remote streams the SFU no longer sends after a renegotiation', async () => {
+        jest.useFakeTimers();
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+
+        const make = (streamId: string, trackId: string) => {
+            const track: any = { kind: 'video', id: trackId, readyState: 'live', addEventListener: jest.fn(), removeEventListener: jest.fn() };
+            const stream = new MockStream();
+            stream.id = streamId;
+            stream.tracks = [track];
+            return { track, stream };
+        };
+        const staying = make('co-streamer', 'tc');
+        const leaving = make('old-host', 'th');
+        act(() => {
+            pc().ontrack?.({ track: staying.track, streams: [staying.stream] });
+            pc().ontrack?.({ track: leaving.track, streams: [leaving.stream] });
+        });
+        expect(result.current.remoteStreams).toHaveLength(2);
+
+        // the next renegotiation no longer carries the old host's sender (and no `ended` event fired)
+        pc().receivedTracks = [{ id: 'tc' }];
+        api.fetchRenegotiationOffer.mockResolvedValueOnce({ type: 'offer', sdp: 'v=0 reneg' });
+        await act(async () => {
+            jest.advanceTimersByTime(1300);
+        });
+
+        expect(result.current.remoteStreams).toEqual([staying.stream]);
     });
 
     it('silences remote audio/video tracks as soon as the call is left (no sound after leaving)', async () => {
