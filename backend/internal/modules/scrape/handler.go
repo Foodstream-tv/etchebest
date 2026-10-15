@@ -2,11 +2,14 @@ package scrape
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -92,6 +95,19 @@ func extractInstructions(raw any) []string {
 	return steps
 }
 
+const maxPageBytes = 5 << 20 // a recipe page is far below this
+
+// isMarmitonURL accepts only https URLs whose host is marmiton.org or one of its subdomains,
+// without credentials in the URL (`https://marmiton.org@evil.test/` has the host evil.test).
+func isMarmitonURL(raw string) bool {
+	u, err := neturl.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.User != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "marmiton.org" || strings.HasSuffix(host, ".marmiton.org")
+}
+
 func ScrapeMarmiton() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		url := c.Query("url")
@@ -100,14 +116,27 @@ func ScrapeMarmiton() gin.HandlerFunc {
 			return
 		}
 
-		// Basic validation to ensure it's a Marmiton link
-		if !strings.Contains(url, "marmiton.org") {
+		// The endpoint is public and fetches the URL server-side: only real marmiton.org pages
+		// are allowed, otherwise it becomes a proxy into our own network (SSRF).
+		if !isMarmitonURL(url) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "only marmiton.org URLs are supported"})
 			return
 		}
 
 		// Perform GET request with browser headers to avoid 403 Forbidden
-		client := &http.Client{}
+		client := &http.Client{
+			Timeout: 15 * time.Second,
+			// A redirect must not lead outside Marmiton either.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 5 {
+					return errors.New("too many redirects")
+				}
+				if !isMarmitonURL(req.URL.String()) {
+					return errors.New("redirect outside marmiton.org")
+				}
+				return nil
+			},
+		}
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create request: %v", err)})
@@ -132,7 +161,7 @@ func ScrapeMarmiton() gin.HandlerFunc {
 			return
 		}
 
-		bodyBytes, err := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read response: %v", err)})
 			return
