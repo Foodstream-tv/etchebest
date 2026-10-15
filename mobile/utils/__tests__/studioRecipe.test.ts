@@ -35,6 +35,14 @@ describe('parseIngredient', () => {
         expect(parseIngredient('2 gousses d\'ail')).toEqual({ qty: '2 gousses', name: 'ail' });
         expect(parseIngredient('1/2 l de lait')).toEqual({ qty: '1/2 l', name: 'lait' });
         expect(parseIngredient('1 kg de pommes')).toEqual({ qty: '1 kg', name: 'pommes' });
+        expect(parseIngredient('2 cuillères à soupe de miel')).toEqual({ qty: '2 cuillères à soupe', name: 'miel' });
+        expect(parseIngredient('1 cuillère à café de sel')).toEqual({ qty: '1 cuillère à café', name: 'sel' });
+        expect(parseIngredient('2 c.à.s. d\'huile d\'olive')).toEqual({ qty: '2 c.à.s.', name: 'huile d\'olive' });
+        expect(parseIngredient('1 c. à café de poivre')).toEqual({ qty: '1 c. à café', name: 'poivre' });
+        expect(parseIngredient('2 càs de sucre')).toEqual({ qty: '2 càs', name: 'sucre' });
+        expect(parseIngredient('1 poignée de basilic')).toEqual({ qty: '1 poignée', name: 'basilic' });
+        expect(parseIngredient('50 cl de crème')).toEqual({ qty: '50 cl', name: 'crème' });
+        expect(parseIngredient('1/2 litre de lait')).toEqual({ qty: '1/2 litre', name: 'lait' });
         expect(parseIngredient('3 desserts')).toEqual({ qty: '3', name: 'desserts' });
         expect(parseIngredient('2 oeufs')).toEqual({ qty: '2', name: 'oeufs' });
         expect(parseIngredient('2 gros oeufs')).toEqual({ qty: '2', name: 'gros oeufs' });
