@@ -47,7 +47,7 @@ account() {
   resp="$(post /register "$(python3 -c 'import json,sys
 print(json.dumps({"email": sys.argv[1], "password": sys.argv[2], "username": sys.argv[3], "firstName": sys.argv[4],
   "lastName": sys.argv[5], "description": "Compte de démonstration pour tester Foodstream", "countryNumberPhone": 33,
-  "numberPhone": "612345678"}))' "$email" "$PASSWORD" "$username" "$first" "$last")")"
+  "numberPhone": "612345678", "ageConfirmed": True}))' "$email" "$PASSWORD" "$username" "$first" "$last")")"
   status="$(status_of "$resp")"; body="$(body_of "$resp")"
 
   if [[ "$status" == "200" ]]; then

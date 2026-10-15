@@ -32,15 +32,24 @@ type RequestLogin struct {
 }
 
 type RequestRegister struct {
-	Email              string `json:"email" binding:"required,email" example:"user@example.com"`
-	Password           string `json:"password" binding:"required,min=8" example:"Password123@"`
-	FirstName          string `json:"firstName" binding:"required,min=2" example:"John"`
-	LastName           string `json:"lastName" binding:"required,min=2" example:"Doe"`
-	Username           string `json:"username" binding:"required,min=2" example:"JohnDoe23"`
-	ProfileImage       []byte `json:"profileImage"`
-	Description        string `json:"description" binding:"required,min=10" example:"I like eating sushi"`
-	CountryNumberPhone int    `json:"countryNumberPhone" binding:"required,min=1" example:"33"`
-	NumberPhone        string `json:"numberPhone" binding:"required,min=1" example:"123456"`
+	Email        string `json:"email" binding:"required,email" example:"user@example.com"`
+	Password     string `json:"password" binding:"required,min=8" example:"Password123@"`
+	FirstName    string `json:"firstName" binding:"required,min=2" example:"John"`
+	LastName     string `json:"lastName" binding:"required,min=2" example:"Doe"`
+	Username     string `json:"username" binding:"required,min=2" example:"JohnDoe23"`
+	ProfileImage []byte `json:"profileImage"`
+	// Description, CountryNumberPhone and NumberPhone are optional (data minimisation): only the
+	// e-mail, the password and the names are needed to create an account.
+	Description        string `json:"description" binding:"omitempty,max=500" example:"I like eating sushi"`
+	CountryNumberPhone int    `json:"countryNumberPhone" binding:"omitempty,min=1" example:"33"`
+	NumberPhone        string `json:"numberPhone" binding:"omitempty,max=30" example:"123456"`
+	// AgeConfirmed must be true: the service is for people aged 15 or more.
+	AgeConfirmed bool `json:"ageConfirmed" binding:"required" example:"true"`
+}
+
+// phoneInconsistent reports a phone number sent without its country code, or the opposite.
+func (r RequestRegister) phoneInconsistent() bool {
+	return (strings.TrimSpace(r.NumberPhone) != "") != (r.CountryNumberPhone > 0)
 }
 
 type RequestVerifyCode struct {
@@ -134,6 +143,10 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 			return
 		}
+		if req.phoneInconsistent() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "the phone number and its country code go together"})
+			return
+		}
 
 		cleanEmail := strings.ToLower(strings.TrimSpace(req.Email))
 		cleanUsername := strings.TrimSpace(req.Username)
@@ -173,7 +186,7 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 			LastName:           strings.TrimSpace(req.LastName),
 			Username:           cleanUsername,
 			ProfileImageURL:    "",
-			Description:        req.Description,
+			Description:        strings.TrimSpace(req.Description),
 			CountryNumberPhone: req.CountryNumberPhone,
 			NumberPhone:        strings.TrimSpace(req.NumberPhone),
 			Role:               userModule.USER,

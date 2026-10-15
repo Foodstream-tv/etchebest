@@ -40,7 +40,7 @@ register_and_login() {
   # Register
   curl -s -X POST "$BASE_URL/api/register" \
     -H "Content-Type: application/json" \
-    -d "{\"email\":\"$email\",\"password\":\"$PASSWORD\",\"firstName\":\"Test\",\"lastName\":\"User\",\"username\":\"$username\",\"description\":\"Simulation participant account\",\"countryNumberPhone\":33,\"numberPhone\":\"0612345678\"}" > /dev/null 2>&1 || true
+    -d "{\"email\":\"$email\",\"password\":\"$PASSWORD\",\"firstName\":\"Test\",\"lastName\":\"User\",\"username\":\"$username\",\"description\":\"Simulation participant account\",\"countryNumberPhone\":33,\"numberPhone\":\"0612345678\",\"ageConfirmed\":true}" > /dev/null 2>&1 || true
 
   # Login
   local resp
