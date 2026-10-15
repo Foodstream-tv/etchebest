@@ -93,8 +93,6 @@ const sharedFr = {
     "profile.preferences.notif.replays": "Rediffusions",
     "profile.preferences.notif.newChefs": "Nouveaux chefs",
     "profile.preferences.language": "Langue",
-    "profile.preferences.privacy": "Confidentialité",
-    "profile.preferences.privacyDesc": "Profil visible, listes publiques, etc.",
     "profile.privacy.title": "Mes données et confidentialité",
     "profile.privacy.desc": "Tu gardes le contrôle de tes données personnelles : télécharge-les ou supprime définitivement ton compte.",
     "profile.privacy.export.title": "Télécharger mes données",

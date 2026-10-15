@@ -150,7 +150,7 @@ export default function PublicProfilePage() {
 
   return (
     <main id="main-content" className="min-h-screen">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <Link
           href="/watch"
           className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-orange-500 dark:text-gray-300"
@@ -159,11 +159,11 @@ export default function PublicProfilePage() {
           {t("profile.public.backToLives")}
         </Link>
 
-        <div className="grid gap-6 md:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-8">
           <aside className="space-y-6" aria-label={t("profile.public.info")}>
             <ProfileCard>
               <div className="flex flex-col items-center text-center">
-                <div className="relative h-24 w-24 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
+                <div className="relative h-24 w-24 overflow-hidden rounded-full bg-black/[0.06] ring-4 ring-orange-500/15 dark:bg-white/10">
                   {avatar ? (
                     <Image
                       src={avatar}

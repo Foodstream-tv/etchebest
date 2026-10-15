@@ -100,8 +100,6 @@ export const en: Record<keyof typeof fr, string> = {
   "profile.preferences.notif.replays": "Replays",
   "profile.preferences.notif.newChefs": "New chefs",
   "profile.preferences.language": "Language",
-  "profile.preferences.privacy": "Privacy",
-  "profile.preferences.privacyDesc": "Visible profile, public lists, etc.",
   "profile.privacy.title": "My data and privacy",
   "profile.privacy.desc": "You stay in control of your personal data: download it or permanently delete your account.",
   "profile.privacy.export.title": "Download my data",
