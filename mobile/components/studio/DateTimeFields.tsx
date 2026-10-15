@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 
+import ManualDateTimeFields from '@/components/studio/ManualDateTimeFields';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import { loadDateTimePicker } from '@/utils/optionalNative';
 import { parseSchedule, toDateString, toTimeString } from '@/utils/studioSchedule';
 
 type Props = {
@@ -19,7 +20,15 @@ type Props = {
 type Kind = 'date' | 'time';
 
 /** Date and time of the schedule: system pickers on device, native inputs on web. */
-export default function DateTimeFields({ date, time, onChange, invalid }: Readonly<Props>) {
+export default function DateTimeFields(props: Readonly<Props>) {
+    const picker = React.useMemo(loadDateTimePicker, []);
+    // An app build installed before the picker was added has no native module: type the values instead.
+    if (!picker) return <ManualDateTimeFields {...props} />;
+    return <NativeDateTimeFields {...props} picker={picker} />;
+}
+
+function NativeDateTimeFields({ date, time, onChange, invalid, picker }: Readonly<Props & { picker: NonNullable<ReturnType<typeof loadDateTimePicker>> }>) {
+    const { default: DateTimePicker, DateTimePickerAndroid } = picker;
     const { t, locale } = useI18n();
     const { colors, scheme } = useTheme();
     const styles = useStyles();

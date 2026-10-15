@@ -1,6 +1,8 @@
 // Mobile-only keys for the Studio tab and the go-live (WebRTC broadcast) screen.
 // Everything the web also says (studio.*, broadcast.*) comes from shared.{fr,en}.ts.
 export const fr = {
+    'studio.go.dateManualHint': 'Cette version de l’app n’a pas les sélecteurs de date et d’heure : saisis-les au format AAAA-MM-JJ et HH:mm. Mets l’app à jour pour les retrouver.',
+    'studio.go.photoUnavailable': 'Cette version de l’app ne peut pas choisir une photo de l’appareil : colle l’adresse d’une image ci-dessous, ou mets l’app à jour.',
     'studio.go.stepOf': 'Étape {step} sur {total}',
     'studio.go.scheduledSuccess': 'Ton live est planifié. Tu le retrouves en haut de cet écran pour le démarrer le moment venu.',
     'studio.go.scheduleInPast': 'Choisis une date et une heure à venir pour planifier.',
@@ -44,6 +46,8 @@ export const fr = {
 } as const;
 
 export const en: Record<keyof typeof fr, string> = {
+    'studio.go.dateManualHint': 'This app build has no date and time pickers: type them as YYYY-MM-DD and HH:mm. Update the app to get them back.',
+    'studio.go.photoUnavailable': 'This app build cannot pick a photo from the device: paste an image address below, or update the app.',
     'studio.go.stepOf': 'Step {step} of {total}',
     'studio.go.scheduledSuccess': 'Your live is scheduled. You will find it at the top of this screen to start it when the time comes.',
     'studio.go.scheduleInPast': 'Pick a date and time in the future to schedule.',

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
@@ -8,11 +8,12 @@ import Button from '@/components/ui/Button';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
 import { THUMBNAIL_MAX_BYTES, type PickedImage } from '@/services/studio';
+import { loadImagePicker } from '@/utils/optionalNative';
 
 const EXTENSIONS: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
 
 /** Backend accepts jpg/png/gif/webp by file extension: anything else is sent as a jpg (the picker re-encodes it). */
-export function toPickedImage(asset: ImagePicker.ImagePickerAsset): PickedImage {
+export function toPickedImage(asset: Pick<ImagePickerAsset, 'uri' | 'mimeType' | 'fileSize'>): PickedImage {
     const mimeType = asset.mimeType && EXTENSIONS[asset.mimeType] ? asset.mimeType : 'image/jpeg';
     return {
         uri: asset.uri,
@@ -37,11 +38,14 @@ export default function ThumbnailPicker({ image, imageUrl, onPick, onClear, onUr
     const { colors } = useTheme();
     const styles = useStyles();
     const [error, setError] = useState('');
+    // Missing from app builds installed before the picker was added: only the url field is offered then.
+    const picker = React.useMemo(loadImagePicker, []);
 
     const choose = async () => {
+        if (!picker) return;
         setError('');
         try {
-            const result = await ImagePicker.launchImageLibraryAsync({
+            const result = await picker.launchImageLibraryAsync({
                 mediaTypes: ['images'],
                 allowsEditing: true,
                 aspect: [16, 9],
@@ -61,15 +65,23 @@ export default function ThumbnailPicker({ image, imageUrl, onPick, onClear, onUr
 
     return (
         <Panel>
-            <Button
-                label={image ? t('studio.broadcast.changeImage') : t('studio.broadcast.chooseImageDevice')}
-                variant="secondary"
-                onPress={choose}
-                disabled={disabled}
-                icon={<Ionicons name="cloud-upload-outline" size={18} color={colors.text} />}
-                testID="thumbnail-choose"
-            />
-            <Text style={styles.formats}>{t('studio.broadcast.fileFormats')}</Text>
+            {picker ? (
+                <>
+                    <Button
+                        label={image ? t('studio.broadcast.changeImage') : t('studio.broadcast.chooseImageDevice')}
+                        variant="secondary"
+                        onPress={choose}
+                        disabled={disabled}
+                        icon={<Ionicons name="cloud-upload-outline" size={18} color={colors.text} />}
+                        testID="thumbnail-choose"
+                    />
+                    <Text style={styles.formats}>{t('studio.broadcast.fileFormats')}</Text>
+                </>
+            ) : (
+                <Notice tone="info" testID="thumbnail-unavailable">
+                    {t('studio.go.photoUnavailable')}
+                </Notice>
+            )}
             {error ? <Notice tone="error" testID="thumbnail-error">{error}</Notice> : null}
 
             {image ? (
