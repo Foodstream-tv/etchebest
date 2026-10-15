@@ -87,6 +87,33 @@ describe('services/streaming', () => {
             await createRoom('x', { tags: [] });
             expect(mockedRequest.mock.calls[1][1].body).toEqual({ name: 'x' });
         });
+
+        it('forwards the Studio fields: level, duration, thumbnail, status and schedule', async () => {
+            mockedRequest.mockResolvedValue({ roomId: 'r' });
+            await createRoom('Ramen', {
+                title: 'Ramen',
+                level: 'Avancé',
+                durationMinutes: 45,
+                thumbnailUrl: '/api/uploads/t.jpg',
+                status: 'scheduled',
+                scheduledAt: '2030-05-12T07:30:00.000Z',
+            });
+            expect(mockedRequest.mock.calls[0][1].body).toEqual({
+                name: 'Ramen',
+                title: 'Ramen',
+                level: 'Avancé',
+                durationMinutes: 45,
+                thumbnailUrl: '/api/uploads/t.jpg',
+                status: 'scheduled',
+                scheduledAt: '2030-05-12T07:30:00.000Z',
+            });
+        });
+
+        it('leaves out empty or zero Studio fields', async () => {
+            mockedRequest.mockResolvedValue({ roomId: 'r' });
+            await createRoom('x', { level: '', durationMinutes: 0, thumbnailUrl: '' });
+            expect(mockedRequest.mock.calls[0][1].body).toEqual({ name: 'x' });
+        });
     });
 
     describe('postChatMessage', () => {
