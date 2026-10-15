@@ -74,6 +74,8 @@ services:
         NEXT_PUBLIC_API_BASE_URL: https://${VM_IP}/api
     network_mode: "host"
     restart: unless-stopped
+    environment:
+      PRIVACY_CONTACT_EMAIL: ${PRIVACY_CONTACT_EMAIL:-}
 
   analytics:
     container_name: analytics-foodstream

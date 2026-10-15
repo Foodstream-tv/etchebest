@@ -44,12 +44,15 @@ function fillValidForm(utils: Utils, overrides: Partial<Record<'email' | 'passwo
     fireEvent.changeText(utils.getByPlaceholderText('Nom'), 'Doe');
     fireEvent.changeText(utils.getByPlaceholderText("Nom d'utilisateur"), 'johnny');
     fireEvent.changeText(utils.getByPlaceholderText('Mot de passe'), overrides.password ?? 'password');
-    fireEvent.changeText(utils.getByPlaceholderText('Numéro de téléphone'), overrides.phone ?? '0612345678');
+    fireEvent.changeText(utils.getByPlaceholderText('Numéro de téléphone (facultatif)'), overrides.phone ?? '0612345678');
     fireEvent.changeText(
-        utils.getByPlaceholderText('Bio / Description (min 10 caractères)'),
+        utils.getByPlaceholderText('Bio / Description (facultatif)'),
         overrides.bio ?? 'This is a long enough description.'
     );
+    checkAge(utils);
 }
+
+const checkAge = (utils: Utils) => fireEvent.press(utils.getByTestId('register-age-checkbox'));
 
 const submit = (utils: Utils) => fireEvent.press(utils.getByTestId('register-submit'));
 
@@ -68,8 +71,8 @@ describe('RegisterScreen', () => {
         expect(getByPlaceholderText('Nom')).toBeTruthy();
         expect(getByPlaceholderText("Nom d'utilisateur")).toBeTruthy();
         expect(getByPlaceholderText('Mot de passe')).toBeTruthy();
-        expect(getByPlaceholderText('Numéro de téléphone')).toBeTruthy();
-        expect(getByPlaceholderText('Bio / Description (min 10 caractères)')).toBeTruthy();
+        expect(getByPlaceholderText('Numéro de téléphone (facultatif)')).toBeTruthy();
+        expect(getByPlaceholderText('Bio / Description (facultatif)')).toBeTruthy();
         expect(getByText('Créer mon compte')).toBeTruthy();
     });
 
@@ -98,7 +101,7 @@ describe('RegisterScreen', () => {
             textContentType: 'newPassword',
             secureTextEntry: true,
         });
-        expect(getByPlaceholderText('Numéro de téléphone').props).toMatchObject({
+        expect(getByPlaceholderText('Numéro de téléphone (facultatif)').props).toMatchObject({
             keyboardType: 'phone-pad',
             textContentType: 'telephoneNumber',
         });
@@ -120,8 +123,9 @@ describe('RegisterScreen', () => {
         expect(utils.getByText('Veuillez renseigner votre nom.')).toBeTruthy();
         expect(utils.getByText("Veuillez choisir un nom d'utilisateur.")).toBeTruthy();
         expect(utils.getByText('Veuillez saisir un mot de passe.')).toBeTruthy();
-        expect(utils.getByText('Veuillez renseigner votre numéro de téléphone.')).toBeTruthy();
-        expect(utils.getByText('Veuillez ajouter une description (au moins 10 caractères).')).toBeTruthy();
+        expect(utils.queryByText('Veuillez renseigner votre numéro de téléphone.')).toBeNull();
+        expect(utils.queryByText('Veuillez ajouter une description (au moins 10 caractères).')).toBeNull();
+        expect(utils.getByTestId('register-age-error')).toBeTruthy();
         expect(utils.getByText('Veuillez remplir correctement les champs indiqués.').props.accessibilityRole).toBe('alert');
         expect(mockedRegister).not.toHaveBeenCalled();
     });
@@ -155,15 +159,14 @@ describe('RegisterScreen', () => {
         await waitFor(() => expect(mockedRegister).toHaveBeenCalled());
     });
 
-    it('rejects a too short username, an invalid phone and a too short bio', async () => {
+    it('rejects a too short username and an invalid phone', async () => {
         const utils = render(<RegisterScreen />);
-        fillValidForm(utils, { phone: '12345', bio: 'short' });
+        fillValidForm(utils, { phone: '12345' });
         fireEvent.changeText(utils.getByPlaceholderText("Nom d'utilisateur"), 'ab');
         submit(utils);
 
         await waitFor(() => expect(utils.getByText("L'identifiant doit faire au moins 3 caractères.")).toBeTruthy());
         expect(utils.getByText('Le numéro de téléphone doit comporter au moins 6 chiffres.')).toBeTruthy();
-        expect(utils.getByText('La description doit comporter au moins 10 caractères (actuellement : 5).')).toBeTruthy();
     });
 
     it('clears a field error as soon as the user edits the field', async () => {
@@ -175,18 +178,99 @@ describe('RegisterScreen', () => {
         expect(utils.queryByText('Veuillez renseigner votre prénom.')).toBeNull();
     });
 
-    it('shows the bio helper while typing', () => {
+    it('has no bio helper and no minimum on the bio', async () => {
+        mockedRegister.mockResolvedValueOnce({ message: 'ok', userId: 'u1', target: 'x' });
         const utils = render(<RegisterScreen />);
-        const bio = utils.getByPlaceholderText('Bio / Description (min 10 caractères)');
+        fillValidForm(utils, { bio: 'abc' });
 
-        fireEvent.changeText(bio, 'abcd');
-        expect(utils.getByTestId('bio-helper').props.children).toBe('Encore 6 caractères requis (minimum 10)');
+        expect(utils.queryByTestId('bio-helper')).toBeNull();
+        submit(utils);
+        await waitFor(() => expect(mockedRegister).toHaveBeenCalledWith(expect.objectContaining({ description: 'abc' })));
+    });
 
-        fireEvent.changeText(bio, 'abcdefghi');
-        expect(utils.getByTestId('bio-helper').props.children).toBe('Encore 1 caractère requis (minimum 10)');
+    it('caps the bio at 500 characters', () => {
+        const utils = render(<RegisterScreen />);
+        expect(utils.getByPlaceholderText('Bio / Description (facultatif)').props.maxLength).toBe(500);
+    });
 
-        fireEvent.changeText(bio, 'abcdefghij');
-        expect(utils.getByTestId('bio-helper').props.children).toBe('Description valide');
+    it('registers without phone nor bio and omits them from the payload', async () => {
+        mockedRegister.mockResolvedValueOnce({ message: 'ok', userId: 'user-1', target: 'x' });
+        const utils = render(<RegisterScreen />);
+        fillValidForm(utils, { phone: '', bio: '' });
+        submit(utils);
+
+        await waitFor(() => expect(mockedRegister).toHaveBeenCalledTimes(1));
+        const body = mockedRegister.mock.calls[0][0];
+        expect(body).toEqual({
+            email: 'Test@Example.com',
+            password: 'password',
+            username: 'johnny',
+            firstName: 'John',
+            lastName: 'Doe',
+            profileImage: '',
+            ageConfirmed: true,
+        });
+        expect(body).not.toHaveProperty('numberPhone');
+        expect(body).not.toHaveProperty('countryNumberPhone');
+        expect(body).not.toHaveProperty('description');
+    });
+
+    it('treats a whitespace-only phone and bio as empty', async () => {
+        mockedRegister.mockResolvedValueOnce({ message: 'ok', userId: 'user-1', target: 'x' });
+        const utils = render(<RegisterScreen />);
+        fillValidForm(utils, { phone: '   ', bio: '   ' });
+        submit(utils);
+
+        await waitFor(() => expect(mockedRegister).toHaveBeenCalledTimes(1));
+        expect(mockedRegister.mock.calls[0][0]).not.toHaveProperty('numberPhone');
+        expect(mockedRegister.mock.calls[0][0]).not.toHaveProperty('description');
+    });
+
+    it('blocks the submit and shows the age error while the age box is unchecked', async () => {
+        const utils = render(<RegisterScreen />);
+        fillValidForm(utils);
+        checkAge(utils); // uncheck
+        expect(utils.getByTestId('register-age-checkbox').props.accessibilityState).toMatchObject({ checked: false });
+        submit(utils);
+
+        await waitFor(() => expect(utils.getByTestId('register-age-error')).toBeTruthy());
+        expect(utils.getByTestId('register-age-error').props.accessibilityRole).toBe('alert');
+        expect(utils.getByText('Vous devez avoir au moins 15 ans pour créer un compte.')).toBeTruthy();
+        expect(mockedRegister).not.toHaveBeenCalled();
+    });
+
+    it('exposes the age checkbox with the checkbox role and clears the error once checked', async () => {
+        const utils = render(<RegisterScreen />);
+        const box = () => utils.getByTestId('register-age-checkbox');
+        expect(utils.getByText('Je confirme avoir au moins 15 ans.')).toBeTruthy();
+        expect(box().props.accessibilityRole).toBe('checkbox');
+        expect(box().props.accessibilityState).toMatchObject({ checked: false });
+
+        submit(utils);
+        await waitFor(() => expect(utils.getByTestId('register-age-error')).toBeTruthy());
+
+        checkAge(utils);
+        expect(box().props.accessibilityState).toMatchObject({ checked: true });
+        expect(utils.queryByTestId('register-age-error')).toBeNull();
+    });
+
+    it('sends ageConfirmed: true when the age box is checked', async () => {
+        mockedRegister.mockResolvedValueOnce({ message: 'ok', userId: 'user-1', target: 'x' });
+        const utils = render(<RegisterScreen />);
+        fillValidForm(utils);
+        submit(utils);
+
+        await waitFor(() => expect(mockedRegister).toHaveBeenCalledWith(expect.objectContaining({ ageConfirmed: true })));
+    });
+
+    it('still validates a typed phone and a too long bio', async () => {
+        const utils = render(<RegisterScreen />);
+        fillValidForm(utils, { phone: 'abc', bio: 'x'.repeat(501) });
+        submit(utils);
+
+        await waitFor(() => expect(utils.getByText('Le numéro de téléphone doit comporter au moins 6 chiffres.')).toBeTruthy());
+        expect(utils.getByText('La description ne peut pas dépasser 500 caractères.')).toBeTruthy();
+        expect(mockedRegister).not.toHaveBeenCalled();
     });
 
     it('registers, then goes to /verify (not /login) with userId and the typed e-mail', async () => {
@@ -211,6 +295,7 @@ describe('RegisterScreen', () => {
             countryNumberPhone: 33,
             numberPhone: '0612345678',
             profileImage: '',
+            ageConfirmed: true,
         });
         expect(mockRouter.replace).not.toHaveBeenCalledWith('/login');
     });
@@ -307,5 +392,12 @@ describe('RegisterScreen', () => {
     it('offers Google sign-in (same flow as the login screen)', () => {
         const { getByTestId } = render(<RegisterScreen />);
         expect(getByTestId('google-register-button')).toBeTruthy();
+    });
+
+    it('tells Google sign-up users that continuing confirms they are at least 15', () => {
+        const { getByTestId } = render(<RegisterScreen />);
+        expect(getByTestId('register-google-age-notice').props.children).toBe(
+            'En continuant avec Google, vous confirmez avoir au moins 15 ans.'
+        );
     });
 });

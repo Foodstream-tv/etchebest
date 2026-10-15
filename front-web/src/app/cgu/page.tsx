@@ -39,12 +39,17 @@ const sections = [
       "FoodStream se réserve le droit de modérer, masquer ou supprimer tout contenu ne respectant pas les présentes CGU, la législation en vigueur ou les droits de tiers. En cas de violations répétées (notamment en matière de contrefaçon, de harcèlement ou de diffusion de contenus préjudiciables), FoodStream peut suspendre temporairement ou résilier définitivement le compte de l'utilisateur concerné, sans préjudice de poursuites civiles ou pénales éventuelles.",
   },
   {
-    title: "7. Données Personnelles et Liens Hypertextes",
+    title: "7. Âge minimum",
+    content:
+      "L'utilisation de FoodStream est réservée aux personnes âgées d'au moins 15 ans. En créant un compte (par formulaire ou avec Google), l'utilisateur confirme avoir au moins 15 ans. FoodStream peut supprimer tout compte dont le titulaire ne remplit pas cette condition.",
+  },
+  {
+    title: "8. Données Personnelles et Liens Hypertextes",
     content:
       "La collecte et le traitement des données à caractère personnel sont détaillés dans notre Politique de Confidentialité accessible sur le site. Les liens hypertextes pointant vers des sites externes (notamment vers les sources de recettes citées) sont fournis à titre de référence et d'attribution loyale de source ; FoodStream n'exerce aucun contrôle sur le contenu ou les pratiques de ces sites tiers.",
   },
   {
-    title: "8. Droit Applicable et Juridiction Compétente",
+    title: "9. Droit Applicable et Juridiction Compétente",
     content:
       "Les présentes Conditions Générales d'Utilisation sont régies et interprétées selon le droit français. À défaut de résolution amiable, tout litige relatif à leur validité, leur interprétation ou leur exécution sera soumis à la compétence exclusive des tribunaux français compétents.",
   },
