@@ -180,5 +180,7 @@ Un script de test automatisé simule 5 participants en direct, teste le rejet au
 
 ## Déploiement en Production (VM & Nom de domaine)
 
-Pour déployer l'intégralité de la stack sur une machine virtuelle (AWS, GCP, OVH, etc.) avec nom de domaine (`foodstream.tv`), certificats SSL Let's Encrypt et reverse-proxy Nginx, consultez le guide dédié :
-👉 **[DEPLOY_VM.md](./DEPLOY_VM.md)**docker compose -f docker-compose.vm.yml up -d --build
+Pour déployer la stack sur une machine virtuelle avec nom de domaine (`foodstream.tv`), certificats SSL Let's Encrypt et reverse-proxy Nginx :
+
+1. `./setup-ssl.sh` (une seule fois, sur la VM) génère les certificats.
+2. `docker compose -f docker-compose.vm.yml up -d --build` démarre la stack derrière Nginx (`nginx.conf`).
