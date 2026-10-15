@@ -200,7 +200,7 @@ export default function PublicProfilePage() {
                   </p>
                 ) : null}
 
-                <div className="mt-5">
+                <div className="mt-5 w-full">
                   <FollowStats
                     followersCount={followersCount}
                     followingCount={followingCount}

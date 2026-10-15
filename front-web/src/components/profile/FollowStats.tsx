@@ -19,7 +19,7 @@ export default function FollowStats({
 
   return (
     <div
-      className="flex items-center gap-4"
+      className="grid w-full grid-cols-2 divide-x divide-black/8 overflow-hidden rounded-2xl bg-black/[0.03] dark:divide-white/10 dark:bg-white/[0.04]"
       aria-label={t("profile.followStatsAria")}
     >
       <button
@@ -29,13 +29,13 @@ export default function FollowStats({
           count: followersCount,
           plural: followersCount > 1 ? "s" : "",
         })}
-        className="rounded-xl px-3 py-2 text-left transition hover:bg-orange-50 dark:hover:bg-white/5"
+        className="px-4 py-3 text-center transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-orange-500/30 dark:hover:bg-white/5"
       >
-        <span className="block text-base font-bold text-gray-950 dark:text-white">
+        <span className="block text-xl font-bold text-gray-950 dark:text-white">
           {followersCount}
         </span>
 
-        <span className="block text-xs text-gray-500 dark:text-gray-400">
+        <span className="block text-sm text-gray-500 dark:text-gray-400">
           {t("profile.followers")}
         </span>
       </button>
@@ -47,13 +47,13 @@ export default function FollowStats({
           count: followingCount,
           plural: followingCount > 1 ? "s" : "",
         })}
-        className="rounded-xl px-3 py-2 text-left transition hover:bg-orange-50 dark:hover:bg-white/5"
+        className="px-4 py-3 text-center transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-orange-500/30 dark:hover:bg-white/5"
       >
-        <span className="block text-base font-bold text-gray-950 dark:text-white">
+        <span className="block text-xl font-bold text-gray-950 dark:text-white">
           {followingCount}
         </span>
 
-        <span className="block text-xs text-gray-500 dark:text-gray-400">
+        <span className="block text-sm text-gray-500 dark:text-gray-400">
           {t("profile.following")}
         </span>
       </button>
