@@ -188,9 +188,6 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 			return
 		}
 
-		// Log the Google profile picture info for debugging
-		fmt.Printf("[DEBUG] Google OAuth: email=%s, picture=%s, picture_len=%d\n", userInfo.Email, userInfo.Picture, len(userInfo.Picture))
-
 		cleanOAuthEmail := strings.ToLower(strings.TrimSpace(userInfo.Email))
 
 		// Check if user exists by Google ID
