@@ -1250,11 +1250,31 @@ func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) b
 
 // newPeerConnection creates a fully configured webrtc.PeerConnection with
 // STUN, NAT traversal, port range and default codecs.
+const (
+	iceDisconnectedTimeout  = 5 * time.Second
+	defaultICEFailedTimeout = 25 * time.Second
+	iceKeepAliveInterval    = 2 * time.Second
+)
+
+// iceFailedTimeout is how long a disconnected peer is kept before being declared failed (and its live
+// ended if it was alone). WEBRTC_FAILED_TIMEOUT_SECONDS overrides the 25 s default (total grace ~30 s).
+func iceFailedTimeout() time.Duration {
+	if v := os.Getenv("WEBRTC_FAILED_TIMEOUT_SECONDS"); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil && secs >= 5 && secs <= 300 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	return defaultICEFailedTimeout
+}
+
 func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error) {
 	se := webrtc.SettingEngine{}
 	if webrtcIP != "" {
 		se.SetNAT1To1IPs([]string{webrtcIP}, webrtc.ICECandidateTypeHost)
 	}
+	// Disconnected after 5 s without traffic, Failed after iceFailedTimeout more: that is the window in
+	// which a client that lost its network can come back and re-publish into the same room.
+	se.SetICETimeouts(iceDisconnectedTimeout, iceFailedTimeout(), iceKeepAliveInterval)
 	portMin := uint16(50000)
 	portMax := uint16(50100)
 	if minStr := os.Getenv("WEBRTC_PORT_MIN"); minStr != "" {
@@ -1288,20 +1308,50 @@ func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error)
 // registerPeer adds the PeerConnection to the room, marks the host, and
 // returns any buffered ICE candidates for this user that should be flushed later.
 // Must be called with mu held.
-func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) []webrtc.ICECandidateInit {
+// registerPeer adds pc to the room and returns the ICE candidates buffered for the user.
+//
+// A user has one peer connection at a time. When the same user posts a new offer (a client that
+// lost its network and re-publishes), the previous peer is replaced instead of being kept next to the
+// new one: otherwise ICE candidates and answers would keep going to the dead peer, and the host would
+// never become the HLS source again. The replaced peer is returned so the caller can close it outside
+// the lock. Its tracks are removed, and the user's pending renegotiation state is dropped (an offer
+// built for the old peer cannot be applied to the new one). The participant slot and reservation are
+// kept: the user did not leave. Must be called with mu held.
+func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) (pending []webrtc.ICECandidateInit, replaced *webrtc.PeerConnection) {
+	kept := make([]PeerConnection, 0, len(room.Connections)+1)
+	for _, c := range room.Connections {
+		if c.UserID == userID && c.PeerCon != nil && c.PeerCon != pc {
+			replaced = c.PeerCon
+			continue
+		}
+		kept = append(kept, c)
+	}
+	room.Connections = kept
+
+	if replaced != nil {
+		log.Printf("replacing the previous peer connection of user %s in room %s", userID, room.ID)
+		room.Tracks = removeTracksFromPeer(room, replaced)
+		if room.HostPeerCon == replaced {
+			room.HostPeerCon = nil
+		}
+		delete(room.PendingOfferByUser, userID)
+		delete(room.RenegotiatingByUser, userID)
+		delete(room.NeedsRenegotiationByUser, userID)
+	}
+
 	if room.HostPeerCon == nil && userID == room.Host {
 		room.HostPeerCon = pc
 	}
 	room.Connections = append(room.Connections, PeerConnection{UserID: userID, PeerCon: pc})
 
 	if room.PendingICEByUser == nil {
-		return nil
+		return nil, replaced
 	}
 
-	pending := make([]webrtc.ICECandidateInit, len(room.PendingICEByUser[userID]))
+	pending = make([]webrtc.ICECandidateInit, len(room.PendingICEByUser[userID]))
 	copy(pending, room.PendingICEByUser[userID])
 	delete(room.PendingICEByUser, userID)
-	return pending
+	return pending, replaced
 }
 
 // buildCodecInfo converts a webrtc.RTPCodecParameters into an hls.CodecInfo.
@@ -2304,15 +2354,23 @@ func handleOnTrack(
 
 // makeConnectionStateHandler returns an OnConnectionStateChange callback that
 // triggers cleanup when the peer disconnects or fails.
+// shouldTearDownOnConnectionState reports whether a peer connection state means the peer is gone.
+//
+// Disconnected is NOT one of them: Pion reports it after ~5 s without traffic and it is recoverable
+// (Wi-Fi -> 4G, a tunnel, a short drop). Tearing the peer down there ended the whole live for a blip.
+// If the connection does not come back, ICE moves to Failed after iceFailedTimeout and the peer is
+// cleaned up then; until that point the client can re-publish and replace its peer (see registerPeer).
+func shouldTearDownOnConnectionState(state webrtc.PeerConnectionState) bool {
+	return state == webrtc.PeerConnectionStateFailed || state == webrtc.PeerConnectionStateClosed
+}
+
 func makeConnectionStateHandler(
 	db *gorm.DB, room *Room, roomID string,
 	peerConnection *webrtc.PeerConnection,
 ) func(webrtc.PeerConnectionState) {
 	return func(state webrtc.PeerConnectionState) {
 		log.Printf("connection state has changed: %s", state.String())
-		if state == webrtc.PeerConnectionStateDisconnected ||
-			state == webrtc.PeerConnectionStateFailed ||
-			state == webrtc.PeerConnectionStateClosed {
+		if shouldTearDownOnConnectionState(state) {
 			onPeerDisconnected(db, room, roomID, peerConnection)
 		}
 	}
@@ -2379,8 +2437,12 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 
 		// 6. Register peer and retrieve buffered ICE candidates.
 		mu.Lock()
-		pending := registerPeer(pc, room, userID)
+		pending, replaced := registerPeer(pc, room, userID)
 		mu.Unlock()
+		if replaced != nil {
+			// Closed outside the lock. Its state handler finds it already removed from the room and does nothing.
+			closeDisconnectedPC(replaced)
+		}
 
 		// 7. Wire callbacks
 		hlsCtx := &hlsState{}

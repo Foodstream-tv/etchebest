@@ -164,6 +164,7 @@ Secret JWT obligatoire ; identité toujours tirée du JWT (jamais du corps) pour
 
 ### À faire ensuite
 - Phase 2 (fiabilité du live) : R1/M1 grâce de déconnexion + re-POST, H2/R8 réconciliation au démarrage + timer hôte absent, R3/H1 `StopStream` hors verrou (la copie ne bloque plus, mais le sleep et l'arrêt FFmpeg restent sous le mutex), H3 supervision FFmpeg, R4 un PC par utilisateur.
+- Phase 2, avancement (#205, R1/M1/R4) : FAIT côté backend (seuls `Failed`/`Closed` démontent le live, `Disconnected` est toléré ~5 s puis `Failed` après `WEBRTC_FAILED_TIMEOUT_SECONDS`, 25 s par défaut ; un re-POST `/webrtc` remplace l'ancien PC du même utilisateur sans toucher aux participants ni à l'hôte) et côté mobile (état `reconnecting`, republication avec un nouveau PC en backoff 1/2/4/8/8 s, caméra et room conservées, abandon sur 404/403 = `ended`, 401, ou après la dernière tentative = `connection`). Limite : pas de détection réseau native (NetInfo), la reconnexion démarre quand ICE passe en `disconnected`/`failed`. Reste à valider sur appareil : coupure réseau de 10 s pendant un live.
 - Phases 3 à 5 : voir ci-dessous.
 
 ## 7. Ordre d'exécution conseillé

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
+	"github.com/pion/webrtc/v4"
 )
 
 func init() {
@@ -154,4 +155,148 @@ func TestLiveRoomsRegistryIsSafeForConcurrentUse(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestShouldTearDownOnConnectionState(t *testing.T) {
+	cases := map[webrtc.PeerConnectionState]bool{
+		webrtc.PeerConnectionStateNew:          false,
+		webrtc.PeerConnectionStateConnecting:   false,
+		webrtc.PeerConnectionStateConnected:    false,
+		webrtc.PeerConnectionStateDisconnected: false, // recoverable: a Wi-Fi -> 4G switch must not end the live
+		webrtc.PeerConnectionStateFailed:       true,
+		webrtc.PeerConnectionStateClosed:       true,
+	}
+	for state, want := range cases {
+		if got := shouldTearDownOnConnectionState(state); got != want {
+			t.Errorf("state %s: tear down = %v, want %v", state, got, want)
+		}
+	}
+}
+
+func TestICEFailedTimeout(t *testing.T) {
+	t.Setenv("WEBRTC_FAILED_TIMEOUT_SECONDS", "")
+	if got := iceFailedTimeout(); got != 25*time.Second {
+		t.Fatalf("default = %v, want 25s", got)
+	}
+	t.Setenv("WEBRTC_FAILED_TIMEOUT_SECONDS", "40")
+	if got := iceFailedTimeout(); got != 40*time.Second {
+		t.Fatalf("override = %v, want 40s", got)
+	}
+	for _, bad := range []string{"abc", "-3", "0", "2", "9999"} {
+		t.Setenv("WEBRTC_FAILED_TIMEOUT_SECONDS", bad)
+		if got := iceFailedTimeout(); got != 25*time.Second {
+			t.Errorf("invalid value %q must fall back to the default, got %v", bad, got)
+		}
+	}
+}
+
+func newTestPC(t *testing.T) *webrtc.PeerConnection {
+	t.Helper()
+	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = pc.Close() })
+	return pc
+}
+
+func TestRegisterPeerFirstConnectionReplacesNothing(t *testing.T) {
+	room := &Room{ID: "r", Host: "host"}
+	pc := newTestPC(t)
+
+	_, replaced := registerPeer(pc, room, "host")
+
+	if replaced != nil {
+		t.Fatal("nothing to replace on a first connection")
+	}
+	if room.HostPeerCon != pc || len(room.Connections) != 1 {
+		t.Fatalf("host peer not registered: host=%v connections=%d", room.HostPeerCon == pc, len(room.Connections))
+	}
+}
+
+func TestRegisterPeerReplacesTheHostsStalePeer(t *testing.T) {
+	room := &Room{
+		ID: "r", Host: "host",
+		PendingOfferByUser:       map[string]webrtc.SessionDescription{"host": {SDP: "stale"}, "guest": {SDP: "keep"}},
+		RenegotiatingByUser:      map[string]bool{"host": true, "guest": true},
+		NeedsRenegotiationByUser: map[string]bool{"host": true, "guest": true},
+	}
+	oldHost, guest, newHost := newTestPC(t), newTestPC(t), newTestPC(t)
+	registerPeer(oldHost, room, "host")
+	registerPeer(guest, room, "guest")
+	room.Tracks = []*TrackInfo{{SourcePC: oldHost}, {SourcePC: guest}}
+
+	_, replaced := registerPeer(newHost, room, "host")
+
+	if replaced != oldHost {
+		t.Fatal("the stale host peer must be returned so the caller closes it")
+	}
+	if room.HostPeerCon != newHost {
+		t.Fatal("the new peer must become the host peer, otherwise it is never the HLS source again")
+	}
+	if len(room.Connections) != 2 {
+		t.Fatalf("one connection per user: got %d", len(room.Connections))
+	}
+	for _, c := range room.Connections {
+		if c.PeerCon == oldHost {
+			t.Fatal("the stale peer must be gone from the connections")
+		}
+	}
+	if len(room.Tracks) != 1 || room.Tracks[0].SourcePC != guest {
+		t.Fatalf("only the stale peer's tracks are removed, got %d tracks", len(room.Tracks))
+	}
+	if _, ok := room.PendingOfferByUser["host"]; ok {
+		t.Fatal("an offer built for the old peer cannot be applied to the new one")
+	}
+	if room.RenegotiatingByUser["host"] || room.NeedsRenegotiationByUser["host"] {
+		t.Fatal("renegotiation flags of the replaced peer must be cleared")
+	}
+	if _, ok := room.PendingOfferByUser["guest"]; !ok || !room.RenegotiatingByUser["guest"] {
+		t.Fatal("other users' renegotiation state must be untouched")
+	}
+}
+
+func TestRegisterPeerKeepsParticipantsAndHostWhenAGuestReconnects(t *testing.T) {
+	room := &Room{ID: "r", Host: "host", Participants: pq.StringArray{"host", "guest"}}
+	host, oldGuest, newGuest := newTestPC(t), newTestPC(t), newTestPC(t)
+	registerPeer(host, room, "host")
+	registerPeer(oldGuest, room, "guest")
+
+	_, replaced := registerPeer(newGuest, room, "guest")
+
+	if replaced != oldGuest {
+		t.Fatal("the guest's stale peer must be replaced")
+	}
+	if room.HostPeerCon != host {
+		t.Fatal("a guest reconnecting must not touch the host peer")
+	}
+	if len(room.Participants) != 2 {
+		t.Fatalf("the guest did not leave: its slot must be kept, got %v", room.Participants)
+	}
+}
+
+func TestRegisterPeerSamePeerTwiceIsNotAReplacement(t *testing.T) {
+	room := &Room{ID: "r", Host: "host"}
+	pc := newTestPC(t)
+	registerPeer(pc, room, "host")
+
+	_, replaced := registerPeer(pc, room, "host")
+
+	if replaced != nil {
+		t.Fatal("registering the very same peer again must not report a replacement")
+	}
+}
+
+func TestRegisterPeerStillReturnsBufferedICE(t *testing.T) {
+	room := &Room{ID: "r", Host: "host", PendingICEByUser: map[string][]webrtc.ICECandidateInit{
+		"host": {{Candidate: "candidate:1"}, {Candidate: "candidate:2"}},
+	}}
+	pending, _ := registerPeer(newTestPC(t), room, "host")
+
+	if len(pending) != 2 || pending[0].Candidate != "candidate:1" {
+		t.Fatalf("buffered ICE candidates lost: %v", pending)
+	}
+	if _, ok := room.PendingICEByUser["host"]; ok {
+		t.Fatal("buffered candidates must be consumed")
+	}
 }

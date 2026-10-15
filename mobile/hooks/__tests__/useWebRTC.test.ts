@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 
-import { classifyError, DISCONNECT_GRACE_MS, isUdpCandidate, useWebRTC } from '../useWebRTC';
+import { classifyError, DISCONNECT_GRACE_MS, isUdpCandidate, RECONNECT_BACKOFF_MS, useWebRTC } from '../useWebRTC';
+import { ApiError } from '@/services/http';
 import * as streaming from '@/services/streaming';
 
 // ---- Fakes -------------------------------------------------------------------------------
@@ -434,7 +435,7 @@ describe('useWebRTC - connection lifecycle', () => {
         expect(result.current.state).toBe('live');
 
         act(() => pc().setState('disconnected'));
-        expect(result.current.state).toBe('connecting');
+        expect(result.current.state).toBe('reconnecting');
 
         act(() => {
             jest.advanceTimersByTime(DISCONNECT_GRACE_MS / 2);
@@ -449,24 +450,111 @@ describe('useWebRTC - connection lifecycle', () => {
         expect(api.disconnectRoom).not.toHaveBeenCalled();
     });
 
-    it('gives up when "disconnected" lasts: frees camera and room', async () => {
+    it('replaces the peer connection when "disconnected" lasts, keeping camera and room', async () => {
+        jest.useFakeTimers();
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+        const stream = lastStream;
+        const firstPc = pc();
+        act(() => pc().setState('connected'));
+        act(() => pc().setState('disconnected'));
+        expect(result.current.state).toBe('reconnecting');
+
+        await act(async () => {
+            jest.advanceTimersByTime(DISCONNECT_GRACE_MS + RECONNECT_BACKOFF_MS[0] + 10);
+        });
+
+        expect(MockPC.instances).toHaveLength(2);
+        expect(pc()).not.toBe(firstPc);
+        expect(firstPc.close).toHaveBeenCalled();
+        expect(api.createRoom).toHaveBeenCalledTimes(1);
+        expect(api.sendOffer).toHaveBeenCalledTimes(2);
+        expect(api.sendOffer.mock.calls[1][0]).toBe('room-1');
+        expect(stream.tracks.every((t) => t.stop.mock.calls.length === 0)).toBe(true);
+        expect(api.disconnectRoom).not.toHaveBeenCalled();
+        expect(result.current.state).toBe('reconnecting');
+
+        act(() => pc().setState('connected'));
+        expect(result.current.state).toBe('live');
+    });
+
+    it('a failed connection after being live starts reconnecting right away', async () => {
+        jest.useFakeTimers();
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+        act(() => pc().setState('connected'));
+        act(() => pc().setState('failed'));
+        expect(result.current.state).toBe('reconnecting');
+
+        await act(async () => {
+            jest.advanceTimersByTime(RECONNECT_BACKOFF_MS[0] + 10);
+        });
+        expect(MockPC.instances).toHaveLength(2);
+        expect(api.disconnectRoom).not.toHaveBeenCalled();
+    });
+
+    it('retries with backoff after a network error, then gives up with a "connection" error', async () => {
         jest.useFakeTimers();
         const { result } = renderHook(() => useWebRTC());
         await startHost(result);
         const stream = lastStream;
         act(() => pc().setState('connected'));
-        act(() => pc().setState('disconnected'));
+        api.sendOffer.mockRejectedValue(new Error('Network request failed'));
+        act(() => pc().setState('failed'));
 
+        const total = RECONNECT_BACKOFF_MS.reduce((sum, ms) => sum + ms, 0);
+        // each delay is armed only after the previous attempt settled: flush promises between timers
         await act(async () => {
-            jest.advanceTimersByTime(DISCONNECT_GRACE_MS + 10);
+            await jest.advanceTimersByTimeAsync(total + 100);
         });
 
-        expect(result.current.state).toBe('disconnected');
+        // initial publish + one attempt per backoff step
+        expect(api.sendOffer).toHaveBeenCalledTimes(1 + RECONNECT_BACKOFF_MS.length);
+        expect(result.current.state).toBe('error');
+        expect(result.current.errorCode).toBe('connection');
         expect(stream.tracks.every((t) => t.stop.mock.calls.length === 1)).toBe(true);
         expect(api.disconnectRoom).toHaveBeenCalledTimes(1);
     });
 
-    it('a failed connection is terminal immediately', async () => {
+    it('stops reconnecting with an "ended" error when the room no longer exists', async () => {
+        jest.useFakeTimers();
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+        const stream = lastStream;
+        act(() => pc().setState('connected'));
+        api.sendOffer.mockRejectedValue(new ApiError('room not found', 404, null));
+        act(() => pc().setState('failed'));
+
+        await act(async () => {
+            jest.advanceTimersByTime(RECONNECT_BACKOFF_MS[0] + 10);
+        });
+
+        expect(api.sendOffer).toHaveBeenCalledTimes(2); // no further attempt
+        expect(result.current.state).toBe('error');
+        expect(result.current.errorCode).toBe('ended');
+        expect(stream.tracks.every((t) => t.stop.mock.calls.length === 1)).toBe(true);
+    });
+
+    it('stopLive while reconnecting cancels the attempts', async () => {
+        jest.useFakeTimers();
+        const { result } = renderHook(() => useWebRTC());
+        await startHost(result);
+        act(() => pc().setState('connected'));
+        act(() => pc().setState('failed'));
+
+        await act(async () => {
+            await result.current.stopLive();
+        });
+        await act(async () => {
+            jest.advanceTimersByTime(60000);
+        });
+
+        expect(result.current.state).toBe('idle');
+        expect(MockPC.instances).toHaveLength(1);
+        expect(api.sendOffer).toHaveBeenCalledTimes(1);
+    });
+
+    it('a connection that never established is terminal (nothing to recover)', async () => {
         const { result } = renderHook(() => useWebRTC());
         await startHost(result);
         const stream = lastStream;
@@ -477,6 +565,7 @@ describe('useWebRTC - connection lifecycle', () => {
         expect(result.current.state).toBe('disconnected');
         expect(stream.tracks.every((t) => t.stop.mock.calls.length === 1)).toBe(true);
         expect(api.disconnectRoom).toHaveBeenCalledTimes(1);
+        expect(MockPC.instances).toHaveLength(1);
     });
 
     it('polls renegotiation offers while live and stops polling after stopLive', async () => {

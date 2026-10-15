@@ -27,9 +27,14 @@ const ICE_SERVERS = {
 const RENEGOTIATION_POLL_MS = 1200;
 /**
  * `disconnected` is transient in WebRTC (ICE can recover by itself, e.g. wifi -> 4G):
- * only treat it as terminal when it lasts.
+ * wait this long for ICE to recover before replacing the peer connection.
  */
-export const DISCONNECT_GRACE_MS = 8000;
+export const DISCONNECT_GRACE_MS = 5000;
+/**
+ * Delays before each re-publish attempt once the peer connection is lost. The whole sequence stays
+ * under the backend's ICE failure timeout (~30 s): past it the room is closed and retrying is useless.
+ */
+export const RECONNECT_BACKOFF_MS = [1000, 2000, 4000, 8000, 8000] as const;
 
 /** True for UDP ICE candidates (`candidate:... 1 udp ...`). */
 export function isUdpCandidate(candidate: string | null | undefined): boolean {
@@ -41,11 +46,22 @@ export type StreamingState =
     | 'creating'
     | 'connecting'
     | 'live'
+    | 'reconnecting'
     | 'error'
     | 'disconnected';
 
 /** Machine-readable failure reason; the screen maps it to a localized message. */
-export type WebRTCErrorCode = 'unsupported' | 'permission' | 'device' | 'conflict' | 'unauthorized' | 'generic';
+export type WebRTCErrorCode =
+    | 'unsupported'
+    | 'permission'
+    | 'device'
+    | 'conflict'
+    | 'unauthorized'
+    /** The connection dropped and could not be re-established in time. */
+    | 'connection'
+    /** The live is over (room closed on the backend) while we were trying to reconnect. */
+    | 'ended'
+    | 'generic';
 
 export class WebRTCError extends Error {
     readonly code: WebRTCErrorCode;
@@ -82,6 +98,14 @@ export function classifyError(err: unknown, fallback: string): { code: WebRTCErr
         return { code: 'device', message };
     }
     return { code: 'generic', message };
+}
+
+/** A reconnect attempt that can never succeed: stop retrying and tell the user why. */
+function terminalReconnectCode(err: unknown): WebRTCErrorCode | null {
+    const anyErr = err as { name?: string; status?: number } | null;
+    if (anyErr?.name === 'UnauthorizedError' || anyErr?.status === 401) return 'unauthorized';
+    if (anyErr?.status === 404 || anyErr?.status === 403) return 'ended';
+    return null;
 }
 
 /** Thrown internally when a start/join was cancelled (stop, unmount, new attempt) while awaiting. */
@@ -161,6 +185,10 @@ export function useWebRTC(): UseWebRTCReturn {
     const renegotiationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const videoMutedByUserRef = useRef(false);
+    /** True once the media connection was established: only then is a drop worth reconnecting. */
+    const hasConnectedRef = useRef(false);
+    /** True while the reconnect loop is running (re-publishing into the same room). */
+    const reconnectingRef = useRef(false);
 
     const ifMounted = useCallback((fn: () => void) => {
         if (mountedRef.current) fn();
@@ -290,6 +318,8 @@ export function useWebRTC(): UseWebRTCReturn {
         offerPostedRef.current = false;
         drainingRef.current = false;
         videoMutedByUserRef.current = false;
+        hasConnectedRef.current = false;
+        reconnectingRef.current = false;
 
         const rid = roomIdRef.current;
         const mustNotify = disconnectOnReleaseRef.current;
@@ -346,6 +376,28 @@ export function useWebRTC(): UseWebRTCReturn {
         },
         [ifMounted, notifyBackend, release, resetUiState]
     );
+
+    /** Terminal end of a live connection: frees camera/mic/room. With a code the screen shows why. */
+    const giveUp = useCallback(
+        (sid: number, code: WebRTCErrorCode | null) => {
+            if (sid !== sessionRef.current) return;
+            const rid = release();
+            if (code) {
+                resetUiState('error');
+                ifMounted(() => {
+                    setError(`Live connection lost (${code})`);
+                    setErrorCode(code);
+                });
+            } else {
+                resetUiState('disconnected');
+            }
+            if (rid) void notifyBackend(rid);
+        },
+        [ifMounted, notifyBackend, release, resetUiState]
+    );
+
+    /** Late-bound: the reconnect loop needs createPeerConnection, which needs the connection handler. */
+    const startReconnectRef = useRef<((sid: number) => void) | null>(null);
 
     // Acquire camera + mic
     const getLocalMedia = useCallback(
@@ -498,34 +550,45 @@ export function useWebRTC(): UseWebRTCReturn {
             };
 
             pc.onconnectionstatechange = () => {
-                if (sid !== sessionRef.current) return;
+                if (sid !== sessionRef.current || pc !== pcRef.current) return;
                 const connState = pc.connectionState;
                 if (connState === 'connected') {
+                    hasConnectedRef.current = true;
                     clearGraceTimer();
                     ifMounted(() => setState('live'));
-                } else if (connState === 'disconnected') {
-                    // Transient: ICE may recover. Show "reconnecting" and only give up after a grace period.
-                    ifMounted(() => setState('connecting'));
+                    return;
+                }
+                // The reconnect loop owns the lifecycle until it has published a new peer connection.
+                if (reconnectingRef.current) return;
+
+                if (connState === 'disconnected') {
+                    // Transient: ICE may recover. Show "reconnecting" and only replace the peer after a grace period.
+                    ifMounted(() => setState(hasConnectedRef.current ? 'reconnecting' : 'connecting'));
                     clearGraceTimer();
                     graceTimerRef.current = setTimeout(() => {
                         graceTimerRef.current = null;
                         if (sid !== sessionRef.current) return;
-                        const rid = release();
-                        resetUiState('disconnected');
-                        if (rid) void notifyBackend(rid);
+                        if (hasConnectedRef.current) {
+                            startReconnectRef.current?.(sid);
+                        } else {
+                            giveUp(sid, null);
+                        }
                     }, DISCONNECT_GRACE_MS);
                 } else if (connState === 'failed' || connState === 'closed') {
-                    // Terminal: free the camera/mic and the backend room, the user can retry.
-                    const rid = release();
-                    resetUiState('disconnected');
-                    if (rid) void notifyBackend(rid);
+                    clearGraceTimer();
+                    if (hasConnectedRef.current) {
+                        startReconnectRef.current?.(sid);
+                    } else {
+                        // Never connected: nothing to recover, free the camera/mic and the room.
+                        giveUp(sid, null);
+                    }
                 }
             };
 
             pcRef.current = pc;
             return pc as RTCPeerConnection;
         },
-        [clearGraceTimer, drainIceQueue, ifMounted, notifyBackend, publishRemoteStreams, release, resetUiState]
+        [clearGraceTimer, drainIceQueue, giveUp, ifMounted, publishRemoteStreams]
     );
 
     // SDP offer/answer exchange
@@ -623,6 +686,101 @@ export function useWebRTC(): UseWebRTCReturn {
         },
         [pollRenegotiationOffer, stopRenegotiationPolling]
     );
+
+    /** Drops the current peer connection but keeps camera, mic and room: the next one replaces it. */
+    const detachPeer = useCallback(() => {
+        stopRenegotiationPolling();
+        trackCleanupsRef.current.forEach((cleanup) => {
+            try {
+                cleanup();
+            } catch {
+                // ignore: the track may already be gone
+            }
+        });
+        trackCleanupsRef.current = [];
+
+        const pc: any = pcRef.current;
+        pcRef.current = null;
+        if (pc) {
+            pc.onicecandidate = null;
+            pc.ontrack = null;
+            pc.onconnectionstatechange = null;
+            try {
+                pc.close();
+            } catch (err) {
+                devWarn('peer connection close failed:', err);
+            }
+        }
+
+        // The remote streams belonged to that connection: the new one delivers them again.
+        remoteStreamsRef.current.clear();
+        publishRemoteStreams();
+        iceQueueRef.current = [];
+        offerPostedRef.current = false;
+        drainingRef.current = false;
+    }, [publishRemoteStreams, stopRenegotiationPolling]);
+
+    /**
+     * The media connection is lost: keep the camera and the room, and re-publish with a brand new
+     * peer connection (the backend replaces the stale one of the same user) with growing delays.
+     */
+    const startReconnect = useCallback(
+        (sid: number) => {
+            if (reconnectingRef.current || sid !== sessionRef.current) return;
+            reconnectingRef.current = true;
+            clearGraceTimer();
+            ifMounted(() => setState('reconnecting'));
+
+            const run = async () => {
+                for (const delay of RECONNECT_BACKOFF_MS) {
+                    await new Promise<void>((resolve) => setTimeout(resolve, delay));
+                    assertActive(sid);
+                    const stream = localStreamRef.current;
+                    if (!stream) throw new StaleSessionError();
+
+                    detachPeer();
+                    try {
+                        const pc: any = createPeerConnection(stream, sid);
+                        await negotiate(pc, sid);
+                        // Died while negotiating: count it as a failed attempt.
+                        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                            throw new Error('peer connection failed during reconnection');
+                        }
+                        startRenegotiationPolling(sid);
+                        reconnectingRef.current = false;
+                        return;
+                    } catch (err) {
+                        if (err instanceof StaleSessionError || sid !== sessionRef.current) throw err;
+                        const code = terminalReconnectCode(err);
+                        if (code) {
+                            giveUp(sid, code);
+                            return;
+                        }
+                        devWarn('reconnect attempt failed:', err);
+                    }
+                }
+                giveUp(sid, 'connection');
+            };
+
+            run().catch((err) => {
+                if (!(err instanceof StaleSessionError)) devWarn('reconnect loop crashed:', err);
+            });
+        },
+        [
+            assertActive,
+            clearGraceTimer,
+            createPeerConnection,
+            detachPeer,
+            giveUp,
+            ifMounted,
+            negotiate,
+            startRenegotiationPolling,
+        ]
+    );
+
+    useEffect(() => {
+        startReconnectRef.current = startReconnect;
+    }, [startReconnect]);
 
     // ---- Public API ----
 
