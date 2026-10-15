@@ -205,7 +205,7 @@ describe('StudioScreen - Marmiton import', () => {
     });
 
     it('shows the backend message when the import fails and lets the user retry', async () => {
-        mockedScrape.mockRejectedValueOnce(new ApiError('only marmiton.org URLs are supported', 400, null)).mockResolvedValueOnce({ title: 'OK' });
+        mockedScrape.mockRejectedValueOnce(new ApiError('only marmiton.org URLs are supported', 400, null)).mockResolvedValueOnce({ title: 'OK', ingredients: ['sel'] });
         const view = await renderStudio();
 
         fireEvent.changeText(view.getByTestId('marmiton-url'), 'https://evil.test/?marmiton.org');
@@ -221,6 +221,34 @@ describe('StudioScreen - Marmiton import', () => {
         });
         expect(view.queryByTestId('marmiton-error')).toBeNull();
         expect(view.getByTestId('studio-title').props.value).toBe('OK');
+    });
+
+    it('does not report a successful import for a page without recipe (article, home page): a title only', async () => {
+        mockedScrape.mockResolvedValue({ title: 'Fini le riz ou les pommes de terre', description: '', ingredients: null, steps: null });
+        const view = await renderStudio();
+        fireEvent.changeText(view.getByTestId('studio-title'), 'Mon titre');
+
+        fireEvent.changeText(view.getByTestId('marmiton-url'), 'https://www.marmiton.org/dossier-article.aspx');
+        await act(async () => {
+            fireEvent.press(view.getByTestId('marmiton-import-button'));
+        });
+
+        expect(view.getByTestId('marmiton-error').props.children).toMatch(/ne contient pas de recette/);
+        expect(view.queryByTestId('marmiton-success')).toBeNull();
+        // nothing was filled in, what the user typed is untouched, the address stays to be corrected
+        expect(view.getByTestId('studio-title').props.value).toBe('Mon titre');
+        expect(view.getByTestId('marmiton-url').props.value).toBe('https://www.marmiton.org/dossier-article.aspx');
+    });
+
+    it('accepts a page with steps only', async () => {
+        mockedScrape.mockResolvedValue({ title: 'Seulement des étapes', steps: ['Mélanger'] });
+        const view = await renderStudio();
+        fireEvent.changeText(view.getByTestId('marmiton-url'), 'https://www.marmiton.org/recettes/x.aspx');
+        await act(async () => {
+            fireEvent.press(view.getByTestId('marmiton-import-button'));
+        });
+        expect(view.getByTestId('marmiton-success')).toBeTruthy();
+        expect(view.getByTestId('studio-title').props.value).toBe('Seulement des étapes');
     });
 
     it('does not import an empty address', async () => {

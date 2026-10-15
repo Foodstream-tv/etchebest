@@ -230,6 +230,14 @@ export default function StudioPage() {
         throw new Error(response.error);
       }
 
+      // A Marmiton page that is not a recipe (article, home page…) only yields a title: do not report
+      // a successful import, and do not overwrite what was typed.
+      const hasIngredients = Array.isArray(response.ingredients) && response.ingredients.length > 0;
+      const hasSteps = Array.isArray(response.steps) && response.steps.length > 0;
+      if (!hasIngredients && !hasSteps) {
+        throw new Error(t("studio.marmiton.noRecipe"));
+      }
+
       // Populate basic info
       if (response.title) setTitle(response.title);
       if (response.description) {
