@@ -187,6 +187,11 @@ class ApiService {
     );
   }
 
+  /** Everything the platform holds about the signed-in user (GDPR access and portability). */
+  async exportMyData(): Promise<unknown> {
+    return this.authed<unknown>('/users/me/export', { method: 'GET' });
+  }
+
   async deleteCurrentUser(token?: string): Promise<void> {
     await this.authed<unknown>('/users/me', { method: 'DELETE' }, token);
   }

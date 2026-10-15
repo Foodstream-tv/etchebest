@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 
 import ChangePasswordSheet from '@/components/profile/ChangePasswordSheet';
 import DeleteAccountSheet from '@/components/profile/DeleteAccountSheet';
@@ -12,10 +12,12 @@ import Chip from '@/components/ui/Chip';
 import Screen from '@/components/ui/Screen';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
+import { WEB_BASE_URL } from '@/lib/calendar';
 import apiService from '@/services/api';
 import authService from '@/services/auth';
 import { ApiError } from '@/services/http';
 import preferencesService, { NotificationChannel, NotificationPreferences } from '@/services/preferences';
+import { shareMyData } from '@/utils/exportData';
 import toast from '@/utils/toast';
 
 const REGIONS = {
@@ -113,9 +115,11 @@ export default function SettingsScreen(): React.JSX.Element {
 	const [deleting, setDeleting] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [signingOut, setSigningOut] = useState(false);
+	const [exporting, setExporting] = useState(false);
 
 	const mounted = useRef(true);
 	const deleteInFlight = useRef(false);
+	const exportInFlight = useRef(false);
 	const notificationsRef = useRef(notifications);
 	notificationsRef.current = notifications;
 
@@ -243,6 +247,21 @@ export default function SettingsScreen(): React.JSX.Element {
 		},
 		[t]
 	);
+
+	const handleExport = useCallback(async () => {
+		if (exportInFlight.current) return;
+		exportInFlight.current = true;
+		setExporting(true);
+		try {
+			const data = await apiService.exportMyData();
+			await shareMyData(data, t('settings.privacy.export'));
+		} catch {
+			toast.error(t('settings.privacy.exportError'));
+		} finally {
+			exportInFlight.current = false;
+			if (mounted.current) setExporting(false);
+		}
+	}, [t]);
 
 	const handleConfirmDelete = useCallback(async () => {
 		if (deleteInFlight.current) return;
@@ -378,6 +397,41 @@ export default function SettingsScreen(): React.JSX.Element {
 						icon={<Ionicons name="log-out-outline" size={18} color={colors.text} />}
 						testID="settings-signout"
 					/>
+				</Section>
+
+				<Section title={t('settings.privacy.title')} subtitle={t('settings.privacy.subtitle')}>
+					<View style={styles.toggleRow}>
+						<View style={styles.toggleTexts}>
+							<Text style={styles.rowLabel}>{t('settings.privacy.export')}</Text>
+							<Text style={styles.rowDescription}>{t('settings.privacy.exportDesc')}</Text>
+						</View>
+						<Button
+							label={t('settings.privacy.export')}
+							variant="secondary"
+							size="sm"
+							onPress={handleExport}
+							loading={exporting}
+							testID="settings-export-data"
+						/>
+					</View>
+					<Pressable
+						onPress={() => void Linking.openURL(`${WEB_BASE_URL}/confidentialite`)}
+						accessibilityRole="link"
+						style={styles.toggleRow}
+						testID="settings-privacy-policy"
+					>
+						<Text style={styles.rowLabel}>{t('settings.privacy.policy')}</Text>
+						<Ionicons name="open-outline" size={18} color={colors.muted} />
+					</Pressable>
+					<Pressable
+						onPress={() => void Linking.openURL(`${WEB_BASE_URL}/cgu`)}
+						accessibilityRole="link"
+						style={styles.toggleRow}
+						testID="settings-terms"
+					>
+						<Text style={styles.rowLabel}>{t('settings.privacy.terms')}</Text>
+						<Ionicons name="open-outline" size={18} color={colors.muted} />
+					</Pressable>
 				</Section>
 
 				<Section title={t('settings.danger.title')} subtitle={t('settings.danger.subtitle')}>
