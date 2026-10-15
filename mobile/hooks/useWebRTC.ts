@@ -219,7 +219,9 @@ export function useWebRTC(): UseWebRTCReturn {
     const getRenderableStreams = useCallback(() => {
         const streams = Array.from(remoteStreamsRef.current.values());
         return streams.filter((s: any) => {
-            const hasVideo = typeof s?.getVideoTracks === 'function' && s.getVideoTracks().length > 0;
+            const videoTracks: any[] = typeof s?.getVideoTracks === 'function' ? s.getVideoTracks() : [];
+            // A track that ended (sender left, transceiver stopped) is a ghost tile: nothing will ever play.
+            const hasVideo = videoTracks.some((track) => track?.readyState !== 'ended');
             const hasUrl = Platform.OS === 'web' || typeof s?.toURL === 'function';
             return hasVideo && hasUrl;
         });
@@ -516,12 +518,17 @@ export function useWebRTC(): UseWebRTCReturn {
                     return;
                 }
 
-                const remoteKey = track.id || renderStream.id || `${Date.now()}`;
+                // One tile per remote *source stream*: the SFU may deliver the same source more than once
+                // (renegotiations, duplicated forwards) with new track ids, which used to show as ghost users.
+                const remoteKey = event.streams?.[0]?.id || track.id || renderStream.id || `${Date.now()}`;
                 remoteStreamsRef.current.set(remoteKey, renderStream);
 
                 const onStateChange = () => publishRemoteStreams();
                 const onEnded = () => {
-                    remoteStreamsRef.current.delete(remoteKey);
+                    // A newer delivery of the same source may have replaced this one: leave it alone.
+                    if (remoteStreamsRef.current.get(remoteKey) === renderStream) {
+                        remoteStreamsRef.current.delete(remoteKey);
+                    }
                     publishRemoteStreams();
                 };
 
@@ -637,6 +644,28 @@ export function useWebRTC(): UseWebRTCReturn {
         [assertActive, drainIceQueue]
     );
 
+    /**
+     * After a renegotiation, forget the remote streams whose tracks are no longer received: react-native-webrtc
+     * does not always fire `ended` when the SFU removes a sender, which left stale tiles behind.
+     */
+    const pruneStaleRemoteStreams = useCallback(
+        (pc: any) => {
+            if (typeof pc?.getReceivers !== 'function') return;
+            const receivers: any[] = pc.getReceivers() ?? [];
+            const active = new Set(receivers.map((receiver) => receiver?.track?.id).filter(Boolean));
+            let changed = false;
+            remoteStreamsRef.current.forEach((remote: any, key: string) => {
+                const tracks: any[] = typeof remote?.getVideoTracks === 'function' ? remote.getVideoTracks() : [];
+                if (!tracks.some((track) => active.has(track?.id))) {
+                    remoteStreamsRef.current.delete(key);
+                    changed = true;
+                }
+            });
+            if (changed) publishRemoteStreams();
+        },
+        [publishRemoteStreams]
+    );
+
     const pollRenegotiationOffer = useCallback(
         async (sid: number) => {
             if (renegotiationInFlightRef.current) return;
@@ -667,13 +696,14 @@ export function useWebRTC(): UseWebRTCReturn {
                 }
 
                 await sendRenegotiationAnswer(currentRoomId, answerSdp);
+                if (sid === sessionRef.current) pruneStaleRemoteStreams(pc);
             } catch (err) {
                 devWarn('renegotiation poll/apply failed:', err);
             } finally {
                 if (sid === sessionRef.current) renegotiationInFlightRef.current = false;
             }
         },
-        []
+        [pruneStaleRemoteStreams]
     );
 
     const startRenegotiationPolling = useCallback(
