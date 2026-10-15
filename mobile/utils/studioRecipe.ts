@@ -158,6 +158,11 @@ export type MarmitonRecipe = {
     utensils?: string[];
 };
 
+/** A scraped page is a recipe when it has ingredients or steps; an article or the home page only yields a title. */
+export function hasImportableRecipe(data: MarmitonRecipe): boolean {
+    return (Array.isArray(data.ingredients) && data.ingredients.length > 0) || (Array.isArray(data.steps) && data.steps.length > 0);
+}
+
 export function recipeFromMarmiton(data: MarmitonRecipe, sourceUrl: string): Partial<RecipeForm> {
     const patch: Partial<RecipeForm> = { sourceUrl, sourceName: 'Marmiton' };
     if (Array.isArray(data.ingredients)) patch.ingredients = data.ingredients.map(parseIngredient);
