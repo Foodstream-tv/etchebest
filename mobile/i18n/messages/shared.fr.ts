@@ -547,7 +547,7 @@ const sharedFr = {
     "auth.signup.errorLastName": "Le nom doit faire au moins 2 caractères.",
     "auth.signup.errorUsername": "L'identifiant doit faire au moins 3 caractères.",
     "auth.signup.errorPassword": "Le mot de passe doit faire au moins 8 caractères.",
-    "auth.signup.bioPlaceholder": "Parlez-nous de vous… (10 à 500 caractères)",
+    "auth.signup.bioPlaceholder": "Parlez-nous de vous… (500 caractères max)",
     "auth.forgot.sentBanner": "Un email de réinitialisation a été envoyé.",
     "auth.forgot.backToSignin": "Retour à la connexion",
     "auth.forgot.devLink": "Tester avec le lien généré (Mode Dev)",

@@ -649,7 +649,7 @@ export const en: Record<keyof typeof fr, string> = {
   "auth.signup.errorLastName": "Last name must be at least 2 characters.",
   "auth.signup.errorUsername": "Username must be at least 3 characters.",
   "auth.signup.errorPassword": "Password must be at least 8 characters.",
-  "auth.signup.bioPlaceholder": "Tell us about yourself… (10 to 500 characters)",
+  "auth.signup.bioPlaceholder": "Tell us about yourself… (500 characters max)",
   "auth.forgot.sentBanner": "A password reset email has been sent.",
   "auth.forgot.backToSignin": "Back to sign in",
   "auth.forgot.devLink": "Test with generated link (Dev Mode)",
