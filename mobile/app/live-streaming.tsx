@@ -15,7 +15,10 @@ import { confirmAction } from '@/utils/confirm';
 import {
     firstParam,
     parseTags,
-    sanitizeDescription,
+    parseDuration,
+    parseLevel,
+    parseThumbnailUrl,
+    sanitizeLiveDescription,
     validTitleOrNull,
 } from '@/utils/webrtcParams';
 
@@ -146,14 +149,20 @@ export default function LiveStreamingScreen() {
         title?: string | string[];
         description?: string | string[];
         tags?: string | string[];
+        level?: string | string[];
+        durationMinutes?: string | string[];
+        thumbnailUrl?: string | string[];
     }>();
 
     const isHost = firstParam(params.mode) !== 'join';
     const targetRoomId = firstParam(params.roomId);
     // Params can be tampered with (deep links): validate again, never trust them.
     const liveTitle = validTitleOrNull(firstParam(params.title));
-    const liveDescription = sanitizeDescription(firstParam(params.description));
+    const liveDescription = sanitizeLiveDescription(firstParam(params.description));
     const liveTags = parseTags(firstParam(params.tags));
+    const liveLevel = parseLevel(firstParam(params.level));
+    const liveDuration = parseDuration(firstParam(params.durationMinutes));
+    const liveThumbnail = parseThumbnailUrl(firstParam(params.thumbnailUrl));
     const hostsExistingRoom = isHost && !!targetRoomId;
     const canStartHost = hostsExistingRoom || liveTitle !== null;
 
@@ -237,8 +246,11 @@ export default function LiveStreamingScreen() {
             title: liveTitle,
             description: liveDescription || undefined,
             tags: liveTags,
+            level: liveLevel,
+            durationMinutes: liveDuration,
+            thumbnailUrl: liveThumbnail,
         });
-    }, [hostExistingRoom, hostsExistingRoom, liveDescription, liveTags, liveTitle, startLive, targetRoomId]);
+    }, [hostExistingRoom, hostsExistingRoom, liveDescription, liveDuration, liveLevel, liveTags, liveThumbnail, liveTitle, startLive, targetRoomId]);
 
     const handleRetry = useCallback(() => {
         if (isHost) {

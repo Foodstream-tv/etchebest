@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "eslint-config-expo": "~10.0.0",
     "expo": "~54.0.33",
@@ -27,6 +28,7 @@
     "expo-dev-client": "~6.0.20",
     "expo-font": "~14.0.11",
     "expo-haptics": "~15.0.8",
+    "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.23",

@@ -40,6 +40,13 @@ export interface CreateRoomOptions {
   title?: string;
   description?: string;
   tags?: string[];
+  level?: string;
+  durationMinutes?: number;
+  thumbnailUrl?: string;
+  /** Omitted for a live started right away (the backend then handles it like before). */
+  status?: 'scheduled' | 'live';
+  /** RFC 3339, with status "scheduled". */
+  scheduledAt?: string;
 }
 
 export async function createRoom(name: string, options: CreateRoomOptions = {}): Promise<CreateRoomResponse> {
@@ -47,6 +54,11 @@ export async function createRoom(name: string, options: CreateRoomOptions = {}):
   if (options.title) body.title = options.title;
   if (options.description) body.description = options.description;
   if (options.tags && options.tags.length > 0) body.tags = options.tags;
+  if (options.level) body.level = options.level;
+  if (options.durationMinutes && options.durationMinutes > 0) body.durationMinutes = options.durationMinutes;
+  if (options.thumbnailUrl) body.thumbnailUrl = options.thumbnailUrl;
+  if (options.status) body.status = options.status;
+  if (options.scheduledAt) body.scheduledAt = options.scheduledAt;
   return request<CreateRoomResponse>('/rooms', { method: 'POST', body });
 }
 

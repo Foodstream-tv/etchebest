@@ -53,7 +53,14 @@
       "expo-secure-store",
       "expo-font",
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Foodstream a besoin d'accéder à tes photos pour choisir la miniature de ton live."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
