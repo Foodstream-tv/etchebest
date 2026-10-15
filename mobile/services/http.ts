@@ -41,7 +41,7 @@ export type AuthMode = 'required' | 'optional' | 'none';
 
 export type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
-  /** JSON body (serialized by the client) */
+  /** JSON body (serialized by the client), or FormData sent as multipart */
   body?: unknown;
   /**
    * required: throws UnauthorizedError when there is no stored token (default)
@@ -137,10 +137,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let serializedBody: string | undefined;
+  let serializedBody: string | FormData | undefined;
   if (body !== undefined && body !== null) {
-    headers['Content-Type'] = 'application/json';
-    serializedBody = JSON.stringify(body);
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      // Multipart: fetch must set the Content-Type itself (it carries the boundary).
+      serializedBody = body;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      serializedBody = JSON.stringify(body);
+    }
   }
 
   const controller = new AbortController();

@@ -52,3 +52,12 @@ globalThis.console = {
     warn: jest.fn(),
     error: jest.fn(),
 };
+// Native modules of the Studio: the pickers are host-component stubs (tests fire their `onChange`).
+jest.mock('expo-image-picker', () => ({
+    launchImageLibraryAsync: jest.fn(),
+}));
+jest.mock('@react-native-community/datetimepicker', () => ({
+    __esModule: true,
+    default: 'DateTimePicker',
+    DateTimePickerAndroid: { open: jest.fn() },
+}));

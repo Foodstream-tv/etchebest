@@ -66,6 +66,57 @@ describe('LiveStreamingScreen - host', () => {
         });
     });
 
+    it('starts the live with everything the Studio collected: recipe, level, duration, thumbnail', () => {
+        const hook = hookState();
+        mockedUseWebRTC.mockReturnValue(hook);
+        const recipe = JSON.stringify({ ingredients: [{ name: 'farine', qty: '200 g' }], cookingTimer: 600 });
+        mockedParams.mockReturnValue({
+            mode: 'host',
+            title: 'Pasta maison',
+            description: `Fraîche\n\n---FOODSTREAM_RECIPE---\n${recipe}`,
+            level: 'Avancé',
+            durationMinutes: '90',
+            thumbnailUrl: '/api/uploads/t.jpg',
+        });
+
+        const { getByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        fireEvent.press(getByTestId('launch-live'));
+
+        expect(hook.startLive).toHaveBeenCalledWith('Pasta maison', {
+            title: 'Pasta maison',
+            description: `Fraîche\n\n---FOODSTREAM_RECIPE---\n${recipe}`,
+            tags: [],
+            level: 'Avancé',
+            durationMinutes: 90,
+            thumbnailUrl: '/api/uploads/t.jpg',
+        });
+    });
+
+    it('ignores tampered Studio params (bad level, duration, thumbnail, broken recipe)', () => {
+        const hook = hookState();
+        mockedUseWebRTC.mockReturnValue(hook);
+        mockedParams.mockReturnValue({
+            mode: 'host',
+            title: 'Pasta maison',
+            description: 'Fraîche\n\n---FOODSTREAM_RECIPE---\n{broken',
+            level: 'Dieu',
+            durationMinutes: '99999',
+            thumbnailUrl: 'javascript:alert(1)',
+        });
+
+        const { getByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        fireEvent.press(getByTestId('launch-live'));
+
+        expect(hook.startLive).toHaveBeenCalledWith('Pasta maison', {
+            title: 'Pasta maison',
+            description: 'Fraîche',
+            tags: [],
+            level: undefined,
+            durationMinutes: undefined,
+            thumbnailUrl: undefined,
+        });
+    });
+
     it('warns the host, before going live, that the live is recorded and replayed publicly', () => {
         mockedUseWebRTC.mockReturnValue(hookState());
         mockedParams.mockReturnValue({ mode: 'host', title: 'Mon live' });
