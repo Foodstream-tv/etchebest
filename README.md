@@ -101,7 +101,7 @@ docker compose up -d --build
 | **Analytics & Admin** | `3001` | HTTP | Dashboard d'administration (`http://localhost:3001`) |
 | **Backend API** | `8081` | HTTP / WS | API REST, WebSocket, Swagger (`/api/swagger/index.html`) |
 | **WebRTC Media** | `50000-50100` | UDP | Transport des paquets RTP audio/vidéo Pion |
-| **PostgreSQL** | `5432` | TCP | Base de données relationnelle |
+| **PostgreSQL** | `5432` (127.0.0.1 uniquement) | TCP | Base de données relationnelle |
 
 Pour arrêter les conteneurs :
 

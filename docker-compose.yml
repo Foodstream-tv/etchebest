@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - '${POSTGRES_PORT:-5432}:${POSTGRES_PORT:-5432}'
+      # Local access only (psql, DB tools): the database must not be reachable from the network.
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:${POSTGRES_PORT:-5432}'
     networks:
       - back-network
     volumes:
