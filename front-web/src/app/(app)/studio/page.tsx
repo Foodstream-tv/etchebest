@@ -1672,6 +1672,10 @@ export default function StudioPage() {
                       {t("studio.broadcast.startNowBtn")}
                     </button>
                   </div>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t("broadcast.recordingNotice")}
+                  </p>
                 </div>
 
                 {error && (
