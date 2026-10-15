@@ -111,6 +111,14 @@ beforeEach(() => {
     signIn(viewerUser);
 });
 
+const RECIPE_MARKER = '---FOODSTREAM_RECIPE---';
+const recipeDescription = (extra: object = {}) =>
+    `Une tarte maison\n\n${RECIPE_MARKER}\n${JSON.stringify({
+        ingredients: [{ name: 'Pommes', qty: '4' }, { name: 'Pâte brisée', qty: '1' }],
+        cookingTimer: 1500,
+        ...extra,
+    })}`;
+
 describe('LiveViewerScreen - params', () => {
     it.each([
         ['missing', {}],
@@ -564,5 +572,60 @@ describe('LiveViewerScreen - chat', () => {
         expect(mockedGetChat).not.toHaveBeenCalled();
         fireEvent.press(screen.getByTestId('chat-sign-in'));
         expect(mockRouter.push).toHaveBeenCalledWith('/login');
+    });
+});
+
+describe('LiveViewerScreen - cooking assistant', () => {
+    it('adds a Recipe tab and a strip under the video when the live has a recipe', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ description: recipeDescription() }));
+        await renderViewer();
+
+        expect(await screen.findByTestId('tab-recipe')).toBeTruthy();
+        expect(screen.getByTestId('cooking-strip')).toBeTruthy();
+        expect(screen.getByTestId('cooking-strip-next').props.children).toBe('Prochain : Pommes');
+
+        // the description shown to the viewers no longer carries the recipe JSON
+        fireEvent.press(screen.getByTestId('tab-info'));
+        expect(screen.queryByText(/FOODSTREAM_RECIPE/)).toBeNull();
+    });
+
+    it('opens the recipe from the strip, with the tab selected and the strip gone', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ description: recipeDescription() }));
+        await renderViewer();
+
+        fireEvent.press(await screen.findByTestId('cooking-strip'));
+        expect(await screen.findByTestId('recipe-tab')).toBeTruthy();
+        expect(screen.getByTestId('cooking-assistant')).toBeTruthy();
+        expect(screen.queryByTestId('cooking-strip')).toBeNull();
+
+        fireEvent.press(screen.getByTestId('ingredient-0'));
+        fireEvent.press(screen.getByTestId('tab-chat'));
+        // back on the chat, the strip follows the progress
+        expect(await screen.findByTestId('cooking-strip-next')).toHaveTextContent('Prochain : Pâte brisée');
+    });
+
+    it('has no Recipe tab and no strip when the live has no recipe', async () => {
+        signIn(viewerUser);
+        await renderViewer();
+        await screen.findByTestId('tab-chat');
+        expect(screen.queryByTestId('tab-recipe')).toBeNull();
+        expect(screen.queryByTestId('cooking-strip')).toBeNull();
+    });
+
+    it('ignores a broken recipe instead of crashing', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ description: `Une tarte\n\n${RECIPE_MARKER}\n{broken` }));
+        await renderViewer();
+        await screen.findByTestId('tab-chat');
+        expect(screen.queryByTestId('tab-recipe')).toBeNull();
+    });
+
+    it('lets a spectator prepare the ingredients of a scheduled live', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ status: 'scheduled', scheduled_at: SCHEDULED_AT, description: recipeDescription() }));
+        await renderViewer();
+        expect(await screen.findByTestId('cooking-assistant')).toBeTruthy();
     });
 });
