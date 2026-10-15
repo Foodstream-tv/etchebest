@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -36,12 +37,7 @@ func (n *DefaultNotifier) SendVerificationEmail(toEmail, code string) error {
 	smtpPass := os.Getenv("SMTP_PASSWORD")
 
 	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
-		log.Printf("\n=======================================================\n"+
-			"[SIMULATION] EMAIL NOT SENT - SMTP IS NOT CONFIGURED!\n"+
-			"To:   %s\n"+
-			"Code: %s\n"+
-			"To send real emails, set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD in .env\n"+
-			"=======================================================\n", toEmail, code)
+		logSimulation("verification email", toEmail, fmt.Sprintf("Code: %s", code))
 		return nil
 	}
 
@@ -63,12 +59,7 @@ func (n *DefaultNotifier) SendPasswordResetEmail(toEmail, resetLink string) erro
 	smtpPass := os.Getenv("SMTP_PASSWORD")
 
 	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
-		log.Printf("\n=======================================================\n"+
-			"[SIMULATION] EMAIL NOT SENT - SMTP IS NOT CONFIGURED!\n"+
-			"To:   %s\n"+
-			"Link: %s\n"+
-			"To send real emails, set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD in .env\n"+
-			"=======================================================\n", toEmail, resetLink)
+		logSimulation("password reset email", toEmail, fmt.Sprintf("Link: %s", resetLink))
 		return nil
 	}
 
@@ -104,14 +95,7 @@ func (n *DefaultNotifier) SendLiveScheduledEmail(toEmail, hostName, title string
 	)
 
 	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
-		log.Printf("\n=======================================================\n"+
-			"[SIMULATION] LIVE SCHEDULED CONFIRMATION EMAIL\n"+
-			"To:          %s\n"+
-			"Title:       %s\n"+
-			"ScheduledAt: %s\n"+
-			"LiveURL:     %s\n"+
-			"GCal:        %s\n"+
-			"=======================================================\n", toEmail, title, formattedDate, liveUrl, gcalLink)
+		logSimulation("live scheduled email", toEmail, fmt.Sprintf("Title:       %s\nScheduledAt: %s\nLiveURL:     %s\nGCal:        %s", title, formattedDate, liveUrl, gcalLink))
 		return nil
 	}
 
@@ -155,14 +139,7 @@ func (n *DefaultNotifier) SendReservationConfirmationEmail(toEmail, userName, ti
 	)
 
 	if smtpHost == "" || smtpPortStr == "" || smtpUser == "" || smtpPass == "" {
-		log.Printf("\n=======================================================\n"+
-			"[SIMULATION] LIVE RESERVATION CONFIRMATION EMAIL\n"+
-			"To:          %s\n"+
-			"Title:       %s\n"+
-			"ScheduledAt: %s\n"+
-			"LiveURL:     %s\n"+
-			"GCal:        %s\n"+
-			"=======================================================\n", toEmail, title, formattedDate, liveUrl, gcalLink)
+		logSimulation("live reservation email", toEmail, fmt.Sprintf("Title:       %s\nScheduledAt: %s\nLiveURL:     %s\nGCal:        %s", title, formattedDate, liveUrl, gcalLink))
 		return nil
 	}
 
@@ -268,12 +245,34 @@ func sendEmail(toEmail, subject, body, desc string) error {
 
 	auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
 	if err := smtp.SendMail(addr, auth, smtpFrom, []string{toEmail}, []byte(msg)); err != nil {
-		log.Printf("[NOTIFY ERROR] %s failed via SMTP (%s) to %s: %v", desc, addr, toEmail, err)
+		log.Printf("[NOTIFY ERROR] %s failed via SMTP (%s) to %s: %v", desc, addr, MaskEmail(toEmail), err)
 		return fmt.Errorf("failed to send email via SMTP: %w", err)
 	}
 
 	log.Printf("[NOTIFY SUCCESS] %s sent to %s via %s (from: %s)", desc, MaskEmail(toEmail), addr, smtpFrom)
 	return nil
+}
+
+// devMode reports whether secrets (OTP codes, reset links) may be printed to the console.
+// It mirrors auth.isDevMode: DEV_MODE=true and gin not in release mode.
+func devMode() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("DEV_MODE")))
+	return (v == "true" || v == "1") && gin.Mode() != gin.ReleaseMode
+}
+
+// logSimulation reports an email that could not be sent because SMTP is not configured.
+// The content (code, link, address) is only printed in dev mode: in any other mode the logs
+// must not hold one-time codes, reset links or full email addresses.
+func logSimulation(what, toEmail, details string) {
+	if !devMode() {
+		log.Printf("[SIMULATION] %s not sent: SMTP is not configured (to: %s)", what, MaskEmail(toEmail))
+		return
+	}
+	log.Printf("\n=======================================================\n"+
+		"[SIMULATION] %s NOT SENT - SMTP IS NOT CONFIGURED!\n"+
+		"To: %s\n%s\n"+
+		"To send real emails, set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD in .env\n"+
+		"=======================================================\n", what, toEmail, details)
 }
 
 // MaskEmail masks an email address for privacy, e.g. j***e@domain.com

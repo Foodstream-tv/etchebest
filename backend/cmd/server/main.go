@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
 	"github.com/Foodstream-io/etchebest/internal/modules/account"
+	"github.com/Foodstream-io/etchebest/internal/middleware"
 	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
 	"github.com/Foodstream-io/etchebest/internal/modules/dish"
@@ -44,7 +45,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	r := gin.Default()
+	// Same as gin.Default() but the access log never contains query strings (the WebSocket token).
+	r := gin.New()
+	r.Use(middleware.AccessLogger(), gin.Recovery())
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Fatal(err)
 	}

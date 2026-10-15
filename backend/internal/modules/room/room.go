@@ -562,7 +562,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			notifier := notify.NewNotifier()
 			go func() {
 				if err := notifier.SendLiveScheduledEmail(currentUser.Email, currentUser.Username, newLive.Title, *newLive.ScheduledAt, liveURL); err != nil {
-					log.Printf("[NOTIFY ERROR] Failed to send live scheduled email to %s: %v", currentUser.Email, err)
+					log.Printf("[NOTIFY ERROR] Failed to send live scheduled email to %s: %v", notify.MaskEmail(currentUser.Email), err)
 				}
 			}()
 		}

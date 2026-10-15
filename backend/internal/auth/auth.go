@@ -107,7 +107,7 @@ func createAndSendVerificationCode(db *gorm.DB, n notify.Notifier, u *userModule
 	}
 
 	if err := n.SendVerificationEmail(u.Email, codeStr); err != nil {
-		log.Printf("[NOTIFY ERROR] Failed to send verification email to %s: %v", u.Email, err)
+		log.Printf("[NOTIFY ERROR] Failed to send verification email to %s: %v", notify.MaskEmail(u.Email), err)
 	}
 
 	return &vc, nil
@@ -578,7 +578,7 @@ func ForgotPassword(db *gorm.DB) gin.HandlerFunc {
 		resetLink := fmt.Sprintf("%s/reset-password?token=%s", strings.TrimRight(appURL, "/"), tokenStr)
 
 		if err := notifier.SendPasswordResetEmail(user.Email, resetLink); err != nil {
-			log.Printf("[NOTIFY ERROR] Failed to send password reset email to %s: %v", user.Email, err)
+			log.Printf("[NOTIFY ERROR] Failed to send password reset email to %s: %v", notify.MaskEmail(user.Email), err)
 		}
 
 		// In dev mode, log the reset link to server console for testing without exposing in API response
