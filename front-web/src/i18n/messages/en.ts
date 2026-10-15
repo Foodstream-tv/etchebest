@@ -309,6 +309,7 @@ export const en: Record<keyof typeof fr, string> = {
   "studio.marmiton.imageTip": "Steps and ingredients have been imported. You can add your own dish photo in step 3 (Media & Broadcast).",
   "studio.marmiton.disclaimer": "Independent technical assistance service not affiliated with Marmiton / Reworld Media. Imported data remains under your editorial responsibility pursuant to Article L122-5 of the French Intellectual Property Code (citation right).",
   "studio.marmiton.errorGeneric": "Unable to import Marmiton recipe.",
+  "studio.marmiton.noRecipe": "This page has no recipe (no ingredients or steps). Paste the link of a Marmiton recipe page, like …/recettes/recette_name_123456.aspx.",
   "studio.source.label": "Original Source / Inspiration",
   "studio.source.placeholder": "e.g.: https://www.marmiton.org/recettes/...",
   "studio.source.citationNotice": "Link to the original recipe (publicly attributed under fair use / citation right).",

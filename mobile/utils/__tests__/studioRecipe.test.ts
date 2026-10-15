@@ -138,3 +138,14 @@ describe('recipeFromMarmiton', () => {
         });
     });
 });
+
+describe('hasImportableRecipe', () => {
+    it('is true with ingredients or steps, false for a page that only has a title', () => {
+        const { hasImportableRecipe } = require('../studioRecipe');
+        expect(hasImportableRecipe({ title: 'x', ingredients: ['sel'] })).toBe(true);
+        expect(hasImportableRecipe({ title: 'x', steps: ['mélanger'] })).toBe(true);
+        expect(hasImportableRecipe({ title: 'x', ingredients: [], steps: [] })).toBe(false);
+        expect(hasImportableRecipe({ title: 'x' })).toBe(false);
+        expect(hasImportableRecipe({ title: 'x', ingredients: null, steps: null } as never)).toBe(false);
+    });
+});

@@ -7,7 +7,7 @@ import Button from '@/components/ui/Button';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
 import { scrapeMarmiton } from '@/services/studio';
-import { type MarmitonRecipe } from '@/utils/studioRecipe';
+import { hasImportableRecipe, type MarmitonRecipe } from '@/utils/studioRecipe';
 
 /** "marmiton.org/..." without scheme is accepted: the backend only fetches https pages. */
 export function normalizeRecipeUrl(raw: string): string {
@@ -41,6 +41,11 @@ export default function MarmitonImport({ onImported }: Readonly<Props>) {
         setSuccess('');
         try {
             const recipe = await scrapeMarmiton(target);
+            if (!hasImportableRecipe(recipe)) {
+                // Only a title came back (article, home page…): not a recipe, nothing is filled in.
+                setError(t('studio.marmiton.noRecipe'));
+                return;
+            }
             onImported(recipe, target);
             setUrl('');
             setSuccess(t('studio.marmiton.success'));

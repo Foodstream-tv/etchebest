@@ -256,6 +256,7 @@ const sharedFr = {
     "studio.marmiton.imageTip": "Les étapes et ingrédients ont été importés. Vous pouvez ajouter votre propre photo de réalisation à l'étape 3 (Média & Diffusion).",
     "studio.marmiton.disclaimer": "Service d'assistance technique indépendant non affilié à Marmiton / Reworld Media. Les données importées restent sous votre responsabilité éditoriale conformément à l'article L122-5 du CPI (droit de citation).",
     "studio.marmiton.errorGeneric": "Impossible d'importer la recette Marmiton.",
+    "studio.marmiton.noRecipe": "Cette page ne contient pas de recette (ni ingrédients ni étapes). Colle le lien d'une page de recette Marmiton, du type …/recettes/recette_nom_123456.aspx.",
     "studio.source.label": "Source originale / inspiration",
     "studio.source.placeholder": "ex: https://www.marmiton.org/recettes/...",
     "studio.source.citationNotice": "Lien de la recette originale (attribué publiquement au titre du droit de citation).",
