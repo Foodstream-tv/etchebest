@@ -26,6 +26,7 @@ const STATUS_LABEL_KEYS = {
     creating: 'broadcast.statusCreating',
     connecting: 'broadcast.statusConnecting',
     live: 'broadcast.statusLive',
+    reconnecting: 'broadcast.statusReconnecting',
     error: 'broadcast.statusError',
     disconnected: 'broadcast.statusDisconnected',
 } as const;
@@ -35,6 +36,7 @@ const PLACEHOLDER_KEYS = {
     creating: 'broadcast.emptyStateCreating',
     connecting: 'broadcast.emptyStateConnecting',
     live: 'broadcast.emptyStateLive',
+    reconnecting: 'broadcast.emptyStateReconnecting',
     error: 'broadcast.emptyStateError',
     disconnected: 'broadcast.emptyStateDisconnected',
 } as const;
@@ -50,6 +52,10 @@ function describeBroadcastError(code: WebRTCErrorCode | null, message: string | 
             return t('golive.error.unsupported');
         case 'conflict':
             return t('golive.error.conflict');
+        case 'connection':
+            return t('golive.error.connection');
+        case 'ended':
+            return t('golive.error.ended');
         default:
             return message || t('broadcast.emptyStateError');
     }
@@ -63,7 +69,7 @@ function StatusPill({ state }: Readonly<{ state: StreamingState }>) {
     const tone =
         state === 'live' || state === 'error'
             ? colors.danger
-            : state === 'creating' || state === 'connecting'
+            : state === 'creating' || state === 'connecting' || state === 'reconnecting'
               ? colors.warning
               : withAlpha(colors.onBrand, 0.7);
 
@@ -84,7 +90,7 @@ function Placeholder({ state }: Readonly<{ state: StreamingState }>) {
     const { t } = useI18n();
     const { colors } = useTheme();
     const styles = useStyles();
-    const loading = state === 'creating' || state === 'connecting';
+    const loading = state === 'creating' || state === 'connecting' || state === 'reconnecting';
 
     return (
         <View style={styles.placeholder}>
@@ -173,7 +179,7 @@ export default function LiveStreamingScreen() {
     const [hasStarted, setHasStarted] = useState(false);
     const autoJoinedRef = useRef<string | null>(null);
 
-    const active = state === 'creating' || state === 'connecting' || state === 'live';
+    const active = state === 'creating' || state === 'connecting' || state === 'live' || state === 'reconnecting';
     const failed = state === 'error' || state === 'disconnected';
 
     const primaryRemoteStream =

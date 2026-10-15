@@ -263,6 +263,31 @@ describe('LiveStreamingScreen - host', () => {
         expect(hook.switchCamera).toHaveBeenCalledTimes(1);
     });
 
+    it('keeps the preview and the leave control while reconnecting (no retry button)', () => {
+        const hook = hookState({ state: 'reconnecting', localStream: { id: 'local' }, roomId: 'abcdefghijkl' });
+        mockedUseWebRTC.mockReturnValue(hook);
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Mon live' });
+
+        const { getAllByText, getByTestId, queryByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        expect(getAllByText('Reconnexion…').length).toBeGreaterThan(0);
+        expect(getByTestId('stream-local')).toBeTruthy();
+        expect(getByTestId('stop-live')).toBeTruthy();
+        expect(queryByTestId('retry-live')).toBeNull();
+    });
+
+    it('explains a lost connection and an ended live', () => {
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Mon live' });
+
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'error', error: 'x', errorCode: 'connection' }));
+        const first = renderWithProviders(<LiveStreamingScreen />);
+        expect(first.getByText(/connexion a été perdue/)).toBeTruthy();
+        first.unmount();
+
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'error', error: 'x', errorCode: 'ended' }));
+        const second = renderWithProviders(<LiveStreamingScreen />);
+        expect(second.getByText(/Le live est terminé/)).toBeTruthy();
+    });
+
     it('shows a clear message and a settings link when the permission is denied', () => {
         const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
         mockedUseWebRTC.mockReturnValue(hookState({ state: 'error', error: 'Permission denied', errorCode: 'permission' }));

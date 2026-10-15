@@ -29,6 +29,10 @@ export const fr = {
     'golive.error.device': 'Caméra ou micro introuvable, ou déjà utilisé par une autre application.',
     'golive.error.unsupported': 'La diffusion n’est pas disponible dans Expo Go : utilise un development build.',
     'golive.error.conflict': 'Tu as déjà un live actif ou planifié. Termine-le avant d’en lancer un nouveau.',
+    'golive.error.connection': 'La connexion a été perdue et n’a pas pu être rétablie. Vérifie ton réseau puis réessaie.',
+    'golive.error.ended': 'Le live est terminé : impossible de rétablir la connexion.',
+    'broadcast.statusReconnecting': 'Reconnexion…',
+    'broadcast.emptyStateReconnecting': 'Connexion perdue, reconnexion en cours… Ton live reprend dès que le réseau revient.',
     'golive.streamUnavailable': 'Flux vidéo indisponible.',
 } as const;
 
@@ -61,5 +65,9 @@ export const en: Record<keyof typeof fr, string> = {
     'golive.error.device': 'Camera or microphone not found, or already used by another app.',
     'golive.error.unsupported': 'Broadcasting is not available in Expo Go: use a development build.',
     'golive.error.conflict': 'You already have an active or scheduled live. End it before starting a new one.',
+    'golive.error.connection': 'The connection was lost and could not be restored. Check your network and try again.',
+    'golive.error.ended': 'The live is over: the connection could not be restored.',
+    'broadcast.statusReconnecting': 'Reconnecting…',
+    'broadcast.emptyStateReconnecting': 'Connection lost, reconnecting… Your live resumes as soon as the network is back.',
     'golive.streamUnavailable': 'Video stream unavailable.',
 };
