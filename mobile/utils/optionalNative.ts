@@ -4,6 +4,8 @@
  * the whole screen down (the route then "has no default export"), so they are loaded lazily and
  * the callers fall back to a plain JS control when the module is missing.
  */
+import { hasExpoNativeModule, hasTurboModule } from '@/utils/nativeProbe';
+
 type DateTimePickerModule = typeof import('@react-native-community/datetimepicker');
 type ImagePickerModule = typeof import('expo-image-picker');
 
@@ -21,8 +23,11 @@ let imagePicker: ImagePickerModule | null | undefined;
 /** The system date/time picker, or null when this app build does not include it. */
 export function loadDateTimePicker(): DateTimePickerModule | null {
     if (dateTimePicker === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        dateTimePicker = tryLoad(() => require('@react-native-community/datetimepicker') as DateTimePickerModule);
+        // Probe first: requiring a package whose native side is missing logs a red error in development.
+        dateTimePicker = hasTurboModule('RNCDatePicker')
+            ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+              tryLoad(() => require('@react-native-community/datetimepicker') as DateTimePickerModule)
+            : null;
     }
     return dateTimePicker;
 }
@@ -30,8 +35,10 @@ export function loadDateTimePicker(): DateTimePickerModule | null {
 /** The photo library picker, or null when this app build does not include it. */
 export function loadImagePicker(): ImagePickerModule | null {
     if (imagePicker === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        imagePicker = tryLoad(() => require('expo-image-picker') as ImagePickerModule);
+        imagePicker = hasExpoNativeModule('ExponentImagePicker')
+            ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+              tryLoad(() => require('expo-image-picker') as ImagePickerModule)
+            : null;
     }
     return imagePicker;
 }
