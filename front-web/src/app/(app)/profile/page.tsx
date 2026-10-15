@@ -1,9 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import {  Mail, LogOut, Settings, Bell, ShieldCheck, Pencil, X, Save, BellRing } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Mail, LogOut, Settings, Bell, Pencil, X, Save, Sun, Moon, Languages, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { getUserFollowers, getUserFollowing, type UserSummary } from "@/lib/users";
@@ -35,6 +34,26 @@ type MeProfile = {
 };
 
 type ThemeChoice = "Clair" | "Sombre" | "Système";
+
+function PreferenceRow({
+  icon: Icon,
+  label,
+  children,
+}: Readonly<{ icon: LucideIcon; label: string; children: ReactNode }>) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="flex flex-col gap-3 py-4 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+    >
+      <div className="flex items-center gap-3 text-base font-medium text-gray-900 dark:text-gray-100">
+        <Icon aria-hidden="true" className="h-5 w-5 text-gray-400" />
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-2 sm:justify-end">{children}</div>
+    </div>
+  );
+}
 
 type UpdateProfilePayload = {
   username?: string;
@@ -329,192 +348,171 @@ export default function ProfilePage() {
 
   return (
     <main id="main-content" className="min-h-screen">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid gap-8 md:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-6" aria-label={t("profile.infoAria")}>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+        <h1 className="mb-6 text-2xl font-bold tracking-tight text-gray-950 sm:mb-8 sm:text-3xl dark:text-white">
+          {t("nav.myProfile")}
+        </h1>
+
+        <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-8">
+          <aside aria-label={t("profile.infoAria")}>
             <ProfileCard>
-              <div className="flex items-center gap-3">
-                <div className="relative h-16 w-16 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
+              <div className="flex flex-col items-center text-center">
+                <div className="relative h-24 w-24 overflow-hidden rounded-full bg-black/[0.06] ring-4 ring-orange-500/15 dark:bg-white/10">
                   {profile?.profileImageUrl || user.profileImageUrl ? (
                     <Image
                       src={(profile?.profileImageUrl || user.profileImageUrl)!}
                       alt={t("profile.avatarAlt", { name: displayName })}
                       fill
-                      sizes="64px"
+                      sizes="96px"
                       className="object-cover"
                     />
                   ) : (
                     <div
                       aria-label={t("profile.initialsAria", { name: displayName })}
-                      className="grid h-full w-full place-items-center text-lg font-bold"
+                      className="grid h-full w-full place-items-center text-2xl font-bold"
                     >
                       {initialsOf(profile?.username || user.username, user.email)}
                     </div>
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">
-                      {displayName}
-                    </div>
+                <h2 className="mt-4 max-w-full truncate text-xl font-bold text-gray-950 dark:text-white">
+                  {displayName}
+                </h2>
 
+                {profile?.username ? (
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    @{profile.username}
+                  </p>
+                ) : null}
+
+                {profile?.isVerified || profile?.isFeaturedChef ? (
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
                     {profile?.isVerified ? (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
+                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
                         {t("profile.verified")}
                       </span>
                     ) : null}
 
                     {profile?.isFeaturedChef ? (
-                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                      <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-500/20 dark:text-orange-300">
                         {t("profile.chef")}
                       </span>
                     ) : null}
                   </div>
+                ) : null}
 
-                  {profile?.username ? (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      @{profile.username}
-                    </div>
-                  ) : null}
+                {profile?.description ? (
+                  <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                    {profile.description}
+                  </p>
+                ) : null}
 
-                  {profile?.description ? (
-                    <div className="mt-1 line-clamp-2 text-[11px] text-gray-400 dark:text-gray-500">
-                      {profile.description}
-                    </div>
-                  ) : null}
-
-                  {profile ? (
-                    <div className="mt-2">
-                      <FollowStats
-                        followersCount={followersCount}
-                        followingCount={followingCount}
-                        onOpenFollowers={openFollowers}
-                        onOpenFollowing={openFollowing}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                <button
-                  onClick={openEditModal}
-                  className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
-                  type="button"
-                  aria-label={t("profile.editAria")}
-                >
-                  <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-                  {t("profile.edit")}
-                </button>
+                {profile ? (
+                  <div className="mt-5 w-full">
+                    <FollowStats
+                      followersCount={followersCount}
+                      followingCount={followingCount}
+                      onOpenFollowers={openFollowers}
+                      onOpenFollowing={openFollowing}
+                    />
+                  </div>
+                ) : null}
               </div>
 
-              <div className="mt-4 flex items-center gap-2 rounded-2xl bg-black/[0.03] px-3 py-3 text-xs dark:bg-white/[0.04]">
-                <Mail aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-black/[0.03] px-4 py-3 text-sm text-gray-700 dark:bg-white/[0.04] dark:text-gray-200">
+                <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
                 <span className="truncate">{user.email}</span>
               </div>
 
-              <button
-                onClick={handleSignOut}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-black/[0.03] px-3 py-3 text-xs font-medium text-gray-700 transition hover:bg-black/[0.06] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08]"
-                type="button"
-                aria-label={t("profile.signoutAria")}
-              >
-                <LogOut aria-hidden="true" className="h-4 w-4" />
-                {t("profile.signout")}
-              </button>
+              <div className="mt-5 space-y-2">
+                <button
+                  onClick={openEditModal}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30"
+                  type="button"
+                  aria-label={t("profile.editAria")}
+                >
+                  <Pencil aria-hidden="true" className="h-4 w-4" />
+                  {t("profile.edit")}
+                </button>
+
+                <button
+                  onClick={handleSignOut}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-black/8 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/[0.06]"
+                  type="button"
+                  aria-label={t("profile.signoutAria")}
+                >
+                  <LogOut aria-hidden="true" className="h-4 w-4" />
+                  {t("profile.signout")}
+                </button>
+              </div>
             </ProfileCard>
-
-
           </aside>
 
           <section className="space-y-6" aria-label={t("profile.contentAria")}>
             <ProfileCard>
-              <div className="mb-4 flex items-center gap-2">
-                <Settings aria-hidden="true" className="h-4 w-4 text-orange-500" />
-                <h2 className="text-sm font-semibold">{t("profile.preferences.title")}</h2>
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-500/10 text-orange-500">
+                  <Settings aria-hidden="true" className="h-5 w-5" />
+                </span>
+                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">
+                  {t("profile.preferences.title")}
+                </h2>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    {t("profile.preferences.theme")}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {(["light", "dark"] as const).map((mode) => (
-                      <ProfilePill
-                        key={mode}
-                        active={theme === mode}
-                        onClick={() => setTheme(mode)}
-                      >
-                        {mode === "dark"
-                          ? t("profile.preferences.theme.dark")
-                          : t("profile.preferences.theme.light")}
-                      </ProfilePill>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    <Bell aria-hidden="true" className="h-4 w-4" />
-                    {t("profile.preferences.notifications")}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
+              <div className="mt-4 divide-y divide-black/8 dark:divide-white/10">
+                <PreferenceRow
+                  icon={theme === "dark" ? Moon : Sun}
+                  label={t("profile.preferences.theme")}
+                >
+                  {(["light", "dark"] as const).map((mode) => (
                     <ProfilePill
-                      active={notifLives}
-                      onClick={() => setNotifLives((v) => !v)}
+                      key={mode}
+                      active={theme === mode}
+                      onClick={() => setTheme(mode)}
                     >
-                      {t("profile.preferences.notif.lives")}
+                      {mode === "dark"
+                        ? t("profile.preferences.theme.dark")
+                        : t("profile.preferences.theme.light")}
                     </ProfilePill>
+                  ))}
+                </PreferenceRow>
 
-                    <ProfilePill
-                      active={notifReplays}
-                      onClick={() => setNotifReplays((v) => !v)}
-                    >
-                      {t("profile.preferences.notif.replays")}
-                    </ProfilePill>
+                <PreferenceRow icon={Languages} label={t("profile.preferences.language")}>
+                  <ProfilePill
+                    active={locale === "fr"}
+                    onClick={() => setLocale("fr")}
+                  >
+                    {t("profile.languages.fr")}
+                  </ProfilePill>
+                  <ProfilePill
+                    active={locale === "en"}
+                    onClick={() => setLocale("en")}
+                  >
+                    {t("profile.languages.en")}
+                  </ProfilePill>
+                </PreferenceRow>
 
-                    <ProfilePill
-                      active={notifChefs}
-                      onClick={() => setNotifChefs((v) => !v)}
-                    >
-                      {t("profile.preferences.notif.newChefs")}
-                    </ProfilePill>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    {t("profile.preferences.language")}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <ProfilePill
-                      active={locale === "fr"}
-                      onClick={() => setLocale("fr")}
-                    >
-                      {t("profile.languages.fr")}
-                    </ProfilePill>
-                    <ProfilePill
-                      active={locale === "en"}
-                      onClick={() => setLocale("en")}
-                    >
-                      {t("profile.languages.en")}
-                    </ProfilePill>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                    {t("profile.preferences.privacy")}
-                  </div>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("profile.preferences.privacyDesc")}
-                  </p>
-                </div>
+                <PreferenceRow icon={Bell} label={t("profile.preferences.notifications")}>
+                  <ProfilePill
+                    active={notifLives}
+                    onClick={() => setNotifLives((v) => !v)}
+                  >
+                    {t("profile.preferences.notif.lives")}
+                  </ProfilePill>
+                  <ProfilePill
+                    active={notifReplays}
+                    onClick={() => setNotifReplays((v) => !v)}
+                  >
+                    {t("profile.preferences.notif.replays")}
+                  </ProfilePill>
+                  <ProfilePill
+                    active={notifChefs}
+                    onClick={() => setNotifChefs((v) => !v)}
+                  >
+                    {t("profile.preferences.notif.newChefs")}
+                  </ProfilePill>
+                </PreferenceRow>
               </div>
             </ProfileCard>
 
