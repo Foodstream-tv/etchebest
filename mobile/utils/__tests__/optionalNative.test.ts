@@ -27,4 +27,30 @@ describe('optionalNative', () => {
             jest.resetModules();
         }
     });
+
+    it('does not even import the package when the app binary lacks its native module (no red error in dev)', () => {
+        jest.resetModules();
+        const imported = jest.fn();
+        jest.doMock('@/utils/nativeProbe', () => ({ hasExpoNativeModule: () => false, hasTurboModule: () => false }));
+        jest.doMock('expo-image-picker', () => {
+            imported('expo-image-picker');
+            return {};
+        });
+        jest.doMock('@react-native-community/datetimepicker', () => {
+            imported('datetimepicker');
+            return {};
+        });
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const fresh = require('../optionalNative');
+            expect(fresh.loadImagePicker()).toBeNull();
+            expect(fresh.loadDateTimePicker()).toBeNull();
+            expect(imported).not.toHaveBeenCalled();
+        } finally {
+            jest.dontMock('@/utils/nativeProbe');
+            jest.dontMock('expo-image-picker');
+            jest.dontMock('@react-native-community/datetimepicker');
+            jest.resetModules();
+        }
+    });
 });

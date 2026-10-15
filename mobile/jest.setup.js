@@ -68,3 +68,9 @@ jest.mock('expo-keep-awake', () => ({
     activateKeepAwakeAsync: jest.fn(),
     deactivateKeepAwake: jest.fn(),
 }));
+
+// Native modules are "present" in tests (their packages are mocked above); tests of the missing case override this.
+jest.mock('@/utils/nativeProbe', () => ({
+    hasExpoNativeModule: () => true,
+    hasTurboModule: () => true,
+}));
