@@ -474,6 +474,7 @@ export const en: Record<keyof typeof fr, string> = {
 
   // Broadcaster controls
   "broadcast.launchLive": "Launch live",
+  "broadcast.recordingNotice": "This live is recorded and published as a public replay. Co-streamers who join you appear in the recording.",
   "broadcast.stopLive": "Stop",
   "broadcast.stopping": "Stopping...",
   "broadcast.leave": "Leave",
@@ -584,6 +585,10 @@ export const en: Record<keyof typeof fr, string> = {
   "auth.signup.confirmPassword": "Confirm password",
   "auth.signup.submit": "Create my account",
   "auth.signup.submitting": "Creating account…",
+  "auth.signup.legalBefore": "By creating an account, you agree to our ",
+  "auth.signup.legalTerms": "terms of service",
+  "auth.signup.legalAnd": " and our ",
+  "auth.signup.legalPrivacy": "privacy policy",
   "auth.signup.errorFillAll": "Please fill in all required fields.",
   "auth.signup.errorFixFields": "Please correctly fill in the indicated fields.",
   "auth.signup.errorEmailRequired": "Please enter your email address.",

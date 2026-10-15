@@ -472,6 +472,7 @@ export const fr = {
 
   // Broadcaster controls
   "broadcast.launchLive": "Lancer le live",
+  "broadcast.recordingNotice": "Ce live est enregistré et rediffusé en replay public. Les co-streamers qui te rejoignent apparaissent dans l'enregistrement.",
   "broadcast.stopLive": "Arrêter",
   "broadcast.stopping": "Arrêt...",
   "broadcast.leave": "Quitter",
@@ -582,6 +583,10 @@ export const fr = {
   "auth.signup.confirmPassword": "Confirmez le mot de passe",
   "auth.signup.submit": "Créer mon compte",
   "auth.signup.submitting": "Création en cours…",
+  "auth.signup.legalBefore": "En créant un compte, vous acceptez nos ",
+  "auth.signup.legalTerms": "conditions d'utilisation",
+  "auth.signup.legalAnd": " et notre ",
+  "auth.signup.legalPrivacy": "politique de confidentialité",
   "auth.signup.errorFillAll": "Veuillez remplir tous les champs obligatoires.",
   "auth.signup.errorFixFields": "Veuillez remplir correctement les champs indiqués.",
   "auth.signup.errorEmailRequired": "Veuillez renseigner votre adresse e-mail.",

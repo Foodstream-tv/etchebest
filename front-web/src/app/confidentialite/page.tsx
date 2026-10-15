@@ -15,7 +15,7 @@ const sections = [
   {
     title: "Données traitées",
     content:
-      "FoodStream traite les données nécessaires au fonctionnement du compte, des sessions live, des interactions, des préférences utilisateur, de la modération et du support.",
+      "FoodStream traite : les données de votre compte (adresse e-mail, nom, prénom, pseudo, numéro de téléphone, description, photo de profil, mot de passe chiffré, identifiant Google si vous vous connectez avec Google) ; les contenus que vous publiez (lives, replays, messages de chat) ; vos interactions (abonnements, notifications) ; vos préférences (langue, thème) ; les données de modération ; et les données techniques de connexion (adresse IP, journaux de sécurité).",
   },
   {
     title: "Finalités",
@@ -28,6 +28,11 @@ const sections = [
       "Les traitements reposent selon les cas sur l'exécution du contrat, l'intérêt légitime de sécurité et de bon fonctionnement, le consentement pour les cookies non essentiels, ou les obligations légales.",
   },
   {
+    title: "Lives, replays et chat",
+    content:
+      "Les lives sont enregistrés et peuvent être rediffusés en replay public : votre image et votre voix apparaissent dans l'enregistrement, ainsi que celles des co-streamers qui participent à votre live. Les messages du chat sont visibles par les personnes présentes dans le live. Vous pouvez supprimer vos replays depuis la page Replays ; la suppression du compte supprime aussi vos lives, replays et messages.",
+  },
+  {
     title: "Cookies",
     content:
       "Les cookies strictement nécessaires sont utilisés pour l&apos;authentification, la langue, le thème et certaines préférences. Aucun traceur non essentiel n&apos;est activé sans consentement explicite.",
@@ -35,17 +40,17 @@ const sections = [
   {
     title: "Destinataires",
     content:
-      "Les données peuvent être partagées avec les équipes techniques, les prestataires d'hébergement et les services indispensables au fonctionnement de la plateforme, uniquement dans le cadre prévu.",
+      "Les données peuvent être partagées avec les équipes techniques, le prestataire d'hébergement, le prestataire d'envoi d'e-mails (codes de vérification, réinitialisation de mot de passe, confirmations de live) et Google : connexion avec Google, serveur STUN utilisé pour établir les connexions vidéo en direct (il reçoit votre adresse IP) et liens d'ajout au calendrier. Les contenus publics (profil, lives, replays) sont visibles par tous les visiteurs.",
   },
   {
     title: "Conservation",
     content:
-      "Les données sont conservées pendant la durée nécessaire à la relation de service, puis supprimées ou anonymisées selon les obligations légales applicables et les besoins de preuve ou de sécurité.",
+      "Les données de votre compte, vos lives, replays et messages sont conservés tant que votre compte existe, puis supprimés lorsque vous le supprimez. Les codes de vérification et liens de réinitialisation sont supprimés au plus tard 24 heures après leur expiration. Les journaux techniques ne sont conservés que le temps nécessaire à la sécurité du service. Certaines données peuvent être conservées plus longtemps si une obligation légale ou la défense de droits l'exige.",
   },
   {
     title: "Transferts",
     content:
-      "Si des transferts hors Union européenne deviennent nécessaires, FoodStream s'assure d'un cadre juridique approprié, par exemple des clauses contractuelles types ou un mécanisme reconnu.",
+      "Certains prestataires, notamment Google, peuvent traiter des données hors de l'Union européenne. FoodStream s'assure alors d'un cadre juridique approprié, par exemple des clauses contractuelles types ou un mécanisme reconnu.",
   },
   {
     title: "Vos droits",
@@ -55,7 +60,7 @@ const sections = [
   {
     title: "Exercer vos droits",
     content:
-      "Pour exercer vos droits, utilisez le support du produit ou l'adresse de contact fournie par l'équipe. Une réponse claire est apportée dans les délais légaux applicables.",
+      "Vous pouvez télécharger vos données et supprimer votre compte vous-même : depuis votre profil sur le site (« Mes données et confidentialité ») ou dans les réglages de l'application mobile. Pour toute autre demande, utilisez le support du produit ou l'adresse de contact fournie par l'équipe ; une réponse est apportée dans les délais légaux. Vous pouvez aussi introduire une réclamation auprès de la CNIL (www.cnil.fr).",
   },
 ];
 

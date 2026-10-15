@@ -344,6 +344,9 @@ export default function LiveStreamingScreen() {
 
     const roomLabel = roomId ? `${t('broadcast.roomLabel')} ${roomId.slice(0, 8)}…` : null;
     const headerTitle = isHost ? t('broadcast.modeHost') : t('golive.title.join');
+    // The live is recorded and published as a public replay: say so before the host goes live,
+    // and keep saying it to a co-streamer while connected (joining starts on its own).
+    const showRecordingNotice = (isHost && !hasStarted && state === 'idle') || (!isHost && active);
 
     let controls: React.ReactNode = null;
     if (isHost && !hasStarted && state === 'idle') {
@@ -491,6 +494,12 @@ export default function LiveStreamingScreen() {
                             ) : null}
                         </View>
                     </View>
+                ) : null}
+
+                {showRecordingNotice ? (
+                    <Text style={styles.recordingNotice} testID="recording-notice">
+                        {t('broadcast.recordingNotice')}
+                    </Text>
                 ) : null}
 
                 <View style={styles.controls}>{controls}</View>
@@ -666,5 +675,13 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     },
     mainButton: {
         alignSelf: 'stretch',
+    },
+    recordingNotice: {
+        color: withAlpha(colors.onBrand, 0.75),
+        fontSize: 12,
+        lineHeight: 17,
+        textAlign: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 8,
     },
 }));

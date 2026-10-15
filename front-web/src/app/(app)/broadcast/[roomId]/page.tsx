@@ -83,6 +83,12 @@ function HeaderActions({
         </button>
       ) : null}
 
+      {!hasStarted && isHost ? (
+        <p className="w-full text-xs text-gray-500 dark:text-gray-400">
+          {t("broadcast.recordingNotice")}
+        </p>
+      ) : null}
+
       {isStreaming && isHost ? (
         <button
           onClick={onStopLive}
