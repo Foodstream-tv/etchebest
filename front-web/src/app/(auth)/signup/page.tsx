@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import { Mail, User, FileText } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthCard from "@/components/auth/AuthCard";
 import PasswordField from "@/components/auth/PasswordField";
@@ -383,6 +384,18 @@ export default function SignUpPage() {
         >
           {loading ? t("auth.signup.submitting") : t("auth.signup.submit")}
         </button>
+
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+          {t("auth.signup.legalBefore")}
+          <Link href="/cgu" className="font-medium underline hover:text-orange-500">
+            {t("auth.signup.legalTerms")}
+          </Link>
+          {t("auth.signup.legalAnd")}
+          <Link href="/confidentialite" className="font-medium underline hover:text-orange-500">
+            {t("auth.signup.legalPrivacy")}
+          </Link>
+          .
+        </p>
       </form>
 
       <div className="my-5 flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">

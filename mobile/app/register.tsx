@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import AuthLayout from '@/components/auth/AuthLayout';
 import GoogleAuthButton from '@/components/auth/GoogleAuthButton';
@@ -9,6 +9,7 @@ import { blurActiveElementOnWeb, inputRef } from '@/components/auth/helpers';
 import FloatingLabelInput from '@/components/FloatingLabelInput';
 import Button from '@/components/ui/Button';
 import { useI18n } from '@/contexts/LanguageContext';
+import { WEB_BASE_URL } from '@/lib/calendar';
 import { makeStyles, useTheme } from '@/contexts/ThemeContext';
 import apiService from '@/services/api';
 import { bodyString, isApiError } from '@/utils/authErrors';
@@ -448,6 +449,28 @@ export default function RegisterScreen() {
                     testID="register-submit"
                 />
 
+                <Text style={styles.legal} testID="register-legal">
+                    {t('auth.signup.legalBefore')}
+                    <Text
+                        style={styles.legalLink}
+                        accessibilityRole="link"
+                        onPress={() => void Linking.openURL(`${WEB_BASE_URL}/cgu`)}
+                        testID="register-terms-link"
+                    >
+                        {t('auth.signup.legalTerms')}
+                    </Text>
+                    {t('auth.signup.legalAnd')}
+                    <Text
+                        style={styles.legalLink}
+                        accessibilityRole="link"
+                        onPress={() => void Linking.openURL(`${WEB_BASE_URL}/confidentialite`)}
+                        testID="register-privacy-link"
+                    >
+                        {t('auth.signup.legalPrivacy')}
+                    </Text>
+                    .
+                </Text>
+
                 <View style={styles.dividerRow}>
                     <View style={styles.dividerLine} />
                     <Text style={styles.dividerLabel}>{t('auth.signin.or')}</Text>
@@ -528,6 +551,18 @@ const useStyles = makeStyles(({ colors }) => ({
     },
     helperOk: {
         color: colors.success,
+    },
+    legal: {
+        marginTop: 12,
+        color: colors.muted,
+        fontSize: 12,
+        lineHeight: 18,
+        textAlign: 'center',
+    },
+    legalLink: {
+        color: colors.orangeText,
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
     formError: {
         marginBottom: 12,

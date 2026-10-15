@@ -66,6 +66,22 @@ describe('LiveStreamingScreen - host', () => {
         });
     });
 
+    it('warns the host, before going live, that the live is recorded and replayed publicly', () => {
+        mockedUseWebRTC.mockReturnValue(hookState());
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Mon live' });
+
+        const { getByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        expect(getByTestId('recording-notice')).toBeTruthy();
+    });
+
+    it('no longer shows the recording notice to the host once live (the button area is busy)', () => {
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' } }));
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Mon live' });
+
+        const { queryByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        expect(queryByTestId('recording-notice')).toBeNull();
+    });
+
     it('never uses the old hardcoded title', () => {
         const hook = hookState();
         mockedUseWebRTC.mockReturnValue(hook);
@@ -371,6 +387,14 @@ describe('LiveStreamingScreen - join', () => {
         view.rerender(<LiveStreamingScreen />);
         view.rerender(<LiveStreamingScreen />);
         expect(hook.joinAsCoStreamer).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps telling a co-streamer that the live is recorded while connected', () => {
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' } }));
+        mockedParams.mockReturnValue({ mode: 'join', roomId: 'room-12345678' });
+
+        const { getByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        expect(getByTestId('recording-notice')).toBeTruthy();
     });
 
     it('asks to confirm leaving a co-stream with the co-op wording', () => {

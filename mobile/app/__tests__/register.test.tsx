@@ -1,5 +1,6 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Linking } from 'react-native';
 
 import apiService from '@/services/api';
 import { ApiError } from '@/services/http';
@@ -70,6 +71,18 @@ describe('RegisterScreen', () => {
         expect(getByPlaceholderText('Numéro de téléphone')).toBeTruthy();
         expect(getByPlaceholderText('Bio / Description (min 10 caractères)')).toBeTruthy();
         expect(getByText('Créer mon compte')).toBeTruthy();
+    });
+
+    it('links the terms and the privacy policy under the submit button', () => {
+        const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+        const { getByTestId } = render(<RegisterScreen />);
+
+        expect(getByTestId('register-legal')).toBeTruthy();
+        fireEvent.press(getByTestId('register-terms-link'));
+        fireEvent.press(getByTestId('register-privacy-link'));
+
+        expect(open).toHaveBeenCalledWith('https://foodstream.tv/cgu');
+        expect(open).toHaveBeenCalledWith('https://foodstream.tv/confidentialite');
     });
 
     it('sets autofill / keyboard hints on the fields', () => {
