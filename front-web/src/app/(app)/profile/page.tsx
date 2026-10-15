@@ -12,6 +12,7 @@ import ProfileCard from "@/components/profile/ProfileCard";
 import ProfilePill from "@/components/profile/ProfilePill";
 import FollowStats from "@/components/profile/FollowStats";
 import FollowListModal from "@/components/profile/FollowListModal";
+import PrivacyDataCard from "@/components/profile/PrivacyDataCard";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { getMyActivities } from "@/lib/activity";
@@ -516,6 +517,8 @@ export default function ProfilePage() {
                 </div>
               </div>
             </ProfileCard>
+
+            <PrivacyDataCard />
           </section>
         </div>
       </div>
