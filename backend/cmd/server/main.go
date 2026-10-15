@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"net"
+	"time"
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
+	"github.com/Foodstream-io/etchebest/internal/modules/account"
 	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
 	"github.com/Foodstream-io/etchebest/internal/modules/dish"
@@ -98,6 +101,9 @@ func main() {
 
 	// Ensure ADMIN accounts are verified
 	db.Model(&user.User{}).Where("role = ? AND is_account_verified = ?", user.ADMIN, false).Update("is_account_verified", true)
+
+	// One-time codes and reset tokens hold the email address: do not keep them once useless.
+	account.StartPurgeLoop(context.Background(), db, time.Hour)
 
 	routes.Routes(r, db, jwtKey, stunServerURL, webrtcIP)
 

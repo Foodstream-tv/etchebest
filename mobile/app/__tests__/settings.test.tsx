@@ -1,4 +1,5 @@
 import React from 'react';
+import { Linking } from 'react-native';
 
 import SettingsScreen from '../settings';
 import apiService from '@/services/api';
@@ -11,7 +12,7 @@ import { fireEvent, renderWithProviders, waitFor } from '@/test-utils/render';
 
 jest.mock('@/services/api', () => ({
     __esModule: true,
-    default: { getProfile: jest.fn(), updatePassword: jest.fn(), deleteCurrentUser: jest.fn() },
+    default: { getProfile: jest.fn(), updatePassword: jest.fn(), deleteCurrentUser: jest.fn(), exportMyData: jest.fn() },
 }));
 jest.mock('@/services/auth', () => ({
     __esModule: true,
@@ -34,6 +35,7 @@ jest.mock('@/services/storage', () => {
     };
     return { __esModule: true, default: { ...storage, __store: store }, storage };
 });
+jest.mock('@/utils/exportData', () => ({ shareMyData: jest.fn() }));
 jest.mock('@/utils/toast', () => ({
     __esModule: true,
     default: { success: jest.fn(), error: jest.fn(), info: jest.fn(), warning: jest.fn() },
@@ -41,7 +43,8 @@ jest.mock('@/utils/toast', () => ({
 
 const { __mockRouter: router } = jest.requireMock('expo-router');
 const storage = jest.requireMock('@/services/storage').default;
-const mockedApi = apiService as unknown as { getProfile: jest.Mock; updatePassword: jest.Mock; deleteCurrentUser: jest.Mock };
+const mockedApi = apiService as unknown as { getProfile: jest.Mock; updatePassword: jest.Mock; deleteCurrentUser: jest.Mock; exportMyData: jest.Mock };
+const mockedShare = jest.requireMock('@/utils/exportData').shareMyData as jest.Mock;
 const mockedAuth = authService as unknown as { getToken: jest.Mock; getUser: jest.Mock; logout: jest.Mock };
 const mockedPrefs = preferencesService as unknown as { getPreferences: jest.Mock; setPreferences: jest.Mock };
 
@@ -244,6 +247,55 @@ describe('SettingsScreen', () => {
                 expect(JSON.stringify(spy.mock.calls)).not.toMatch(/Passw0rd/);
             }
             spies.forEach((spy) => spy.mockRestore());
+        });
+    });
+
+    describe('my data and privacy', () => {
+        it('downloads the personal data export and hands it to the share util', async () => {
+            const data = { profile: { email: profile.email }, lives: [] };
+            mockedApi.exportMyData.mockResolvedValue(data);
+            const { getByTestId } = await renderLoaded();
+
+            fireEvent.press(getByTestId('settings-export-data'));
+
+            await waitFor(() => expect(mockedShare).toHaveBeenCalledWith(data, 'Télécharger mes données'));
+            expect(mockedApi.exportMyData).toHaveBeenCalledTimes(1);
+        });
+
+        it('ignores a second tap while the export is running', async () => {
+            let resolve!: (v: unknown) => void;
+            mockedApi.exportMyData.mockReturnValue(new Promise((r) => (resolve = r)));
+            const { getByTestId } = await renderLoaded();
+
+            fireEvent.press(getByTestId('settings-export-data'));
+            fireEvent.press(getByTestId('settings-export-data'));
+            resolve({});
+
+            await waitFor(() => expect(mockedShare).toHaveBeenCalledTimes(1));
+            expect(mockedApi.exportMyData).toHaveBeenCalledTimes(1);
+        });
+
+        it('tells the user when the export fails, and lets them retry', async () => {
+            mockedApi.exportMyData.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({});
+            const { getByTestId } = await renderLoaded();
+
+            fireEvent.press(getByTestId('settings-export-data'));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Impossible de récupérer tes données. Réessaie plus tard.'));
+            expect(mockedShare).not.toHaveBeenCalled();
+
+            fireEvent.press(getByTestId('settings-export-data'));
+            await waitFor(() => expect(mockedShare).toHaveBeenCalledTimes(1));
+        });
+
+        it('opens the privacy policy and the terms on the website', async () => {
+            const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+            const { getByTestId } = await renderLoaded();
+
+            fireEvent.press(getByTestId('settings-privacy-policy'));
+            fireEvent.press(getByTestId('settings-terms'));
+
+            expect(open).toHaveBeenCalledWith('https://foodstream.tv/confidentialite');
+            expect(open).toHaveBeenCalledWith('https://foodstream.tv/cgu');
         });
     });
 

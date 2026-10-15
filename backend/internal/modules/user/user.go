@@ -71,52 +71,6 @@ func GetMe(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// DeleteUserById godoc
-// @Summary      Delete a user
-// @Description  Delete a user by their ID (admin only)
-// @Tags         users
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        userId path string true "User ID"
-// @Success      204  "No Content"
-// @Failure      500  {object}  map[string]string "error: Failed to delete user"
-// @Router       /api/admin/users/{userId} [delete]
-func DeleteUserById(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userId := c.Param("userId")
-
-		if err := DeleteUserByID(db, userId); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
-			return
-		}
-		c.Status(http.StatusNoContent)
-	}
-}
-
-// DeleteCurrentUser godoc
-// @Summary      Delete current user
-// @Description  Delete the authenticated user's account
-// @Tags         users
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Success      204  "No Content"
-// @Failure      500  {object}  map[string]string "error: Failed to delete user"
-// @Router       /api/users/me [delete]
-func DeleteCurrentUser(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		currentUserID := utils.GetContextString(c, "userId")
-
-		if err := DeleteUserByID(db, currentUserID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
-			return
-		}
-
-		c.Status(http.StatusNoContent)
-	}
-}
-
 // UpdateUserById godoc
 // @Summary      Update a user by ID
 // @Description  Update a user's profile by their ID (admin only)

@@ -26,6 +26,21 @@ jobs:
       run:
         working-directory: backend
 
+    # Throwaway Postgres for the tests that exercise real SQL (account erasure and export).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,6 +67,8 @@ jobs:
       # -race catches the unsynchronised access to shared room state that crashes the whole server.
       - name: Test (race detector)
         run: go test -race ./...
+        env:
+          TEST_DATABASE_DSN: host=localhost port=5432 user=postgres password=test dbname=test sslmode=disable
 
   mobile:
     name: Mobile (types, lint, tests)
