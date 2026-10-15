@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
+import { parseIngredient } from "@/lib/ingredient";
 import HomeFooter from "@/components/home/HomeFooter";
 import Field from "@/components/studio/Field";
 import Chip from "@/components/studio/Chip";
@@ -237,19 +238,7 @@ export default function StudioPage() {
 
       // Populate ingredients
       if (response.ingredients && Array.isArray(response.ingredients)) {
-        const parsedIngs = response.ingredients.map((raw: string) => {
-          const match = raw.trim().match(/^([\d\/\s\.\,¼½¾\-]+(?:g|kg|ml|cl|l|c\.à\sc\.|c\.à\ss\.|sachets?|pincées?|gousses?|bottes?|brins?|tasses?|cuillères?|ml)?)(?:\s+(?:de|d')\s+)?(.*)$/i);
-          if (match) {
-            return {
-              name: match[2].trim(),
-              qty: match[1].trim()
-            };
-          }
-          return {
-            name: raw.trim(),
-            qty: "Au goût"
-          };
-        });
+        const parsedIngs = response.ingredients.map((raw: string) => parseIngredient(raw));
         setIngredients(parsedIngs);
       }
 
