@@ -523,20 +523,46 @@ describe('LiveStreamingScreen - recipe while broadcasting', () => {
         });
     };
 
-    it('lets the host open the recipe typed in the Studio, then come back to the live', async () => {
+    it('opens the recipe under the video without leaving the live, and closes it again', async () => {
         mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' }, roomId: 'room-9' }));
         mockedParams.mockReturnValue({ mode: 'host', title: 'Tarte aux pommes', description: recipeText() });
 
         const { findByTestId, getByTestId, queryByTestId } = renderWithProviders(<LiveStreamingScreen />);
+        expect(queryByTestId('recipe-panel')).toBeNull();
+
         fireEvent.press(await findByTestId('open-recipe'));
-
+        expect(getByTestId('recipe-panel')).toBeTruthy();
         expect(getByTestId('cooking-assistant')).toBeTruthy();
-        expect(getByTestId('ingredient-0')).toBeTruthy();
-        fireEvent.press(getByTestId('ingredient-0'));
+        // the live stays on screen: the camera preview and the controls are still there
+        expect(getByTestId('stream-local')).toBeTruthy();
+        expect(getByTestId('stop-live')).toBeTruthy();
+        expect(getByTestId('toggle-audio')).toBeTruthy();
+        // the toggle says what it will do now
+        expect(getByTestId('open-recipe').props.accessibilityLabel).toBe('Fermer la recette');
 
+        fireEvent.press(getByTestId('ingredient-0'));
         fireEvent.press(getByTestId('recipe-close'));
-        expect(queryByTestId('open-recipe')).toBeTruthy(); // still broadcasting
+        expect(queryByTestId('recipe-panel')).toBeNull();
+        expect(getByTestId('open-recipe').props.accessibilityLabel).toBe('Ouvrir la recette');
+
+        // the same button toggles it back, and the tick is still there
+        fireEvent.press(getByTestId('open-recipe'));
+        expect(getByTestId('ingredient-0').props.accessibilityState.checked).toBe(true);
+        fireEvent.press(getByTestId('open-recipe'));
+        expect(queryByTestId('recipe-panel')).toBeNull();
         expect(mockedGetLive).not.toHaveBeenCalled(); // the host's own recipe is not fetched
+    });
+
+    it('drops the recipe panel when the live is no longer active (error, disconnected)', async () => {
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'live', localStream: { id: 'local' }, roomId: 'room-9' }));
+        mockedParams.mockReturnValue({ mode: 'host', title: 'Tarte aux pommes', description: recipeText() });
+        const view = renderWithProviders(<LiveStreamingScreen />);
+        fireEvent.press(await view.findByTestId('open-recipe'));
+        expect(view.getByTestId('recipe-panel')).toBeTruthy();
+
+        mockedUseWebRTC.mockReturnValue(hookState({ state: 'error', error: 'boom', errorCode: 'generic', roomId: 'room-9' }));
+        view.rerender(<LiveStreamingScreen />);
+        expect(view.queryByTestId('recipe-panel')).toBeNull();
     });
 
     it('reads the recipe of the live a co-streamer joins', async () => {
