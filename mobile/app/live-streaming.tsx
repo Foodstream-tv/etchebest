@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import RecipeModal from '@/components/cooking/RecipeModal';
+import CookingAssistant from '@/components/cooking/CookingAssistant';
+import KeepAwake from '@/components/cooking/KeepAwake';
 import StreamView from '@/components/StreamView';
 import Button from '@/components/ui/Button';
 import { withAlpha } from '@/constants/theme';
@@ -117,6 +118,7 @@ function RoundControl({
     label,
     onPress,
     active = false,
+    accent = false,
     disabled = false,
     testID,
 }: Readonly<{
@@ -124,6 +126,8 @@ function RoundControl({
     label: string;
     onPress: () => void;
     active?: boolean;
+    /** Highlighted in the brand color (a toggle that is on, as opposed to a muted mic/camera). */
+    accent?: boolean;
     disabled?: boolean;
     testID?: string;
 }>) {
@@ -136,9 +140,9 @@ function RoundControl({
             accessibilityLabel={label}
             accessibilityState={{ selected: active, disabled }}
             testID={testID}
-            style={[styles.roundControl, active && styles.roundControlActive, disabled && { opacity: 0.4 }]}
+            style={[styles.roundControl, active && styles.roundControlActive, accent && styles.roundControlAccent, disabled && { opacity: 0.4 }]}
         >
-            <Ionicons name={icon} size={22} color={active ? colors.danger : colors.onBrand} />
+            <Ionicons name={icon} size={22} color={accent ? colors.orange : active ? colors.danger : colors.onBrand} />
         </Pressable>
     );
 }
@@ -199,6 +203,7 @@ export default function LiveStreamingScreen() {
     // The recipe to follow while cooking: typed in the Studio for a live we create, read from the live otherwise.
     const [fetchedDescription, setFetchedDescription] = useState<string | undefined>();
     const [recipeOpen, setRecipeOpen] = useState(false);
+    const { height: windowHeight } = useWindowDimensions();
     useEffect(() => {
         if (!targetRoomId) return;
         let cancelled = false;
@@ -221,6 +226,8 @@ export default function LiveStreamingScreen() {
 
     const active = state === 'creating' || state === 'connecting' || state === 'live' || state === 'reconnecting';
     const failed = state === 'error' || state === 'disconnected';
+    // The recipe opens under the video (which shrinks to the top) instead of covering the live.
+    const splitRecipe = recipeOpen && active && !!recipe && cooking.ready;
 
     const primaryRemoteStream =
         remoteStreams.find((stream: any) => {
@@ -435,7 +442,13 @@ export default function LiveStreamingScreen() {
                             </>
                         ) : null}
                         {recipe && cooking.ready ? (
-                            <RoundControl icon="restaurant-outline" label={t('live.recipe.open')} onPress={() => setRecipeOpen(true)} testID="open-recipe" />
+                            <RoundControl
+                                icon="restaurant-outline"
+                                label={t(recipeOpen ? 'live.recipe.close' : 'live.recipe.open')}
+                                accent={recipeOpen}
+                                onPress={() => setRecipeOpen((open) => !open)}
+                                testID="open-recipe"
+                            />
                         ) : null}
                     </View>
                 ) : null}
@@ -494,13 +507,13 @@ export default function LiveStreamingScreen() {
                     </View>
                 </View>
 
-                {isHost && liveTitle ? (
+                {isHost && liveTitle && !splitRecipe ? (
                     <Text style={styles.liveTitle} numberOfLines={2} testID="live-title">
                         {liveTitle}
                     </Text>
                 ) : null}
 
-                <View style={styles.videoContainer}>
+                <View style={[styles.videoContainer, splitRecipe && { flex: 0, height: Math.round(windowHeight * 0.3) }]}>
                     {mainVideo}
 
                     {showRemotePip ? (
@@ -552,9 +565,32 @@ export default function LiveStreamingScreen() {
                     </Text>
                 ) : null}
 
-                <View style={styles.controls}>{controls}</View>
+                <View style={[styles.controls, splitRecipe && styles.controlsCompact]}>{controls}</View>
+
+                {splitRecipe && recipe ? (
+                    <View style={styles.recipePanel} testID="recipe-panel">
+                        <View style={styles.recipePanelHeader}>
+                            <Text style={styles.recipePanelTitle} accessibilityRole="header">
+                                {t('live.tab.recipe')}
+                            </Text>
+                            <Pressable
+                                onPress={() => setRecipeOpen(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('live.recipe.close')}
+                                hitSlop={8}
+                                style={styles.recipeClose}
+                                testID="recipe-close"
+                            >
+                                <Ionicons name="chevron-down" size={22} color={colors.onBrand} />
+                            </Pressable>
+                        </View>
+                        <ScrollView contentContainerStyle={styles.recipePanelContent}>
+                            <KeepAwake />
+                            <CookingAssistant recipe={recipe} progress={cooking} />
+                        </ScrollView>
+                    </View>
+                ) : null}
             </SafeAreaView>
-            {recipe && cooking.ready ? <RecipeModal visible={recipeOpen} recipe={recipe} progress={cooking} onClose={() => setRecipeOpen(false)} /> : null}
         </View>
     );
 }
@@ -705,6 +741,42 @@ const useStyles = makeStyles(({ colors, radii }) => ({
         paddingBottom: 24,
         alignItems: 'stretch',
     },
+    controlsCompact: {
+        paddingBottom: 8,
+    },
+    recipePanel: {
+        flex: 1,
+        marginHorizontal: 12,
+        marginBottom: 12,
+        borderRadius: radii.card,
+        overflow: 'hidden',
+        backgroundColor: colors.bg,
+    },
+    recipePanelHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingLeft: 16,
+        paddingRight: 8,
+        paddingTop: 8,
+    },
+    recipePanelTitle: {
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    recipeClose: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.lg,
+    },
+    recipePanelContent: {
+        padding: 16,
+        paddingTop: 4,
+        paddingBottom: 24,
+    },
     controlsColumn: {
         gap: 14,
     },
@@ -723,6 +795,11 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     },
     roundControlActive: {
         backgroundColor: withAlpha(colors.onBrand, 0.3),
+    },
+    roundControlAccent: {
+        backgroundColor: withAlpha(colors.orange, 0.22),
+        borderWidth: 2,
+        borderColor: colors.orange,
     },
     mainButton: {
         alignSelf: 'stretch',

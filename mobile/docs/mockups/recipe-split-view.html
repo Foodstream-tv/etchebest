@@ -1,0 +1,274 @@
+<title>Recette pendant le live</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  /* Layout: two rows (Avant / Après), each a pair of phone screens joined by an arrow; captions under each screen. */
+  :root {
+    --bg: #f4f5f7;
+    --fg: #15171c;
+    --muted: #5d6470;
+    --line: #d9dce3;
+    --card: #ffffff;
+    --accent: #f97316;
+    --accent-ink: #b45309;
+    --bad: #dc2626;
+    --good: #15803d;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+    /* the app's own broadcast screen is dark in both themes */
+    --app-bg: #0b0b0d;
+    --app-panel: #15120f;
+    --app-line: rgba(255,255,255,.12);
+    --app-text: #f5f5f7;
+    --app-muted: #a1a1aa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --fg: #eceef2; --muted: #9aa1ad; --line: #2a2e37; --card: #171a20;
+      --accent: #fb923c; --accent-ink: #fdba74; --bad: #f87171; --good: #4ade80; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --fg: #eceef2; --muted: #9aa1ad; --line: #2a2e37; --card: #171a20;
+    --accent: #fb923c; --accent-ink: #fdba74; --bad: #f87171; --good: #4ade80; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5;
+    padding-block: 28px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 1120px; margin: 0 auto; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 5vw, 42px); line-height: 1.08; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0 0 36px; }
+
+  .row { margin-bottom: 44px; }
+  .row-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tag {
+    font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--card);
+  }
+  .tag.before { color: var(--bad); }
+  .tag.after { color: var(--good); }
+  .row-head p { margin: 0; color: var(--muted); }
+
+  .pair { display: flex; align-items: flex-start; gap: 22px; flex-wrap: wrap; }
+  .step { display: flex; flex-direction: column; gap: 12px; width: 264px; max-width: 100%; }
+  .step figcaption { font-size: 13.5px; color: var(--muted); min-height: 3.4em; }
+  .step figcaption b { color: var(--fg); font-weight: 700; display: block; font-size: 14px; margin-bottom: 2px; }
+  figure { margin: 0; }
+  .arrow { align-self: center; color: var(--muted); font-family: var(--display); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 40px; }
+  .arrow svg { width: 44px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* ---------- phone ---------- */
+  .phone {
+    width: 264px; height: 548px; border-radius: 36px; background: var(--app-bg); border: 7px solid #26262b;
+    position: relative; overflow: hidden; display: flex; flex-direction: column; color: var(--app-text);
+    box-shadow: 0 18px 40px rgba(0,0,0,.22); font-size: 11px; line-height: 1.35;
+  }
+  .status { display: flex; justify-content: space-between; padding: 8px 18px 2px; font-size: 10px; color: var(--app-muted); }
+  .head { display: flex; align-items: center; gap: 7px; padding: 4px 10px 6px; }
+  .back { width: 28px; height: 28px; border-radius: 9px; background: rgba(255,255,255,.1); display: grid; place-items: center; flex: none; }
+  .back svg, .ico svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: rgba(239,68,68,.16); color: #fca5a5; font-weight: 700; font-size: 10px; flex: none; }
+  .pill i { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; display: block; }
+  .title { font-weight: 700; font-size: 11px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .title small { display: block; font-weight: 400; color: var(--app-muted); font-size: 9.5px; }
+  .live-title { padding: 0 12px 6px; font-weight: 700; font-size: 13px; }
+
+  .video {
+    margin: 0 8px; border-radius: 14px; position: relative; overflow: hidden; flex: 1; min-height: 0;
+    background: radial-gradient(120% 80% at 30% 20%, #3a2a1c 0%, #1a1410 55%, #0c0a08 100%);
+  }
+  .video.small { flex: none; height: 30%; }
+  .video .cam { position: absolute; left: 10px; bottom: 8px; font-size: 9.5px; color: var(--app-muted); display: flex; align-items: center; gap: 5px; }
+  .video .cam i { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; display: block; }
+  .video .pip { position: absolute; right: 8px; top: 8px; width: 44px; height: 60px; border-radius: 9px; background: linear-gradient(160deg, #3f3f46, #18181b); border: 1px solid var(--app-line); display: grid; place-items: center; font-size: 9px; color: var(--app-muted); }
+  .video.small .pip { width: 30px; height: 40px; top: 6px; right: 6px; }
+  .video .plate { position: absolute; left: 50%; top: 52%; width: 120px; height: 120px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f6d7b0, #c98a4b 60%, #7a4a1f); opacity: .55; }
+  .video.small .plate { width: 62px; height: 62px; }
+
+  .controls { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+  .controls.tight { padding-bottom: 6px; gap: 6px; }
+  .round-row { display: flex; justify-content: center; gap: 14px; }
+  .ico { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.14); display: grid; place-items: center; }
+  .ico.on { background: rgba(249,115,22,.22); outline: 2px solid #f97316; color: #fb923c; }
+  .stop { height: 34px; border-radius: 12px; background: #dc2626; color: #fff; font-weight: 700; font-size: 11.5px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+  /* recipe content (shared by the full sheet and the split panel) */
+  .rtitle { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+  .rtitle b { font-size: 12px; }
+  .rtitle span { color: #fdba74; font-weight: 700; font-size: 10px; }
+  .phases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+  .phases div { text-align: center; padding: 6px 0; border-radius: 8px; background: rgba(255,255,255,.07); color: var(--app-muted); font-weight: 700; font-size: 9px; }
+  .phases div.on { background: #f97316; color: #fff; }
+  .rhead { display: flex; justify-content: space-between; color: var(--app-muted); font-weight: 700; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 5px; }
+  .rhead em { font-style: normal; color: #fdba74; }
+  .bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); margin-bottom: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 50%; background: #f97316; }
+  .check { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 11px; border: 1px solid var(--app-line); background: rgba(255,255,255,.05); margin-bottom: 5px; font-weight: 700; font-size: 11px; }
+  .check small { display: block; font-weight: 400; color: var(--app-muted); font-size: 10px; }
+  .check .box { width: 17px; height: 17px; border-radius: 5px; border: 2px solid #71717a; flex: none; display: grid; place-items: center; }
+  .check.done { background: rgba(249,115,22,.1); border-color: rgba(249,115,22,.35); color: var(--app-muted); text-decoration: line-through; }
+  .check.done .box { background: #f97316; border-color: #f97316; color: #fff; }
+  .check.done .box svg { width: 11px; height: 11px; stroke: #fff; fill: none; stroke-width: 3; }
+
+  .sheet { position: absolute; inset: 0; background: var(--app-bg); display: flex; flex-direction: column; padding-top: 22px; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; font-weight: 700; font-size: 14px; }
+  .sheet-head .back { border-radius: 10px; }
+  .sheet-body { padding: 4px 12px 12px; overflow: hidden; flex: 1; position: relative; }
+  .sheet-body::after, .panel-body::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: linear-gradient(transparent, var(--app-bg)); }
+  .panel-body::after { background: linear-gradient(transparent, var(--app-panel)); }
+  .ghost { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); width: 78%; text-align: center; padding: 8px 10px; border-radius: 10px; background: rgba(220,38,38,.9); color: #fff; font-weight: 700; font-size: 10.5px; z-index: 3; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+
+  .panel { flex: 1; margin: 0 8px 8px; border-radius: 16px; background: var(--app-panel); border: 1px solid var(--app-line); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 6px 0 12px; font-weight: 700; font-size: 12px; }
+  .panel-head .back { background: transparent; }
+  .panel-body { padding: 4px 12px 10px; position: relative; overflow: hidden; flex: 1; }
+
+  /* ---------- notes ---------- */
+  .changes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+  .changes li { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .changes b { display: block; font-family: var(--display); font-size: 16px; margin-bottom: 3px; }
+  .changes span { color: var(--muted); font-size: 14px; }
+  h2 { font-family: var(--display); font-size: 22px; margin: 0 0 14px; }
+  .foot { color: var(--muted); font-size: 13px; margin-top: 28px; max-width: 70ch; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<main>
+  <h1>La recette pendant le live</h1>
+  <p class="lede">Écran de diffusion de l'hôte et du co-streamer. Avant, la recette recouvrait tout le direct. Après, la vidéo reste en haut, les commandes restent sous la vidéo et la recette défile dessous.</p>
+
+  <!-- ====================== AVANT ====================== -->
+  <section class="row" aria-labelledby="avant">
+    <div class="row-head"><span class="tag before" id="avant">Avant</span><p>Plein écran : le live disparaît tant que la recette est ouverte.</p></div>
+    <div class="pair">
+      <figure class="step">
+        <div class="phone" role="img" aria-label="Écran de diffusion, vidéo en grand et quatre boutons ronds">
+          <div class="status"><span>20:14</span><span>5G 82 %</span></div>
+          <div class="head">
+            <div class="back"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></div>
+            <span class="pill"><i></i>En direct</span>
+            <div class="title">Studio de diffusion<small>Hôte · Room 51f91580</small></div>
+          </div>
+          <div class="live-title">Tarte aux figues, fromage et miel</div>
+          <div class="video"><div class="plate"></div><div class="pip">Co-stream</div><div class="cam"><i></i>Caméra active</div></div>
+          <div class="controls">
+            <div class="round-row">
+              <div class="ico"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 8h12l-3-3M20 16H8l3 3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 3c-2 2-2 6 0 8v10"/></svg></div>
+            </div>
+            <div class="stop">Arrêter le live</div>
+          </div>
+        </div>
+        <figcaption><b>1. En direct</b>Vidéo en grand, quatre boutons. Le dernier ouvre la recette.</figcaption>
+      </figure>
+
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 44 24"><path d="M2 12h38M31 4l9 8-9 8"/></svg>appui sur le couvert</div>
+
+      <figure class="step">
+        <div class="phone" role="img" aria-label="La recette recouvre tout l'écran, le live n'est plus visible">
+          <div class="status"><span>20:14</span><span>5G 82 %</span></div>
+          <div class="sheet">
+            <div class="sheet-head"><span>Recette</span><div class="back" style="background:rgba(255,255,255,.1)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div></div>
+            <div class="sheet-body">
+              <div class="rtitle"><b>Cuisine Coop</b><span>Étape 1 sur 4</span></div>
+              <div class="phases"><div class="on">Ingrédients</div><div>Préparation</div><div>Cuisson</div><div>Dressage</div></div>
+              <div class="rhead"><span>Ingrédients requis</span><em>2/6</em></div>
+              <div class="bar"><i style="width:33%"></i></div>
+              <div class="check done"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span><span>Pâte feuilletée<small>1</small></span></div>
+              <div class="check done"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span><span>Chèvre<small>2</small></span></div>
+              <div class="check"><span class="box"></span><span>Figues<small>10</small></span></div>
+              <div class="check"><span class="box"></span><span>Beurre<small>80 g</small></span></div>
+              <div class="check"><span class="box"></span><span>Miel<small>2 cuillères à soupe</small></span></div>
+            </div>
+            <div class="ghost">Le live est caché</div>
+          </div>
+        </div>
+        <figcaption><b>2. Recette plein écran</b>On ne voit plus la caméra ni les commandes. Impossible de couper le micro sans fermer la recette.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ====================== APRÈS ====================== -->
+  <section class="row" aria-labelledby="apres">
+    <div class="row-head"><span class="tag after" id="apres">Après</span><p>Vue partagée : la vidéo rétrécit en haut, la recette s'ouvre dessous.</p></div>
+    <div class="pair">
+      <figure class="step">
+        <div class="phone" role="img" aria-label="Écran de diffusion, identique à l'avant">
+          <div class="status"><span>20:14</span><span>5G 82 %</span></div>
+          <div class="head">
+            <div class="back"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></div>
+            <span class="pill"><i></i>En direct</span>
+            <div class="title">Studio de diffusion<small>Hôte · Room 51f91580</small></div>
+          </div>
+          <div class="live-title">Tarte aux figues, fromage et miel</div>
+          <div class="video"><div class="plate"></div><div class="pip">Co-stream</div><div class="cam"><i></i>Caméra active</div></div>
+          <div class="controls">
+            <div class="round-row">
+              <div class="ico"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 8h12l-3-3M20 16H8l3 3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 3c-2 2-2 6 0 8v10"/></svg></div>
+            </div>
+            <div class="stop">Arrêter le live</div>
+          </div>
+        </div>
+        <figcaption><b>1. En direct</b>Rien ne change tant que la recette est fermée.</figcaption>
+      </figure>
+
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 44 24"><path d="M2 12h38M31 4l9 8-9 8"/></svg>appui sur le couvert</div>
+
+      <figure class="step">
+        <div class="phone" role="img" aria-label="La vidéo est en haut, les boutons juste dessous, la recette défile en dessous">
+          <div class="status"><span>20:14</span><span>5G 82 %</span></div>
+          <div class="head">
+            <div class="back"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></div>
+            <span class="pill"><i></i>En direct</span>
+            <div class="title">Studio de diffusion<small>Hôte · Room 51f91580</small></div>
+          </div>
+          <div class="video small"><div class="plate"></div><div class="pip">Co-stream</div><div class="cam"><i></i>Caméra active</div></div>
+          <div class="controls tight">
+            <div class="round-row">
+              <div class="ico"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg></div>
+              <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 8h12l-3-3M20 16H8l3 3"/></svg></div>
+              <div class="ico on"><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 3c-2 2-2 6 0 8v10"/></svg></div>
+            </div>
+            <div class="stop">Arrêter le live</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span>Recette</span><div class="back"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div></div>
+            <div class="panel-body">
+              <div class="rtitle"><b>Cuisine Coop</b><span>Étape 1 sur 4</span></div>
+              <div class="phases"><div class="on">Ingrédients</div><div>Préparation</div><div>Cuisson</div><div>Dressage</div></div>
+              <div class="rhead"><span>Ingrédients requis</span><em>2/6</em></div>
+              <div class="bar"><i style="width:33%"></i></div>
+              <div class="check done"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span><span>Pâte feuilletée<small>1</small></span></div>
+              <div class="check done"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span><span>Chèvre<small>2</small></span></div>
+              <div class="check"><span class="box"></span><span>Figues<small>10</small></span></div>
+              <div class="check"><span class="box"></span><span>Beurre<small>80 g</small></span></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>2. Vue partagée</b>Vidéo à 30 % en haut, boutons toujours accessibles, le bouton Recette est orange. La recette défile dans le reste.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="diff">
+    <h2 id="diff">Ce qui change</h2>
+    <ul class="changes">
+      <li><b>Le live reste visible</b><span>L'hôte garde un œil sur sa caméra et sur le co-streamer pendant qu'il suit la recette.</span></li>
+      <li><b>Les commandes restent à portée</b><span>Micro, caméra, retourner et Arrêter ne sont plus cachés par la recette.</span></li>
+      <li><b>Un seul bouton, deux états</b><span>Le couvert s'allume en orange quand la recette est ouverte et se lit « Fermer la recette ». Le chevron du panneau ferme aussi.</span></li>
+      <li><b>Rien n'est perdu</b><span>Cases cochées, étape en cours et minuteur sont gardés quand on ferme puis rouvre. Le panneau se ferme tout seul si le live s'arrête.</span></li>
+    </ul>
+    <p class="foot">Côté spectateur, la disposition existait déjà : vidéo en haut, onglets Chat, Recette et Infos dessous, avec une bande « étape en cours » sous la vidéo. Proportions à confirmer sur le téléphone : la vidéo prend 30 % de la hauteur, valeur réglable.</p>
+  </section>
+</main>
