@@ -463,41 +463,21 @@ export default function BroadcastRoomPage() {
     return () => window.clearInterval(interval);
   }, [ready, token, displayRoom, fetchChat, fetchRoom]);
 
-  // Derive real participants when people join the room (co-streamers, room participants, active chatters)
+  // Who is cooking along: the people really connected to the room, by name. Reservations that never
+  // connected, the host's own id and people who only chat are not "connected" and are left out.
   const actualParticipants = useMemo(() => {
-    const list: { username: string; progress?: number; step?: number }[] = [];
-    const seen = new Set<string>();
-
-    // 1. From remote video streams (connected co-streamers)
-    remoteStreams.forEach((_, idx) => {
-      const name = `Co-streamer ${idx + 1}`;
-      if (!seen.has(name)) {
-        seen.add(name);
-        list.push({ username: name });
-      }
-    });
-
-    // 2. From room participants registered in backend
-    if (room?.participants && Array.isArray(room.participants)) {
-      room.participants.forEach((p: any) => {
-        const name = typeof p === "string" ? p : p?.username || p?.name;
-        if (name && name !== user?.username && !seen.has(name)) {
-          seen.add(name);
-          list.push({ username: name });
-        }
-      });
+    const info = room?.participantsInfo;
+    if (info) {
+      return info
+        .filter((p) => p.connected && p.role !== "host" && p.username && p.username !== user?.username)
+        .map((p) => ({ username: p.username }));
     }
+    // Older backend without participant info: one entry per remote video stream.
+    return remoteStreams.map((_, idx) => ({ username: `Co-streamer ${idx + 1}` }));
+  }, [remoteStreams, room?.participantsInfo, user?.username]);
 
-    // 3. From users active in the chat
-    chatMessages.forEach((msg) => {
-      if (msg.username && msg.username !== user?.username && !seen.has(msg.username)) {
-        seen.add(msg.username);
-        list.push({ username: msg.username });
-      }
-    });
-
-    return list;
-  }, [remoteStreams, room?.participants, chatMessages, user?.username]);
+  // The server's count of connected co-streamers; the number of remote streams when it is not available.
+  const coStreamerCount = room?.connectedCount ?? remoteStreams.length;
 
   const parsedRecipe = useMemo(() => {
     const rawDesc = liveInfo?.description || "";
@@ -705,7 +685,7 @@ export default function BroadcastRoomPage() {
                   <Users aria-hidden="true" className="h-4 w-4" />
                 </div>
                 <div className="text-2xl font-bold text-gray-950 dark:text-white">
-                  {remoteStreams.length}/5
+                  {coStreamerCount}/5
                 </div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   {t("broadcast.statCoStreamers")}
@@ -751,7 +731,7 @@ export default function BroadcastRoomPage() {
                 </div>
 
                 <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-                  {remoteStreams.length}/5
+                  {coStreamerCount}/5
                 </span>
               </div>
 

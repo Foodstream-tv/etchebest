@@ -680,6 +680,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 
 		if liveRoom := peekLiveRoom(roomId); liveRoom != nil {
 			liveRoom.Participants = room.Participants
+			markPending(liveRoom, currentUserId, time.Now())
 		}
 		mu.Unlock()
 
@@ -911,7 +912,12 @@ func GetRoom(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
 			return
 		}
-		c.JSON(http.StatusOK, room)
+
+		// Who is really connected comes from the in-memory room; names from the users table.
+		mu.Lock()
+		connected := connectedUsers(peekLiveRoom(roomId))
+		mu.Unlock()
+		c.JSON(http.StatusOK, newRoomView(room, connected, usernamesByID(db, room.Participants)))
 	}
 }
 
@@ -1240,6 +1246,7 @@ func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) b
 		return false
 	}
 	room.Participants = append(room.Participants, userID)
+	markPending(room, userID, time.Now())
 	if err := SaveRoom(db, room); err != nil {
 		log.Printf("failed to save participant: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join room"})
@@ -1341,8 +1348,10 @@ func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) (pending
 
 	if room.HostPeerCon == nil && userID == room.Host {
 		room.HostPeerCon = pc
+		room.HostConnectedAt = time.Now()
 	}
 	room.Connections = append(room.Connections, PeerConnection{UserID: userID, PeerCon: pc})
+	delete(room.PendingSince, userID) // connected: not a ghost candidate any more
 
 	if room.PendingICEByUser == nil {
 		return nil, replaced
@@ -2089,6 +2098,7 @@ func removeParticipantState(db *gorm.DB, room *Room, userID string) {
 		}
 	}
 	room.Participants = updated
+	delete(room.PendingSince, userID)
 	if err := SaveRoom(db, room); err != nil {
 		log.Printf("failed to save room after removing participant: %v", err)
 	}

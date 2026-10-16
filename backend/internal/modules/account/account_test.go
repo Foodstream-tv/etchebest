@@ -70,7 +70,15 @@ func testDB(t *testing.T) *gorm.DB {
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_DSN not set: skipping the Postgres integration test")
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{DisableForeignKeyConstraintWhenMigrating: true})
+	// Packages run in parallel against the same database: each one works in its own schema.
+	admin, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.Exec("CREATE SCHEMA IF NOT EXISTS account_test").Error; err != nil {
+		t.Fatal(err)
+	}
+	db, err := gorm.Open(postgres.Open(dsn+" search_path=account_test"), &gorm.Config{DisableForeignKeyConstraintWhenMigrating: true})
 	if err != nil {
 		t.Fatal(err)
 	}

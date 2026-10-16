@@ -11,12 +11,26 @@ async function authHeaders(token?: string): Promise<Record<string, string>> {
   };
 }
 
+export interface RoomParticipant {
+  id: string;
+  /** Empty when the backend does not know the user: never show the id instead. */
+  username: string;
+  role: "host" | "participant";
+  /** True while the user has an active peer connection in the room. */
+  connected: boolean;
+}
+
 export interface RoomInfo {
   id: string;
   name: string;
   host?: string;
   maxParticipants: number;
+  /** Reserved and connected users (ids): includes people who never connected. */
   participants: any[];
+  /** Same people with a name and a connection state (absent on an older backend). */
+  participantsInfo?: RoomParticipant[];
+  /** Co-streamers (host excluded) with an active peer connection (absent on an older backend). */
+  connectedCount?: number;
   viewers: number;
 }
 

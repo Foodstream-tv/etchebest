@@ -107,6 +107,8 @@ func main() {
 
 	// One-time codes and reset tokens hold the email address: do not keep them once useless.
 	account.StartPurgeLoop(context.Background(), db, time.Hour)
+	// Free the slots of people who reserved or started joining a running live and never connected.
+	room.StartGhostReaper(context.Background(), db, 30*time.Second)
 
 	routes.Routes(r, db, jwtKey, stunServerURL, webrtcIP)
 

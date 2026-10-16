@@ -117,7 +117,13 @@ export default function WatchRoomPage() {
 
   const liveTitle = room?.name || liveInfo?.title || "Archive FoodStream";
   const viewers = room?.viewers ?? null;
-  const participants = room?.participants?.length ?? null;
+  // Co-streamers: those connected while the live runs, the reservations before it starts.
+  const participants =
+    room == null
+      ? null
+      : liveInfo?.status === "live" && room.connectedCount !== undefined
+        ? room.connectedCount
+        : room.participants.length;
   const maxParticipants = room?.maxParticipants ?? null;
 
   const [parsedRecipe, liveDescription] = useMemo(() => {
@@ -171,6 +177,15 @@ export default function WatchRoomPage() {
       }
     }
   }, [roomId, token]);
+
+  // Names of the co-streamers cooking along (never the raw ids of the room).
+  const connectedCoStreamers = useMemo(
+    () =>
+      (room?.participantsInfo ?? [])
+        .filter((p) => p.connected && p.role !== "host" && p.username && p.username !== user?.username)
+        .map((p) => ({ username: p.username })),
+    [room?.participantsInfo, user?.username]
+  );
 
   const registeredCount = useMemo(() => {
     if (!room?.participants) return 0;
@@ -987,7 +1002,7 @@ export default function WatchRoomPage() {
                   <CookingAssistant
                     dishName={liveInfo?.dish_name}
                     roomTitle={liveTitle}
-                    roomParticipants={room?.participants}
+                    roomParticipants={connectedCoStreamers}
                     recipeData={parsedRecipe}
                   />
                 </div>

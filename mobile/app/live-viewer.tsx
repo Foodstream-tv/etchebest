@@ -295,6 +295,9 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
     }
 
     const viewers = status === 'live' ? (room?.viewers ?? live?.current_viewers ?? null) : null;
+    // While the live runs, count who is really connected: the room also lists reservations that never
+    // connected (and the host), which showed up as ghost co-streamers.
+    const coStreamerCount = room ? (status === 'live' && room.connectedCount !== undefined ? room.connectedCount : room.participants.length) : 0;
     const infoCard = (
         <LiveInfoCard
             title={title}
@@ -308,7 +311,7 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
                       : undefined
             }
             viewers={viewers}
-            participants={room ? room.participants.length : null}
+            participants={room ? coStreamerCount : null}
             maxParticipants={room ? room.maxParticipants : null}
             onOpenProfile={openProfile}
         />

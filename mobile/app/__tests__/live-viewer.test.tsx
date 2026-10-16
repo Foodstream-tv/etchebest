@@ -629,3 +629,45 @@ describe('LiveViewerScreen - cooking assistant', () => {
         expect(await screen.findByTestId('cooking-assistant')).toBeTruthy();
     });
 });
+
+describe('LiveViewerScreen - co-streamer count', () => {
+    it('counts the co-streamers really connected while the live runs, not the reservations that never joined', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ status: 'live' }));
+        // the room lists the host and three people who reserved or started joining; only one is connected
+        mockedGetRoom.mockResolvedValue(
+            makeRoom({
+                participants: ['host-1', 'ghost-1', 'ghost-2', 'alice'],
+                connectedCount: 1,
+                participantsInfo: [
+                    { id: 'host-1', username: 'Chef Paul', role: 'host', connected: true },
+                    { id: 'ghost-1', username: 'a', role: 'participant', connected: false },
+                    { id: 'ghost-2', username: 'b', role: 'participant', connected: false },
+                    { id: 'alice', username: 'alice', role: 'participant', connected: true },
+                ],
+            })
+        );
+        await renderViewer();
+        fireEvent.press(await screen.findByTestId('tab-info')); // the badge is in the Infos tab
+        expect(await screen.findByText('1/6 streamers')).toBeTruthy();
+        expect(screen.queryByText('4/6 streamers')).toBeNull();
+    });
+
+    it('shows zero co-streamers when nobody but the host is connected', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ status: 'live' }));
+        mockedGetRoom.mockResolvedValue(makeRoom({ participants: ['host-1', 'ghost-1'], connectedCount: 0 }));
+        await renderViewer();
+        fireEvent.press(await screen.findByTestId('tab-info')); // the badge is in the Infos tab
+        expect(await screen.findByText('0/6 streamers')).toBeTruthy();
+    });
+
+    it('falls back to the participant list on a backend that does not send the connected count', async () => {
+        signIn(viewerUser);
+        mockedGetLive.mockResolvedValue(makeLive({ status: 'live' }));
+        mockedGetRoom.mockResolvedValue(makeRoom({ participants: ['host-1', 'a', 'b'] }));
+        await renderViewer();
+        fireEvent.press(await screen.findByTestId('tab-info')); // the badge is in the Infos tab
+        expect(await screen.findByText('3/6 streamers')).toBeTruthy();
+    });
+});
