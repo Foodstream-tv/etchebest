@@ -1,6 +1,8 @@
 package room
 
 import (
+	"time"
+
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/lib/pq"
 	"github.com/pion/webrtc/v4"
@@ -42,4 +44,8 @@ type Room struct {
 	// HostPeerCon is the PeerConnection of the room host (publisher).
 	// Only tracks received from this peer are relayed and fed to HLS.
 	HostPeerCon *webrtc.PeerConnection `json:"-" gorm:"-"`
+	// PendingSince: when a non-host user took a slot without being connected (cleared on connect or leave).
+	PendingSince map[string]time.Time `json:"-" gorm:"-"`
+	// HostConnectedAt: when the host's peer connection was registered (the live is running from then on).
+	HostConnectedAt time.Time `json:"-" gorm:"-"`
 }
