@@ -27,7 +27,7 @@ func TestGenerateOTP(t *testing.T) {
 func TestVerificationCodeValidity(t *testing.T) {
 	// Valid code
 	vc := userModule.VerificationCode{
-		Code:      "123456",
+		CodeHash:  "hash",
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 		Used:      false,
 		Attempts:  0,
@@ -38,7 +38,7 @@ func TestVerificationCodeValidity(t *testing.T) {
 
 	// Used code
 	vcUsed := userModule.VerificationCode{
-		Code:      "123456",
+		CodeHash:  "hash",
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 		Used:      true,
 		Attempts:  0,
@@ -49,7 +49,7 @@ func TestVerificationCodeValidity(t *testing.T) {
 
 	// Expired code
 	vcExpired := userModule.VerificationCode{
-		Code:      "123456",
+		CodeHash:  "hash",
 		ExpiresAt: time.Now().Add(-1 * time.Minute),
 		Used:      false,
 		Attempts:  0,
@@ -60,7 +60,7 @@ func TestVerificationCodeValidity(t *testing.T) {
 
 	// Exceeded attempts
 	vcMaxAttempts := userModule.VerificationCode{
-		Code:      "123456",
+		CodeHash:  "hash",
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 		Used:      false,
 		Attempts:  5,
@@ -73,7 +73,7 @@ func TestVerificationCodeValidity(t *testing.T) {
 func TestPasswordResetTokenValidity(t *testing.T) {
 	// Valid token
 	validToken := userModule.PasswordResetToken{
-		Token:     "test-token-123",
+		TokenHash: "hash",
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 		Used:      false,
 	}
@@ -83,7 +83,7 @@ func TestPasswordResetTokenValidity(t *testing.T) {
 
 	// Used token
 	usedToken := userModule.PasswordResetToken{
-		Token:     "test-token-123",
+		TokenHash: "hash",
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 		Used:      true,
 	}
@@ -93,7 +93,7 @@ func TestPasswordResetTokenValidity(t *testing.T) {
 
 	// Expired token
 	expiredToken := userModule.PasswordResetToken{
-		Token:     "test-token-123",
+		TokenHash: "hash",
 		ExpiresAt: time.Now().Add(-5 * time.Minute),
 		Used:      false,
 	}

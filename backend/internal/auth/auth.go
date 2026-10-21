@@ -89,7 +89,9 @@ func GenerateOTP() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
-func createAndSendVerificationCode(db *gorm.DB, n notify.Notifier, u *userModule.User) (*userModule.VerificationCode, error) {
+// createAndSendVerificationCode stores the hash of a fresh code and emails the
+// code itself, which is also returned for the dev-mode response.
+func createAndSendVerificationCode(db *gorm.DB, n notify.Notifier, u *userModule.User) (string, error) {
 	// Invalidate previous unused codes for this user
 	db.Model(&userModule.VerificationCode{}).
 		Where("user_id = ? AND used = ?", u.ID, false).
@@ -97,13 +99,13 @@ func createAndSendVerificationCode(db *gorm.DB, n notify.Notifier, u *userModule
 
 	codeStr, err := GenerateOTP()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate OTP: %w", err)
+		return "", fmt.Errorf("failed to generate OTP: %w", err)
 	}
 
 	vc := userModule.VerificationCode{
 		ID:        uuid.New().String(),
 		UserID:    u.ID,
-		Code:      codeStr,
+		CodeHash:  hashSecret(purposeVerificationCode, codeStr),
 		Type:      userModule.VerificationTypeEmail,
 		Target:    u.Email,
 		ExpiresAt: time.Now().Add(15 * time.Minute),
@@ -112,14 +114,14 @@ func createAndSendVerificationCode(db *gorm.DB, n notify.Notifier, u *userModule
 	}
 
 	if err := db.Create(&vc).Error; err != nil {
-		return nil, fmt.Errorf("failed to save verification code: %w", err)
+		return "", fmt.Errorf("failed to save verification code: %w", err)
 	}
 
 	if err := n.SendVerificationEmail(u.Email, codeStr); err != nil {
 		log.Printf("[NOTIFY ERROR] Failed to send verification email to %s: %v", notify.MaskEmail(u.Email), err)
 	}
 
-	return &vc, nil
+	return codeStr, nil
 }
 
 // Register godoc
@@ -203,7 +205,7 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		vc, err := createAndSendVerificationCode(db, notifier, &user)
+		devCode, err := createAndSendVerificationCode(db, notifier, &user)
 		if err != nil {
 			log.Printf("[REGISTER ERROR] Failed to create verification code: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send verification code"})
@@ -218,7 +220,7 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 
 		// Return devCode if in dev mode
 		if isDevMode() {
-			response["devCode"] = vc.Code
+			response["devCode"] = devCode
 		}
 
 		c.JSON(http.StatusOK, response)
@@ -304,7 +306,7 @@ func VerifyCode(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		}
 
 		cleanInputCode := strings.TrimSpace(req.Code)
-		if vc.Code != cleanInputCode {
+		if !secretMatches(purposeVerificationCode, cleanInputCode, vc.CodeHash) {
 			db.Model(&vc).Update("attempts", vc.Attempts+1)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid verification code"})
 			return
@@ -409,7 +411,7 @@ func ResendVerificationCode(db *gorm.DB) gin.HandlerFunc {
 			}
 		}
 
-		vc, err := createAndSendVerificationCode(db, notifier, &user)
+		devCode, err := createAndSendVerificationCode(db, notifier, &user)
 		if err != nil {
 			log.Printf("[RESEND ERROR] Failed to create code: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resend verification code"})
@@ -423,7 +425,7 @@ func ResendVerificationCode(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if isDevMode() {
-			response["devCode"] = vc.Code
+			response["devCode"] = devCode
 		}
 
 		c.JSON(http.StatusOK, response)
@@ -573,7 +575,7 @@ func ForgotPassword(db *gorm.DB) gin.HandlerFunc {
 			ID:        uuid.New().String(),
 			UserID:    user.ID,
 			Email:     user.Email,
-			Token:     tokenStr,
+			TokenHash: hashSecret(purposeResetToken, tokenStr),
 			ExpiresAt: time.Now().Add(30 * time.Minute),
 			Used:      false,
 		}
@@ -629,7 +631,7 @@ func ResetPassword(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var resetToken userModule.PasswordResetToken
-		if err := db.Where("token = ? AND used = ?", cleanToken, false).First(&resetToken).Error; err != nil {
+		if err := db.Where("token = ? AND used = ?", hashSecret(purposeResetToken, cleanToken), false).First(&resetToken).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "invalid or expired reset token",
 				"code":  "INVALID_OR_EXPIRED_TOKEN",

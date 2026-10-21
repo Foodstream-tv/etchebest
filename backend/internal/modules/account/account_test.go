@@ -148,8 +148,8 @@ func seed(t *testing.T, db *gorm.DB) {
 	must(db.Create(&activity.Activity{ID: "a1", UserID: "alice", ActorID: "bob", Type: "follow", Text: "bob follows you", CreatedAt: time.Now()}).Error)
 	must(db.Create(&activity.Activity{ID: "a2", UserID: "bob", ActorID: "alice", Type: "follow", Text: "alice follows you", CreatedAt: time.Now()}).Error)
 	must(db.Create(&activity.Activity{ID: "a3", UserID: "carol", ActorID: "bob", Type: "follow", Text: "bob follows you", CreatedAt: time.Now()}).Error)
-	must(db.Create(&user.VerificationCode{ID: "v1", UserID: "alice", Code: "123456", Type: "email", Target: "alice@example.com", ExpiresAt: time.Now().Add(time.Hour)}).Error)
-	must(db.Create(&user.PasswordResetToken{ID: "p1", UserID: "alice", Email: "alice@example.com", Token: "tok", ExpiresAt: time.Now().Add(time.Hour)}).Error)
+	must(db.Create(&user.VerificationCode{ID: "v1", UserID: "alice", CodeHash: "123456", Type: "email", Target: "alice@example.com", ExpiresAt: time.Now().Add(time.Hour)}).Error)
+	must(db.Create(&user.PasswordResetToken{ID: "p1", UserID: "alice", Email: "alice@example.com", TokenHash: "tok", ExpiresAt: time.Now().Add(time.Hour)}).Error)
 }
 
 func TestEraseUserRemovesAllPersonalData(t *testing.T) {
@@ -292,10 +292,10 @@ func TestPurgeExpiredCredentials(t *testing.T) {
 	now := time.Now()
 	mk := func(id string, expires time.Time, used bool, created time.Time) {
 		t.Helper()
-		if err := db.Create(&user.VerificationCode{ID: "v-" + id, UserID: "alice", Code: id, Type: "email", Target: "alice@example.com", ExpiresAt: expires, Used: used, CreatedAt: created}).Error; err != nil {
+		if err := db.Create(&user.VerificationCode{ID: "v-" + id, UserID: "alice", CodeHash: id, Type: "email", Target: "alice@example.com", ExpiresAt: expires, Used: used, CreatedAt: created}).Error; err != nil {
 			t.Fatal(err)
 		}
-		if err := db.Create(&user.PasswordResetToken{ID: "p-" + id, UserID: "alice", Email: "alice@example.com", Token: "tok-" + id, ExpiresAt: expires, Used: used, CreatedAt: created}).Error; err != nil {
+		if err := db.Create(&user.PasswordResetToken{ID: "p-" + id, UserID: "alice", Email: "alice@example.com", TokenHash: "tok-" + id, ExpiresAt: expires, Used: used, CreatedAt: created}).Error; err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -319,5 +319,39 @@ func TestPurgeExpiredCredentials(t *testing.T) {
 		if got := count(t, db, "password_reset_tokens", "id = ?", "p-"+id); got != want {
 			t.Errorf("reset token %s: %d row(s), want %d", id, got, want)
 		}
+	}
+}
+
+func TestDiscardLegacySecretsKeepsOnlyHashedOnes(t *testing.T) {
+	db := testDB(t)
+	newUser(t, db, "alice", nil)
+	hash := strings.Repeat("a", hashedSecretLength)
+	exp := time.Now().Add(time.Hour)
+	for id, secret := range map[string]string{"clear": "123456", "hashed": hash} {
+		if err := db.Create(&user.VerificationCode{ID: "v-" + id, UserID: "alice", CodeHash: secret, Type: "email", Target: "alice@example.com", ExpiresAt: exp}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id, secret := range map[string]string{"clear": "0b3c1e0e-6a0b-4a8a-9d3a-111111111111", "hashed": hash} {
+		if err := db.Create(&user.PasswordResetToken{ID: "p-" + id, UserID: "alice", Email: "alice@example.com", TokenHash: secret, ExpiresAt: exp}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	n, err := DiscardLegacySecrets(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("discarded %d rows, want 2", n)
+	}
+	if got := count(t, db, "verification_codes", "id = ?", "v-clear"); got != 0 {
+		t.Error("a clear-text verification code was kept")
+	}
+	if got := count(t, db, "password_reset_tokens", "id = ?", "p-clear"); got != 0 {
+		t.Error("a clear-text reset token was kept")
+	}
+	if got := count(t, db, "verification_codes", "id = ?", "v-hashed") + count(t, db, "password_reset_tokens", "id = ?", "p-hashed"); got != 2 {
+		t.Errorf("hashed secrets must be kept, %d of 2 left", got)
 	}
 }
