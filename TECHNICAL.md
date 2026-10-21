@@ -157,12 +157,12 @@ There are **two distinct paths** for consuming a live stream:
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
 | Framework | Expo (React Native) | SDK 57 | Cross-platform mobile + web |
-| Router | expo-router | ~6.0 | File-based routing |
+| Router | expo-router | ~57.0 | File-based routing |
 | WebRTC (native) | react-native-webrtc | 124.0.7 | Native iOS/Android WebRTC |
 | WebRTC (web) | Browser native APIs | — | Browser `RTCPeerConnection` |
 | HLS Player (web) | hls.js | 1.6.15 | HLS playback on Chrome/Firefox |
-| HLS Player (native) | expo-av | 16.0.8 | Native HLS playback (AVPlayer) |
-| Language | TypeScript | 5.3 | Type-safe frontend code |
+| HLS Player (native) | expo-video | ~57.0 | Native HLS playback (AVPlayer / ExoPlayer) |
+| Language | TypeScript | 6.0 | Type-safe frontend code |
 | Bundler | Metro | — | React Native bundler (Expo) |
 
 ---
