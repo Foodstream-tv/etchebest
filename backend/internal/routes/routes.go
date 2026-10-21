@@ -8,6 +8,7 @@ import (
 
 	"github.com/Foodstream-io/etchebest/internal/modules/account"
 	"github.com/Foodstream-io/etchebest/internal/modules/activity"
+	"github.com/Foodstream-io/etchebest/internal/modules/audit"
 	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/live"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
@@ -55,7 +56,9 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.Use(middleware.AuthMiddleware(bJwtToken, db))
 
 	admin := api.Group("/admin")
-	admin.Use(middleware.RequireRole(user.ADMIN))
+	// Journal first: refused attempts (a non-admin probing /admin) are worth keeping too.
+	admin.Use(audit.Middleware(db), middleware.RequireRole(user.ADMIN))
+	admin.GET("/audit-logs", audit.List(db))
 
 	// Authentication
 	r.POST("/api/register", auth.Register(db))
