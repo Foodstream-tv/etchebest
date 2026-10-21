@@ -53,7 +53,10 @@ func loadPortRange() (portRange, error) {
 
 // ValidateConfig fails fast at startup on a bad FFmpeg port range.
 func ValidateConfig() error {
-	_, err := loadPortRange()
+	if _, err := loadPortRange(); err != nil {
+		return err
+	}
+	_, err := loadCapacityPolicy()
 	return err
 }
 

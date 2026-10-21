@@ -22,12 +22,25 @@ func (w *HLSWriter) SetOnRestart(fn func()) {
 	}
 }
 
+// LadderName is "full" or "light" (a busy server encodes fewer renditions).
+func (w *HLSWriter) LadderName() string {
+	if w == nil || w.sup == nil {
+		return ""
+	}
+	return w.sup.ladder.Name
+}
+
 // Status is the health of the HLS pipeline behind this writer.
 func (w *HLSWriter) Status() Status {
 	if w == nil || w.sup == nil {
 		return StatusUnavailable
 	}
 	return w.sup.status()
+}
+
+// SourceSize is the picture size the publisher sends, when known (0x0 otherwise).
+type SourceSize struct {
+	Width, Height int
 }
 
 // CodecInfo describes the negotiated codec for one media stream.
@@ -76,12 +89,12 @@ func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) 
 // buildFFmpegArgs returns the FFmpeg command line that turns the RTP streams described by sdpPath
 // into the adaptive HLS ladder in hlsDir. After a restart (restart=true) the playlists are appended
 // to and a discontinuity is announced, so players resume instead of stalling on a timestamp jump.
-func buildFFmpegArgs(sdpPath, hlsDir string, restart bool) []string {
+func buildFFmpegArgs(sdpPath, hlsDir string, restart bool, ladder Ladder) []string {
 	hlsFlags := "append_list+independent_segments"
 	if restart {
 		hlsFlags += "+discont_start"
 	}
-	return []string{
+	args := []string{
 		"-loglevel", "warning",
 		"-rtbufsize", "5000k",
 		"-fflags", "+genpts+discardcorrupt+nobuffer+flush_packets",
@@ -95,75 +108,12 @@ func buildFFmpegArgs(sdpPath, hlsDir string, restart bool) []string {
 
 		"-fps_mode", "cfr",
 
-		"-filter_complex",
-		"[0:v]fps=30,split=4[v1080][v720][v480][v360];" +
-			"[v1080]scale=w=1920:h=1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[v1080out];" +
-			"[v720]scale=w=1280:h=720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[v720out];" +
-			"[v480]scale=w=854:h=480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2[v480out];" +
-			"[v360]scale=w=640:h=360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2[v360out]",
+		"-filter_complex", ladder.filterGraph(),
 
 		"-af", "aresample=async=1:first_pts=0",
-
-		"-map", "[v1080out]",
-		"-map", "0:a?",
-		"-c:v:0", "libx264",
-		"-preset:v:0", "veryfast",
-		"-tune:v:0", "zerolatency",
-		"-b:v:0", "5000k",
-		"-maxrate:v:0", "5500k",
-		"-bufsize:v:0", "10000k",
-		"-g:v:0", "30",
-		"-keyint_min:v:0", "30",
-		"-sc_threshold:v:0", "0",
-		"-level:v:0", "4.2",
-		"-c:a:0", "aac",
-		"-b:a:0", "128k",
-
-		"-map", "[v720out]",
-		"-map", "0:a?",
-		"-c:v:1", "libx264",
-		"-preset:v:1", "veryfast",
-		"-tune:v:1", "zerolatency",
-		"-b:v:1", "2800k",
-		"-maxrate:v:1", "3200k",
-		"-bufsize:v:1", "5600k",
-		"-g:v:1", "30",
-		"-keyint_min:v:1", "30",
-		"-sc_threshold:v:1", "0",
-		"-level:v:1", "4.0",
-		"-c:a:1", "aac",
-		"-b:a:1", "128k",
-
-		"-map", "[v480out]",
-		"-map", "0:a?",
-		"-c:v:2", "libx264",
-		"-preset:v:2", "veryfast",
-		"-tune:v:2", "zerolatency",
-		"-b:v:2", "1200k",
-		"-maxrate:v:2", "1400k",
-		"-bufsize:v:2", "2400k",
-		"-g:v:2", "30",
-		"-keyint_min:v:2", "30",
-		"-sc_threshold:v:2", "0",
-		"-level:v:2", "3.1",
-		"-c:a:2", "aac",
-		"-b:a:2", "96k",
-
-		"-map", "[v360out]",
-		"-map", "0:a?",
-		"-c:v:3", "libx264",
-		"-preset:v:3", "veryfast",
-		"-tune:v:3", "zerolatency",
-		"-b:v:3", "700k",
-		"-maxrate:v:3", "900k",
-		"-bufsize:v:3", "1400k",
-		"-g:v:3", "30",
-		"-keyint_min:v:3", "30",
-		"-sc_threshold:v:3", "0",
-		"-level:v:3", "3.0",
-		"-c:a:3", "aac",
-		"-b:a:3", "64k",
-
+	}
+	args = append(args, ladder.outputArgs()...)
+	args = append(args,
 		"-force_key_frames", "expr:floor(t/2)*2",
 
 		"-f", "hls",
@@ -172,10 +122,11 @@ func buildFFmpegArgs(sdpPath, hlsDir string, restart bool) []string {
 		"-hls_playlist_type", "event",
 		"-hls_flags", hlsFlags,
 		"-master_pl_name", "master.m3u8",
-		"-var_stream_map", "v:0,a:0,name:1080p v:1,a:1,name:720p v:2,a:2,name:480p v:3,a:3,name:360p",
+		"-var_stream_map", ladder.varStreamMap(),
 		"-hls_segment_filename", filepath.Join(hlsDir, "%v", "segment_%03d.ts"),
 		filepath.Join(hlsDir, "%v", "index.m3u8"),
-	}
+	)
+	return args
 }
 
 func codecSummary(c *CodecInfo) string {
