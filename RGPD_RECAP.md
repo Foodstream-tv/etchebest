@@ -73,7 +73,7 @@ PRs concernées : #264 audit · #265 logs · #266 effacement + export + purge ·
 | Connexion Postgres `sslmode=disable` | ⚠️ | — | ⏳ TLS si la base n'est pas sur le même hôte |
 | EXIF (GPS) dans les photos envoyées | ⚠️ conservé | — | ⏳ Retirer à l'upload |
 | Backend en HTTP (compose par défaut) | ⚠️ | — | HTTPS via le compose VM (`docker-compose.vm.yml`) : vérifier qu'il est bien utilisé en prod |
-| Admin (`analytics`) : liste des e-mails, aucun journal | ⚠️ | — | ⏳ Journal d'audit (qui consulte / supprime quoi) |
+| Admin (`analytics`) : liste des e-mails, aucun journal | ⚠️ | 🔀 Journal d'audit : chaque appel `/api/admin/*` (consultation comme suppression, y compris refusé) est enregistré avec qui, quoi, cible, résultat, IP ; conservé 1 an ; lisible via `GET /api/admin/audit-logs` | ⏳ Mentionner le journal et sa durée dans la politique de confidentialité |
 
 ---
 
