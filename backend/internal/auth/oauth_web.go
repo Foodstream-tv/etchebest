@@ -69,6 +69,10 @@ func GoogleStartAuth(googleClientID string, redirectURI string) gin.HandlerFunc 
 
 		// Get the callback redirect URL from query params (for client redirect after auth)
 		callbackRedirect := c.Query("redirect")
+		if callbackRedirect != "" && safeRedirect(callbackRedirect) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "redirect URL not allowed"})
+			return
+		}
 
 		// Build Google OAuth URL
 		googleAuthURL := fmt.Sprintf(
@@ -143,7 +147,9 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		}
 
 		// Get callback redirect URL from cookie
+		// Checked again: the cookie is only trusted if it still passes the allowlist.
 		callbackRedirect, _ := c.Cookie("oauth_redirect")
+		callbackRedirect = safeRedirect(callbackRedirect)
 
 		// Exchange code for token
 		tokenURL := "https://oauth2.googleapis.com/token"
