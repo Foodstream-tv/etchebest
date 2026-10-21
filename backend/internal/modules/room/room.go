@@ -39,6 +39,9 @@ type Request struct {
 	ThumbnailURL    string   `json:"thumbnailUrl"`
 	Status          string   `json:"status"`
 	ScheduledAt     *string  `json:"scheduledAt"`
+	// RecordReplay: keep a replay once the live is over. Absent means yes; false deletes the recording
+	// when the live ends.
+	RecordReplay *bool `json:"recordReplay"`
 }
 
 type AddParticipantReq struct {
@@ -543,6 +546,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			StartedAt:      startedAt,
 			Tags:           resolvedTags,
 			ScheduledAt:    scheduledAt,
+			ReplayDisabled: req.RecordReplay != nil && !*req.RecordReplay,
 		}
 		if err := db.Create(&newLive).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create live"})
@@ -644,10 +648,44 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var reservedLive liveModule.Live
-		if err := db.Select("status").Where("room_id = ?", roomId).First(&reservedLive).Error; err == nil && !joinableStatus(reservedLive.Status) {
-			mu.Unlock()
-			c.JSON(http.StatusForbidden, gin.H{"error": "ce live est terminé"})
-			return
+		recorded := true
+		if err := db.Select("status", "replay_disabled").Where("room_id = ?", roomId).First(&reservedLive).Error; err == nil {
+			if !joinableStatus(reservedLive.Status) {
+				mu.Unlock()
+				c.JSON(http.StatusForbidden, gin.H{"error": "ce live est terminé"})
+				return
+			}
+			recorded = !reservedLive.ReplayDisabled
+		}
+
+		// A recorded live may be replayed, with the co-streamer in it: the person has to agree first.
+		// The agreement is kept (date included) as proof, and asked only once per live.
+		var body struct {
+			ConsentToRecording bool `json:"consentToRecording"`
+		}
+		_ = c.ShouldBindJSON(&body) // the body is optional
+		if recorded {
+			agreed, err := liveModule.HasConsented(db, roomId, currentUserId)
+			if err != nil {
+				mu.Unlock()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check consent"})
+				return
+			}
+			if !agreed && !body.ConsentToRecording {
+				mu.Unlock()
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "ce live est enregistré et peut être rediffusé : acceptez l'enregistrement pour vous inscrire",
+					"code":  codeRecordingConsentRequired,
+				})
+				return
+			}
+			if !agreed {
+				if err := liveModule.RecordConsent(db, roomId, currentUserId, time.Now()); err != nil {
+					mu.Unlock()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record consent"})
+					return
+				}
+			}
 		}
 
 		registeredCount := coStreamerCount(room)
@@ -910,7 +948,9 @@ func GetRoom(db *gorm.DB) gin.HandlerFunc {
 		mu.Lock()
 		connected := connectedUsers(peekLiveRoom(roomId))
 		mu.Unlock()
-		c.JSON(http.StatusOK, newRoomView(room, connected, usernamesByID(db, room.Participants)))
+		view := newRoomView(room, connected, usernamesByID(db, room.Participants))
+		view.RecordReplay = liveModule.IsRecorded(db, room.ID)
+		c.JSON(http.StatusOK, view)
 	}
 }
 
@@ -1013,7 +1053,7 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 		copy(conns, room.Connections)
 
 		// Tear down room state
-		replayURL, replayErr := hls.StopStream(roomId)
+		replayURL, replayErr := endHLS(db, roomId)
 		log.Printf("[DISCONNECT] room=%s replayURL=%q replayErr=%v", roomId, replayURL, replayErr)
 		if replayErr != nil {
 			log.Printf("failed to generate replay for room %s: %v", roomId, replayErr)
@@ -2123,7 +2163,7 @@ func removeTracksFromPeer(room *Room, pc *webrtc.PeerConnection) []*TrackInfo {
 // teardownEmptyRoom stops HLS, marks the live as ended, and removes the DB record.
 // Must be called with mu held.
 func teardownEmptyRoom(db *gorm.DB, room *Room, roomID string) {
-	replayURL, replayErr := hls.StopStream(roomID)
+	replayURL, replayErr := endHLS(db, roomID)
 	if replayErr != nil {
 		log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
 	}

@@ -124,6 +124,24 @@ func finalizeOnePlaylist(path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
+// DiscardStream ends the room's HLS pipeline and deletes everything it recorded: no replay is made.
+// Used when the host chose not to keep one.
+func DiscardStream(roomID string) {
+	mu.Lock()
+	stream, exists := streams[roomID]
+	delete(streams, roomID)
+	mu.Unlock()
+	if exists {
+		stream.Stop()
+	}
+	if roomID == "" || roomID != filepath.Base(roomID) || roomID == "." || roomID == ".." {
+		return
+	}
+	if err := os.RemoveAll(filepath.Join("./hls", roomID)); err != nil {
+		log.Printf("[HLS] could not delete the recording of room %s: %v", roomID, err)
+	}
+}
+
 func StopStream(roomID string) (string, error) {
 	mu.Lock()
 

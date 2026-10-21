@@ -1,10 +1,12 @@
 package live
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -210,3 +212,63 @@ func DeleteLive(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+
+// replaysDir is where finished replays are stored.
+const replaysDir = "./storage/replays"
+
+// RemoveReplay withdraws the replay of a live: it is deleted from disk and no longer offered, while the
+// live itself (title, date, views) stays. It is open to the host and to anyone who agreed to take part in
+// the recording, i.e. the people who appear in it.
+func RemoveReplay(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		currentUserID := c.GetString("userId")
+		if currentUserID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		var target Live
+		idParam := c.Param("id")
+		var err error
+		if numericID, parseErr := strconv.Atoi(idParam); parseErr == nil {
+			err = db.Where("id = ?", numericID).First(&target).Error
+		} else {
+			err = db.Where("room_id = ?", idParam).First(&target).Error
+		}
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "live not found"})
+			return
+		}
+
+		allowed := target.UserID == currentUserID
+		if !allowed && target.RoomID != "" {
+			allowed, _ = HasConsented(db, target.RoomID, currentUserID)
+		}
+		if !allowed {
+			c.JSON(http.StatusForbidden, gin.H{"error": "only the host or a person who took part in this live can have its replay removed"})
+			return
+		}
+
+		if target.ReplayRemovedAt == nil {
+			now := time.Now()
+			if err := db.Model(&target).Updates(map[string]any{
+				"has_replay":        false,
+				"replay_url":        "",
+				"replay_removed_at": now,
+				"replay_removed_by": currentUserID,
+			}).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove the replay"})
+				return
+			}
+			if target.RoomID != "" && target.RoomID == filepath.Base(target.RoomID) && target.RoomID != "." && target.RoomID != ".." {
+				if err := os.RemoveAll(filepath.Join(replaysDir, target.RoomID)); err != nil {
+					// The replay is already unpublished; say so rather than pretend it worked fully.
+					log.Printf("[REPLAY] removed from the database but not from disk (room %s): %v", target.RoomID, err)
+				}
+			}
+			log.Printf("[REPLAY] replay of live %d removed by %s", target.ID, currentUserID)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "replay removed", "id": target.ID, "roomId": target.RoomID})
+	}
+}

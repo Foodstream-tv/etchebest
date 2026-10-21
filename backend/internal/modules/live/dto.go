@@ -35,6 +35,10 @@ type LiveDTO struct {
 	HasReplay   bool   `json:"has_replay"`
 	ReplayURL   string `json:"replay_url,omitempty"`
 	ReplayViews int    `json:"replay_views"`
+	// ReplayEnabled is false when the host chose not to keep a replay (the live is not recorded for later).
+	ReplayEnabled bool `json:"replay_enabled"`
+	// ReplayRemoved is true when the replay was withdrawn after the live.
+	ReplayRemoved bool `json:"replay_removed"`
 
 	CreatedAt time.Time `json:"created_at"`
 }

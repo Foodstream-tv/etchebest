@@ -30,6 +30,9 @@ type RoomView struct {
 	ParticipantsInfo []ParticipantInfo `json:"participantsInfo"`
 	// ConnectedCount counts the co-streamers (host excluded) with an active peer connection.
 	ConnectedCount int `json:"connectedCount"`
+	// RecordReplay: false when the host chose not to keep a replay. Co-streamers must consent to the
+	// recording when it is true (see ReserveRoom).
+	RecordReplay bool `json:"recordReplay"`
 }
 
 // connectedUsers returns the users that have a peer connection in the in-memory room.
