@@ -18,6 +18,7 @@ import {
   type RoomInfo,
 } from "@/services/streaming";
 import CookingAssistant from "@/components/watch/CookingAssistant";
+import RecordingConsentDialog from "@/components/watch/RecordingConsentDialog";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 
 import { useWebRTC } from "@/hooks/useWebRTC";
@@ -357,6 +358,7 @@ export default function BroadcastRoomPage() {
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
+  const [consentNeeded, setConsentNeeded] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -369,13 +371,30 @@ export default function BroadcastRoomPage() {
   useEffect(() => {
     if (!ready || !token || !roomIdFromUrl || hasStarted || state !== "idle") return;
 
-    if (mode === "join" && !isHost && liveInfo?.status === "live") {
+    if (mode === "join" && !isHost && liveInfo?.status === "live" && !consentNeeded) {
       setHasStarted(true);
-      joinAsCoStreamer(roomIdFromUrl).catch((err) => {
-        console.error("Failed to join stream as viewer/co-streamer:", err);
-      });
+      joinAsCoStreamer(roomIdFromUrl)
+        .then((result) => {
+          // A recorded live: ask first, the person appears in the replay.
+          if (result === "consent-required") {
+            setConsentNeeded(true);
+            setHasStarted(false);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to join stream as viewer/co-streamer:", err);
+        });
     }
-  }, [ready, token, roomIdFromUrl, hasStarted, state, mode, isHost, liveInfo?.status, joinAsCoStreamer]);
+  }, [ready, token, roomIdFromUrl, hasStarted, state, mode, isHost, liveInfo?.status, joinAsCoStreamer, consentNeeded]);
+
+  const handleAcceptRecording = () => {
+    if (!roomIdFromUrl) return;
+    setConsentNeeded(false);
+    setHasStarted(true);
+    joinAsCoStreamer(roomIdFromUrl, { consentToRecording: true }).catch((err) => {
+      console.error("Failed to join stream after consent:", err);
+    });
+  };
 
   const { label: statusLabel, dotClassName } = getBroadcastStatusMeta(
     state as BroadcastState,
@@ -533,6 +552,12 @@ export default function BroadcastRoomPage() {
 
   return (
     <main id="main-content" className="min-h-screen">
+      {consentNeeded ? (
+        <RecordingConsentDialog
+          onAccept={handleAcceptRecording}
+          onCancel={() => router.back()}
+        />
+      ) : null}
       <div className="mx-auto w-full max-w-375 px-4 py-5 sm:px-6 lg:py-7">
         <header className="mb-5 overflow-hidden rounded-[30px] border border-black/8 bg-white/75 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

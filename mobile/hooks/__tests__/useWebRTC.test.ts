@@ -84,6 +84,7 @@ jest.mock('@/utils/webrtc', () => ({
 jest.mock('@/services/streaming', () => ({
     createRoom: jest.fn(),
     reserveRoom: jest.fn(),
+    isRecordingConsentRequired: (err: any) => err?.body?.code === 'RECORDING_CONSENT_REQUIRED',
     disconnectRoom: jest.fn(),
     sendOffer: jest.fn(),
     sendICECandidate: jest.fn(),
@@ -749,7 +750,7 @@ describe('useWebRTC - co-streamer and existing room', () => {
             await result.current.joinAsCoStreamer('room-9');
         });
 
-        expect(api.reserveRoom).toHaveBeenCalledWith('room-9');
+        expect(api.reserveRoom).toHaveBeenCalledWith('room-9', {});
         expect(api.createRoom).not.toHaveBeenCalled();
         expect(api.sendOffer).toHaveBeenCalledWith('room-9', expect.any(String));
 
@@ -758,6 +759,42 @@ describe('useWebRTC - co-streamer and existing room', () => {
         });
         expect(api.disconnectRoom).toHaveBeenCalledTimes(1);
         expect(api.disconnectRoom).toHaveBeenCalledWith('room-9');
+    });
+
+    it('stops, without error, when the live is recorded and the person has not agreed yet', async () => {
+        api.reserveRoom.mockRejectedValueOnce(
+            new ApiError('consent', 400, { code: 'RECORDING_CONSENT_REQUIRED' })
+        );
+        const { result } = renderHook(() => useWebRTC());
+        await act(async () => {
+            await result.current.joinAsCoStreamer('room-9');
+        });
+
+        expect(result.current.consentRequired).toBe(true);
+        expect(result.current.state).toBe('idle');
+        expect(result.current.error).toBeNull();
+        // nothing was reserved, nothing to give back, and the camera was never asked for
+        expect(api.disconnectRoom).not.toHaveBeenCalled();
+        expect(mockEnv.getUserMedia).not.toHaveBeenCalled();
+    });
+
+    it('joins once the person agreed: the consent is sent with the reservation', async () => {
+        api.reserveRoom.mockRejectedValueOnce(
+            new ApiError('consent', 400, { code: 'RECORDING_CONSENT_REQUIRED' })
+        );
+        const { result } = renderHook(() => useWebRTC());
+        await act(async () => {
+            await result.current.joinAsCoStreamer('room-9');
+        });
+        expect(result.current.consentRequired).toBe(true);
+
+        await act(async () => {
+            await result.current.joinAsCoStreamer('room-9', { consentToRecording: true });
+        });
+
+        expect(api.reserveRoom).toHaveBeenLastCalledWith('room-9', { consentToRecording: true });
+        expect(result.current.consentRequired).toBe(false);
+        expect(api.sendOffer).toHaveBeenCalledWith('room-9', expect.any(String));
     });
 
     it('releases the reservation when joining fails', async () => {

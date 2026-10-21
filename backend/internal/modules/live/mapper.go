@@ -25,6 +25,8 @@ func LiveToDTO(live Live) LiveDTO {
 		HasReplay:      live.HasReplay,
 		ReplayURL:      live.ReplayURL,
 		ReplayViews:    live.ReplayViews,
+		ReplayEnabled:  !live.ReplayDisabled,
+		ReplayRemoved:  live.ReplayRemovedAt != nil,
 		CreatedAt:      live.CreatedAt,
 		ScheduledAt: live.ScheduledAt,
 	}

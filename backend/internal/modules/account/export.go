@@ -10,14 +10,16 @@ import (
 // Export is everything the platform holds about one user, in a portable format (GDPR art. 15 and 20).
 // The password hash and internal tokens are deliberately left out.
 type Export struct {
-	GeneratedAt time.Time        `json:"generatedAt"`
-	Profile     ProfileExport    `json:"profile"`
-	FollowingID []string         `json:"followingIds"`
-	FollowersID []string         `json:"followersIds"`
-	Lives       []LiveExport     `json:"lives"`
-	ChatMessage []ChatExport     `json:"chatMessages"`
-	Received    []ActivityExport `json:"notificationsReceived"`
-	Performed   []ActivityExport `json:"actionsPerformed"`
+	GeneratedAt time.Time     `json:"generatedAt"`
+	Profile     ProfileExport `json:"profile"`
+	FollowingID []string      `json:"followingIds"`
+	FollowersID []string      `json:"followersIds"`
+	Lives       []LiveExport  `json:"lives"`
+	ChatMessage []ChatExport  `json:"chatMessages"`
+	// RecordingConsents lists the recorded lives the person agreed to take part in, with the date.
+	RecordingConsents []ConsentExport  `json:"recordingConsents"`
+	Received          []ActivityExport `json:"notificationsReceived"`
+	Performed         []ActivityExport `json:"actionsPerformed"`
 }
 
 type ProfileExport struct {
@@ -60,6 +62,11 @@ type LiveExport struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 }
 
+type ConsentExport struct {
+	RoomID      string    `json:"roomId"`
+	ConsentedAt time.Time `json:"consentedAt"`
+}
+
 type ChatExport struct {
 	ID        string    `json:"id"`
 	RoomID    string    `json:"roomId"`
@@ -79,13 +86,14 @@ type ActivityExport struct {
 // BuildExport collects the user's data. Lists are never nil so the JSON always has arrays.
 func BuildExport(db *gorm.DB, userID string) (*Export, error) {
 	out := &Export{
-		GeneratedAt: time.Now().UTC(),
-		FollowingID: []string{},
-		FollowersID: []string{},
-		Lives:       []LiveExport{},
-		ChatMessage: []ChatExport{},
-		Received:    []ActivityExport{},
-		Performed:   []ActivityExport{},
+		GeneratedAt:       time.Now().UTC(),
+		FollowingID:       []string{},
+		FollowersID:       []string{},
+		Lives:             []LiveExport{},
+		ChatMessage:       []ChatExport{},
+		RecordingConsents: []ConsentExport{},
+		Received:          []ActivityExport{},
+		Performed:         []ActivityExport{},
 	}
 
 	res := db.Table("users").Where("id = ?", userID).Take(&out.Profile)
@@ -109,6 +117,11 @@ func BuildExport(db *gorm.DB, userID string) (*Export, error) {
 	if err := db.Table("chats").
 		Select("id, room_id, message, created_at").
 		Where("user_id = ?", userID).Order("created_at ASC").Scan(&out.ChatMessage).Error; err != nil {
+		return nil, err
+	}
+	if err := db.Table("recording_consents").
+		Select("room_id, consented_at").
+		Where("user_id = ?", userID).Order("consented_at ASC").Scan(&out.RecordingConsents).Error; err != nil {
 		return nil, err
 	}
 	if err := db.Table("activities").Where("user_id = ?", userID).Order("created_at ASC").Scan(&out.Received).Error; err != nil {

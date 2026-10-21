@@ -126,7 +126,9 @@ export default function StudioPage() {
   const [quality] = useState<"Auto (1080p)" | "720p" | "480p">(
     "Auto (1080p)"
   );
-  const [replays] = useState<boolean>(true);
+  // Keep a replay once the live is over. Off: the recording is deleted at the end and co-streamers
+  // have no recording to agree to.
+  const [replays, setReplays] = useState<boolean>(true);
   const [chatActive] = useState(true);
   const [slowMode] = useState(false);
   const [subsOnly] = useState(false);
@@ -510,7 +512,7 @@ export default function StudioPage() {
       chatActive,
       slowMode,
       subsOnly,
-      replaysEnabled: replays,
+      recordReplay: replays,
       latencyMode: latency === "Faible" ? "low" : "normal",
       qualityPreset: quality,
       status: mode,
@@ -1635,6 +1637,23 @@ export default function StudioPage() {
                     </button>
                   </div>
 
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-black/8 bg-white/70 p-4 text-sm dark:border-white/10 dark:bg-white/[0.04]">
+                    <input
+                      type="checkbox"
+                      checked={replays}
+                      onChange={(e) => setReplays(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-orange-500"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-gray-900 dark:text-white">
+                        {t("studio.broadcast.replayLabel")}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
+                        {replays ? t("studio.broadcast.replayOn") : t("studio.broadcast.replayOff")}
+                      </span>
+                    </span>
+                  </label>
+
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
                       type="button"
@@ -1671,7 +1690,7 @@ export default function StudioPage() {
                   </div>
 
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("broadcast.recordingNotice")}
+                    {replays ? t("broadcast.recordingNotice") : t("broadcast.noReplayNotice")}
                   </p>
                 </div>
 

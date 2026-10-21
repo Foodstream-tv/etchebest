@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
@@ -88,6 +89,12 @@ func joinFixture(t *testing.T, db *gorm.DB, roomID string, participants ...strin
 	if err := db.Create(&liveModule.Live{RoomID: roomID, Title: "Tarte", UserID: "host", Status: "scheduled"}).Error; err != nil {
 		t.Fatal(err)
 	}
+	// the co-streamers already agreed to the recording (the join tests are not about consent)
+	for _, p := range participants {
+		if err := liveModule.RecordConsent(db, roomID, p, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	live := room
 	live.Connections = nil
 	setLiveRoom(roomID, &live)
@@ -149,7 +156,7 @@ func TestJoinRefusedOnceTheLiveIsOver(t *testing.T) {
 	if w := postOffer(webrtcRouter(db, "bob"), "/webrtc?roomId=room-over", realOffer(t)); w.Code != http.StatusForbidden {
 		t.Fatalf("status %d, want 403 for an ended live", w.Code)
 	}
-	if w := postOffer(webrtcRouter(db, "carol"), "/rooms/room-over/reserve", nil); w.Code != http.StatusForbidden {
+	if w := postOffer(webrtcRouter(db, "carol"), "/rooms/room-over/reserve", map[string]bool{"consentToRecording": true}); w.Code != http.StatusForbidden {
 		t.Fatalf("reserving an ended live: status %d, want 403", w.Code)
 	}
 }
@@ -229,7 +236,7 @@ func TestOnlyOneOfTwoSimultaneousReservationsGetsTheLastPlace(t *testing.T) {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			codes <- postOffer(webrtcRouter(db, id), "/rooms/room-race/reserve", nil).Code
+			codes <- postOffer(webrtcRouter(db, id), "/rooms/room-race/reserve", map[string]bool{"consentToRecording": true}).Code
 		}(id)
 	}
 	wg.Wait()

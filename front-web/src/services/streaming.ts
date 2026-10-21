@@ -1,4 +1,4 @@
-import { API_BASE_URL, apiFetch } from "@/lib/api";
+import { API_BASE_URL, ApiError, apiFetch } from "@/lib/api";
 
 const MEDIA_BASE_URL =
   process.env.NEXT_PUBLIC_MEDIA_BASE_URL ||
@@ -27,6 +27,8 @@ export interface RoomInfo {
   participantsInfo?: RoomParticipant[];
   /** Co-streamers (host excluded) with an active peer connection (absent on an older backend). */
   connectedCount?: number;
+  /** False when the host chose not to keep a replay (a co-streamer then has nothing to consent to). */
+  recordReplay?: boolean;
   viewers: number;
 }
 
@@ -60,11 +62,23 @@ export type ReservationResponse = {
   maxParticipants: number;
 };
 
-export async function reserveRoom(roomId: string, token?: string): Promise<ReservationResponse> {
+// The API refuses a reservation to a recorded live until the person agreed to the recording.
+export const RECORDING_CONSENT_REQUIRED = "RECORDING_CONSENT_REQUIRED";
+
+export function isRecordingConsentRequired(err: unknown): boolean {
+  return err instanceof ApiError && err.body?.code === RECORDING_CONSENT_REQUIRED;
+}
+
+export async function reserveRoom(
+  roomId: string,
+  token?: string,
+  opts: { consentToRecording?: boolean } = {}
+): Promise<ReservationResponse> {
   const rid = encodeURIComponent(roomId);
   return apiFetch<ReservationResponse>(`/rooms/${rid}/reserve`, {
     method: "POST",
     token,
+    body: opts.consentToRecording ? JSON.stringify({ consentToRecording: true }) : undefined,
   });
 }
 

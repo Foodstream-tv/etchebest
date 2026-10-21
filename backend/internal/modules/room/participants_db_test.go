@@ -36,7 +36,7 @@ func testDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	models := []any{&user.User{}, &Room{}, &liveModule.Live{}, &tagModule.Tag{}, &dish.Dish{}, &country.Country{}}
+	models := []any{&user.User{}, &Room{}, &liveModule.Live{}, &liveModule.RecordingConsent{}, &tagModule.Tag{}, &dish.Dish{}, &country.Country{}}
 	if err := db.Migrator().DropTable(append(models, "live_tags")...); err != nil {
 		t.Fatal(err)
 	}

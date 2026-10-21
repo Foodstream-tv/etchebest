@@ -23,6 +23,7 @@ const form: StudioForm = {
     durationMinutes: 60,
     image: null,
     imageUrl: '',
+    recordReplay: true,
 };
 
 describe('Studio without the native pickers in the app build', () => {

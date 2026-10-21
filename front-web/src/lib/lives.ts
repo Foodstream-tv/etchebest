@@ -32,6 +32,10 @@ export type LiveDTO = {
   user?: LiveUser;
   replay_url?: string;
   has_replay?: boolean;
+  /** False when the host chose not to keep a replay. */
+  replay_enabled?: boolean;
+  /** True when the replay was withdrawn after the live. */
+  replay_removed?: boolean;
 };
 
 export type GetLivesParams = {
@@ -79,6 +83,14 @@ export async function getLiveByRoomId(roomId: string, token?: string) {
   return apiFetch<LiveDTO>(`/lives/${encodeURIComponent(roomId)}`, {
     token,
     cache: "no-store",
+  });
+}
+
+// Withdraw the replay of a live: allowed to its host and to the people who took part in it.
+export async function removeReplay(roomId: string, token: string) {
+  return apiFetch<{ message: string }>(`/lives/${encodeURIComponent(roomId)}/replay/removal`, {
+    method: "POST",
+    token,
   });
 }
 

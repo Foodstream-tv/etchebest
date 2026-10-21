@@ -51,6 +51,8 @@ export type ScheduledLiveInput = {
     thumbnailUrl?: string;
     /** RFC 3339 */
     scheduledAt: string;
+    /** False: no replay is kept. Omitted means yes. */
+    recordReplay?: boolean;
 };
 
 /** Creates a scheduled live (no camera involved); returns the room id. */
@@ -64,6 +66,7 @@ export async function scheduleLive(input: ScheduledLiveInput): Promise<string> {
         thumbnailUrl: input.thumbnailUrl,
         status: 'scheduled',
         scheduledAt: input.scheduledAt,
+        recordReplay: input.recordReplay,
     });
     return roomId;
 }

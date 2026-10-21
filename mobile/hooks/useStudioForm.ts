@@ -28,6 +28,8 @@ export type StudioForm = {
     /** Picture chosen on the device (uploaded on submit). Mutually exclusive with `imageUrl`. */
     image: PickedImage | null;
     imageUrl: string;
+    /** Keep a replay once the live is over. Off: the recording is deleted at the end. */
+    recordReplay: boolean;
 };
 
 function initialForm(now?: Date): StudioForm {
@@ -43,6 +45,7 @@ function initialForm(now?: Date): StudioForm {
         durationMinutes: 60,
         image: null,
         imageUrl: '',
+        recordReplay: true,
     };
 }
 

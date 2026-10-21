@@ -102,6 +102,7 @@ func main() {
 		&chat.Chat{},
 		&activity.Activity{},
 		&audit.Entry{},
+		&live.RecordingConsent{},
 	}
 
 	if err := db.AutoMigrate(migrateModels...); err != nil {

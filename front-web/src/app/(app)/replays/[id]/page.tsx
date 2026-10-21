@@ -21,6 +21,8 @@ import {
 
 import HomeFooter from "@/components/home/HomeFooter";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
+import { useAuth } from "@/lib/useAuth";
+import ReplayRemovalCard from "@/components/watch/ReplayRemovalCard";
 import { useI18n } from "@/i18n/LanguageContext";
 
 type QualityOption = {
@@ -53,6 +55,7 @@ export default function ReplayDetailPage() {
   const { t, locale } = useI18n();
   const params = useParams<{ id: string }>();
   const replayId = params?.id;
+  const { token } = useAuth();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -713,6 +716,18 @@ export default function ReplayDetailPage() {
             </aside>
           </div>
         </section>
+
+        {replay.replay_url && replayId ? (
+          <ReplayRemovalCard
+            roomId={replayId}
+            token={token}
+            onRemoved={() => setReplay((r) => (r ? { ...r, replay_url: undefined, has_replay: false, replay_removed: true } : r))}
+          />
+        ) : replay.replay_removed ? (
+          <p role="status" className="mt-6 text-sm text-gray-600 dark:text-gray-400">
+            {t("replays.removed")}
+          </p>
+        ) : null}
       </div>
 
       <HomeFooter />

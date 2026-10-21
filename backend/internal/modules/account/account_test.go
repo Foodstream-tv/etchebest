@@ -84,7 +84,7 @@ func testDB(t *testing.T) *gorm.DB {
 	}
 	models := []any{
 		&user.User{}, &user.VerificationCode{}, &user.PasswordResetToken{}, &room.Room{},
-		&country.Country{}, &dish.Dish{}, &live.Live{}, &tag.Tag{}, &chat.Chat{}, &activity.Activity{},
+		&country.Country{}, &dish.Dish{}, &live.Live{}, &live.RecordingConsent{}, &tag.Tag{}, &chat.Chat{}, &activity.Activity{},
 	}
 	if err := db.Migrator().DropTable(append(models, "live_tags")...); err != nil {
 		t.Fatal(err)
@@ -148,6 +148,8 @@ func seed(t *testing.T, db *gorm.DB) {
 	must(db.Create(&activity.Activity{ID: "a1", UserID: "alice", ActorID: "bob", Type: "follow", Text: "bob follows you", CreatedAt: time.Now()}).Error)
 	must(db.Create(&activity.Activity{ID: "a2", UserID: "bob", ActorID: "alice", Type: "follow", Text: "alice follows you", CreatedAt: time.Now()}).Error)
 	must(db.Create(&activity.Activity{ID: "a3", UserID: "carol", ActorID: "bob", Type: "follow", Text: "bob follows you", CreatedAt: time.Now()}).Error)
+	must(live.RecordConsent(db, "room-bob", "alice", time.Now()))
+	must(live.RecordConsent(db, "room-bob", "carol", time.Now()))
 	must(db.Create(&user.VerificationCode{ID: "v1", UserID: "alice", CodeHash: "123456", Type: "email", Target: "alice@example.com", ExpiresAt: time.Now().Add(time.Hour)}).Error)
 	must(db.Create(&user.PasswordResetToken{ID: "p1", UserID: "alice", Email: "alice@example.com", TokenHash: "tok", ExpiresAt: time.Now().Add(time.Hour)}).Error)
 }
@@ -180,6 +182,7 @@ func TestEraseUserRemovesAllPersonalData(t *testing.T) {
 		"activities as actor":   count(t, db, "activities", "actor_id = ?", "alice"),
 		"verification codes":    count(t, db, "verification_codes", "user_id = ?", "alice"),
 		"password reset tokens": count(t, db, "password_reset_tokens", "user_id = ?", "alice"),
+		"recording consents":    count(t, db, "recording_consents", "user_id = ?", "alice"),
 		"in participants":       count(t, db, "rooms", "? = ANY(participants)", "alice"),
 		"in following":          count(t, db, "users", "? = ANY(following_id_s)", "alice"),
 		"in followers":          count(t, db, "users", "? = ANY(followers_id_s)", "alice"),
@@ -275,6 +278,9 @@ func TestExportMeHasEverythingAndNoSecrets(t *testing.T) {
 	}
 	if len(got.Received) != 1 || len(got.Performed) != 1 {
 		t.Errorf("activities: received %d performed %d", len(got.Received), len(got.Performed))
+	}
+	if len(got.RecordingConsents) != 1 || got.RecordingConsents[0].RoomID != "room-bob" {
+		t.Errorf("recording consents: %+v (only alice's own, with the room)", got.RecordingConsents)
 	}
 	if len(got.FollowingID) != 1 || got.FollowingID[0] != "bob" || len(got.FollowersID) != 1 {
 		t.Errorf("follow lists: %v / %v", got.FollowingID, got.FollowersID)
