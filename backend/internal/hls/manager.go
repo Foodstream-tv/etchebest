@@ -68,7 +68,7 @@ func RegisterToStream(roomID string, stop func(), status func() Status) {
 }
 
 func logSegmentStatus(roomID string) {
-	qualities := []string{"1080p", "720p", "480p", "360p"}
+	qualities := qualityNames()
 	const playlistFile = "index.m3u8"
 	
 	for _, quality := range qualities {
@@ -93,12 +93,9 @@ func logSegmentStatus(roomID string) {
 
 func finalizePlaylist(roomID string) error {
 	const playlistFile = "index.m3u8"
-	playlists := []string{
-		filepath.Join("./hls", roomID, "master.m3u8"),
-		filepath.Join("./hls", roomID, "1080p", playlistFile),
-		filepath.Join("./hls", roomID, "720p", playlistFile),
-		filepath.Join("./hls", roomID, "480p", playlistFile),
-		filepath.Join("./hls", roomID, "360p", playlistFile),
+	playlists := []string{filepath.Join("./hls", roomID, "master.m3u8")}
+	for _, quality := range qualityNames() { // a light-ladder live has no 1080p/720p: missing files are skipped
+		playlists = append(playlists, filepath.Join("./hls", roomID, quality, playlistFile))
 	}
 
 	for _, playlistPath := range playlists {

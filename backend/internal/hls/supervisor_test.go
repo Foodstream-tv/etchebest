@@ -144,7 +144,7 @@ func TestACrashedFFmpegIsRestartedAndAppendsToThePlaylists(t *testing.T) {
 	dir := fakeFFmpeg(t, "crash-first")
 	audio, video := testCodecs()
 
-	writer, stop, err := Start("room-crash", audio, video)
+	writer, stop, err := Start("room-crash", audio, video, SourceSize{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestFFmpegGivesUpWhenItKeepsCrashing(t *testing.T) {
 	fakeFFmpeg(t, "crash-always")
 	audio, video := testCodecs()
 
-	writer, stop, err := Start("room-giveup", audio, video)
+	writer, stop, err := Start("room-giveup", audio, video, SourceSize{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestStartFailsCleanlyWhenFFmpegCannotRun(t *testing.T) {
 	fakeFFmpeg(t, "exit-at-once")
 	audio, video := testCodecs()
 
-	if _, _, err := Start("room-dead", audio, video); err == nil {
+	if _, _, err := Start("room-dead", audio, video, SourceSize{}); err == nil {
 		t.Fatal("Start must fail when FFmpeg dies at once")
 	} else if !strings.Contains(err.Error(), "cannot open input") {
 		t.Errorf("the error must carry FFmpeg's last words: %v", err)
@@ -217,7 +217,7 @@ func TestAStubbornFFmpegIsKilled(t *testing.T) {
 	dir := fakeFFmpeg(t, "stubborn")
 	audio, video := testCodecs()
 
-	_, stop, err := Start("room-stubborn", audio, video)
+	_, stop, err := Start("room-stubborn", audio, video, SourceSize{})
 	if err != nil {
 		t.Fatal(err)
 	}
