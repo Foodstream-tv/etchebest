@@ -1455,7 +1455,16 @@ type hlsState struct {
 	video      *hls.CodecInfo
 	trackCount int
 	retrying   bool // a background retry of the HLS start is pending (guarded by mu)
+	// src is the publisher's picture size, read from its first SPS (0x0 until then): the ladder is chosen
+	// from it, so HLS waits for it (hlsSourceWait at most).
+	src      hls.SourceSize
+	waitOnce sync.Once
+	// start launches the HLS pipeline (hls.Start unless a test replaces it).
+	start func(roomID string, audio, video *hls.CodecInfo, src hls.SourceSize) (*hls.HLSWriter, func(), error)
 }
+
+// hlsSourceWait is how long HLS waits for the publisher's SPS before starting with the full ladder.
+var hlsSourceWait = 3 * time.Second
 
 // hlsStartRetryDelays is how long to wait before each new attempt when FFmpeg could not be started.
 var hlsStartRetryDelays = []time.Duration{2 * time.Second, 5 * time.Second, 10 * time.Second}
@@ -1473,13 +1482,30 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 		log.Printf("[HLS] skip start for room %s: codec %s (WebRTC relay stays prioritized)", roomID, h.video.CodecName)
 		return
 	}
+	if h.src.Width == 0 {
+		// The size of the picture is not known yet: the first SPS will call us again. If it never
+		// comes (an odd publisher), start with the full ladder rather than not at all.
+		wait := hlsSourceWait
+		h.waitOnce.Do(func() {
+			time.AfterFunc(wait, func() {
+				mu.Lock()
+				defer mu.Unlock()
+				if h.src.Width == 0 {
+					log.Printf("[HLS] no SPS from the publisher of room %s after %v: starting with the full ladder", roomID, wait)
+					h.src = hls.SourceSize{Width: -1, Height: -1} // known to be unknown: stop waiting
+					h.tryStartHLS(room, roomID)
+				}
+			})
+		})
+		return
+	}
 	log.Println("starting HLS stream for room", roomID)
 	writer, err := h.startHLS(room, roomID)
 	if err != nil {
 		log.Printf("failed to start HLS for room %s: %v", roomID, err)
 		if !h.retrying {
 			h.retrying = true
-			go h.retryHLSStart(room, roomID)
+			go h.retryHLSStart(room, roomID, hlsStartRetryDelays) // read here, under mu: not from the goroutine
 		}
 		return
 	}
@@ -1489,7 +1515,15 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 // startHLS starts FFmpeg and makes it ask the host for a keyframe whenever it had to be restarted:
 // the new process can only start encoding on a keyframe with its SPS/PPS.
 func (h *hlsState) startHLS(room *Room, roomID string) (*hls.HLSWriter, error) {
-	writer, _, err := hls.Start(roomID, h.audio, h.video)
+	src := h.src
+	if src.Width < 0 {
+		src = hls.SourceSize{}
+	}
+	start := h.start
+	if start == nil {
+		start = hls.Start
+	}
+	writer, _, err := start(roomID, h.audio, h.video, src)
 	if err != nil {
 		return nil, err
 	}
@@ -1499,8 +1533,8 @@ func (h *hlsState) startHLS(room *Room, roomID string) (*hls.HLSWriter, error) {
 
 // retryHLSStart tries again a few times after a failed start: without it the live would have no HLS
 // (hence no replay) until the host happens to publish a new track.
-func (h *hlsState) retryHLSStart(room *Room, roomID string) {
-	for _, delay := range hlsStartRetryDelays {
+func (h *hlsState) retryHLSStart(room *Room, roomID string, delays []time.Duration) {
+	for _, delay := range delays {
 		time.Sleep(delay)
 		mu.Lock()
 		if peekLiveRoom(roomID) != room || room.HLSWriter != nil || hls.IsRunning(roomID) {
@@ -2110,7 +2144,7 @@ func (r *hlsVideoRelay) relayVideo(
 // every subscribed peer (rewriting the PT) and, when isHLSSource is true,
 // to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
 // all other goroutines must leave it false so they never touch the shared HLSWriter.
-func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *webrtc.PeerConnection, isHLSSource bool) {
+func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *webrtc.PeerConnection, isHLSSource bool, onSourceSize func(w, h int)) {
 	buf := make([]byte, 4096)
 	var cachedWriter *hls.HLSWriter
 	var cachedPeers []peerTrack
@@ -2145,6 +2179,16 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 		}
 
 		fanoutToPeers(pkt, cachedPeers)
+
+		// Until HLS exists, the publisher's SPS is what tells us how big its picture is.
+		if onSourceSize != nil && cachedWriter == nil {
+			if sps := hls.ExtractSPS(pkt.Payload); sps != nil {
+				if w, h, err := hls.ParseSPSSize(sps); err == nil {
+					onSourceSize(w, h)
+					onSourceSize = nil
+				}
+			}
+		}
 
 		if hlsRelay.shouldRelay(isHLSSource, cachedWriter) {
 			hlsRelay.relay(isAudio, cachedWriter, buf[:n], pkt, track, pc, pktCount)
@@ -2426,7 +2470,20 @@ func handleOnTrack(
 		go requestRenegotiationOffer(room, target.userID, target.pc)
 	}
 
-	go startTrackRelay(track, ti, room, peerConnection, isHost)
+	var onSourceSize func(w, h int)
+	if isHost && track.Kind() == webrtc.RTPCodecTypeVideo {
+		onSourceSize = func(w, h int) {
+			mu.Lock()
+			defer mu.Unlock()
+			if hlsCtx.src.Width > 0 {
+				return
+			}
+			hlsCtx.src = hls.SourceSize{Width: w, Height: h}
+			log.Printf("[HLS] publisher of room %s sends %dx%d", roomID, w, h)
+			hlsCtx.tryStartHLS(room, roomID)
+		}
+	}
+	go startTrackRelay(track, ti, room, peerConnection, isHost, onSourceSize)
 }
 
 // makeConnectionStateHandler returns an OnConnectionStateChange callback that

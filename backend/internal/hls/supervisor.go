@@ -83,6 +83,7 @@ type supervisor struct {
 	hlsDir    string
 	audioPort int
 	videoPort int
+	ladder    Ladder
 
 	mu        sync.Mutex
 	cur       *proc
@@ -113,7 +114,7 @@ func (s *supervisor) setOnRestart(fn func()) {
 }
 
 func (s *supervisor) launch(restart bool) (*proc, error) {
-	cmd := ffmpegCommand(buildFFmpegArgs(s.sdpPath, s.hlsDir, restart))
+	cmd := ffmpegCommand(buildFFmpegArgs(s.sdpPath, s.hlsDir, restart, s.ladder))
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg stdin pipe: %w", err)
@@ -286,22 +287,36 @@ func (s *supervisor) stop() {
 
 // Start launches FFmpeg for the room and keeps it running: it reads RTP audio and video from two
 // local UDP ports and produces an adaptive HLS stream. The returned writer feeds those ports.
-func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(), error) {
+func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*HLSWriter, func(), error) {
 	hlsDir := filepath.Join("./hls", roomID)
-	if err := os.MkdirAll(hlsDir, 0755); err != nil {
+	ladder, releaseSlot, err := reserveSlot(roomID)
+	if err != nil {
 		return nil, nil, err
 	}
-	for _, quality := range []string{"1080p", "720p", "480p", "360p"} {
-		if err := os.MkdirAll(filepath.Join(hlsDir, quality), 0755); err != nil {
+	// The load picks the ladder, the source trims it: no rendition larger than what is published.
+	ladder = ladder.ForSource(src.Width, src.Height)
+
+	if err := os.MkdirAll(hlsDir, 0755); err != nil {
+		releaseSlot()
+		return nil, nil, err
+	}
+	for _, r := range ladder.Rungs {
+		if err := os.MkdirAll(filepath.Join(hlsDir, r.Name), 0755); err != nil {
+			releaseSlot()
 			return nil, nil, err
 		}
 	}
-
 	audioPort, videoPort, err := allocateRTPPorts()
 	if err != nil {
+		releaseSlot()
 		return nil, nil, fmt.Errorf("find RTP ports: %w", err)
 	}
-	release := func() { releasePorts(audioPort, videoPort) }
+	release := func() {
+		releasePorts(audioPort, videoPort)
+		releaseSlot()
+	}
+	log.Printf("[HLS] room %s gets the %q ladder, %d rendition(s), source %dx%d (%d live(s) with HLS)",
+		roomID, ladder.Name, len(ladder.Rungs), src.Width, src.Height, ActiveLives())
 
 	log.Printf("[HLS] audio UDP port=%d video UDP port=%d audio_codec=%v video_codec=%v",
 		audioPort, videoPort, codecSummary(audio), codecSummary(video))
@@ -314,7 +329,7 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo) (*HLSWriter, func(
 
 	s := &supervisor{
 		roomID: roomID, sdpPath: sdpPath, hlsDir: hlsDir,
-		audioPort: audioPort, videoPort: videoPort,
+		audioPort: audioPort, videoPort: videoPort, ladder: ladder,
 		state:  StatusStarting,
 		stopCh: make(chan struct{}), finished: make(chan struct{}),
 	}
