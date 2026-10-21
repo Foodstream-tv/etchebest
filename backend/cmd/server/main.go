@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-	"net"
-	"time"
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
-	"github.com/Foodstream-io/etchebest/internal/modules/account"
 	"github.com/Foodstream-io/etchebest/internal/middleware"
+	"github.com/Foodstream-io/etchebest/internal/modules/account"
+	"github.com/Foodstream-io/etchebest/internal/modules/activity"
 	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
 	"github.com/Foodstream-io/etchebest/internal/modules/dish"
@@ -15,9 +14,10 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
 	"github.com/Foodstream-io/etchebest/internal/modules/tag"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
-	"github.com/Foodstream-io/etchebest/internal/modules/activity"
 	"log"
+	"net"
 	"os"
+	"time"
 
 	_ "github.com/Foodstream-io/etchebest/docs"
 	"github.com/Foodstream-io/etchebest/internal/routes"
@@ -106,6 +106,11 @@ func main() {
 	db.Model(&user.User{}).Where("role = ? AND is_account_verified = ?", user.ADMIN, false).Update("is_account_verified", true)
 
 	// One-time codes and reset tokens hold the email address: do not keep them once useless.
+	if n, err := account.DiscardLegacySecrets(db); err != nil {
+		log.Printf("[PURGE] legacy clear-text codes: %v", err)
+	} else if n > 0 {
+		log.Printf("[PURGE] discarded %d verification code(s) / reset token(s) stored in clear", n)
+	}
 	account.StartPurgeLoop(context.Background(), db, time.Hour)
 	// Free the slots of people who reserved or started joining a running live and never connected.
 	room.StartGhostReaper(context.Background(), db, 30*time.Second)

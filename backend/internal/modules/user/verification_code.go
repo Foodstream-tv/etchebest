@@ -10,10 +10,11 @@ const (
 )
 
 type VerificationCode struct {
-	ID        string    `json:"id" gorm:"primaryKey"`
-	UserID    string    `json:"userId" gorm:"not null;index:idx_verification_user"`
-	Code      string    `json:"code" gorm:"not null;index:idx_verification_code"`
-	Type      string    `json:"type" gorm:"not null"` // "email" or "sms"
+	ID     string `json:"id" gorm:"primaryKey"`
+	UserID string `json:"userId" gorm:"not null;index:idx_verification_user"`
+	// CodeHash is the keyed hash of the one-time code, never the code itself.
+	CodeHash  string    `json:"-" gorm:"column:code;not null;index:idx_verification_code"`
+	Type      string    `json:"type" gorm:"not null"`   // "email" or "sms"
 	Target    string    `json:"target" gorm:"not null"` // destination email or phone number
 	ExpiresAt time.Time `json:"expiresAt" gorm:"not null;index:idx_verification_expires"`
 	Used      bool      `json:"used" gorm:"default:false"`
