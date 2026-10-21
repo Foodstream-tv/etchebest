@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "foodstream",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -21,7 +20,6 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -60,7 +58,8 @@
         {
           "photosPermission": "Foodstream a besoin d'accéder à tes photos pour choisir la miniature de ton live."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

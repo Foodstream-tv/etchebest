@@ -19,7 +19,8 @@ export function parseThemePreference(raw: string | null | undefined): ThemePrefe
   return raw === 'light' || raw === 'dark' || raw === 'system' ? raw : 'system';
 }
 
-export function resolveScheme(preference: ThemePreference, system: ThemeScheme | null | undefined): ThemeScheme {
+// `system` is what the OS reports: since React Native 0.83 it can also be 'unspecified', treated like unknown.
+export function resolveScheme(preference: ThemePreference, system: string | null | undefined): ThemeScheme {
   if (preference === 'light' || preference === 'dark') {
     return preference;
   }
