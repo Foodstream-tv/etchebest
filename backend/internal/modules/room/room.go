@@ -497,7 +497,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 			Host:            currentUserId,
 			Participants:    pq.StringArray{currentUserId},
 			Viewers:         0,
-			MaxParticipants: 5,
+			MaxParticipants: maxCoStreamers,
 		}
 		if err := CreateRoom(db, &room); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
@@ -643,16 +643,16 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		registeredCount := 0
-		alreadyReserved := false
-		for _, p := range room.Participants {
-			if p != room.Host {
-				registeredCount++
-			}
-			if p == currentUserId {
-				alreadyReserved = true
-			}
+		var reservedLive liveModule.Live
+		if err := db.Select("status").Where("room_id = ?", roomId).First(&reservedLive).Error; err == nil && !joinableStatus(reservedLive.Status) {
+			mu.Unlock()
+			c.JSON(http.StatusForbidden, gin.H{"error": "ce live est terminé"})
+			return
 		}
+
+		registeredCount := coStreamerCount(room)
+		alreadyReserved := isRegistered(room, currentUserId)
+		limit := slotLimit(room)
 
 		if alreadyReserved {
 			mu.Unlock()
@@ -660,14 +660,14 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 				"message":         "you already reserved this room",
 				"reserved":        true,
 				"registeredCount": registeredCount,
-				"maxParticipants": 5,
+				"maxParticipants": limit,
 			})
 			return
 		}
 
-		if registeredCount >= 5 {
+		if registeredCount >= limit {
 			mu.Unlock()
-			c.JSON(http.StatusForbidden, gin.H{"error": "cette room est complète (limite de 5 inscrits atteinte)"})
+			c.JSON(http.StatusForbidden, gin.H{"error": fmt.Sprintf("cette room est complète (limite de %d inscrits atteinte)", limit)})
 			return
 		}
 
@@ -706,7 +706,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			"message":         "reserved successfully",
 			"reserved":        true,
 			"registeredCount": registeredCount + 1,
-			"maxParticipants": 5,
+			"maxParticipants": limit,
 		})
 	}
 }
@@ -766,18 +766,11 @@ func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 		mu.Unlock()
 
-		registeredCount := 0
-		for _, p := range room.Participants {
-			if p != room.Host {
-				registeredCount++
-			}
-		}
-
 		c.JSON(http.StatusOK, gin.H{
 			"message":         "reservation cancelled successfully",
 			"reserved":        false,
-			"registeredCount": registeredCount,
-			"maxParticipants": 5,
+			"registeredCount": coStreamerCount(room),
+			"maxParticipants": slotLimit(room),
 		})
 	}
 }
@@ -1078,7 +1071,8 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		log.Printf("received ICE candidate for room %s: %s", roomID, candidate.Candidate)
+		// The candidate itself holds the client's IP address: not logged.
+		log.Printf("received ICE candidate for room %s", roomID)
 		userID := utils.GetContextString(c, "userId")
 
 		mu.Lock()
@@ -1223,38 +1217,6 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 // HandleWebRTC helpers
 // ---------------------------------------------------------------------------
 
-// ensureParticipant checks if the user is already a participant; if not it
-// auto-adds them when there is room. Returns an HTTP error and false when the
-// caller should abort.
-func ensureParticipant(c *gin.Context, db *gorm.DB, room *Room, userID string) bool {
-	// Participants / KickedUsers are shared with reserve, cancel, kick and disconnect: check-then-append
-	// must be atomic with them.
-	mu.Lock()
-	defer mu.Unlock()
-
-	if room.KickedUsers != nil && room.KickedUsers[userID] {
-		c.JSON(http.StatusForbidden, gin.H{"error": "you have been kicked from this room"})
-		return false
-	}
-	for _, p := range room.Participants {
-		if p == userID {
-			return true
-		}
-	}
-	if len(room.Participants) >= room.MaxParticipants {
-		c.JSON(http.StatusForbidden, gin.H{"error": "room is full"})
-		return false
-	}
-	room.Participants = append(room.Participants, userID)
-	markPending(room, userID, time.Now())
-	if err := SaveRoom(db, room); err != nil {
-		log.Printf("failed to save participant: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join room"})
-		return false
-	}
-	return true
-}
-
 // newPeerConnection creates a fully configured webrtc.PeerConnection with
 // STUN, NAT traversal, port range and default codecs.
 const (
@@ -1282,20 +1244,19 @@ func newPeerConnection(stunURL, webrtcIP string) (*webrtc.PeerConnection, error)
 	// Disconnected after 5 s without traffic, Failed after iceFailedTimeout more: that is the window in
 	// which a client that lost its network can come back and re-publish into the same room.
 	se.SetICETimeouts(iceDisconnectedTimeout, iceFailedTimeout(), iceKeepAliveInterval)
-	portMin := uint16(50000)
-	portMax := uint16(50100)
-	if minStr := os.Getenv("WEBRTC_PORT_MIN"); minStr != "" {
-		if val, err := strconv.ParseUint(minStr, 10, 16); err == nil {
-			portMin = uint16(val)
-		}
+	cfg, err := loadWebRTCPorts()
+	if err != nil {
+		return nil, err
 	}
-	if maxStr := os.Getenv("WEBRTC_PORT_MAX"); maxStr != "" {
-		if val, err := strconv.ParseUint(maxStr, 10, 16); err == nil {
-			portMax = uint16(val)
+	if cfg.muxPort != 0 {
+		// One UDP socket serves every peer connection: ports cannot run out.
+		mux, err := sharedUDPMux(cfg.muxPort)
+		if err != nil {
+			return nil, err
 		}
-	}
-	if err := se.SetEphemeralUDPPortRange(portMin, portMax); err != nil {
-		log.Printf("failed to set ephemeral UDP port range [%d, %d]: %v", portMin, portMax, err)
+		se.SetICEUDPMux(mux)
+	} else if err := se.SetEphemeralUDPPortRange(cfg.portMin, cfg.portMax); err != nil {
+		return nil, fmt.Errorf("invalid UDP port range [%d, %d]: %w", cfg.portMin, cfg.portMax, err)
 	}
 
 	me := &webrtc.MediaEngine{}
@@ -2249,12 +2210,10 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	log.Println("peerConnection closed and cleaned up")
 }
 
-// applyRemoteDescription sets the remote SDP and flushes buffered ICE candidates.
-// Must be called before attachExistingTracks so that resolveCodec can read the
-// negotiated payload types from the receiver parameters.
+// setRemoteOffer sets the remote SDP. It must run before attachExistingTracks so that resolveCodec can
+// read the negotiated payload types from the receiver parameters.
 // Returns false (and writes the HTTP error) on failure.
-func applyRemoteDescription(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.SessionDescription, pending []webrtc.ICECandidateInit) bool {
-	// Log ICE candidates for debugging
+func setRemoteOffer(c *gin.Context, pc *webrtc.PeerConnection, offer webrtc.SessionDescription) bool {
 	pc.OnICECandidate(func(cand *webrtc.ICECandidate) {
 		if cand != nil {
 			log.Printf("ICE candidate gathered: %s", cand.String())
@@ -2263,17 +2222,19 @@ func applyRemoteDescription(c *gin.Context, pc *webrtc.PeerConnection, offer web
 
 	if err := pc.SetRemoteDescription(offer); err != nil {
 		log.Printf("SetRemoteDescription: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set remote description"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offer"})
 		return false
 	}
+	return true
+}
 
-	// Flush buffered ICE candidates now that remote description is set
+// flushPendingICE adds the candidates that arrived before the remote description was set.
+func flushPendingICE(pc *webrtc.PeerConnection, pending []webrtc.ICECandidateInit) {
 	for _, p := range pending {
 		if err := pc.AddICECandidate(p); err != nil {
 			log.Printf("flush pending ICE: %v", err)
 		}
 	}
-	return true
 }
 
 // finalizeAnswer creates the SDP answer, waits for ICE gathering and responds.
@@ -2297,8 +2258,8 @@ func finalizeAnswer(c *gin.Context, pc *webrtc.PeerConnection) bool {
 	<-gatherComplete
 
 	final := pc.LocalDescription()
+	// Only the size: an SDP carries the candidates, i.e. the addresses of the people connected.
 	log.Printf("Answer SDP type=%s length=%d", final.Type.String(), len(final.SDP))
-	log.Printf("Answer SDP:\n%s", final.SDP)
 	c.JSON(http.StatusOK, gin.H{"sdp": final.SDP})
 	return true
 }
@@ -2422,39 +2383,27 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 			return
 		}
 
-		// 2. Ensure current user is a participant
+		// 2. Who may publish: the host or someone who reserved a place. Nothing is changed yet.
 		userID := utils.GetContextString(c, "userId")
-		if !ensureParticipant(c, db, room, userID) {
+		if !authorizeJoin(c, db, room, userID) {
 			return
 		}
 
-		// 3. Transition host live status from "scheduled" to "live"
-		maybeTransitionToLive(db, room, userID, roomID)
-
-		// 4. Parse SDP offer
-		var offer webrtc.SessionDescription
-		if err := c.ShouldBindJSON(&offer); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 3. Read and validate the SDP offer before any side effect (no socket, no place, no status).
+		offer, ok := readOffer(c)
+		if !ok {
 			return
 		}
 
-		// 5. Create PeerConnection
+		// 4. Create PeerConnection
 		pc, err := newPeerConnection(STUNServerURL, webrtcIP)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			log.Printf("newPeerConnection: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create peer connection"})
 			return
 		}
 
-		// 6. Register peer and retrieve buffered ICE candidates.
-		mu.Lock()
-		pending, replaced := registerPeer(pc, room, userID)
-		mu.Unlock()
-		if replaced != nil {
-			// Closed outside the lock. Its state handler finds it already removed from the room and does nothing.
-			closeDisconnectedPC(replaced)
-		}
-
-		// 7. Wire callbacks
+		// 5. Wire callbacks
 		hlsCtx := &hlsState{}
 		peerConnection := pc // capture for closures
 		peerConnection.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
@@ -2462,17 +2411,36 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		})
 		peerConnection.OnConnectionStateChange(makeConnectionStateHandler(db, room, roomID, peerConnection))
 
-		// 8a. Apply remote description (populates receiver codec parameters for resolveCodec).
-		if !applyRemoteDescription(c, peerConnection, offer, pending) {
+		// 6. Apply the remote description first: a bad offer fails here, before the user's current
+		// peer (if any) is replaced, and the new PC (not registered yet) is simply closed.
+		if !setRemoteOffer(c, peerConnection, offer) {
+			_ = peerConnection.Close()
 			return
 		}
 
-		// 8b. Attach existing tracks — resolveCodec will find the right PT.
+		// 7. Register peer and flush buffered ICE candidates. From here on a failure must give the
+		// PC back (discardPeer).
+		mu.Lock()
+		pending, replaced := registerPeer(pc, room, userID)
+		mu.Unlock()
+		if replaced != nil {
+			// Closed outside the lock. Its state handler finds it already removed from the room and does nothing.
+			closeDisconnectedPC(replaced)
+		}
+		flushPendingICE(peerConnection, pending)
+
+		// 8. Attach existing tracks — resolveCodec will find the right PT.
 		mu.Lock()
 		attachExistingTracks(peerConnection, room)
 		mu.Unlock()
 
-		// 8c. Build and send the SDP answer (includes the newly added tracks).
-		finalizeAnswer(c, peerConnection)
+		// 9. Build and send the SDP answer (includes the newly added tracks).
+		if !finalizeAnswer(c, peerConnection) {
+			discardPeer(room, peerConnection)
+			return
+		}
+
+		// 10. The negotiation worked: only now does the host's live start.
+		maybeTransitionToLive(db, room, userID, roomID)
 	}
 }
