@@ -1454,7 +1454,11 @@ type hlsState struct {
 	audio      *hls.CodecInfo
 	video      *hls.CodecInfo
 	trackCount int
+	retrying   bool // a background retry of the HLS start is pending (guarded by mu)
 }
+
+// hlsStartRetryDelays is how long to wait before each new attempt when FFmpeg could not be started.
+var hlsStartRetryDelays = []time.Duration{2 * time.Second, 5 * time.Second, 10 * time.Second}
 
 // tryStartHLS starts the HLS pipeline once both audio and video tracks have
 // been received. Must be called with mu held.
@@ -1469,14 +1473,76 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 		log.Printf("[HLS] skip start for room %s: codec %s (WebRTC relay stays prioritized)", roomID, h.video.CodecName)
 		return
 	}
-	// log.Println("starting HLS stream for room", roomID)
 	log.Println("starting HLS stream for room", roomID)
-	writer, _, err := hls.Start(roomID, h.audio, h.video)
+	writer, err := h.startHLS(room, roomID)
 	if err != nil {
-		log.Printf("failed to start HLS: %v", err)
+		log.Printf("failed to start HLS for room %s: %v", roomID, err)
+		if !h.retrying {
+			h.retrying = true
+			go h.retryHLSStart(room, roomID)
+		}
 		return
 	}
 	room.HLSWriter = writer
+}
+
+// startHLS starts FFmpeg and makes it ask the host for a keyframe whenever it had to be restarted:
+// the new process can only start encoding on a keyframe with its SPS/PPS.
+func (h *hlsState) startHLS(room *Room, roomID string) (*hls.HLSWriter, error) {
+	writer, _, err := hls.Start(roomID, h.audio, h.video)
+	if err != nil {
+		return nil, err
+	}
+	writer.SetOnRestart(func() { requestHostKeyframes(room) })
+	return writer, nil
+}
+
+// retryHLSStart tries again a few times after a failed start: without it the live would have no HLS
+// (hence no replay) until the host happens to publish a new track.
+func (h *hlsState) retryHLSStart(room *Room, roomID string) {
+	for _, delay := range hlsStartRetryDelays {
+		time.Sleep(delay)
+		mu.Lock()
+		if peekLiveRoom(roomID) != room || room.HLSWriter != nil || hls.IsRunning(roomID) {
+			h.retrying = false
+			mu.Unlock()
+			return
+		}
+		writer, err := h.startHLS(room, roomID)
+		if err == nil {
+			room.HLSWriter = writer
+			h.retrying = false
+			mu.Unlock()
+			log.Printf("[HLS] started for room %s after a retry", roomID)
+			requestHostKeyframes(room)
+			return
+		}
+		mu.Unlock()
+		log.Printf("[HLS] retry failed for room %s: %v", roomID, err)
+	}
+	mu.Lock()
+	h.retrying = false
+	mu.Unlock()
+	log.Printf("[HLS] giving up starting HLS for room %s: the live goes on without replay", roomID)
+}
+
+// requestHostKeyframes asks the host's peer for a keyframe on each of its video tracks.
+func requestHostKeyframes(room *Room) {
+	type target struct {
+		pc   *webrtc.PeerConnection
+		ssrc uint32
+	}
+	var targets []target
+	mu.Lock()
+	for _, ti := range room.Tracks {
+		if ti.Track != nil && ti.Track.Kind() == webrtc.RTPCodecTypeVideo && ti.SourcePC != nil && ti.SourcePC == room.HostPeerCon {
+			targets = append(targets, target{ti.SourcePC, uint32(ti.Track.SSRC())})
+		}
+	}
+	mu.Unlock()
+	for _, t := range targets {
+		requestKeyframeBurst(t.pc, t.ssrc)
+	}
 }
 
 // broadcastTrackToPeers creates per-peer LocalTracks for a newly received

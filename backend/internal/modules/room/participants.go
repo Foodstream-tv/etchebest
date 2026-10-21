@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Foodstream-io/etchebest/internal/hls"
 	"gorm.io/gorm"
 )
 
@@ -33,6 +34,9 @@ type RoomView struct {
 	// RecordReplay: false when the host chose not to keep a replay. Co-streamers must consent to the
 	// recording when it is true (see ReserveRoom).
 	RecordReplay bool `json:"recordReplay"`
+	// HLSStatus is the health of the replay/HLS pipeline ("running", "restarting", "unavailable"); empty
+	// when the room has none (not live, or not an H264 host).
+	HLSStatus string `json:"hlsStatus,omitempty"`
 }
 
 // connectedUsers returns the users that have a peer connection in the in-memory room.
@@ -53,7 +57,7 @@ func connectedUsers(room *Room) map[string]bool {
 // newRoomView builds the API view. names maps a user id to a username; an unknown id gets an empty
 // username (the client must not show the id).
 func newRoomView(room *Room, connected map[string]bool, names map[string]string) RoomView {
-	view := RoomView{Room: *room, ParticipantsInfo: make([]ParticipantInfo, 0, len(room.Participants))}
+	view := RoomView{Room: *room, ParticipantsInfo: make([]ParticipantInfo, 0, len(room.Participants)), HLSStatus: string(hls.StatusOf(room.ID))}
 	for _, id := range room.Participants {
 		role := "participant"
 		if id == room.Host {
