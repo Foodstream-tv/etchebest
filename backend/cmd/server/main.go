@@ -7,6 +7,7 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/middleware"
 	"github.com/Foodstream-io/etchebest/internal/modules/account"
 	"github.com/Foodstream-io/etchebest/internal/modules/activity"
+	"github.com/Foodstream-io/etchebest/internal/modules/audit"
 	"github.com/Foodstream-io/etchebest/internal/modules/chat"
 	"github.com/Foodstream-io/etchebest/internal/modules/country"
 	"github.com/Foodstream-io/etchebest/internal/modules/dish"
@@ -92,6 +93,7 @@ func main() {
 		&tag.Tag{},
 		&chat.Chat{},
 		&activity.Activity{},
+		&audit.Entry{},
 	}
 
 	if err := db.AutoMigrate(migrateModels...); err != nil {
@@ -111,6 +113,7 @@ func main() {
 	} else if n > 0 {
 		log.Printf("[PURGE] discarded %d verification code(s) / reset token(s) stored in clear", n)
 	}
+	audit.StartPurgeLoop(context.Background(), db, 24*time.Hour)
 	account.StartPurgeLoop(context.Background(), db, time.Hour)
 	// Free the slots of people who reserved or started joining a running live and never connected.
 	room.StartGhostReaper(context.Background(), db, 30*time.Second)
