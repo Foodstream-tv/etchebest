@@ -69,6 +69,10 @@ func main() {
 		log.Fatal("STUN_SERVER_URL env variable not set")
 	}
 
+	if err := room.ValidateWebRTCConfig(); err != nil {
+		log.Fatalf("invalid WebRTC configuration: %v", err)
+	}
+
 	webrtcIP := os.Getenv("WEBRTC_IP")
 	if webrtcIP == "" {
 		webrtcIP = "127.0.0.1" // default for local development
