@@ -7,6 +7,8 @@
 export type LiveDraft = {
     description: string;
     thumbnailUrl?: string;
+    /** False: no replay is kept (the Studio switch). Absent means yes. */
+    recordReplay?: boolean;
 };
 
 const MAX_DRAFTS = 5;

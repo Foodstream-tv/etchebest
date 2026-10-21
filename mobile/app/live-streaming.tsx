@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CookingAssistant from '@/components/cooking/CookingAssistant';
 import KeepAwake from '@/components/cooking/KeepAwake';
+import RecordingConsentModal from '@/components/live/RecordingConsentModal';
 import StreamView from '@/components/StreamView';
 import Button from '@/components/ui/Button';
 import { withAlpha } from '@/constants/theme';
@@ -191,6 +192,7 @@ export default function LiveStreamingScreen() {
         startLive,
         hostExistingRoom,
         joinAsCoStreamer,
+        consentRequired,
         stopLive,
         toggleAudio,
         toggleVideo,
@@ -202,6 +204,8 @@ export default function LiveStreamingScreen() {
 
     // The recipe to follow while cooking: typed in the Studio for a live we create, read from the live otherwise.
     const [fetchedDescription, setFetchedDescription] = useState<string | undefined>();
+    // Whether the host keeps a replay of this live (known from the live itself, or from the Studio's choice).
+    const [fetchedReplayEnabled, setFetchedReplayEnabled] = useState<boolean | undefined>();
     const [recipeOpen, setRecipeOpen] = useState(false);
     const { height: windowHeight } = useWindowDimensions();
     useEffect(() => {
@@ -209,7 +213,9 @@ export default function LiveStreamingScreen() {
         let cancelled = false;
         getLiveByRoomId(targetRoomId)
             .then((live) => {
-                if (!cancelled) setFetchedDescription(live.description);
+                if (cancelled) return;
+                setFetchedDescription(live.description);
+                setFetchedReplayEnabled(live.replay_enabled);
             })
             .catch(() => {
                 // The recipe is a bonus: the broadcast works without it.
@@ -257,6 +263,11 @@ export default function LiveStreamingScreen() {
         }
     }, [router]);
 
+    // Joining a recorded live: the co-streamer appears in the replay, so the hook stops until they agree.
+    const acceptRecording = useCallback(() => {
+        if (targetRoomId) void joinAsCoStreamer(targetRoomId, { consentToRecording: true });
+    }, [joinAsCoStreamer, targetRoomId]);
+
     const reportedLiveRef = useRef(false);
     useEffect(() => {
         if (state === 'live' && !reportedLiveRef.current) haptics.success();
@@ -287,8 +298,9 @@ export default function LiveStreamingScreen() {
             level: liveLevel,
             durationMinutes: liveDuration,
             thumbnailUrl: liveThumbnail,
+            recordReplay: draft?.recordReplay,
         });
-    }, [hostExistingRoom, hostsExistingRoom, liveDescription, liveDuration, liveLevel, liveTags, liveThumbnail, liveTitle, startLive, targetRoomId]);
+    }, [draft?.recordReplay, hostExistingRoom, hostsExistingRoom, liveDescription, liveDuration, liveLevel, liveTags, liveThumbnail, liveTitle, startLive, targetRoomId]);
 
     const handleRetry = useCallback(() => {
         if (isHost) {
@@ -396,6 +408,7 @@ export default function LiveStreamingScreen() {
     const headerTitle = isHost ? t('broadcast.modeHost') : t('golive.title.join');
     // The live is recorded and published as a public replay: say so before the host goes live,
     // and keep saying it to a co-streamer while connected (joining starts on its own).
+    const replayKept = (targetRoomId ? fetchedReplayEnabled : draft?.recordReplay) !== false;
     const showRecordingNotice = (isHost && !hasStarted && state === 'idle') || (!isHost && active);
 
     let controls: React.ReactNode = null;
@@ -483,6 +496,7 @@ export default function LiveStreamingScreen() {
 
     return (
         <View style={styles.root}>
+            <RecordingConsentModal visible={consentRequired} onAccept={acceptRecording} onCancel={leaveScreen} />
             <SafeAreaView style={styles.safe}>
                 <View style={styles.header}>
                     <Pressable
@@ -561,7 +575,7 @@ export default function LiveStreamingScreen() {
 
                 {showRecordingNotice ? (
                     <Text style={styles.recordingNotice} testID="recording-notice">
-                        {t('broadcast.recordingNotice')}
+                        {t(replayKept ? 'broadcast.recordingNotice' : 'broadcast.noReplayNotice')}
                     </Text>
                 ) : null}
 

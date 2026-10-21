@@ -1,5 +1,5 @@
 import envConfig from '../config/env';
-import { request, seg, UnauthorizedError } from './http';
+import { ApiError, request, seg, UnauthorizedError } from './http';
 
 export { UnauthorizedError };
 
@@ -26,6 +26,8 @@ export interface RoomInfo {
   connectedCount?: number;
   viewers: number;
   maxParticipants: number;
+  /** False when the host chose not to keep a replay (a co-streamer then has nothing to consent to). */
+  recordReplay?: boolean;
 }
 
 export interface CreateRoomResponse {
@@ -61,6 +63,8 @@ export interface CreateRoomOptions {
   status?: 'scheduled' | 'live';
   /** RFC 3339, with status "scheduled". */
   scheduledAt?: string;
+  /** False: no replay is kept once the live is over. Omitted means yes. */
+  recordReplay?: boolean;
 }
 
 export async function createRoom(name: string, options: CreateRoomOptions = {}): Promise<CreateRoomResponse> {
@@ -73,11 +77,22 @@ export async function createRoom(name: string, options: CreateRoomOptions = {}):
   if (options.thumbnailUrl) body.thumbnailUrl = options.thumbnailUrl;
   if (options.status) body.status = options.status;
   if (options.scheduledAt) body.scheduledAt = options.scheduledAt;
+  if (options.recordReplay === false) body.recordReplay = false;
   return request<CreateRoomResponse>('/rooms', { method: 'POST', body });
 }
 
-export async function reserveRoom(roomId: string): Promise<ReservationResponse> {
-  return request<ReservationResponse>(`/rooms/${seg(roomId)}/reserve`, { method: 'POST' });
+/** The API refuses a reservation to a recorded live until the person agreed to the recording. */
+export const RECORDING_CONSENT_REQUIRED = 'RECORDING_CONSENT_REQUIRED';
+
+export function isRecordingConsentRequired(err: unknown): boolean {
+  return err instanceof ApiError && err.body?.code === RECORDING_CONSENT_REQUIRED;
+}
+
+export async function reserveRoom(roomId: string, options: { consentToRecording?: boolean } = {}): Promise<ReservationResponse> {
+  return request<ReservationResponse>(`/rooms/${seg(roomId)}/reserve`, {
+    method: 'POST',
+    body: options.consentToRecording ? { consentToRecording: true } : undefined,
+  });
 }
 
 export async function cancelReserveRoom(roomId: string): Promise<ReservationResponse> {

@@ -5,6 +5,7 @@ import {
     createRoom,
     disconnectRoom,
     fetchRenegotiationOffer,
+    isRecordingConsentRequired,
     reserveRoom,
     sendICECandidate,
     sendOffer,
@@ -143,8 +144,14 @@ export interface UseWebRTCReturn {
     startLive: (roomName: string, options?: StartLiveOptions) => Promise<void>;
     /** Stream into a room that already exists (e.g. the user's scheduled live) */
     hostExistingRoom: (roomId: string) => Promise<void>;
-    /** Join an existing room as co-streamer */
-    joinAsCoStreamer: (roomId: string) => Promise<void>;
+    /**
+     * Join an existing room as co-streamer. On a recorded live the person has to agree to the recording
+     * first: the hook then goes back to idle with `consentRequired` set, the screen asks, and joins again
+     * with `consentToRecording`.
+     */
+    joinAsCoStreamer: (roomId: string, options?: { consentToRecording?: boolean }) => Promise<void>;
+    /** True when the last join stopped because the live is recorded and the person has not agreed yet */
+    consentRequired: boolean;
     /** Cleanly disconnect (idempotent) */
     stopLive: () => Promise<void>;
     toggleAudio: () => void;
@@ -161,6 +168,7 @@ export function useWebRTC(): UseWebRTCReturn {
     const [remoteStreams, setRemoteStreams] = useState<MediaStream[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [errorCode, setErrorCode] = useState<WebRTCErrorCode | null>(null);
+    const [consentRequired, setConsentRequired] = useState(false);
     const [isAudioMuted, setIsAudioMuted] = useState(false);
     const [isVideoMuted, setIsVideoMuted] = useState(false);
     const [isFrontCamera, setIsFrontCamera] = useState(true);
@@ -889,18 +897,32 @@ export function useWebRTC(): UseWebRTCReturn {
     );
 
     const joinAsCoStreamer = useCallback(
-        async (targetRoomId: string) => {
+        async (targetRoomId: string, options: { consentToRecording?: boolean } = {}) => {
             const sid = begin();
             if (sid === null) return;
             try {
                 prepareStart(sid);
+                ifMounted(() => setConsentRequired(false));
                 roomIdRef.current = targetRoomId;
-                // From here on, leaving must release the reservation / participant slot.
+                // From here on, leaving must release the reservation / participant slot (a request that
+                // timed out may still have created it).
                 disconnectOnReleaseRef.current = true;
                 ifMounted(() => setRoomId(targetRoomId));
 
                 // 1. Reserve a spot
-                await reserveRoom(targetRoomId);
+                try {
+                    await reserveRoom(targetRoomId, options);
+                } catch (err) {
+                    if (isRecordingConsentRequired(err)) {
+                        // Refused before anything was reserved: only put the screen back to idle.
+                        disconnectOnReleaseRef.current = false;
+                        release();
+                        resetUiState('idle');
+                        ifMounted(() => setConsentRequired(true));
+                        return;
+                    }
+                    throw err;
+                }
                 assertActive(sid);
 
                 // 2-4. Camera/mic, peer connection, SDP exchange
@@ -909,7 +931,7 @@ export function useWebRTC(): UseWebRTCReturn {
                 await fail(sid, err, 'Failed to join stream');
             }
         },
-        [assertActive, begin, connect, fail, ifMounted, prepareStart]
+        [assertActive, begin, connect, fail, ifMounted, prepareStart, release, resetUiState]
     );
 
     const stopLive = useCallback(async () => {
@@ -990,6 +1012,7 @@ export function useWebRTC(): UseWebRTCReturn {
         startLive,
         hostExistingRoom,
         joinAsCoStreamer,
+        consentRequired,
         stopLive,
         toggleAudio,
         toggleVideo,

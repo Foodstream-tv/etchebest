@@ -373,7 +373,7 @@ describe('StudioScreen - go live now', () => {
         // the description and the thumbnail do not travel in the route
         const params = router.push.mock.calls[0][0].params;
         expect(params).not.toHaveProperty('description');
-        expect(getLiveDraft(params.draft)).toEqual({ description: '', thumbnailUrl: undefined });
+        expect(getLiveDraft(params.draft)).toEqual({ description: '', thumbnailUrl: undefined, recordReplay: true });
     });
 
     it('passes tags, description, recipe and a pasted thumbnail url', async () => {

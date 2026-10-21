@@ -34,6 +34,7 @@ jest.mock('@/services/streaming', () => ({
     getHLSUrl: jest.fn((roomId: string) => `https://api.test/hls/${encodeURIComponent(roomId)}/master.m3u8`),
     getRoom: jest.fn(),
     reserveRoom: jest.fn(),
+    isRecordingConsentRequired: (err: any) => err?.body?.code === 'RECORDING_CONSENT_REQUIRED',
     cancelReserveRoom: jest.fn(),
     getChatMessages: jest.fn(),
     postChatMessage: jest.fn(),
@@ -211,6 +212,17 @@ describe('LiveViewerScreen - loading and errors', () => {
     });
 });
 
+// A recorded live asks for the co-streamer's agreement before reserving: press, tick, accept.
+async function reserveWithConsent() {
+    await act(async () => {
+        fireEvent.press(screen.getByTestId('reservation-reserve'));
+    });
+    fireEvent.press(screen.getByTestId('recording-consent-checkbox'));
+    await act(async () => {
+        fireEvent.press(screen.getByTestId('recording-consent-accept'));
+    });
+}
+
 describe('LiveViewerScreen - scheduled', () => {
     beforeEach(() => {
         mockedGetLive.mockResolvedValue(makeLive({ status: 'scheduled', scheduled_at: SCHEDULED_AT }));
@@ -238,10 +250,8 @@ describe('LiveViewerScreen - scheduled', () => {
     it('reserves a spot then shows the reserved state with a cancel action', async () => {
         await renderViewer();
         mockedGetRoom.mockResolvedValue(makeRoom({ participants: ['host-1', 'user-1'] }));
-        await act(async () => {
-            fireEvent.press(screen.getByTestId('reservation-reserve'));
-        });
-        expect(mockedReserve).toHaveBeenCalledWith('room-1');
+        await reserveWithConsent();
+        expect(mockedReserve).toHaveBeenCalledWith('room-1', { consentToRecording: true });
         expect(screen.getByText('Votre place est réservée ! Un email de confirmation vous a été envoyé.')).toBeTruthy();
         expect(screen.getByText('Inscrit ✓')).toBeTruthy();
         expect(screen.getByTestId('reservation-cancel')).toBeTruthy();
@@ -251,36 +261,60 @@ describe('LiveViewerScreen - scheduled', () => {
     it('shows the API error when the reservation fails and lets the user retry', async () => {
         mockedReserve.mockRejectedValueOnce(new ApiError('Live complet', 409, null));
         await renderViewer();
-        await act(async () => {
-            fireEvent.press(screen.getByTestId('reservation-reserve'));
-        });
+        await reserveWithConsent();
         const message = screen.getByTestId('reservation-message');
         expect(message.props.children).toBe('Live complet');
         expect(screen.queryByText('Inscrit ✓')).toBeNull();
 
         // not stuck in a busy state
-        await act(async () => {
-            fireEvent.press(screen.getByTestId('reservation-reserve'));
-        });
+        await reserveWithConsent();
         expect(mockedReserve).toHaveBeenCalledTimes(2);
     });
 
     it('falls back to a generic message for errors without a message', async () => {
         mockedReserve.mockRejectedValueOnce({});
         await renderViewer();
+        await reserveWithConsent();
+        expect(screen.getByText('Erreur de réservation')).toBeTruthy();
+    });
+
+    it('asks for the agreement first, and reserves nothing if the person declines', async () => {
+        await renderViewer();
         await act(async () => {
             fireEvent.press(screen.getByTestId('reservation-reserve'));
         });
-        expect(screen.getByText('Erreur de réservation')).toBeTruthy();
+        expect(screen.getByTestId('recording-consent')).toBeTruthy();
+        expect(mockedReserve).not.toHaveBeenCalled();
+        fireEvent.press(screen.getByTestId('recording-consent-cancel'));
+        expect(mockedReserve).not.toHaveBeenCalled();
+    });
+
+    it('reserves straight away when the host keeps no replay (nothing to agree to)', async () => {
+        mockedGetRoom.mockResolvedValue(makeRoom({ participants: ['host-1'], recordReplay: false }));
+        await renderViewer();
+        await act(async () => {
+            fireEvent.press(screen.getByTestId('reservation-reserve'));
+        });
+        expect(screen.queryByTestId('recording-consent')).toBeNull();
+        expect(mockedReserve).toHaveBeenCalledWith('room-1', { consentToRecording: false });
+    });
+
+    it('asks again when the backend says the agreement is missing', async () => {
+        mockedGetRoom.mockResolvedValue(makeRoom({ participants: ['host-1'], recordReplay: false })); // cached room is out of date
+        mockedReserve.mockRejectedValueOnce(new ApiError('consent', 400, { code: 'RECORDING_CONSENT_REQUIRED' }));
+        await renderViewer();
+        await act(async () => {
+            fireEvent.press(screen.getByTestId('reservation-reserve'));
+        });
+        expect(screen.getByTestId('recording-consent')).toBeTruthy();
+        expect(screen.queryByTestId('reservation-message')).toBeNull();
     });
 
     it('ignores a second press while a reservation is in flight', async () => {
         let resolve!: () => void;
         mockedReserve.mockReturnValue(new Promise<void>((r) => (resolve = r)));
         await renderViewer();
-        await act(async () => {
-            fireEvent.press(screen.getByTestId('reservation-reserve'));
-        });
+        await reserveWithConsent();
         await act(async () => {
             fireEvent.press(screen.getByTestId('reservation-reserve'));
         });

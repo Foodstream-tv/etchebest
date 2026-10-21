@@ -1,5 +1,5 @@
 import envConfig from '../../config/env';
-import { request } from '../http';
+import { ApiError, request } from '../http';
 import {
     createRoom,
     fetchRenegotiationOffer,
@@ -8,7 +8,9 @@ import {
     getRoom,
     getRooms,
     MAX_CHAT_MESSAGE_LENGTH,
+    isRecordingConsentRequired,
     postChatMessage,
+    reserveRoom,
     sendICECandidate,
     sendOffer,
 } from '../streaming';
@@ -72,6 +74,25 @@ describe('services/streaming', () => {
         await expect(fetchRenegotiationOffer('r')).resolves.toEqual({ type: 'offer', sdp: 'v=0' });
     });
 
+    describe('reserveRoom', () => {
+        it('sends the consent only when the person gave it', async () => {
+            mockedRequest.mockResolvedValue({ reserved: true });
+            await reserveRoom('r1');
+            expect(mockedRequest).toHaveBeenLastCalledWith('/rooms/r1/reserve', { method: 'POST', body: undefined });
+            await reserveRoom('r1', { consentToRecording: false });
+            expect(mockedRequest).toHaveBeenLastCalledWith('/rooms/r1/reserve', { method: 'POST', body: undefined });
+            await reserveRoom('r1', { consentToRecording: true });
+            expect(mockedRequest).toHaveBeenLastCalledWith('/rooms/r1/reserve', { method: 'POST', body: { consentToRecording: true } });
+        });
+
+        it('recognizes the refusal that asks for the recording consent', () => {
+            expect(isRecordingConsentRequired(new ApiError('x', 400, { code: 'RECORDING_CONSENT_REQUIRED' }))).toBe(true);
+            expect(isRecordingConsentRequired(new ApiError('x', 400, { code: 'OTHER' }))).toBe(false);
+            expect(isRecordingConsentRequired(new Error('x'))).toBe(false);
+            expect(isRecordingConsentRequired(null)).toBe(false);
+        });
+    });
+
     describe('createRoom', () => {
         it('sends only the name when there are no options (backward compatible)', async () => {
             mockedRequest.mockResolvedValue({ roomId: 'r' });
@@ -113,6 +134,18 @@ describe('services/streaming', () => {
             mockedRequest.mockResolvedValue({ roomId: 'r' });
             await createRoom('x', { level: '', durationMinutes: 0, thumbnailUrl: '' });
             expect(mockedRequest.mock.calls[0][1].body).toEqual({ name: 'x' });
+        });
+    });
+
+    describe('createRoom recordReplay', () => {
+        it('only sends recordReplay when the host turned the replay off', async () => {
+            mockedRequest.mockResolvedValue({ roomId: 'r' });
+            await createRoom('Tarte', { recordReplay: false });
+            expect(mockedRequest.mock.calls[0][1].body).toMatchObject({ recordReplay: false });
+            await createRoom('Tarte', { recordReplay: true });
+            expect(mockedRequest.mock.calls[1][1].body).not.toHaveProperty('recordReplay');
+            await createRoom('Tarte');
+            expect(mockedRequest.mock.calls[2][1].body).not.toHaveProperty('recordReplay');
         });
     });
 
