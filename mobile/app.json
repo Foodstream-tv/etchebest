@@ -59,7 +59,8 @@
           "photosPermission": "Foodstream a besoin d'accéder à tes photos pour choisir la miniature de ton live."
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true
