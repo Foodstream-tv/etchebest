@@ -7,6 +7,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Foodstream-io/etchebest/internal/modules/country"
+	"github.com/Foodstream-io/etchebest/internal/modules/dish"
+	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
+	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
@@ -32,10 +36,11 @@ func testDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Migrator().DropTable(&user.User{}, &Room{}); err != nil {
+	models := []any{&user.User{}, &Room{}, &liveModule.Live{}, &tagModule.Tag{}, &dish.Dish{}, &country.Country{}}
+	if err := db.Migrator().DropTable(append(models, "live_tags")...); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&user.User{}, &Room{}); err != nil {
+	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
 	}
 	return db
