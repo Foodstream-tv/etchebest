@@ -18,10 +18,7 @@ func AuthMiddleware(jwtKey []byte, db *gorm.DB) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 
 		if authHeader == "" {
-			queryToken := c.Query("token")
-			if queryToken != "" {
-				authHeader = BearerPrefix + queryToken
-			} else if cookieToken, err := c.Cookie("token"); err == nil && cookieToken != "" {
+			if cookieToken, err := c.Cookie("token"); err == nil && cookieToken != "" {
 				authHeader = BearerPrefix + cookieToken
 			} else if cookieToken, err := c.Cookie("auth_token"); err == nil && cookieToken != "" {
 				authHeader = BearerPrefix + cookieToken

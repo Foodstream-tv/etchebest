@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
+import { SESSION_TOKEN } from "@/lib/session";
 
 type MeResponse = {
   id: string;
@@ -20,7 +21,8 @@ export default function AuthCallbackPage() {
   const { setAuth } = useAuth();
   const hasHandledCallback = useRef(false);
 
-  const token = params.get("token");
+  // The API already stored the session in its httpOnly cookie: only a success flag comes back.
+  const success = params.get("success");
   const error = params.get("error");
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      if (!token) {
+      if (!success) {
         router.replace("/signin?error=auth_callback_missing_token");
         return;
       }
@@ -44,9 +46,7 @@ export default function AuthCallbackPage() {
       try {
         const user = await apiFetch<MeResponse>("/users/me", {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          token: SESSION_TOKEN,
         });
 
         if (!user?.id) {
@@ -54,7 +54,7 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        setAuth({ token, user });
+        setAuth({ user });
         router.replace("/home");
       } catch {
         router.replace("/signin?error=auth_callback_failed");
@@ -62,7 +62,7 @@ export default function AuthCallbackPage() {
     }
 
     void run();
-  }, [error, router, setAuth, token]);
+  }, [error, router, setAuth, success]);
 
   return (
     <main

@@ -39,11 +39,10 @@ export async function adminAction(
   method: "POST" | "PATCH" | "DELETE",
   body?: unknown
 ): Promise<void> {
-  const token = localStorage.getItem("token");
   const res = await fetch(`${API}${path}`, {
     method,
+    credentials: "include",
     headers: {
-      Authorization: `Bearer ${token}`,
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

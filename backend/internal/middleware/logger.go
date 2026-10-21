@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// pathWithoutQuery drops the query string from a logged path. Some endpoints carry a session token
-// in it (`?token=<JWT>` for the WebSocket), which must never end up in the access logs.
+// pathWithoutQuery drops the query string from a logged path. Some endpoints carry a secret in it
+// (`?ticket=` for the WebSocket, reset links), which must never end up in the access logs.
 func pathWithoutQuery(path string) string {
 	if i := strings.IndexByte(path, '?'); i >= 0 {
 		return path[:i]

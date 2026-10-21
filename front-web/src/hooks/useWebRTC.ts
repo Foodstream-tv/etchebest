@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api";
 import {
   createRoom,
   disconnectRoom,
@@ -52,6 +53,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   const localStreamRef = useRef<MediaStream | null>(null);
   const isStoppingRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
+  // Bumped each time the socket is closed or replaced, so a ticket that arrives late is dropped.
+  const wsGenerationRef = useRef(0);
   const streamTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const tokenRef = useRef<string | undefined>(token);
@@ -142,6 +145,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   }, []);
 
   const cleanupWebSocket = useCallback(() => {
+    wsGenerationRef.current++;
     if (wsRef.current) {
       try {
         wsRef.current.close();
@@ -212,11 +216,26 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     isStoppingRef.current = false;
   }, [cleanupLocalState]);
 
-  const setupWebSocketListener = useCallback((currentRoomId: string) => {
+  const setupWebSocketListener = useCallback(async (currentRoomId: string) => {
+    const generation = ++wsGenerationRef.current;
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
+
+    // A browser cannot send the session on a WebSocket: trade it for a one-time ticket first.
+    let ticket: string;
+    try {
+      const res = await apiFetch<{ ticket: string }>("/webrtc/ws-ticket", {
+        method: "POST",
+        token: tokenRef.current,
+      });
+      ticket = res.ticket;
+    } catch (err) {
+      console.warn("[WebRTC] could not get a WebSocket ticket:", err);
+      return;
+    }
+    if (generation !== wsGenerationRef.current) return;
 
     const API_BASE =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
@@ -225,11 +244,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     const params = new URLSearchParams({
       roomId: currentRoomId,
+      ticket,
     });
-
-    if (tokenRef.current) {
-      params.set("token", tokenRef.current);
-    }
 
     const wsUrl = `${WS_BASE}/api/webrtc/offers?${params.toString()}`;
 

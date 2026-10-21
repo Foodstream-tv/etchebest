@@ -70,7 +70,7 @@ export async function getUserById(userId: string, token?: string) {
 // user untouched: apiFetch unwraps a top-level "data" key and re-parses the body.
 export async function exportMyData(token: string): Promise<Blob> {
   const res = await fetch(`${API_BASE_URL.replace(/\/+$/, "")}/users/me/export`, {
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include",
     cache: "no-store",
   });
 

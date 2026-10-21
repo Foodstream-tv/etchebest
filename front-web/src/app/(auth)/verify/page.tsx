@@ -94,10 +94,7 @@ function VerifyContent() {
       });
 
       if (res.token && res.user) {
-        setAuth({
-          token: res.token,
-          user: res.user,
-        });
+        setAuth({ user: res.user });
         setIsSuccess(true);
         setTimeout(() => {
           router.replace("/home");

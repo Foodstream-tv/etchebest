@@ -122,9 +122,12 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.POST("/rooms/:roomId/chat", chat.CreateNewChat(db))
 	admin.DELETE("/rooms/:roomId/chats/:chatId", chat.DeleteChat(db))
 
-	// WebRTC - WebSocket must be on /api (so it gets token from query param via middleware)
+	// WebRTC - the WebSocket handshake cannot carry the session: the client asks for a one-time
+	// ticket (authenticated as usual), then opens /api/webrtc/offers?ticket=...
+	wsTickets := middleware.NewWSTickets()
+	api.POST("/webrtc/ws-ticket", middleware.IssueWSTicket(wsTickets))
+	r.GET("/api/webrtc/offers", middleware.WSTicketAuth(wsTickets), room.HandleWebSocketOffer(db))
 	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
-	api.GET("/webrtc/offers", room.HandleWebSocketOffer(db))
 	api.GET("/webrtc/offers/next", room.PollRenegotiationOffer(db))
 	api.POST("/webrtc/answer", room.HandleRenegotiationAnswer(db))
 	api.POST("/ice", room.HandleICECandidate(db))

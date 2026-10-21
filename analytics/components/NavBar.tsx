@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { API } from "@/lib/api";
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
@@ -12,8 +13,9 @@ export default function NavBar({ onRefresh }: { onRefresh?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  function logout() {
-    localStorage.removeItem("token");
+  async function logout() {
+    // Only the API can remove the httpOnly session cookie.
+    await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
     router.push("/login");
   }
 

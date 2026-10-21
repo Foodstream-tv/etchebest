@@ -25,6 +25,7 @@ function joinUrl(base: string, path: string) {
 }
 
 type ApiFetchOptions = RequestInit & {
+  /** Marks a request made as the signed-in user (see SESSION_TOKEN): the cookie does the authenticating. */
   token?: string | null;
   silent?: boolean;
 };
@@ -41,10 +42,6 @@ export async function apiFetch<T>(
 
   const headers = new Headers(options.headers);
 
-  if (options.token) {
-    headers.set("Authorization", `Bearer ${options.token}`);
-  }
-
   const hasBody = options.body !== undefined && options.body !== null;
   const bodyIsFormData = isFormDataBody(options.body);
 
@@ -52,7 +49,9 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
+  // The session is an httpOnly cookie: it only travels (and a new one is only stored) with credentials.
   const res = await fetch(url, {
+    credentials: "include",
     ...options,
     headers,
   });
@@ -74,7 +73,7 @@ export async function apiFetch<T>(
     // Only authenticated requests can invalidate a session. This keeps
     // unauthenticated failures (e.g. wrong credentials on login) from
     // triggering a global logout.
-    if (headers.has("Authorization")) {
+    if (options.token) {
       if (res.status === 403 && json?.error === BANNED_ERROR) {
         dispatchSessionTerminated({
           reason: "banned",

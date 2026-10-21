@@ -277,20 +277,17 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 			return
 		}
 
-		// Set secure httpOnly session cookie
-		isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+		isSecure := isSecureRequest(c)
 
 		// Clear OAuth cookies
 		c.SetCookie("oauth_state", "", -1, "/", "", isSecure, true)
 		c.SetCookie("oauth_redirect", "", -1, "/", "", isSecure, true)
 
-		c.SetSameSite(http.SameSiteLaxMode)
-		c.SetCookie("token", token, 3600*24*30, "/", "", isSecure, true)
+		// The web apps authenticate with the httpOnly cookie: the token never travels in a URL.
+		SetSessionCookie(c, token, true)
 
-		// If there's a callback redirect, redirect with token
 		if callbackRedirect != "" {
-			redirectURL := fmt.Sprintf("%s?token=%s&userId=%s", callbackRedirect, token, existingUser.ID)
-			c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+			c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?success=1")
 		} else {
 			// Otherwise return JSON (for API/mobile usage)
 			c.JSON(http.StatusOK, gin.H{"token": token, "userId": existingUser.ID})
@@ -334,10 +331,7 @@ func strPtr(s string) *string {
 // Logout clears the authentication session cookies
 func Logout() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-		c.SetSameSite(http.SameSiteLaxMode)
-		c.SetCookie("token", "", -1, "/", "", isSecure, true)
-		c.SetCookie("auth_token", "", -1, "/", "", isSecure, true)
+		ClearSessionCookie(c)
 		c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 	}
 }

@@ -29,6 +29,8 @@ type Claims struct {
 type RequestLogin struct {
 	Email    string `json:"email" binding:"required,email" example:"user@example.com"`
 	Password string `json:"password" binding:"required,min=8" example:"Password123@"`
+	// RememberMe only affects the web session cookie: false makes it a session cookie. Default true.
+	RememberMe *bool `json:"rememberMe"`
 }
 
 type RequestRegister struct {
@@ -74,6 +76,9 @@ type RequestResetPassword struct {
 
 // isDevMode checks whether development mode helpers should be enabled.
 // Secure by default: requires DEV_MODE="true" or "1" AND gin.Mode() != ReleaseMode.
+// IsDevMode reports whether development helpers are enabled (see isDevMode).
+func IsDevMode() bool { return isDevMode() }
+
 func isDevMode() bool {
 	devEnv := strings.ToLower(strings.TrimSpace(os.Getenv("DEV_MODE")))
 	return (devEnv == "true" || devEnv == "1") && gin.Mode() != gin.ReleaseMode
@@ -270,6 +275,7 @@ func VerifyCode(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 				return
 			}
+			SetSessionCookie(c, tokenString, true)
 			c.JSON(http.StatusOK, gin.H{
 				"message": "account already verified",
 				"token":   tokenString,
@@ -335,6 +341,7 @@ func VerifyCode(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
+		SetSessionCookie(c, tokenString, true)
 		c.JSON(http.StatusOK, gin.H{
 			"message": "account verified successfully",
 			"token":   tokenString,
@@ -503,14 +510,15 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
+		// Mobile apps read the token from the body; the web apps use the httpOnly cookie.
+		SetSessionCookie(c, tokenString, req.RememberMe == nil || *req.RememberMe)
 		c.JSON(http.StatusOK, gin.H{"token": tokenString})
 	}
 }
 
 // GenerateJWT creates a JWT token for authentication
 func GenerateJWT(user *userModule.User, jwtKey []byte) (string, error) {
-	// 7 Days expiration token
-	expiration := time.Now().Add(7 * 24 * time.Hour)
+	expiration := time.Now().Add(SessionTTL)
 	claims := &Claims{
 		UserID: user.ID,
 		Role:   user.Role,
