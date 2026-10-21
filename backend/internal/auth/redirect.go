@@ -52,3 +52,9 @@ func safeRedirect(raw string) string {
 	}
 	return ""
 }
+
+// AllowedOrigins are the origins of our own web apps (see ALLOWED_REDIRECT_ORIGINS): they may be
+// redirected to after a sign-in and call the API with their session cookie.
+func AllowedOrigins() []string {
+	return allowedRedirectOrigins()
+}

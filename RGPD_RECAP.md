@@ -65,11 +65,11 @@ PRs concernées : #264 audit · #265 logs · #266 effacement + export + purge ·
 | Scraper Marmiton public (SSRF) | ❌ `strings.Contains` contournable | 🔀 #267 | — |
 | Postgres exposé sur le réseau (mot de passe `root`) | ❌ port publié sur toutes les interfaces | 🔀 #269 | Changer le mot de passe par défaut en prod |
 | Codes de vérification / tokens de reset conservés | ❌ jamais purgés, en clair | 🔀 #266 : purge (≤ 24 h après expiration) | 🔀 #285 : stockés **hachés** (HMAC-SHA256 clé JWT_SECRET), anciens codes en clair supprimés au démarrage |
-| Token de session en `localStorage` (web, analytics) | ⚠️ exposé en cas de XSS | — | ⏳ Utiliser uniquement le cookie httpOnly existant |
-| JWT accepté dans l'URL (WebSocket) | ⚠️ finit dans l'historique, les referrers | 🔀 #265 le retire des logs, pas de l'URL | ⏳ Ticket WebSocket court à usage unique |
-| Durée cookie 30 j vs JWT 7 j | ⚠️ incohérent | — | ⏳ Aligner |
+| Token de session en `localStorage` (web, analytics) | ⚠️ exposé en cas de XSS | 🔀 #286 : cookie httpOnly seul, le navigateur ne garde que le profil | ✅ Fait (mobile : toujours en `Authorization`, stockage sécurisé de l'appareil) |
+| JWT accepté dans l'URL (WebSocket) | ⚠️ finit dans l'historique, les referrers | 🔀 #265 le retire des logs, #286 le retire de l'URL (WebSocket et retour Google) | ✅ Ticket WebSocket de 30 s à usage unique ; `?token=` refusé |
+| Durée cookie 30 j vs JWT 7 j | ⚠️ incohérent | 🔀 #286 : cookie de 7 j comme le JWT, cookie de session sans « Rester connecté » | ✅ Fait |
 | Limitation de débit (login, inscription, renvoi de code, reset) | ❌ aucune | — | ⏳ À ajouter |
-| CORS `*` | ⚠️ | — | ⏳ Restreindre aux domaines de l'app |
+| CORS `*` | ⚠️ | 🔀 #286 : cookie accepté uniquement pour les origines autorisées | ⏳ Reste `*` sans cookie pour le mobile et l'API publique : à restreindre (#287) |
 | Connexion Postgres `sslmode=disable` | ⚠️ | — | ⏳ TLS si la base n'est pas sur le même hôte |
 | EXIF (GPS) dans les photos envoyées | ⚠️ conservé | — | ⏳ Retirer à l'upload |
 | Backend en HTTP (compose par défaut) | ⚠️ | — | HTTPS via le compose VM (`docker-compose.vm.yml`) : vérifier qu'il est bien utilisé en prod |

@@ -7,11 +7,5 @@ export async function apiFetchAuth<T>(
   token: string,
   options?: RequestInit
 ): Promise<T> {
-  return apiFetch<T>(path, {
-    ...options,
-    headers: {
-      ...(options?.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  return apiFetch<T>(path, { ...options, token });
 }

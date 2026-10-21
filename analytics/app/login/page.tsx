@@ -18,6 +18,7 @@ export default function LoginPage() {
     try {
       const res = await fetch(`${API}/api/login`, {
         method: "POST",
+        credentials: "include", // the API answers with the httpOnly session cookie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
@@ -30,7 +31,6 @@ export default function LoginPage() {
         setError(message);
         return;
       }
-      localStorage.setItem("token", data.token);
       router.push("/dashboard");
     } catch {
       setError("Could not reach the server.");

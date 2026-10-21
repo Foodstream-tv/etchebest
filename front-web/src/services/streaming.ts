@@ -4,12 +4,8 @@ const MEDIA_BASE_URL =
   process.env.NEXT_PUBLIC_MEDIA_BASE_URL ||
   API_BASE_URL.replace(/\/api\/?$/, "");
 
-async function authHeaders(token?: string): Promise<Record<string, string>> {
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
+// The session cookie authenticates these calls: they only need to send credentials.
+const jsonHeaders = { "Content-Type": "application/json" };
 
 export interface RoomParticipant {
   id: string;
@@ -49,7 +45,8 @@ export async function createRoom(
 ): Promise<{ roomId: string }> {
   const res = await fetch(`${API_BASE_URL}/rooms`, {
     method: "POST",
-    headers: await authHeaders(token),
+    headers: jsonHeaders,
+    credentials: "include",
     body: JSON.stringify({ name }),
   });
   if (!res.ok) throw new Error(`Failed to create room (${res.status})`);
@@ -83,7 +80,8 @@ export async function disconnectRoom(roomId: string, token?: string): Promise<vo
   const rid = encodeURIComponent(roomId);
   await fetch(`${API_BASE_URL}/rooms/${rid}/disconnect`, {
     method: "POST",
-    headers: await authHeaders(token),
+    headers: jsonHeaders,
+    credentials: "include",
   });
 }
 
@@ -94,7 +92,8 @@ export async function sendOffer(roomId: string,sdp: string,token?: string): Prom
 
   const res = await fetch(`${API_BASE_URL}/webrtc?roomId=${rid}`, {
     method: "POST",
-    headers: await authHeaders(token),
+    headers: jsonHeaders,
+    credentials: "include",
     body: JSON.stringify({ type: "offer", sdp }),
   });
   if (!res.ok) throw new Error(`SDP exchange failed (${res.status})`);
@@ -110,7 +109,8 @@ export async function sendRenegotiationAnswer(
 
   const res = await fetch(`${API_BASE_URL}/webrtc/answer?roomId=${rid}`, {
     method: "POST",
-    headers: await authHeaders(token),
+    headers: jsonHeaders,
+    credentials: "include",
     body: JSON.stringify({ type: "answer", sdp }),
   });
   if (!res.ok) throw new Error(`Renegotiation answer failed (${res.status})`);
@@ -144,7 +144,8 @@ export async function sendICECandidate(
 
   const res = await fetch(`${API_BASE_URL}/ice?roomId=${rid}`, {
     method: "POST",
-    headers: await authHeaders(token),
+    headers: jsonHeaders,
+    credentials: "include",
     body,
   });
 
