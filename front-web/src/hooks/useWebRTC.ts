@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import {
+  isRecordingConsentRequired,
   createRoom,
   disconnectRoom,
   reserveRoom,
@@ -33,7 +34,14 @@ interface UseWebRTCReturn {
   toggleVideo: () => void;
   startLive: (roomName: string) => Promise<void>;
   hostExistingRoom: (existingRoomId: string) => Promise<void>;
-  joinAsCoStreamer: (targetRoomId: string) => Promise<void>;
+  /**
+   * Resolves "consent-required" (and leaves the hook idle) when the live is recorded and the person has
+   * not agreed to it yet: the caller asks, then calls again with consentToRecording.
+   */
+  joinAsCoStreamer: (
+    targetRoomId: string,
+    opts?: { consentToRecording?: boolean }
+  ) => Promise<"joined" | "consent-required">;
   stopLive: () => Promise<void>;
   leaveLive: () => Promise<void>;
   removeRemoteStream: (streamId: string) => void;
@@ -510,7 +518,10 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
   );
 
   const joinAsCoStreamer = useCallback(
-    async (targetRoomId: string): Promise<void> => {
+    async (
+      targetRoomId: string,
+      opts: { consentToRecording?: boolean } = {}
+    ): Promise<"joined" | "consent-required"> => {
       try {
         await leaveLive();
 
@@ -520,7 +531,17 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         setRoomId(targetRoomId);
         roomIdRef.current = targetRoomId;
 
-        await reserveRoom(targetRoomId, tokenRef.current);
+        try {
+          await reserveRoom(targetRoomId, tokenRef.current, opts);
+        } catch (err) {
+          if (isRecordingConsentRequired(err)) {
+            setRoomId(null);
+            roomIdRef.current = null;
+            setState("idle");
+            return "consent-required";
+          }
+          throw err;
+        }
 
         setState("connecting");
 
@@ -529,9 +550,11 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         await negotiate(pc, targetRoomId);
         setupWebSocketListener(targetRoomId);
+        return "joined";
       } catch (err: any) {
         setError(err?.message || "Failed to join stream");
         setState("error");
+        return "joined";
       }
     },
     [

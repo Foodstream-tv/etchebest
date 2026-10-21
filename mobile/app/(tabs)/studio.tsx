@@ -140,7 +140,11 @@ export default function StudioScreen() {
         leftForLiveRef.current = true;
         haptics.tap();
         // The description (recipe included) and the thumbnail go through memory, not the route (see liveDraft).
-        const draft = setLiveDraft({ description: buildDescription(sanitizeDescription(form.description), form.recipe), thumbnailUrl });
+        const draft = setLiveDraft({
+            description: buildDescription(sanitizeDescription(form.description), form.recipe),
+            thumbnailUrl,
+            recordReplay: form.recordReplay,
+        });
         router.push({
             pathname: '/live-streaming',
             params: {
@@ -179,6 +183,7 @@ export default function StudioScreen() {
                 durationMinutes: form.durationMinutes,
                 thumbnailUrl,
                 scheduledAt,
+                recordReplay: form.recordReplay,
             });
             haptics.success();
             studio.reset();

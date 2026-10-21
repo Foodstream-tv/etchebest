@@ -33,6 +33,10 @@ export type LiveDTO = {
   user?: LiveUser;
   replay_url?: string;
   has_replay?: boolean;
+  /** False when the host chose not to keep a replay. */
+  replay_enabled?: boolean;
+  /** True when the replay was withdrawn after the live. */
+  replay_removed?: boolean;
 };
 
 export type LivesPage = {
@@ -82,6 +86,11 @@ export async function getLives(params: GetLivesParams = {}): Promise<LivesPage> 
 
 export async function getLiveByRoomId(roomId: string): Promise<LiveDTO> {
   return request<LiveDTO>(`/lives/${seg(roomId)}`, { auth: 'optional' });
+}
+
+/** Withdraws the replay of a live: allowed to its host and to the people who took part in it (403 otherwise). */
+export async function removeReplay(roomId: string): Promise<void> {
+  await request<unknown>(`/lives/${seg(roomId)}/replay/removal`, { method: 'POST' });
 }
 
 /** Recipe is embedded in the description after this marker (see web watch page). */

@@ -78,6 +78,7 @@ func EraseUser(db *gorm.DB, userID string) error {
 			args []any
 		}{
 			{"DELETE FROM chats WHERE user_id = ?", []any{userID}},
+			{"DELETE FROM recording_consents WHERE user_id = ?", []any{userID}},
 			{"DELETE FROM activities WHERE user_id = ? OR actor_id = ?", []any{userID, userID}},
 			{"DELETE FROM verification_codes WHERE user_id = ?", []any{userID}},
 			{"DELETE FROM password_reset_tokens WHERE user_id = ?", []any{userID}},

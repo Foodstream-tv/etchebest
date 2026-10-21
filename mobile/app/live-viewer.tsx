@@ -22,6 +22,8 @@ import { formatScheduledDate } from '@/components/live/format';
 import HostScheduledCard from '@/components/live/HostScheduledCard';
 import LiveInfoCard from '@/components/live/LiveInfoCard';
 import { getPublicMediaUrl } from '@/components/live/media';
+import RecordingConsentModal from '@/components/live/RecordingConsentModal';
+import ReplayRemovalCard from '@/components/live/ReplayRemovalCard';
 import ReservationCard, { ReservationMessage } from '@/components/live/ReservationCard';
 import { parseRoomId, useLiveRoom } from '@/components/live/useLiveRoom';
 import Badge from '@/components/ui/Badge';
@@ -34,7 +36,7 @@ import { makeStyles, useTheme } from '@/contexts/ThemeContext';
 import { useCookingProgress } from '@/hooks/useCookingProgress';
 import { getGoogleCalendarUrl, getLiveWebUrl } from '@/lib/calendar';
 import { parseLiveDescription } from '@/services/lives';
-import { cancelReserveRoom, getHLSUrl, reserveRoom } from '@/services/streaming';
+import { cancelReserveRoom, getHLSUrl, isRecordingConsentRequired, reserveRoom } from '@/services/streaming';
 import { showToast } from '@/utils/toast';
 import { haptics } from '@/utils/haptics';
 import { parseRecipe } from '@/utils/recipe';
@@ -145,6 +147,8 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
     const [busy, setBusy] = useState<'reserve' | 'cancel' | null>(null);
     const [reservationMessage, setReservationMessage] = useState<ReservationMessage | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    // A recorded live shows the co-streamer in its replay: they must agree before taking a place.
+    const [consentOpen, setConsentOpen] = useState(false);
     const inFlightRef = useRef(false);
 
     const mountedRef = useRef(true);
@@ -209,7 +213,7 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
     }, [roomId, title, description, live?.scheduled_at, t]);
 
     // ----- reservation -----
-    const onReserve = useCallback(async () => {
+    const reserve = useCallback(async (consentToRecording: boolean) => {
         if (!signedIn) {
             setReservationMessage({ text: t('watch.room.loginToReserve'), isError: true });
             return;
@@ -219,18 +223,35 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
         setBusy('reserve');
         setReservationMessage(null);
         try {
-            await reserveRoom(roomId);
+            await reserveRoom(roomId, { consentToRecording });
             haptics.success();
             if (!mountedRef.current) return;
+            setConsentOpen(false);
             setReservationMessage({ text: t('watch.room.reservationSuccess') });
             await refresh().catch(() => {});
         } catch (err) {
-            if (mountedRef.current) setReservationMessage({ text: errorMessage(err, t('live.reserve.error')), isError: true });
+            if (!mountedRef.current) return;
+            if (isRecordingConsentRequired(err)) {
+                setConsentOpen(true); // the backend knows better than our cached room: ask
+            } else {
+                setConsentOpen(false);
+                setReservationMessage({ text: errorMessage(err, t('live.reserve.error')), isError: true });
+            }
         } finally {
             inFlightRef.current = false;
             if (mountedRef.current) setBusy(null);
         }
     }, [signedIn, roomId, refresh, t]);
+
+    // The press handler takes no argument (a press event must never count as a consent).
+    const onReserve = useCallback(() => {
+        if (!signedIn) {
+            setReservationMessage({ text: t('watch.room.loginToReserve'), isError: true });
+            return;
+        }
+        if (room?.recordReplay === false) void reserve(false);
+        else setConsentOpen(true);
+    }, [signedIn, room?.recordReplay, reserve, t]);
 
     const onCancelReservation = useCallback(async () => {
         if (!signedIn || inFlightRef.current) return;
@@ -375,6 +396,12 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
                     {infoCard}
                     {recipeBlock}
                 </ScrollView>
+                <RecordingConsentModal
+                    visible={consentOpen}
+                    busy={busy === 'reserve'}
+                    onAccept={() => void reserve(true)}
+                    onCancel={() => setConsentOpen(false)}
+                />
             </Screen>
         );
     }
@@ -501,6 +528,7 @@ function LiveViewer({ roomId, roomNameParam }: Readonly<{ roomId: string; roomNa
         >
             {infoCard}
             {recipeBlock}
+            {showReplayPlayer && signedIn ? <ReplayRemovalCard roomId={roomId} onRemoved={() => void refresh().catch(() => {})} /> : null}
         </ScrollView>
     );
 

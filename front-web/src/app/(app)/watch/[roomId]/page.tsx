@@ -26,6 +26,7 @@ import {
   getRooms,
   getRoom,
   reserveRoom,
+  isRecordingConsentRequired,
   cancelReserveRoom,
   ChatMessage,
   RoomInfo,
@@ -35,6 +36,7 @@ import { useAuth } from "@/lib/useAuth";
 import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import CookingAssistant from "@/components/watch/CookingAssistant";
+import RecordingConsentDialog from "@/components/watch/RecordingConsentDialog";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 import { useI18n } from "@/i18n/LanguageContext";
 
@@ -200,25 +202,39 @@ export default function WatchRoomPage() {
     return room.participants.some((p: any) => String(p) === String(user.id));
   }, [user?.id, room?.participants, room?.host, liveInfo?.user?.id]);
 
-  const isFull = registeredCount >= 5;
+  const maxPlaces = room?.maxParticipants || 5;
+  const isFull = registeredCount >= maxPlaces;
+  // Co-streamers appear in the recording: ask for their agreement before they take a place.
+  const isRecorded = room?.recordReplay !== false;
+  const [consentOpen, setConsentOpen] = useState(false);
 
   const [reserving, setReserving] = useState(false);
   const [reservationMsg, setReservationMsg] = useState<{ text: string; isError?: boolean } | null>(null);
 
-  const onReserve = async () => {
+  const onReserve = async (consentToRecording = false) => {
     if (!roomId) return;
     if (!token) {
       setReservationMsg({ text: t("watch.room.loginToReserve"), isError: true });
       return;
     }
+    if (isRecorded && !consentToRecording) {
+      setConsentOpen(true);
+      return;
+    }
     setReserving(true);
     setReservationMsg(null);
     try {
-      await reserveRoom(roomId, token);
+      await reserveRoom(roomId, token, { consentToRecording });
+      setConsentOpen(false);
       setReservationMsg({ text: t("watch.room.reservationSuccess") });
       await fetchRoom();
     } catch (err: any) {
-      setReservationMsg({ text: err?.message || "Erreur de réservation", isError: true });
+      if (isRecordingConsentRequired(err)) {
+        setConsentOpen(true); // the backend knows better than our cached room: ask
+      } else {
+        setConsentOpen(false);
+        setReservationMsg({ text: err?.message || "Erreur de réservation", isError: true });
+      }
     } finally {
       setReserving(false);
     }
@@ -555,6 +571,13 @@ export default function WatchRoomPage() {
 
   return (
     <main id="main-content" className="min-h-screen">
+      {consentOpen ? (
+        <RecordingConsentDialog
+          busy={reserving}
+          onAccept={() => onReserve(true)}
+          onCancel={() => setConsentOpen(false)}
+        />
+      ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -624,7 +647,7 @@ export default function WatchRoomPage() {
                       </p>
                       <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-orange-300 backdrop-blur-md">
                         <Users className="h-3.5 w-3.5" />
-                        <span>{t("watch.room.spotsLeft", { count: registeredCount, max: 5 })}</span>
+                        <span>{t("watch.room.spotsLeft", { count: registeredCount, max: maxPlaces })}</span>
                       </div>
                       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                         <Link
@@ -668,7 +691,7 @@ export default function WatchRoomPage() {
                       {/* Jauge des places réservées */}
                       <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/15 px-4 py-1.5 text-xs font-semibold text-blue-200">
                         <Users className="h-3.5 w-3.5" />
-                        <span>{isFull ? t("watch.room.full") : t("watch.room.spotsLeft", { count: registeredCount, max: 5 })}</span>
+                        <span>{isFull ? t("watch.room.full") : t("watch.room.spotsLeft", { count: registeredCount, max: maxPlaces })}</span>
                       </div>
 
                       {reservationMsg ? (
@@ -719,7 +742,7 @@ export default function WatchRoomPage() {
                             <button
                               type="button"
                               disabled={reserving}
-                              onClick={onReserve}
+                              onClick={() => onReserve()}
                               className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50"
                             >
                               <Users className="h-4 w-4" />

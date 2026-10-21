@@ -31,6 +31,9 @@ type RoomView struct {
 	ParticipantsInfo []ParticipantInfo `json:"participantsInfo"`
 	// ConnectedCount counts the co-streamers (host excluded) with an active peer connection.
 	ConnectedCount int `json:"connectedCount"`
+	// RecordReplay: false when the host chose not to keep a replay. Co-streamers must consent to the
+	// recording when it is true (see ReserveRoom).
+	RecordReplay bool `json:"recordReplay"`
 	// HLSStatus is the health of the replay/HLS pipeline ("running", "restarting", "unavailable"); empty
 	// when the room has none (not live, or not an H264 host).
 	HLSStatus string `json:"hlsStatus,omitempty"`

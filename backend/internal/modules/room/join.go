@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/Foodstream-io/etchebest/internal/hls"
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
 	"github.com/gin-gonic/gin"
 	"github.com/pion/sdp/v3"
@@ -89,11 +90,39 @@ func authorizeJoin(c *gin.Context, db *gorm.DB, room *Room, userID string) bool 
 	}
 
 	var live liveModule.Live
-	if err := db.Select("status").Where("room_id = ?", roomID).First(&live).Error; err == nil && !joinableStatus(live.Status) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "this live is over"})
-		return false
+	recorded := true // no live row: assume the live is recorded, the safe side for the people in it
+	if err := db.Select("status", "replay_disabled").Where("room_id = ?", roomID).First(&live).Error; err == nil {
+		if !joinableStatus(live.Status) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "this live is over"})
+			return false
+		}
+		recorded = !live.ReplayDisabled
+	}
+
+	// A recorded live may be replayed: a co-streamer must have agreed to it (the host chose it).
+	if recorded && userID != room.Host {
+		if ok, err := liveModule.HasConsented(db, roomID, userID); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "you must agree to the recording of this live before joining it",
+				"code":  codeRecordingConsentRequired,
+			})
+			return false
+		}
 	}
 	return true
+}
+
+// codeRecordingConsentRequired is the machine-readable error clients use to show the consent step.
+const codeRecordingConsentRequired = "RECORDING_CONSENT_REQUIRED"
+
+// endHLS ends the room's HLS pipeline. A live whose host chose not to keep a replay has its recording
+// deleted; otherwise the replay is generated. Returns the replay URL ("" when none is kept).
+func endHLS(db *gorm.DB, roomID string) (string, error) {
+	if !liveModule.IsRecorded(db, roomID) {
+		hls.DiscardStream(roomID)
+		return "", nil
+	}
+	return hls.StopStream(roomID)
 }
 
 var (

@@ -28,6 +28,7 @@ const PREFIXES = [
   'studio.',
   'broadcast.',
   'cook.',
+  'consent.',
 ];
 
 const ENTRY = /^ {2}("(?:[^"\\]|\\.)+"):\s*("(?:[^"\\]|\\.)*"),\s*$/;

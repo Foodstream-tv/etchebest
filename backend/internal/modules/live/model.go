@@ -45,6 +45,12 @@ type Live struct {
 	Duration    int    `json:"duration"` // In seconds
 	ReplayViews int    `gorm:"default:0" json:"replay_views"`
 
+	// ReplayDisabled: the host chose not to keep a replay; the recording is deleted when the live ends.
+	ReplayDisabled bool `gorm:"not null;default:false" json:"replay_disabled"`
+	// ReplayRemovedAt / ReplayRemovedBy: a person who appears in the replay (or the host) had it withdrawn.
+	ReplayRemovedAt *time.Time `json:"replay_removed_at,omitempty"`
+	ReplayRemovedBy string     `gorm:"size:100" json:"-"`
+
 	// Featured
 	IsFeatured    bool       `gorm:"default:false;index:idx_live_featured" json:"is_featured"`
 	FeaturedUntil *time.Time `json:"featured_until,omitempty"`
