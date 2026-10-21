@@ -1459,6 +1459,8 @@ type hlsState struct {
 	// from it, so HLS waits for it (hlsSourceWait at most).
 	src      hls.SourceSize
 	waitOnce sync.Once
+	// start launches the HLS pipeline (hls.Start unless a test replaces it).
+	start func(roomID string, audio, video *hls.CodecInfo, src hls.SourceSize) (*hls.HLSWriter, func(), error)
 }
 
 // hlsSourceWait is how long HLS waits for the publisher's SPS before starting with the full ladder.
@@ -1483,12 +1485,13 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 	if h.src.Width == 0 {
 		// The size of the picture is not known yet: the first SPS will call us again. If it never
 		// comes (an odd publisher), start with the full ladder rather than not at all.
+		wait := hlsSourceWait
 		h.waitOnce.Do(func() {
-			time.AfterFunc(hlsSourceWait, func() {
+			time.AfterFunc(wait, func() {
 				mu.Lock()
 				defer mu.Unlock()
 				if h.src.Width == 0 {
-					log.Printf("[HLS] no SPS from the publisher of room %s after %v: starting with the full ladder", roomID, hlsSourceWait)
+					log.Printf("[HLS] no SPS from the publisher of room %s after %v: starting with the full ladder", roomID, wait)
 					h.src = hls.SourceSize{Width: -1, Height: -1} // known to be unknown: stop waiting
 					h.tryStartHLS(room, roomID)
 				}
@@ -1502,7 +1505,7 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 		log.Printf("failed to start HLS for room %s: %v", roomID, err)
 		if !h.retrying {
 			h.retrying = true
-			go h.retryHLSStart(room, roomID)
+			go h.retryHLSStart(room, roomID, hlsStartRetryDelays) // read here, under mu: not from the goroutine
 		}
 		return
 	}
@@ -1516,7 +1519,11 @@ func (h *hlsState) startHLS(room *Room, roomID string) (*hls.HLSWriter, error) {
 	if src.Width < 0 {
 		src = hls.SourceSize{}
 	}
-	writer, _, err := hls.Start(roomID, h.audio, h.video, src)
+	start := h.start
+	if start == nil {
+		start = hls.Start
+	}
+	writer, _, err := start(roomID, h.audio, h.video, src)
 	if err != nil {
 		return nil, err
 	}
@@ -1526,8 +1533,8 @@ func (h *hlsState) startHLS(room *Room, roomID string) (*hls.HLSWriter, error) {
 
 // retryHLSStart tries again a few times after a failed start: without it the live would have no HLS
 // (hence no replay) until the host happens to publish a new track.
-func (h *hlsState) retryHLSStart(room *Room, roomID string) {
-	for _, delay := range hlsStartRetryDelays {
+func (h *hlsState) retryHLSStart(room *Room, roomID string, delays []time.Duration) {
+	for _, delay := range delays {
 		time.Sleep(delay)
 		mu.Lock()
 		if peekLiveRoom(roomID) != room || room.HLSWriter != nil || hls.IsRunning(roomID) {
