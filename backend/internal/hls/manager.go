@@ -13,6 +13,7 @@ import (
 type Stream struct {
 	RoomID string
 	Stop   func()
+	status func() Status
 }
 
 var (
@@ -27,12 +28,24 @@ func IsRunning(roomID string) bool {
 	return exists
 }
 
-func RegisterToStream(roomID string, stop func()) {
+// StatusOf is the health of the room's HLS pipeline, or "" when the room has none.
+func StatusOf(roomID string) Status {
+	mu.Lock()
+	stream, exists := streams[roomID]
+	mu.Unlock()
+	if !exists || stream.status == nil {
+		return ""
+	}
+	return stream.status()
+}
+
+func RegisterToStream(roomID string, stop func(), status func() Status) {
 	mu.Lock()
 	defer mu.Unlock()
 	streams[roomID] = &Stream{
 		RoomID: roomID,
 		Stop:   stop,
+		status: status,
 	}
 	
 	// Log segment generation progress every 2 seconds
