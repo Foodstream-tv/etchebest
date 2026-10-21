@@ -156,7 +156,7 @@ There are **two distinct paths** for consuming a live stream:
 
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
-| Framework | Expo (React Native) | SDK 54 | Cross-platform mobile + web |
+| Framework | Expo (React Native) | SDK 57 | Cross-platform mobile + web |
 | Router | expo-router | ~6.0 | File-based routing |
 | WebRTC (native) | react-native-webrtc | 124.0.7 | Native iOS/Android WebRTC |
 | WebRTC (web) | Browser native APIs | — | Browser `RTCPeerConnection` |
