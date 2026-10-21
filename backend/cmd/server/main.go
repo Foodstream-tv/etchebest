@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
+	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/middleware"
 	"github.com/Foodstream-io/etchebest/internal/modules/account"
 	"github.com/Foodstream-io/etchebest/internal/modules/activity"
@@ -71,6 +72,9 @@ func main() {
 
 	if err := room.ValidateWebRTCConfig(); err != nil {
 		log.Fatalf("invalid WebRTC configuration: %v", err)
+	}
+	if err := hls.ValidateConfig(); err != nil {
+		log.Fatalf("invalid HLS configuration: %v", err)
 	}
 
 	webrtcIP := os.Getenv("WEBRTC_IP")
