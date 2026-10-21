@@ -2,6 +2,11 @@
 // apiFetch dispatches this event; SessionGuard (mounted in the root layout)
 // reacts by signing the user out, showing a toast and redirecting to /signin.
 
+// The session token lives in an httpOnly cookie the browser sends by itself: scripts never see it.
+// Call sites still pass a `token` to say "this request is made as the signed-in user", so useAuth
+// hands out this placeholder (not a secret) while someone is signed in.
+export const SESSION_TOKEN = "session";
+
 export const SESSION_TERMINATED_EVENT = "fs:session-terminated";
 
 export type SessionTerminationReason = "banned" | "revoked";

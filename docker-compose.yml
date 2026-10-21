@@ -56,6 +56,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       APP_URL: ${APP_URL:-http://localhost:3000}
       ALLOWED_REDIRECT_ORIGINS: ${ALLOWED_REDIRECT_ORIGINS:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
 
 
   frontend:

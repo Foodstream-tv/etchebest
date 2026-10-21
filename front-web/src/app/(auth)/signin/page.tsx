@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import { useAuthSubmit } from "@/lib/useAuthSubmit";
 import { apiFetch, ApiError } from "@/lib/api";
-import { BANNED_ERROR, formatBanMessage } from "@/lib/session";
+import { BANNED_ERROR, formatBanMessage, SESSION_TOKEN } from "@/lib/session";
 import { useI18n } from "@/i18n";
 import AuthCard from "@/components/auth/AuthCard";
 import TextField from "@/components/auth/TextField";
@@ -71,6 +71,7 @@ export default function SignInPage() {
       const login = await submit("/login", {
         email: email.trim().toLowerCase(),
         password,
+        rememberMe,
       });
 
       if (!login?.token) {
@@ -80,9 +81,7 @@ export default function SignInPage() {
 
       const user = await apiFetch<MeResponse>("/users/me", {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${login.token}`,
-        },
+        token: SESSION_TOKEN,
       });
 
       if (!user?.id) {
@@ -91,10 +90,7 @@ export default function SignInPage() {
       }
 
       setAuth(
-        {
-          token: login.token,
-          user,
-        },
+        { user },
         rememberMe
       );
 

@@ -50,22 +50,15 @@ export default function StatisticsPage() {
   const [now, setNow] = useState(0);
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
     setLoading(true);
     setError("");
     setNow(Date.now());
     try {
-      const headers = { Authorization: `Bearer ${token}` };
       const [usersRes, roomsRes] = await Promise.all([
-        fetch(`${API}/api/admin/users`, { headers }),
-        fetch(`${API}/api/rooms`, { headers }),
+        fetch(`${API}/api/admin/users`, { credentials: "include" }),
+        fetch(`${API}/api/rooms`, { credentials: "include" }),
       ]);
       if (usersRes.status === 401 || usersRes.status === 403) {
-        localStorage.removeItem("token");
         router.replace("/login");
         return;
       }

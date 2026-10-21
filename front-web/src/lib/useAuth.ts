@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { SESSION_TOKEN } from "@/lib/session";
+
 export type User = {
   id: string;
   email: string;
@@ -17,25 +19,33 @@ export type User = {
   updatedAt?: string;
 };
 
+// Only the profile is kept in the browser. The session token is an httpOnly cookie set by the
+// API: scripts (and any injected script) never read it.
 export type AuthState = {
-  token: string;
   user: User;
 };
 
 const STORAGE_KEY = "fs_auth";
-const COOKIE_MAX_AGE_30_DAYS = 60 * 60 * 24 * 30;
+
+function parseStored(raw: string | null): AuthState | null {
+  if (!raw) return null;
+  const parsed = JSON.parse(raw) as { user?: User; token?: string };
+  if (!parsed?.user) return null;
+  return { user: parsed.user };
+}
 
 function readAuth(): AuthState | null {
   if (typeof window === "undefined") return null;
 
   try {
-    const local = localStorage.getItem(STORAGE_KEY);
-    if (local) return JSON.parse(local) as AuthState;
-
-    const session = sessionStorage.getItem(STORAGE_KEY);
-    if (session) return JSON.parse(session) as AuthState;
-
-    return null;
+    const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
+    const auth = parseStored(raw);
+    if (raw && auth && raw.includes('"token"')) {
+      // Left over from before the cookie: drop the token that was stored in clear.
+      const store = localStorage.getItem(STORAGE_KEY) ? localStorage : sessionStorage;
+      store.setItem(STORAGE_KEY, JSON.stringify(auth));
+    }
+    return auth;
   } catch {
     return null;
   }
@@ -45,24 +55,15 @@ function saveAuth(auth: AuthState, rememberMe: boolean) {
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
 
-  if (rememberMe) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
-
-    document.cookie = `token=${auth.token}; path=/; max-age=${COOKIE_MAX_AGE_30_DAYS}; samesite=lax`;
-  } else {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
-
-    document.cookie = `token=${auth.token}; path=/; samesite=lax`;
-  }
+  (rememberMe ? localStorage : sessionStorage).setItem(STORAGE_KEY, JSON.stringify({ user: auth.user }));
 }
 
 function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
-  document.cookie = "token=; path=/; max-age=0; samesite=lax";
-  document.cookie = "auth_token=; path=/; max-age=0; samesite=lax";
+  // The httpOnly cookie can only be removed by the server.
   if (typeof window !== "undefined") {
-    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
   }
 }
 
@@ -99,7 +100,7 @@ export function useAuth() {
   const signOut = useCallback(async () => {
     setAuth(null);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {
       // ignore
     }
@@ -107,7 +108,7 @@ export function useAuth() {
 
   return {
     auth,
-    token: auth?.token ?? null,
+    token: auth ? SESSION_TOKEN : null,
     user: auth?.user ?? null,
     ready,
     setAuth,
