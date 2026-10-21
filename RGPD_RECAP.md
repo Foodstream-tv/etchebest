@@ -64,7 +64,7 @@ PRs concernées : #264 audit · #265 logs · #266 effacement + export + purge ·
 | JWT, emails et codes OTP dans les logs | ❌ Access log avec `?token=`, debug OAuth permanent, OTP loggés si SMTP absent | 🔀 #265 | Rétention des logs côté serveur (ex. 30 j) |
 | Scraper Marmiton public (SSRF) | ❌ `strings.Contains` contournable | 🔀 #267 | — |
 | Postgres exposé sur le réseau (mot de passe `root`) | ❌ port publié sur toutes les interfaces | 🔀 #269 | Changer le mot de passe par défaut en prod |
-| Codes de vérification / tokens de reset conservés | ❌ jamais purgés, en clair | 🔀 #266 : purge (≤ 24 h après expiration) | ⏳ Les stocker **hachés** |
+| Codes de vérification / tokens de reset conservés | ❌ jamais purgés, en clair | 🔀 #266 : purge (≤ 24 h après expiration) | 🔀 #285 : stockés **hachés** (HMAC-SHA256 clé JWT_SECRET), anciens codes en clair supprimés au démarrage |
 | Token de session en `localStorage` (web, analytics) | ⚠️ exposé en cas de XSS | — | ⏳ Utiliser uniquement le cookie httpOnly existant |
 | JWT accepté dans l'URL (WebSocket) | ⚠️ finit dans l'historique, les referrers | 🔀 #265 le retire des logs, pas de l'URL | ⏳ Ticket WebSocket court à usage unique |
 | Durée cookie 30 j vs JWT 7 j | ⚠️ incohérent | — | ⏳ Aligner |

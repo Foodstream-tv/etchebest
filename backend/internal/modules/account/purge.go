@@ -27,6 +27,27 @@ func PurgeExpiredCredentials(db *gorm.DB, now time.Time) (int64, error) {
 	return total, nil
 }
 
+// hashedSecretLength is the length of a stored keyed hash (hex SHA-256). Anything shorter is a
+// verification code or reset token saved in clear before they were hashed.
+const hashedSecretLength = 64
+
+// DiscardLegacySecrets deletes the verification codes and reset tokens still stored in clear
+// (from before they were hashed). They are short-lived, so users just ask for a new one.
+func DiscardLegacySecrets(db *gorm.DB) (int64, error) {
+	var total int64
+	for _, q := range []string{
+		"DELETE FROM verification_codes WHERE length(code) <> ?",
+		"DELETE FROM password_reset_tokens WHERE length(token) <> ?",
+	} {
+		res := db.Exec(q, hashedSecretLength)
+		if res.Error != nil {
+			return total, res.Error
+		}
+		total += res.RowsAffected
+	}
+	return total, nil
+}
+
 // StartPurgeLoop runs PurgeExpiredCredentials once now, then every interval until ctx is cancelled.
 func StartPurgeLoop(ctx context.Context, db *gorm.DB, interval time.Duration) {
 	run := func() {
