@@ -1,4 +1,6 @@
 export const preset = 'jest-expo';
+// The first test of a file pays for transforming the app (cold cache, CI runners): 5 s is not enough there.
+export const testTimeout = 20000;
 export const transformIgnorePatterns = [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|toastify-react-native)',
 ];

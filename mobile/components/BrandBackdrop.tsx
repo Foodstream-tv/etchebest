@@ -34,7 +34,7 @@ export default function BrandBackdrop({ compact = false }: Readonly<BrandBackdro
 
 const styles = StyleSheet.create({
     overlay: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     orb: {
         borderRadius: 999,
