@@ -5,7 +5,8 @@ import { hasExpoNativeModule, hasTurboModule } from '../nativeProbe';
 // The global test setup replaces the probe: load the real one for these tests.
 jest.unmock('@/utils/nativeProbe');
 
-jest.mock('expo-modules-core', () => ({ requireOptionalNativeModule: jest.fn() }));
+// Keep the rest of the package: other modules loaded by the test setup need it at import time.
+jest.mock('expo-modules-core', () => ({ ...jest.requireActual('expo-modules-core'), requireOptionalNativeModule: jest.fn() }));
 
 const { requireOptionalNativeModule } = jest.requireMock('expo-modules-core') as { requireOptionalNativeModule: jest.Mock };
 

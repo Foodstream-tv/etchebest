@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ColorValue, StyleSheet, View } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import { brandGradient } from '@/constants/theme';
@@ -12,7 +12,7 @@ import { makeStyles, useTheme } from '@/contexts/ThemeContext';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const tabIcon = (outline: IconName, filled: IconName) =>
-	function TabIcon({ color, focused }: Readonly<{ color: string; focused: boolean }>) {
+	function TabIcon({ color, focused }: Readonly<{ color: ColorValue; focused: boolean }>) {
 		return <Ionicons name={focused ? filled : outline} size={26} color={color} />;
 	};
 
