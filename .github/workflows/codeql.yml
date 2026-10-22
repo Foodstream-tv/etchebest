@@ -117,6 +117,12 @@ jobs:
         run: go build ./...
         working-directory: backend
 
+      # mobile/ios and mobile/android are not committed: generate them from app.json.
+      - name: Generate native projects
+        if: steps.default_setup.outputs.enabled != 'true' && (matrix.language == 'swift' || matrix.language == 'java-kotlin')
+        run: npx expo prebuild --no-install --platform ${{ matrix.language == 'swift' && 'ios' || 'android' }}
+        working-directory: mobile
+
       - name: Install iOS pods
         if: steps.default_setup.outputs.enabled != 'true' && matrix.language == 'swift'
         run: pod install
