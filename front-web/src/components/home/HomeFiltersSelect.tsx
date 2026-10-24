@@ -22,6 +22,10 @@ type HomeFiltersSelectProps = Readonly<{
   /** Selected tags; an empty list means no filter. */
   value: readonly string[];
   onChange: (tags: string[]) => void;
+  /** Compact square trigger (icon + count badge) instead of the labelled button. */
+  iconOnly?: boolean;
+  /** "pill": small rounded-full labelled button, used inside the hero search bar. */
+  variant?: "default" | "pill";
 }>;
 
 /** Prevents the page behind the modal from scrolling while it is open. */
@@ -59,6 +63,8 @@ export default function HomeFiltersSelect({
   applyLabel,
   value,
   onChange,
+  iconOnly = false,
+  variant = "default",
 }: HomeFiltersSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>([...value]);
@@ -134,10 +140,35 @@ export default function HomeFiltersSelect({
         onClick={open}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        className="flex h-12 items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-black/25 hover:bg-stone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:hover:bg-white/10 dark:focus-visible:ring-offset-neutral-950"
+        aria-label={iconOnly && value.length > 0 ? `${label} (${value.length})` : iconOnly ? label : undefined}
+        title={iconOnly ? label : undefined}
+        className={[
+          variant === "pill" ? "relative flex h-11 items-center gap-1.5 rounded-full border bg-white shadow-sm text-xs font-semibold text-gray-700 transition hover:border-black/30 hover:bg-[#fffaf2] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 active:scale-95 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:hover:bg-[#f5ede0]/[0.18] dark:focus-visible:ring-offset-neutral-950" : "relative flex h-12 items-center gap-2 rounded-2xl border bg-white text-sm font-semibold text-gray-900 shadow-sm transition hover:border-black/30 hover:bg-[#fffaf2] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 active:scale-95 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:hover:bg-[#f5ede0]/[0.18] dark:focus-visible:ring-offset-neutral-950",
+          iconOnly ? "w-12 justify-center" : "px-4",
+          iconOnly && value.length > 0
+            ? "border-orange-400 text-orange-600 dark:border-orange-400/60 dark:text-orange-300"
+            : "border-black/15 dark:border-[#f5ede0]/25",
+        ].join(" ")}
       >
         <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>{label}</span>
+        {iconOnly ? null : <span>{label}</span>}
+        {variant === "pill" && value.length > 0 ? (
+          <span
+            aria-hidden="true"
+            className="fs-pop grid h-5 min-w-5 place-items-center rounded-full bg-orange-500 px-1 text-[0.6875rem] font-bold text-[#1a0f05]"
+          >
+            {value.length}
+          </span>
+        ) : null}
+        {iconOnly && value.length > 0 ? (
+          <span
+            aria-hidden="true"
+            className="fs-pop absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[0.6875rem] font-bold text-[#1a0f05] shadow"
+            style={{ background: ORANGE_GRADIENT_CSS }}
+          >
+            {value.length}
+          </span>
+        ) : null}
       </button>
 
       {isOpen && typeof document !== "undefined"
@@ -163,7 +194,7 @@ export default function HomeFiltersSelect({
 
                 <header className="flex items-start gap-4 border-b border-black/5 px-5 pb-4 pt-3 sm:px-7 sm:pt-6 dark:border-white/10">
                   <span
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-[0_8px_20px_rgba(249,115,22,0.3)]"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-[#1a0f05] shadow-sm"
                     style={{ background: ORANGE_GRADIENT_CSS }}
                     aria-hidden="true"
                   >
@@ -206,7 +237,7 @@ export default function HomeFiltersSelect({
                           {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
                           {group.label}
                           {selectedCount > 0 ? (
-                            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-orange-100 px-1.5 text-[11px] font-bold tracking-normal text-orange-700 dark:bg-orange-500/15 dark:text-orange-300">
+                            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-orange-100 px-1.5 text-[0.6875rem] font-bold tracking-normal text-orange-700 dark:bg-orange-500/15 dark:text-orange-300">
                               {selectedCount}
                             </span>
                           ) : null}
@@ -229,7 +260,7 @@ export default function HomeFiltersSelect({
                                 className={[
                                   "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 active:scale-[0.97] dark:focus-visible:ring-offset-neutral-950",
                                   isSelected
-                                    ? "border-transparent text-white shadow-[0_6px_16px_rgba(249,115,22,0.3)]"
+                                    ? "border-transparent text-white shadow-sm"
                                     : "border-black/10 bg-stone-50 text-gray-800 hover:border-orange-300 hover:bg-orange-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200 dark:hover:border-orange-400/40 dark:hover:bg-orange-500/10",
                                 ].join(" ")}
                               >
@@ -259,7 +290,7 @@ export default function HomeFiltersSelect({
                   <button
                     type="button"
                     onClick={apply}
-                    className="ml-auto h-12 flex-1 rounded-2xl px-6 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 active:scale-[0.98] sm:flex-none dark:focus-visible:ring-offset-neutral-950"
+                    className="ml-auto h-12 flex-1 rounded-2xl px-6 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 active:scale-[0.98] sm:flex-none dark:focus-visible:ring-offset-neutral-950"
                     style={{ background: ORANGE_GRADIENT_CSS }}
                   >
                     {applyLabel}
