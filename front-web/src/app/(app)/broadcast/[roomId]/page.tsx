@@ -49,6 +49,7 @@ import {
   Radio,
   SendHorizonal,
   Square,
+  LogOut,
   Video,
   VideoOff,
   X,
@@ -428,6 +429,12 @@ export default function BroadcastRoomPage() {
     router.replace("/home");
   };
 
+  // A co-streamer leaves: only their own connection and place are released, the live goes on.
+  const handleLeaveLive = async () => {
+    await stopLive();
+    router.replace("/watch");
+  };
+
   const handleKickParticipant = async (stream: MediaStream) => {
     if (!displayRoom || !token) return;
     if (!window.confirm(t("broadcast.kickConfirm"))) return;
@@ -694,6 +701,17 @@ export default function BroadcastRoomPage() {
             >
               <Square aria-hidden="true" className="h-4 w-4" />
               {t("broadcast.stopLive")}
+            </button>
+          ) : null}
+
+          {!isHost && (isStreaming || state === "creating") ? (
+            <button
+              onClick={handleLeaveLive}
+              className="inline-flex h-11 items-center gap-2 rounded-2xl border border-red-500/40 bg-white px-5 text-sm font-bold text-red-600 shadow-sm transition hover:bg-red-50 dark:bg-white/[0.06] dark:text-red-300 dark:hover:bg-red-500/10"
+              type="button"
+            >
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+              {t("broadcast.leaveLive")}
             </button>
           ) : null}
         </div>
