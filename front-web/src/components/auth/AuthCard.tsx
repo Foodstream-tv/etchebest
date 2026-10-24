@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Flame } from "lucide-react";
+import { authDisplay } from "@/components/auth/authFont";
 import { useI18n } from "@/i18n";
 
 type AuthCardProps = Readonly<{
-  label: string;
+  /** Kept for the existing call sites; the eyebrow label is no longer rendered. */
+  label?: string;
   title: string;
   subtitle?: string;
   bottomText?: string;
@@ -15,7 +16,6 @@ type AuthCardProps = Readonly<{
 }>;
 
 export default function AuthCard({
-  label,
   title,
   subtitle,
   bottomText,
@@ -28,35 +28,19 @@ export default function AuthCard({
   return (
     <section
       aria-labelledby="auth-card-title"
-      className="mx-auto w-full max-w-md"
+      className="mx-auto w-full max-w-[600px]"
     >
-      <div className="relative overflow-hidden rounded-[32px] border border-black/8 bg-white/78 p-6 shadow-[0_20px_70px_rgba(0,0,0,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/72 dark:shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:p-8">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.03)_26%,transparent_58%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_26%,transparent_58%)]"
-        />
-
+      <div className="relative overflow-hidden rounded-[28px] border border-black/10 bg-white p-7 shadow-[0_24px_70px_rgba(60,35,10,0.12)] dark:border-white/12 dark:bg-[#1f1712] dark:shadow-[0_24px_80px_rgba(0,0,0,0.5)] md:p-10">
         <div className="relative z-10 mb-6">
-          <div className="flex items-center gap-2">
-            <Flame
-              className="h-4 w-4 text-orange-500 dark:text-orange-400"
-              aria-hidden="true"
-            />
-
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-orange-500 dark:text-orange-400">
-              {label}
-            </p>
-          </div>
-
           <h1
             id="auth-card-title"
-            className="mt-3 text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-gray-900 dark:text-gray-50"
+            className={`${authDisplay.className} text-[2.85rem] font-semibold leading-[1.05] tracking-[-0.02em] text-[#1f1711] dark:text-[#f5ede0]`}
           >
             {title}
           </h1>
 
           {subtitle ? (
-            <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">
+            <p className="mt-3 text-lg leading-7 text-[#1f1711]/70 dark:text-[#f5ede0]/70">
               {subtitle}
             </p>
           ) : null}
@@ -77,12 +61,12 @@ export default function AuthCard({
           ) : null}
 
           {bottomText && bottomLinkHref && bottomLinkLabel ? (
-            <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-7 text-center text-base text-[#1f1711]/70 dark:text-[#f5ede0]/70">
               <span>{bottomText} </span>
 
               <Link
                 href={bottomLinkHref}
-                className="font-semibold uppercase tracking-wide text-orange-500 transition hover:text-orange-400"
+                className="font-semibold text-[#1f1711] underline decoration-orange-500 decoration-2 underline-offset-4 transition hover:text-orange-600 dark:text-[#f5ede0] dark:hover:text-orange-300"
               >
                 {bottomLinkLabel}
               </Link>
