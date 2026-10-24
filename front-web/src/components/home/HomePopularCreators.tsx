@@ -40,7 +40,7 @@ export default function HomePopularCreators() {
           Aucun chef à découvrir actuellement
         </h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-sm">
-          Il n'y a pas encore d'autres profils de chefs disponibles à suivre sur la plateforme.
+          Il n&apos;y a pas encore d&apos;autres profils de chefs disponibles à suivre sur la plateforme.
         </p>
       </div>
     </section>

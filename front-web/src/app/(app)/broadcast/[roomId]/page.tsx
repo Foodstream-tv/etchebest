@@ -289,11 +289,9 @@ export default function BroadcastRoomPage() {
 
   const [liveInfo, setLiveInfo] = useState<LiveDTO | null>(null);
 
-  const isHost = useMemo(() => {
-    if (!liveInfo) return true;
-    if (!user?.id || !liveInfo?.user?.id) return false;
-    return String(user.id) === String(liveInfo.user.id);
-  }, [user?.id, liveInfo]);
+  const isHost = !liveInfo
+    ? true
+    : Boolean(user?.id && liveInfo.user?.id && String(user.id) === String(liveInfo.user.id));
 
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
@@ -330,30 +328,41 @@ export default function BroadcastRoomPage() {
   const [seenChatCount, setSeenChatCount] = useState(0);
   const hasUnreadChat = !chatOpen && chatMessages.length > seenChatCount;
 
+  // Messages that arrived while the chat was open are read: count them when it closes.
+  const closeChat = () => {
+    setChatOpen(false);
+    setSeenChatCount(chatMessages.length);
+  };
+
   const togglePanel = (name: PanelName) => {
     const isOpen = name === "chat" ? chatOpen : recipeOpen;
-    (name === "chat" ? setChatOpen : setRecipeOpen)(!isOpen);
+    if (name === "chat" && isOpen) {
+      closeChat();
+    } else {
+      (name === "chat" ? setChatOpen : setRecipeOpen)(!isOpen);
+    }
     if (!isOpen) setLastOpened(name);
   };
 
-  // Messages arriving while the chat is open are read.
-  useEffect(() => {
-    if (chatOpen) setSeenChatCount(chatMessages.length);
-  }, [chatOpen, chatMessages.length]);
-
   const displayRoom = roomId ?? roomIdFromUrl;
+
+  // Joining is started once: the ref keeps a re-render from starting it twice before the state follows.
+  const autoJoinStartedRef = useRef(false);
 
   useEffect(() => {
     if (!ready || !token || !roomIdFromUrl || hasStarted || state !== "idle") return;
+    if (autoJoinStartedRef.current) return;
 
     if (mode === "join" && !isHost && liveInfo?.status === "live" && !consentNeeded) {
-      setHasStarted(true);
+      autoJoinStartedRef.current = true;
       joinAsCoStreamer(roomIdFromUrl)
         .then((result) => {
           // A recorded live: ask first, the person appears in the replay.
           if (result === "consent-required") {
+            autoJoinStartedRef.current = false;
             setConsentNeeded(true);
-            setHasStarted(false);
+          } else {
+            setHasStarted(true);
           }
         })
         .catch((err) => {
@@ -479,19 +488,20 @@ export default function BroadcastRoomPage() {
     void fetchRoom();
   }, [fetchChat, fetchRoom]);
 
-  // One-off load: live details + first chat/room snapshot.
+  // One-off load: live details.
   useEffect(() => {
     if (!ready || !token || !displayRoom) return;
-
-    pollRoomAndChat();
 
     getLiveByRoomId(displayRoom, token)
       .then((data) => setLiveInfo(data))
       .catch(() => setLiveInfo(null));
-  }, [ready, token, displayRoom, pollRoomAndChat]);
+  }, [ready, token, displayRoom]);
 
-  // Then every 3 s, only while the tab is visible (usePolling resyncs when it comes back).
-  usePolling(pollRoomAndChat, 3000, Boolean(ready && token && displayRoom));
+  // Chat and room: right away, then every 3 s while the tab is visible (usePolling resyncs when it comes back).
+  usePolling(pollRoomAndChat, 3000, Boolean(ready && token && displayRoom), {
+    immediate: true,
+    key: displayRoom,
+  });
 
   // Who is cooking along: the people really connected to the room, by name. Reservations that never
   // connected, the host's own id and people who only chat are not "connected" and are left out.
@@ -758,7 +768,7 @@ export default function BroadcastRoomPage() {
           open={chatOpen}
           side="right"
           closeLabel={t("common.close")}
-          onClose={() => setChatOpen(false)}
+          onClose={closeChat}
           onTop={lastOpened === "chat"}
         >
           <ChatPanel

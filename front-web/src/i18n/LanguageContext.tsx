@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import fr from "./messages/fr";
@@ -42,6 +43,28 @@ const interpolate = (
   }, template);
 };
 
+const LOCALE_STORAGE_KEY = "foodstream_locale";
+// Fired in this tab when the locale is changed ("storage" only reaches the other tabs).
+const LOCALE_CHANGE_EVENT = "foodstream_locale_change";
+
+function readStoredLocale(): Locale | null {
+  try {
+    const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+    return stored === "fr" || stored === "en" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function subscribeLocale(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(LOCALE_CHANGE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(LOCALE_CHANGE_EVENT, onChange);
+  };
+}
+
 export function LanguageProvider({
   children,
   initialLocale = "fr",
@@ -49,29 +72,25 @@ export function LanguageProvider({
   children: React.ReactNode;
   initialLocale?: Locale;
 }>) {
-  const [currentLocale, setCurrentLocale] = useState<Locale>(initialLocale);
+  // The server renders with the cookie's locale; the browser's stored choice wins once hydrated.
+  const storedLocale = useSyncExternalStore(subscribeLocale, readStoredLocale, () => null);
+  // Kept in state too, so the switch works even when storage is blocked.
+  const [chosenLocale, setChosenLocale] = useState<Locale | null>(null);
+  const currentLocale = chosenLocale ?? storedLocale ?? initialLocale;
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("foodstream_locale") as Locale | null;
-      if (stored === "fr" || stored === "en") {
-        setCurrentLocale(stored);
-        document.documentElement.lang = stored;
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }, []);
+    document.documentElement.lang = currentLocale;
+  }, [currentLocale]);
 
   const setLocale = useCallback((nextLocale: Locale) => {
-    setCurrentLocale(nextLocale);
+    setChosenLocale(nextLocale);
     try {
-      localStorage.setItem("foodstream_locale", nextLocale);
+      localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
       document.cookie = `locale=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
-      document.documentElement.lang = nextLocale;
     } catch {
       // ignore storage errors
     }
+    window.dispatchEvent(new Event(LOCALE_CHANGE_EVENT));
   }, []);
 
   const t = useCallback(

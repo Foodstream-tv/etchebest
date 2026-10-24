@@ -47,43 +47,50 @@ export default function WatchListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pages shown so far: "load more" adds one, a new search or filter goes back to the first.
   const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(0);
   const limit = 12;
 
-  const refresh = async (targetPage = page) => {
-    try {
-      setError(null);
-      setLoading(true);
-
-      const res = await getLives({
-        q,
-        tags,
-        status: tab === "all" ? "all" : tab,
-        page: targetPage,
-        limit,
-      });
-
-      setLives((prev) =>
-        targetPage === 1 ? res.lives ?? [] : [...prev, ...(res.lives ?? [])]
-      );
-
-      setTotal(res.total ?? 0);
-    } catch (e: any) {
-      setError(e?.message ?? t("watch.loadError"));
-      if (targetPage === 1) setLives([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Fetches every live shown so far in one request, so the 10 s refresh keeps the pages already loaded.
   useEffect(() => {
-    refresh();
+    // An answer that arrives after the search changed is dropped.
+    let ignore = false;
 
-    const tTimer = window.setInterval(refresh, 10_000);
-    return () => window.clearInterval(tTimer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, tagsKey, tab]);
+    async function loadLives() {
+      try {
+        const res = await getLives({
+          q,
+          tags: tagsKey ? tagsKey.split("\n") : [],
+          status: tab === "all" ? "all" : tab,
+          page: 1,
+          limit: limit * page,
+        });
+        if (ignore) return;
+
+        setLives(res.lives ?? []);
+        setTotal(res.total ?? 0);
+        setError(null);
+      } catch (e) {
+        if (ignore) return;
+        setError((e instanceof Error && e.message) || t("watch.loadError"));
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    }
+
+    loadLives();
+
+    const tTimer = window.setInterval(loadLives, 10_000);
+    return () => {
+      ignore = true;
+      window.clearInterval(tTimer);
+    };
+  }, [q, tagsKey, tab, page, t]);
 
   const hasLives = lives.length > 0;
   // A search, a tag or a status tab narrows the list: "nothing found" then differs from "no live yet".
@@ -139,7 +146,10 @@ export default function WatchListPage() {
 
                   <input
                     value={q}
-                    onChange={(e) => setQ(e.target.value)}
+                    onChange={(e) => {
+                      setQ(e.target.value);
+                      setPage(1);
+                    }}
                     placeholder={t("watch.searchPlaceholder")}
                     aria-label={t("watch.searchAria")}
                     type="search"
@@ -158,7 +168,10 @@ export default function WatchListPage() {
                       <button
                         key={item.key}
                         type="button"
-                        onClick={() => setTab(item.key)}
+                        onClick={() => {
+                          setTab(item.key);
+                          setPage(1);
+                        }}
                         aria-pressed={active}
                         className={[
                           "inline-flex items-center gap-2 px-3 py-2 text-xs font-bold transition",
@@ -194,7 +207,10 @@ export default function WatchListPage() {
                       icon: group.icon,
                       tags: group.tags,
                     }))}
-                    onChange={setTags}
+                    onChange={(next) => {
+                      setTags(next);
+                      setPage(1);
+                    }}
                   />
                 </div>
               </div>
@@ -270,11 +286,14 @@ export default function WatchListPage() {
             <div className="flex justify-center pt-6">
               <button
                 type="button"
-                onClick={() => setPage((prev) => prev + 1)}
-                disabled={loading}
+                onClick={() => {
+                  setLoadingMore(true);
+                  setPage((prev) => prev + 1);
+                }}
+                disabled={loadingMore}
                 className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? t("common.loading") : t("watch.loadMore")}
+                {loadingMore ? t("common.loading") : t("watch.loadMore")}
               </button>
             </div>
           ) : null}
