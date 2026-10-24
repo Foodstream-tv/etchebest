@@ -13,6 +13,7 @@ import PhoneField, {
 import TextField from "@/components/auth/TextField";
 import TextAreaField from "@/components/auth/TextAreaField";
 import OAuthButton from "@/components/auth/OAuthButton";
+import { ApiError } from "@/lib/api";
 import { useAuthSubmit } from "@/lib/useAuthSubmit";
 import { useI18n } from "@/i18n";
 
@@ -245,18 +246,20 @@ export default function SignUpPage() {
       if (res?.devCode) params.set("devCode", res.devCode);
 
       router.replace(`/verify?${params.toString()}`);
-    } catch (err: any) {
+    } catch (err) {
+      const code = err instanceof ApiError ? err.body?.code : undefined;
+      const message = err instanceof Error ? err.message.toLowerCase() : "";
       if (
-        err?.body?.code === "EMAIL_ALREADY_EXISTS" ||
-        err?.message?.toLowerCase().includes("email is already being used")
+        code === "EMAIL_ALREADY_EXISTS" ||
+        message.includes("email is already being used")
       ) {
         const errorMsg = t("auth.signup.errorEmailExists");
         setFieldErrors((prev) => ({ ...prev, email: errorMsg }));
         setError(errorMsg);
         setStep(1);
       } else if (
-        err?.body?.code === "USERNAME_ALREADY_EXISTS" ||
-        err?.message?.toLowerCase().includes("username is already taken")
+        code === "USERNAME_ALREADY_EXISTS" ||
+        message.includes("username is already taken")
       ) {
         const errorMsg = t("auth.signup.errorUsernameExists");
         setFieldErrors((prev) => ({ ...prev, username: errorMsg }));

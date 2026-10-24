@@ -1,8 +1,8 @@
 "use client";
 
-import Hls from "hls.js";
+import Hls, { type ErrorData } from "hls.js";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -44,21 +44,19 @@ import { mergeChatMessages } from "@/lib/chatMessages";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
 
-type QualityOption = {
-  label: string;
-  value: string;
-};
-
 const MAX_MSG = 500;
 
-const mapLevelToHeight = (level: any) => level.height;
-const filterValidHeight = (height: any): height is number => Boolean(height);
-const sortDesc = (a: number, b: number) => b - a;
-const formatQualityOption = (height: number): QualityOption => ({
-  label: `${height}p`,
-  value: String(height),
-});
 const noop = () => {};
+const subscribeNothing = () => () => {};
+
+// How this browser plays HLS: hls.js (MSE), natively (Safari) or not at all. Fixed for the page's life.
+function detectPlayerMode(): PlayerMode {
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  if (!isSafari && Hls.isSupported()) return "hlsjs";
+  if (document.createElement("video").canPlayType("application/vnd.apple.mpegurl")) return "native";
+  return "unsupported";
+}
+
 
 function formatScheduledDate(value?: string | null, locale = "fr", fallback = "Date à venir") {
   if (!value) return fallback;
@@ -91,21 +89,9 @@ export default function WatchRoomPage() {
   const [liveInfo, setLiveInfo] = useState<LiveDTO | null>(null);
 
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const [playerMode, setPlayerMode] = useState<PlayerMode>("hlsjs");
+  const playerMode = useSyncExternalStore(subscribeNothing, detectPlayerMode, () => "hlsjs" as PlayerMode);
 
-  const [qualities, setQualities] = useState<QualityOption[]>([
-    { label: "Auto", value: "auto" },
-  ]);
-  const [selectedQuality, setSelectedQuality] = useState("auto");
-  const [userSelectedQuality, setUserSelectedQuality] = useState<string | null>(
-    null
-  );
-
-  // Read by handleManifestParsed through refs so that choosing a quality does not rebuild the player.
-  const selectedQualityRef = useRef("auto");
-  const userSelectedQualityRef = useRef<string | null>(null);
   const stickToBottomRef = useRef(true);
 
   const [isLiked, setIsLiked] = useState(false);
@@ -152,16 +138,10 @@ export default function WatchRoomPage() {
     return [null, rawDesc];
   }, [liveInfo?.description]);
 
-  const fetchRoom = useCallback(async (isInitial = false) => {
-    if (!roomId || !token) {
-      setRoomLoading(false);
-      return;
-    }
+  const fetchRoom = useCallback(async () => {
+    if (!roomId || !token) return;
 
     try {
-      if (isInitial) {
-        setRoomLoading(true);
-      }
       try {
         const singleRoom = await getRoom(roomId, token);
         if (singleRoom) setRoom(singleRoom);
@@ -181,9 +161,7 @@ export default function WatchRoomPage() {
       console.error("Fetch room error:", err);
       setRoom(null);
     } finally {
-      if (isInitial) {
-        setRoomLoading(false);
-      }
+      setRoomLoading(false);
     }
   }, [roomId, token]);
 
@@ -196,18 +174,18 @@ export default function WatchRoomPage() {
     [room?.participantsInfo, user?.username]
   );
 
-  const registeredCount = useMemo(() => {
-    if (!room?.participants) return 0;
-    const hostId = room.host || liveInfo?.user?.id;
-    return room.participants.filter((p: any) => String(p) !== String(hostId)).length;
-  }, [room?.participants, room?.host, liveInfo?.user?.id]);
+  // Reservations, host excluded.
+  const hostId = room?.host || liveInfo?.user?.id;
+  const registeredCount = room?.participants
+    ? room.participants.filter((p) => String(p) !== String(hostId)).length
+    : 0;
 
-  const isReserved = useMemo(() => {
-    if (!user?.id || !room?.participants) return false;
-    const hostId = room.host || liveInfo?.user?.id;
-    if (String(user.id) === String(hostId)) return false;
-    return room.participants.some((p: any) => String(p) === String(user.id));
-  }, [user?.id, room?.participants, room?.host, liveInfo?.user?.id]);
+  const isReserved = Boolean(
+    user?.id &&
+      room?.participants &&
+      String(user.id) !== String(hostId) &&
+      room.participants.some((p) => String(p) === String(user.id))
+  );
 
   const maxPlaces = room?.maxParticipants || 5;
   const isFull = registeredCount >= maxPlaces;
@@ -235,12 +213,12 @@ export default function WatchRoomPage() {
       setConsentOpen(false);
       setReservationMsg({ text: t("watch.room.reservationSuccess") });
       await fetchRoom();
-    } catch (err: any) {
+    } catch (err) {
       if (isRecordingConsentRequired(err)) {
         setConsentOpen(true); // the backend knows better than our cached room: ask
       } else {
         setConsentOpen(false);
-        setReservationMsg({ text: err?.message || "Erreur de réservation", isError: true });
+        setReservationMsg({ text: (err instanceof Error && err.message) || "Erreur de réservation", isError: true });
       }
     } finally {
       setReserving(false);
@@ -255,8 +233,8 @@ export default function WatchRoomPage() {
       await cancelReserveRoom(roomId, token);
       setReservationMsg({ text: t("watch.room.cancelSuccess") });
       await fetchRoom();
-    } catch (err: any) {
-      setReservationMsg({ text: err?.message || "Erreur d'annulation", isError: true });
+    } catch (err) {
+      setReservationMsg({ text: (err instanceof Error && err.message) || "Erreur d'annulation", isError: true });
     } finally {
       setReserving(false);
     }
@@ -282,52 +260,12 @@ export default function WatchRoomPage() {
     downloadIcsFile(calendarOptions);
   };
 
-  const applyQuality = useCallback((value: string, hlsInstance?: Hls | null) => {
-    const hls = hlsInstance ?? hlsRef.current;
-    if (!hls) return;
-
-    if (value === "auto") {
-      hls.currentLevel = -1;
-      return;
-    }
-
-    const height = Number(value);
-    const levelIndex = hls.levels.findIndex((level) => level.height === height);
-
-    if (levelIndex !== -1) {
-      hls.currentLevel = levelIndex;
-    }
-  }, []);
-
-  const handleQualityChange = (value: string) => {
-    userSelectedQualityRef.current = value;
-    selectedQualityRef.current = value;
-    setUserSelectedQuality(value);
-    setSelectedQuality(value);
-    applyQuality(value);
-  };
-
   const handleManifestParsed = useCallback(() => {
     const hls = hlsRef.current;
     const video = videoRef.current;
     if (!hls || !video) return;
 
-    const levels = hls.levels
-      .map(mapLevelToHeight)
-      .filter(filterValidHeight);
-
-    const uniqueLevels = Array.from(new Set(levels)).sort(sortDesc);
-
-    setQualities([
-      { label: "Auto", value: "auto" },
-      ...uniqueLevels.map(formatQualityOption),
-    ]);
-
-    const qualityToApply = userSelectedQualityRef.current || selectedQualityRef.current;
-    applyQuality(qualityToApply, hls);
-
     const playVideo = () => {
-      setLoading(false);
       setError(null);
       video.play().catch(noop);
     };
@@ -338,31 +276,29 @@ export default function WatchRoomPage() {
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
     }
-  }, [applyQuality]);
+  }, []);
 
-  useEffect(() => {
-    fetchRoom(true);
-  }, [roomId, token, fetchRoom]);
+  // The room right away, then every 10 s; starts over on another room.
+  usePolling(fetchRoom, 10_000, Boolean(roomId && token), { immediate: true, key: roomId });
 
-  usePolling(() => fetchRoom(false), 10_000, Boolean(roomId && token));
+  // A new source (another room, a retry, a scheduled live that starts) starts without the old error.
+  // Reset while rendering, not in the player effect.
+  const playerSource = `${hlsUrl}|${reloadKey}|${isScheduled}`;
+  const [errorSource, setErrorSource] = useState(playerSource);
+  if (playerSource !== errorSource) {
+    setErrorSource(playerSource);
+    setError(null);
+  }
+  const playerError =
+    !isScheduled && playerMode === "unsupported" ? "Navigateur non supporté." : error;
 
   useEffect(() => {
     const video = videoRef.current;
     if (!roomId || !hlsUrl || !video) return;
 
-    if (liveInfo?.status === "scheduled") {
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    // Nothing to play before the live starts: the effect runs again when it does.
+    if (isScheduled) return;
 
-    setLoading(true);
-    setError(null);
-    setQualities([{ label: "Auto", value: "auto" }]);
-    setUserSelectedQuality(null);
-    setSelectedQuality("auto");
-    userSelectedQualityRef.current = null;
-    selectedQualityRef.current = "auto";
     retryAttemptsRef.current = 0;
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
@@ -380,16 +316,10 @@ export default function WatchRoomPage() {
     video.removeAttribute("src");
     video.load();
 
-    const isSafari =
-      typeof navigator !== "undefined" &&
-      /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-    if (!isSafari && Hls.isSupported()) {
-      setPlayerMode("hlsjs");
-
+    if (playerMode === "hlsjs") {
       const maxRetries = 10;
 
-      const handleHlsError = (_evt: any, data: any) => {
+      const handleHlsError = (_event: unknown, data: ErrorData) => {
         if (!data?.fatal) return;
 
         const hls = hlsRef.current;
@@ -413,7 +343,6 @@ export default function WatchRoomPage() {
             return;
           }
 
-          setLoading(false);
           setError("Stream indisponible.");
 
           try {
@@ -430,7 +359,6 @@ export default function WatchRoomPage() {
           return;
         }
 
-        setLoading(false);
         setError("Erreur lecture stream.");
 
         try {
@@ -474,17 +402,14 @@ export default function WatchRoomPage() {
       };
     }
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      setPlayerMode("native");
+    if (playerMode === "native") {
       video.src = hlsUrl;
 
       const onLoaded = () => {
-        setLoading(false);
         video.play().catch(noop);
       };
 
       const onVideoError = () => {
-        setLoading(false);
         setError("Impossible de charger le stream.");
       };
 
@@ -497,10 +422,8 @@ export default function WatchRoomPage() {
       };
     }
 
-    setPlayerMode("unsupported");
-    setLoading(false);
-    setError("Navigateur non supporté.");
-  }, [roomId, hlsUrl, reloadKey, applyQuality, handleManifestParsed]);
+    // Unsupported browser: playerError says so.
+  }, [roomId, hlsUrl, reloadKey, isScheduled, playerMode, handleManifestParsed]);
 
   const fetchChat = useCallback(async () => {
     if (!roomId || !token) return;
@@ -513,13 +436,8 @@ export default function WatchRoomPage() {
     }
   }, [roomId, token]);
 
-  useEffect(() => {
-    if (!roomId || !token) return;
-
-    fetchChat();
-  }, [roomId, token, fetchChat]);
-
-  usePolling(fetchChat, 5000, Boolean(roomId && token));
+  // The chat right away, then every 5 s; starts over on another room.
+  usePolling(fetchChat, 5000, Boolean(roomId && token), { immediate: true, key: roomId });
 
   // Follow new messages only while the reader is at the bottom (do not yank them away from older ones).
   useEffect(() => {
@@ -529,10 +447,8 @@ export default function WatchRoomPage() {
   }, [chatMessages]);
 
   const onRetry = () => {
-    setError(null);
-    setLoading(true);
     setReloadKey((key) => key + 1);
-    fetchRoom(true);
+    fetchRoom();
     fetchChat();
   };
 
@@ -887,9 +803,7 @@ export default function WatchRoomPage() {
                   </InfoPill>
 
                   <InfoPill icon={<Radio className="h-4 w-4" />}>
-                    {t("watch.room.quality", {
-                      quality: selectedQuality === "auto" ? t("watch.room.auto") : `${selectedQuality}p`,
-                    })}
+                    {t("watch.room.quality", { quality: t("watch.room.auto") })}
                   </InfoPill>
 
                   {participants !== null && maxParticipants !== null && (
@@ -899,12 +813,12 @@ export default function WatchRoomPage() {
                   )}
                 </div>
 
-                {error && (
+                {playerError && (
                   <div
                     role="alert"
                     className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
                   >
-                    {error}
+                    {playerError}
                   </div>
                 )}
               </div>

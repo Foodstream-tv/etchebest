@@ -1,10 +1,11 @@
 import type { BroadcastState } from "@/components/broadcast/getBroadcastStatusMeta";
+import type { TranslationKey } from "@/i18n";
 
 export default function getBroadcastEmptyStateMessage(
   ready: boolean,
   token: string | null | undefined,
   state: BroadcastState,
-  t?: (key: any) => string
+  t?: (key: TranslationKey) => string
 ): string {
   if (!ready) {
     return t ? t("broadcast.emptyStateLoading") : "Chargement…";

@@ -68,7 +68,7 @@ export async function getUserById(userId: string, token?: string) {
 // GDPR: download every piece of personal data held about the signed-in user.
 // Goes through a raw fetch (not apiFetch) because the document must reach the
 // user untouched: apiFetch unwraps a top-level "data" key and re-parses the body.
-export async function exportMyData(token: string): Promise<Blob> {
+export async function exportMyData(): Promise<Blob> {
   const res = await fetch(`${API_BASE_URL.replace(/\/+$/, "")}/users/me/export`, {
     credentials: "include",
     cache: "no-store",
