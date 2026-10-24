@@ -320,10 +320,11 @@ par l'hôte (backend lancé).
 - **`PR title`** (`.github/workflows/pr-title.yml`) vérifie que le titre de la
   PR suit Conventional Commits (`type(périmètre): …`) : c'est lui qui devient le
   commit sur `main`.
-- **CodeQL** analyse la sécurité du code sur chaque PR, via la configuration par
-  défaut de GitHub (JS/TS, Python, Actions). Le workflow avancé
-  `.github/workflows/codeql.yml` (qui ajoute Go, Kotlin et Swift) se désactive
-  tant que cette configuration par défaut est active.
+- **CodeQL** analyse la sécurité du code (Go, JS/TS, Python, GitHub Actions) sur
+  chaque PR et sur `main`, via la configuration par défaut de GitHub (Settings →
+  Code security).
+- **Secret scanning** avec push protection : un push qui contient une clé ou un
+  mot de passe reconnu est bloqué avant d'arriver sur GitHub.
 - **Dependabot** (`.github/dependabot.yml`) propose chaque semaine une PR
   groupée par projet (Go, web, analytics, mobile, GitHub Actions) ; les alertes
   de sécurité arrivent toujours au fil de l'eau. Côté mobile, les paquets Expo,
