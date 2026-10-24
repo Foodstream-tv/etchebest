@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
+import ThumbnailFallback from "@/components/ui/ThumbnailFallback";
 import type { LiveDTO } from "@/lib/lives";
 import { useAuth } from "@/lib/useAuth";
 import { useI18n } from "@/i18n/LanguageContext";
@@ -66,8 +67,8 @@ export default function ReplayCarouselSection({ title, replays, onDeleteReplay }
 
   return (
     <section className="space-y-4" aria-labelledby={titleId}>
-      <h2 id={titleId} className="text-xl font-bold text-gray-950 dark:text-white">
-        <span className="text-orange-500">{firstWord}</span>{" "}
+      <h2 id={titleId} className="font-display text-2xl font-semibold text-gray-950 dark:text-white">
+        <span className="italic">{firstWord}</span>{" "}
         {restTitle.join(" ")}
       </h2>
 
@@ -96,12 +97,9 @@ export default function ReplayCarouselSection({ title, replays, onDeleteReplay }
 
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scroll-smooth pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex gap-4 overflow-x-auto scroll-smooth px-1 pb-4 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {replays.map((replay) => {
-            const thumbnail =
-              replay.thumbnail_url || "/images/live-fallback.png";
-
             const creatorName = replay.user?.username || "Chef FoodStream";
             const isOwner = Boolean(
               user?.id && replay.user?.id && String(user.id) === String(replay.user.id)
@@ -110,22 +108,26 @@ export default function ReplayCarouselSection({ title, replays, onDeleteReplay }
             return (
               <article
                 key={replay.id}
-                className="group relative w-[310px] shrink-0"
+                className="group relative w-[320px] shrink-0 rounded-[28px] border border-black/10 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md dark:border-[#f5ede0]/15 dark:bg-[#f5ede0]/[0.05] dark:shadow-none dark:hover:border-[#f5ede0]/30"
               >
                 <Link
                   href={`/replays/${encodeURIComponent(replay.room_id)}`}
                   aria-label={t("replays.viewReplayAria", { title: replay.title, creator: creatorName })}
                   className="block"
                 >
-                  <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
-                    <Image
-                      src={thumbnail}
-                      alt={t("replays.thumbnailAlt", { title: replay.title })}
-                      fill
-                      sizes="310px"
-                      unoptimized
-                      className="object-cover transition duration-300 group-hover:scale-105"
-                    />
+                  <div className="relative aspect-video overflow-hidden rounded-t-[27px] bg-black">
+                    {replay.thumbnail_url ? (
+                      <Image
+                        src={replay.thumbnail_url}
+                        alt={t("replays.thumbnailAlt", { title: replay.title })}
+                        fill
+                        sizes="320px"
+                        unoptimized
+                        className="object-cover transition duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <ThumbnailFallback />
+                    )}
 
                     <div
                       className="absolute inset-0 bg-black/10 transition group-hover:bg-black/25"
@@ -146,7 +148,7 @@ export default function ReplayCarouselSection({ title, replays, onDeleteReplay }
                   </div>
                 </Link>
 
-                <div className="mt-3 flex gap-3">
+                <div className="flex gap-3 p-4">
                   <Link
                     href={`/replays/${encodeURIComponent(replay.room_id)}`}
                     className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-orange-500"
