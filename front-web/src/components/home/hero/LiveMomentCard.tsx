@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Flame, Eye, VideoOff } from "lucide-react";
 
+import ThumbnailFallback from "@/components/ui/ThumbnailFallback";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import { getLives, type LiveDTO } from "@/lib/lives";
 import { useI18n } from "@/i18n/LanguageContext";
@@ -46,7 +47,7 @@ export default function LiveMomentCard() {
 
   if (loading) {
     return (
-      <article className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] animate-pulse">
+      <article className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] animate-pulse">
         <div className="h-6 w-28 bg-black/10 dark:bg-white/10 rounded-full mb-3" />
         <div className="h-52 bg-black/10 dark:bg-white/10 rounded-2xl mb-4" />
         <div className="space-y-2">
@@ -59,7 +60,7 @@ export default function LiveMomentCard() {
 
   if (!live) {
     return (
-      <article className="rounded-[28px] border border-black/8 bg-white/72 p-6 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] flex flex-col items-center justify-center text-center h-full min-h-[320px]">
+      <article className="rounded-[28px] border border-black/8 bg-white/72 p-6 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] flex flex-col items-center justify-center text-center h-full min-h-[320px]">
         <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300">
           <VideoOff className="h-8 w-8" aria-hidden="true" />
         </div>
@@ -74,7 +75,7 @@ export default function LiveMomentCard() {
 
         <Link
           href="/studio"
-          className="mt-5 rounded-2xl px-5 py-2.5 text-xs font-bold text-white transition hover:scale-[1.01] active:scale-[0.98]"
+          className="mt-5 rounded-2xl px-5 py-2.5 text-xs font-bold text-[#1a0f05] transition hover:scale-[1.01] active:scale-[0.98]"
           style={{ background: ORANGE_GRADIENT_CSS }}
         >
           {t("home.hero.goToStudio")}
@@ -84,10 +85,10 @@ export default function LiveMomentCard() {
   }
 
   const targetUrl = "/replays";
-  const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
+  const thumbnail = live.thumbnail_url;
 
   return (
-    <article className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+    <article className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-50">
         <Flame
           className="h-4 w-4 text-orange-500"
@@ -104,10 +105,12 @@ export default function LiveMomentCard() {
               alt={live.title}
               className="absolute inset-0 h-full w-full object-cover"
             />
-          ) : null}
+          ) : (
+            <ThumbnailFallback />
+          )}
 
           <span
-            className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold text-white z-10"
+            className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold text-[#1a0f05] z-10"
             style={{ background: ORANGE_GRADIENT_CSS }}
           >
             {t("common.live")}
@@ -134,7 +137,7 @@ export default function LiveMomentCard() {
           <Link
             href={targetUrl}
             aria-label={t("home.hero.seeReplaysAria")}
-            className="mt-4 block w-full rounded-2xl py-3 text-center text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 active:scale-[0.98]"
+            className="mt-4 block w-full rounded-2xl py-3 text-center text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 active:scale-[0.98]"
             style={{ background: ORANGE_GRADIENT_CSS }}
           >
             {t("home.hero.seeReplays")}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { cookies } from "next/headers";
-import { Inter } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
 import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
 import AppBackground from "@/components/layout/AppBackground";
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
@@ -9,11 +9,20 @@ import NotificationPoller from "@/components/notifications/NotificationPoller";
 import ScheduledLiveToast from "@/components/notifications/ScheduledLiveToast";
 import SessionGuard from "@/components/notifications/SessionGuard";
 import { LanguageProvider, type Locale } from "@/i18n/LanguageContext";
+import { AccessibilityProvider } from "@/components/accessibility/AccessibilityProvider";
+import { A11Y_COOKIE, a11yDataAttributes, parseA11y } from "@/lib/accessibility";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  fallback: ["Georgia", "Times New Roman", "serif"],
 });
 
 export const metadata: Metadata = {
@@ -32,10 +41,13 @@ export default async function RootLayout({
   const cookieLocale = cookieStore.get("locale")?.value as Locale | undefined;
   const initialLocale: Locale = cookieLocale === "en" ? "en" : "fr";
 
+  const initialA11y = parseA11y(cookieStore.get(A11Y_COOKIE)?.value);
+
   return (
     <html
       lang={initialLocale}
-      className={`${inter.variable} ${initialTheme === "dark" ? "dark" : ""}`}
+      {...a11yDataAttributes(initialA11y)}
+      className={`${inter.variable} ${fraunces.variable} ${initialTheme === "dark" ? "dark" : ""}`}
     >
       <body
         suppressHydrationWarning
@@ -43,19 +55,21 @@ export default async function RootLayout({
       >
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-9999 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-gray-900 focus:shadow-lg dark:focus:bg-[#120b05] dark:focus:text-white"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-9999 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-gray-900 focus:shadow-lg dark:focus:bg-[#1f1712] dark:focus:text-white"
         >
           Aller au contenu principal
         </a>
 
         <ThemeProvider initialTheme={initialTheme}>
           <LanguageProvider initialLocale={initialLocale}>
-            <NotificationProvider>
-              <SessionGuard />
-              <NotificationPoller />
-              <ScheduledLiveToast />
-              <AppBackground>{children}</AppBackground>
-            </NotificationProvider>
+            <AccessibilityProvider initialSettings={initialA11y}>
+              <NotificationProvider>
+                <SessionGuard />
+                <NotificationPoller />
+                <ScheduledLiveToast />
+                <AppBackground>{children}</AppBackground>
+              </NotificationProvider>
+            </AccessibilityProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

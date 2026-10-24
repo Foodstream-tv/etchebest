@@ -188,7 +188,7 @@ export default function PrivacyDataCard() {
               onClick={handleExport}
               disabled={exporting || !token}
               aria-busy={exporting}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {exporting ? (
                 <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -258,7 +258,7 @@ export default function PrivacyDataCard() {
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={descId}
-            className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-neutral-950"
+            className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#1f1712]"
           >
             <div className="px-6 pt-6">
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-300">
@@ -294,13 +294,13 @@ export default function PrivacyDataCard() {
               ) : null}
             </div>
 
-            <div className="mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:justify-end dark:border-gray-800">
+            <div className="mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:justify-end dark:border-white/10">
               <button
                 ref={cancelRef}
                 type="button"
                 onClick={closeConfirm}
                 disabled={deleting}
-                className="inline-flex items-center justify-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+                className="inline-flex items-center justify-center rounded-2xl border border-black/15 bg-white shadow-sm px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-[#fffaf2] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/10"
               >
                 {t("profile.privacy.delete.cancel")}
               </button>

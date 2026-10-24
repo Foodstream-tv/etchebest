@@ -1,9 +1,8 @@
 "use client";
 
-import StreamView from "@/components/StreamView";
 import BroadcastEmptyState from "@/components/broadcast/BroadcastEmptyState";
-import BroadcastRemoteCard from "@/components/broadcast/BroadcastRemoteCard";
 import BroadcastStatusPill from "@/components/broadcast/BroadcastStatusPill";
+import VideoGrid, { type VideoTile } from "@/components/broadcast/VideoGrid";
 import getBroadcastEmptyStateMessage from "@/components/broadcast/getBroadcastEmptyStateMessage";
 import getBroadcastStatusMeta, {
   type BroadcastState,
@@ -11,6 +10,7 @@ import getBroadcastStatusMeta, {
 
 import {
   getChatMessages,
+  getRoom,
   getRooms,
   postChatMessage,
   kickParticipant,
@@ -19,10 +19,13 @@ import {
 } from "@/services/streaming";
 import CookingAssistant from "@/components/watch/CookingAssistant";
 import RecordingConsentDialog from "@/components/watch/RecordingConsentDialog";
-import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
+import LiveDetailsCard from "@/components/broadcast/LiveDetailsCard";
+import { getLiveByRoomId, updateLiveTags, type LiveDTO } from "@/lib/lives";
 
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useAuth } from "@/lib/useAuth";
+import { mergeChatMessages } from "@/lib/chatMessages";
+import { usePolling } from "@/lib/usePolling";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useI18n } from "@/i18n/LanguageContext";
@@ -34,182 +37,168 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 
 import {
   ArrowLeft,
+  BookOpen,
   MessageCircle,
   Mic,
   MicOff,
   Radio,
   SendHorizonal,
   Square,
-  Users,
   Video,
   VideoOff,
+  X,
 } from "lucide-react";
 
 const MAX_MSG = 500;
 
-type HeaderActionsProps = {
-  isHost: boolean;
-  isStreaming: boolean;
-  canLaunch: boolean;
-  hasStarted: boolean;
-  onLaunchLive: () => Promise<void>;
-  onStopLive: () => Promise<void>;
+type PanelName = "chat" | "recipe";
+
+function cx(...classes: Array<string | false | undefined | null>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+type ToolbarButtonProps = {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+  /** Visible text next to the icon (hidden on very small screens). */
+  text?: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  tone?: "neutral" | "lit" | "off";
+  badge?: boolean;
+  /** Pressed state fills the button with a colour sliding in from this side. */
+  slideFrom?: "left" | "right";
 };
 
-function HeaderActions({
-  isHost,
-  isStreaming,
-  canLaunch,
-  hasStarted,
-  onLaunchLive,
-  onStopLive,
-}: Readonly<HeaderActionsProps>) {
-  const { t } = useI18n();
-
+/** Round-ish icon button of the top bar (Teams-style). */
+function ToolbarButton({
+  label,
+  onClick,
+  children,
+  text,
+  pressed,
+  disabled,
+  tone = "neutral",
+  badge,
+  slideFrom,
+}: Readonly<ToolbarButtonProps>) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {!hasStarted && isHost ? (
-        <button
-          disabled={!canLaunch}
-          onClick={onLaunchLive}
-          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
-          type="button"
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      className={cx(
+        "relative inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40",
+        tone === "lit" &&
+          "border-orange-500 bg-orange-500 text-[#1a0f05] shadow-[0_0_0_4px_rgba(249,115,22,0.18)] hover:bg-orange-400",
+        tone === "off" &&
+          "border-red-500/40 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300",
+        tone === "neutral" &&
+          (slideFrom
+            ? cx(
+                "border-black/10 bg-white transition-colors duration-300 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/10",
+                pressed
+                  ? "!border-orange-500 text-[#1a0f05] dark:!border-orange-500"
+                  : "text-gray-800 dark:text-gray-100"
+              )
+            : pressed
+              ? "border-orange-500 bg-orange-50 text-orange-700 dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-200"
+              : "border-black/10 bg-white text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.06] dark:text-gray-100 dark:hover:bg-white/10")
+      )}
+    >
+      {slideFrom ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
         >
-          <Radio aria-hidden="true" className="h-4 w-4" />
-          {t("broadcast.launchLive")}
-        </button>
+          <span
+            className={cx(
+              "absolute inset-0 bg-orange-500 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              slideFrom === "left" ? "origin-left" : "origin-right",
+              pressed ? "scale-x-100" : "scale-x-0"
+            )}
+          />
+        </span>
       ) : null}
-
-      {!hasStarted && isHost ? (
-        <p className="w-full text-xs text-gray-500 dark:text-gray-400">
-          {t("broadcast.recordingNotice")}
-        </p>
+      <span className="relative z-10 inline-flex items-center gap-2">
+        {children}
+        {text ? <span className="hidden sm:inline">{text}</span> : null}
+      </span>
+      {badge ? (
+        <span
+          aria-hidden="true"
+          className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-red-500 dark:border-neutral-950"
+        />
       ) : null}
-
-      {isStreaming && isHost ? (
-        <button
-          onClick={onStopLive}
-          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(239,68,68,0.25)] transition hover:bg-red-400"
-          type="button"
-        >
-          <Square aria-hidden="true" className="h-4 w-4" />
-          {t("broadcast.stopLive")}
-        </button>
-      ) : null}
-    </div>
+    </button>
   );
 }
 
-type LivePreviewProps = {
-  isDisconnected: boolean;
-  localStream: MediaStream | null;
-  isStreaming: boolean;
-  emptyStateMessage: string;
-  isAudioMuted?: boolean;
-  isVideoMuted?: boolean;
-  onToggleAudio?: () => void;
-  onToggleVideo?: () => void;
+type SidePanelProps = {
+  title: string;
+  open: boolean;
+  /** Which side of the cameras it is docked to (it slides in from that side). */
+  side: "left" | "right";
+  closeLabel: string;
+  onClose: () => void;
+  /** Most recently opened: sits above the other one when both are sheets on a small screen. */
+  onTop?: boolean;
+  children: ReactNode;
 };
 
-function LivePreview({
-  isDisconnected,
-  localStream,
-  isStreaming,
-  emptyStateMessage,
-  isAudioMuted,
-  isVideoMuted,
-  onToggleAudio,
-  onToggleVideo,
-}: Readonly<LivePreviewProps>) {
-  const { t } = useI18n();
+const PANEL_WIDTH = "lg:w-[320px] xl:w-[400px]";
 
+/**
+ * Drawer docked beside the stage on desktop (its width animates, so the cameras glide to make room),
+ * and a sheet sliding up on small screens. Always mounted so its state survives; hidden from
+ * keyboard and screen readers while closed.
+ */
+function SidePanel({ title, open, side, closeLabel, onClose, onTop, children }: Readonly<SidePanelProps>) {
   return (
-    <div className="overflow-hidden rounded-[34px] border border-black/8 bg-white/75 shadow-[0_18px_60px_rgba(0,0,0,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/8 px-5 py-4 dark:border-white/10">
-        <div>
-          <div className="text-base font-bold text-gray-950 dark:text-white">
-            {t("broadcast.previewTitle")}
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {t("broadcast.previewDesc")}
-          </div>
-        </div>
-
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-full bg-black/[0.04] px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-white/[0.06] dark:text-gray-300"
-        >
-          {localStream ? t("broadcast.streamActive") : t("broadcast.streamWaiting")}
-        </div>
+    <aside
+      aria-label={title}
+      aria-hidden={!open}
+      className={cx(
+        "fixed inset-x-3 bottom-3 top-24 flex flex-col overflow-hidden rounded-[28px] border border-black/8 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.3)] dark:border-white/10 dark:bg-[#1f1712]",
+        onTop ? "z-50" : "z-40",
+        "transition-[transform,opacity,visibility] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        "lg:static lg:inset-auto lg:z-auto lg:shrink-0 lg:translate-y-0 lg:shadow-none",
+        "lg:transition-[width,margin,opacity,visibility,border-width]",
+        open
+          ? `visible translate-y-0 opacity-100 ${PANEL_WIDTH}`
+          : cx(
+              "invisible translate-y-[110%] opacity-0 lg:w-0 lg:border-0",
+              // The flex gap would leave a 12px hole next to a zero-width panel.
+              side === "left" ? "lg:-mr-3" : "lg:-ml-3"
+            )
+      )}
+    >
+      {/* Fixed width so the content does not reflow while the drawer animates. */}
+      <div className={cx("flex h-full min-h-0 w-full flex-col", PANEL_WIDTH)}>
+        <header className="flex shrink-0 items-center justify-between border-b border-black/8 px-4 py-3 dark:border-white/10">
+          <h2 className="text-sm font-bold text-gray-950 dark:text-white">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={closeLabel}
+            tabIndex={open ? 0 : -1}
+            className="grid h-9 w-9 place-items-center rounded-xl text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1">{children}</div>
       </div>
-
-      <div className="relative aspect-video min-h-[260px] bg-black">
-        {isDisconnected ? (
-          <div className="absolute left-4 top-4 z-20 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-lg">
-            {t("broadcast.liveEndedBadge")}
-          </div>
-        ) : null}
-
-        {localStream ? (
-          <StreamView stream={localStream} muted />
-        ) : (
-          <BroadcastEmptyState
-            title={isDisconnected ? t("broadcast.status.offline") : t("broadcast.cameraInactive")}
-            message={
-              isDisconnected
-                ? t("broadcast.liveEndedDesc")
-                : emptyStateMessage
-            }
-          />
-        )}
-
-        {isStreaming ? (
-          <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-            <span
-              aria-hidden="true"
-              className="h-2 w-2 animate-pulse rounded-full bg-white"
-            />
-            <span>LIVE</span>
-          </div>
-        ) : null}
-
-        {localStream && onToggleAudio && onToggleVideo ? (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-2xl bg-black/60 px-3 py-1.5 backdrop-blur-md border border-white/10 shadow-lg">
-            <button
-              type="button"
-              onClick={onToggleAudio}
-              title={isAudioMuted ? t("broadcast.unmuteMic") : t("broadcast.muteMic")}
-              aria-label={isAudioMuted ? t("broadcast.unmuteMic") : t("broadcast.muteMic")}
-              className={`grid h-9 w-9 place-items-center rounded-xl transition ${
-                isAudioMuted
-                  ? "bg-red-500 text-white hover:bg-red-600"
-                  : "bg-white/15 text-white hover:bg-white/25"
-              }`}
-            >
-              {isAudioMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={onToggleVideo}
-              title={isVideoMuted ? t("broadcast.enableCam") : t("broadcast.disableCam")}
-              aria-label={isVideoMuted ? t("broadcast.enableCam") : t("broadcast.disableCam")}
-              className={`grid h-9 w-9 place-items-center rounded-xl transition ${
-                isVideoMuted
-                  ? "bg-red-500 text-white hover:bg-red-600"
-                  : "bg-white/15 text-white hover:bg-white/25"
-              }`}
-            >
-              {isVideoMuted ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
+    </aside>
   );
 }
 
@@ -235,33 +224,7 @@ function ChatPanel({
   const { t } = useI18n();
 
   return (
-    <section
-      className="flex h-[560px] flex-col overflow-hidden rounded-[30px] border border-black/8 bg-white/75 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)]"
-      aria-labelledby="broadcast-chat-title"
-    >
-      <div className="flex items-center justify-between border-b border-black/8 px-4 py-4 dark:border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300">
-            <MessageCircle aria-hidden="true" className="h-4 w-4" />
-          </div>
-
-          <div>
-            <h2
-              id="broadcast-chat-title"
-              className="text-sm font-bold text-gray-950 dark:text-white"
-            >
-              {t("broadcast.chatLive")}
-            </h2>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {t("watch.room.chatCount", {
-                count: chatMessages.length,
-                plural: chatMessages.length > 1 ? "s" : "",
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <section className="flex h-full flex-col" aria-label={t("broadcast.chatLive")}>
       <div
         ref={scrollRef}
         aria-live="polite"
@@ -281,15 +244,13 @@ function ChatPanel({
               <div className="mb-0.5 font-semibold text-gray-900 dark:text-gray-100">
                 {msg.username}
               </div>
-              <div className="text-gray-700 dark:text-gray-300">
-                {msg.message}
-              </div>
+              <div className="text-gray-700 dark:text-gray-300">{msg.message}</div>
             </div>
           ))
         )}
       </div>
 
-      <div className="border-t border-black/8 p-4 dark:border-white/10">
+      <div className="shrink-0 border-t border-black/8 p-4 dark:border-white/10">
         <div className="flex gap-2">
           <input
             value={message}
@@ -299,22 +260,18 @@ function ChatPanel({
             aria-label={t("broadcast.chatInputAria")}
             maxLength={MAX_MSG}
             disabled={sending}
-            className="min-w-0 flex-1 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-[#1b140e] dark:text-white"
+            className="min-w-0 flex-1 rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-[#1f1712] dark:text-white"
           />
 
           <button
             onClick={onSendMessage}
             disabled={sending || !message.trim()}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 text-[#1a0f05] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             aria-label={t("broadcast.chatSendAria")}
           >
             <SendHorizonal aria-hidden="true" className="h-4 w-4" />
           </button>
-        </div>
-
-        <div className="mt-2 text-right text-[11px] text-gray-400 dark:text-gray-500">
-          {message.length}/{MAX_MSG}
         </div>
       </div>
     </section>
@@ -366,6 +323,24 @@ export default function BroadcastRoomPage() {
 
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Recipe opens on the left of the cameras, chat on the right; each toggles on its own.
+  const [recipeOpen, setRecipeOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [lastOpened, setLastOpened] = useState<PanelName>("chat");
+  const [seenChatCount, setSeenChatCount] = useState(0);
+  const hasUnreadChat = !chatOpen && chatMessages.length > seenChatCount;
+
+  const togglePanel = (name: PanelName) => {
+    const isOpen = name === "chat" ? chatOpen : recipeOpen;
+    (name === "chat" ? setChatOpen : setRecipeOpen)(!isOpen);
+    if (!isOpen) setLastOpened(name);
+  };
+
+  // Messages arriving while the chat is open are read.
+  useEffect(() => {
+    if (chatOpen) setSeenChatCount(chatMessages.length);
+  }, [chatOpen, chatMessages.length]);
+
   const displayRoom = roomId ?? roomIdFromUrl;
 
   useEffect(() => {
@@ -386,6 +361,21 @@ export default function BroadcastRoomPage() {
         });
     }
   }, [ready, token, roomIdFromUrl, hasStarted, state, mode, isHost, liveInfo?.status, joinAsCoStreamer, consentNeeded]);
+
+  // Tags are optional at creation: the host can complete them from here until the live ends.
+  const liveTagNames = useMemo(
+    () => (liveInfo?.tags ?? []).map((tag) => tag.name),
+    [liveInfo?.tags]
+  );
+
+  const handleSaveTags = useCallback(
+    async (tags: string[]) => {
+      if (!displayRoom || !token) throw new Error("Missing room or token");
+      const updated = await updateLiveTags(displayRoom, tags, token);
+      setLiveInfo((prev) => ({ ...(prev ?? updated), ...updated, tags: updated.tags ?? [] }));
+    },
+    [displayRoom, token]
+  );
 
   const handleAcceptRecording = () => {
     if (!roomIdFromUrl) return;
@@ -429,7 +419,7 @@ export default function BroadcastRoomPage() {
     router.replace("/home");
   };
 
-  const handleKickParticipant = async (_index: number, stream: MediaStream) => {
+  const handleKickParticipant = async (stream: MediaStream) => {
     if (!displayRoom || !token) return;
     if (!window.confirm(t("broadcast.kickConfirm"))) return;
 
@@ -447,40 +437,61 @@ export default function BroadcastRoomPage() {
 
     try {
       const msgs = await getChatMessages(displayRoom, token);
-      setChatMessages(msgs ?? []);
+      // Same reference when nothing new: no re-render of the whole page every poll.
+      setChatMessages((prev) => mergeChatMessages(prev, msgs ?? []));
     } catch (err) {
       console.warn("[CHAT] fetch failed:", err);
     }
   }, [displayRoom, token]);
 
+  // Fetch only this room (not the list of every room); fall back to the list on an older backend.
+  const singleRoomEndpointRef = useRef(true);
+
   const fetchRoom = useCallback(async () => {
     if (!displayRoom || !token) return;
 
     try {
-      const rooms = await getRooms(token);
-      const current = rooms?.find((r) => r.id === displayRoom) ?? null;
-      setRoom(current);
+      let current: RoomInfo | null = null;
+
+      if (singleRoomEndpointRef.current) {
+        try {
+          current = await getRoom(displayRoom, token);
+        } catch {
+          singleRoomEndpointRef.current = false;
+        }
+      }
+      if (!singleRoomEndpointRef.current) {
+        const rooms = await getRooms(token);
+        current = rooms?.find((r) => r.id === displayRoom) ?? null;
+      }
+
+      // Keep the previous object when nothing changed so memoised children do not re-render.
+      setRoom((prev) =>
+        prev && current && JSON.stringify(prev) === JSON.stringify(current) ? prev : current
+      );
     } catch (err) {
       console.warn("[ROOM] fetch failed:", err);
     }
   }, [displayRoom, token]);
 
+  const pollRoomAndChat = useCallback(() => {
+    void fetchChat();
+    void fetchRoom();
+  }, [fetchChat, fetchRoom]);
+
+  // One-off load: live details + first chat/room snapshot.
   useEffect(() => {
     if (!ready || !token || !displayRoom) return;
 
-    fetchChat();
-    fetchRoom();
+    pollRoomAndChat();
 
     getLiveByRoomId(displayRoom, token)
       .then((data) => setLiveInfo(data))
       .catch(() => setLiveInfo(null));
+  }, [ready, token, displayRoom, pollRoomAndChat]);
 
-    const interval = window.setInterval(() => {
-      fetchChat();
-      fetchRoom();
-    }, 3000);
-    return () => window.clearInterval(interval);
-  }, [ready, token, displayRoom, fetchChat, fetchRoom]);
+  // Then every 3 s, only while the tab is visible (usePolling resyncs when it comes back).
+  usePolling(pollRoomAndChat, 3000, Boolean(ready && token && displayRoom));
 
   // Who is cooking along: the people really connected to the room, by name. Reservations that never
   // connected, the host's own id and people who only chat are not "connected" and are left out.
@@ -494,9 +505,6 @@ export default function BroadcastRoomPage() {
     // Older backend without participant info: one entry per remote video stream.
     return remoteStreams.map((_, idx) => ({ username: `Co-streamer ${idx + 1}` }));
   }, [remoteStreams, room?.participantsInfo, user?.username]);
-
-  // The server's count of connected co-streamers; the number of remote streams when it is not available.
-  const coStreamerCount = room?.connectedCount ?? remoteStreams.length;
 
   const parsedRecipe = useMemo(() => {
     const rawDesc = liveInfo?.description || "";
@@ -549,250 +557,224 @@ export default function BroadcastRoomPage() {
       setSending(false);
     }
   };
+  // Always points at the latest handler; written after render (refs must not change during it).
+  const kickRef = useRef(handleKickParticipant);
+  useEffect(() => {
+    kickRef.current = handleKickParticipant;
+  });
+
+  const placeholderTitle = isDisconnected ? t("broadcast.status.offline") : t("broadcast.cameraInactive");
+  const placeholderMessage = isDisconnected ? t("broadcast.liveEndedDesc") : emptyStateMessage;
+  const youLabel = t("liveRoom.you");
+
+  // Stable while nothing about the cameras changes, so polling (chat/room) never re-renders the video tiles.
+  const tiles: VideoTile[] = useMemo(() => [
+    {
+      id: "local",
+      stream: localStream,
+      label: youLabel,
+      local: true,
+      cameraOff: isVideoMuted,
+      micOff: isAudioMuted,
+      placeholder: <BroadcastEmptyState title={placeholderTitle} message={placeholderMessage} />,
+    },
+    ...remoteStreams.map((stream, index) => ({
+      id: stream.id,
+      stream,
+      label: t("broadcast.participantLabel", { index: index + 1 }),
+      onKick: isHost ? () => void kickRef.current(stream) : undefined,
+    })),
+  ], [localStream, remoteStreams, isVideoMuted, isAudioMuted, isHost, youLabel, placeholderTitle, placeholderMessage, t]);
+
+  const hasLocalStream = Boolean(localStream);
 
   return (
-    <main id="main-content" className="min-h-screen">
+    <main
+      id="main-content"
+      className="flex h-[calc(100dvh-8rem)] min-h-[520px] flex-col gap-3"
+    >
       {consentNeeded ? (
         <RecordingConsentDialog
           onAccept={handleAcceptRecording}
           onCancel={() => router.back()}
         />
       ) : null}
-      <div className="mx-auto w-full max-w-375 px-4 py-5 sm:px-6 lg:py-7">
-        <header className="mb-5 overflow-hidden rounded-[30px] border border-black/8 bg-white/75 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <button
-                onClick={handleBack}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-black/8 bg-white text-gray-900 shadow-sm transition hover:-translate-x-0.5 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
-                type="button"
-                aria-label={t("broadcast.backAria")}
-              >
-                <ArrowLeft aria-hidden="true" className="h-5 w-5" />
-              </button>
 
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="truncate text-xl font-bold tracking-tight text-gray-950 dark:text-white">
-                    {t("broadcast.studioTitle")}
-                  </h1>
-
-                  <BroadcastStatusPill
-                    label={statusLabel}
-                    dotClassName={dotClassName}
-                  />
-                </div>
-
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("broadcast.modeHost")}</span>
-                  <span
-                    aria-hidden="true"
-                    className="h-1 w-1 rounded-full bg-gray-300 dark:bg-white/30"
-                  />
-                  <span>
-                    {t("broadcast.roomLabel")}{" "}
-                    <strong className="font-semibold text-gray-700 dark:text-gray-200">
-                      {displayRoom ? `${displayRoom.slice(0, 8)}…` : "—"}
-                    </strong>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <HeaderActions
-              isHost={isHost}
-              isStreaming={isStreaming}
-              canLaunch={canLaunch}
-              hasStarted={hasStarted}
-              onLaunchLive={handleLaunchLive}
-              onStopLive={handleStopLive}
-            />
-          </div>
-        </header>
-
-        {error ? (
-          <div
-            role="alert"
-            className="mb-5 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-700 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+      {/* Top bar */}
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={handleBack}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-black/10 bg-white text-gray-900 shadow-sm transition hover:-translate-x-0.5 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:hover:bg-white/10"
+            type="button"
+            aria-label={t("broadcast.backAria")}
           >
-            {error}
-          </div>
-        ) : null}
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
+          </button>
 
-        {!isHost && liveInfo?.status === "scheduled" && (
-          <div
-            role="alert"
-            className="mb-5 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-sm font-medium text-blue-700 backdrop-blur-sm dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200 flex items-center justify-between gap-4"
-          >
-            <div>
-              <p className="font-bold">{t("broadcast.scheduledNotStartedTitle")}</p>
-              <p className="text-xs text-blue-600 dark:text-blue-300 mt-0.5">
-                {t("broadcast.scheduledNotStartedDesc")}
-              </p>
-            </div>
-            <button
-              onClick={() => router.push("/home")}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition shrink-0"
-            >
-              {t("common.back")}
-            </button>
-          </div>
-        )}
+          <h1 className="sr-only">{t("broadcast.studioTitle")}</h1>
+          <BroadcastStatusPill label={statusLabel} dotClassName={dotClassName} />
+        </div>
 
-        {isHost && liveInfo?.status === "scheduled" && !hasStarted && (
-          <div
-            role="status"
-            className="mb-5 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm font-medium text-orange-900 dark:text-orange-200 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <ToolbarButton
+            label={isVideoMuted ? t("broadcast.enableCam") : t("broadcast.disableCam")}
+            onClick={toggleVideo}
+            disabled={!hasLocalStream}
+            tone={!hasLocalStream ? "neutral" : isVideoMuted ? "off" : "lit"}
           >
-            <div>
-              <p className="font-bold flex items-center gap-2 text-orange-600 dark:text-orange-400">
-                <Radio className="h-4 w-4" />
-                {t("broadcast.hostScheduledTitle")}
-              </p>
-              <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">
-                {t("broadcast.hostScheduledDesc")}
-              </p>
-            </div>
+            {isVideoMuted ? (
+              <VideoOff aria-hidden="true" className="h-5 w-5" />
+            ) : (
+              <Video aria-hidden="true" className="h-5 w-5" />
+            )}
+          </ToolbarButton>
+
+          <ToolbarButton
+            label={isAudioMuted ? t("broadcast.unmuteMic") : t("broadcast.muteMic")}
+            onClick={toggleAudio}
+            disabled={!hasLocalStream}
+            tone={isAudioMuted && hasLocalStream ? "off" : "neutral"}
+          >
+            {isAudioMuted ? (
+              <MicOff aria-hidden="true" className="h-5 w-5" />
+            ) : (
+              <Mic aria-hidden="true" className="h-5 w-5" />
+            )}
+          </ToolbarButton>
+
+          <ToolbarButton
+            label={t("liveRoom.recipe")}
+            text={t("liveRoom.recipe")}
+            onClick={() => togglePanel("recipe")}
+            slideFrom="left"
+            pressed={recipeOpen}
+          >
+            <BookOpen aria-hidden="true" className="h-5 w-5" />
+          </ToolbarButton>
+
+          <ToolbarButton
+            label={t("broadcast.chatLive")}
+            text={t("liveRoom.chat")}
+            onClick={() => togglePanel("chat")}
+            slideFrom="right"
+            pressed={chatOpen}
+            badge={hasUnreadChat}
+          >
+            <MessageCircle aria-hidden="true" className="h-5 w-5" />
+          </ToolbarButton>
+
+          {!hasStarted && isHost ? (
             <button
               disabled={!canLaunch}
               onClick={handleLaunchLive}
-              className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-orange-400 transition shrink-0"
+              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-bold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
             >
-              <Radio className="h-4 w-4" />
-              {t("broadcast.launchNowBtn")}
+              <Radio aria-hidden="true" className="h-4 w-4" />
+              {t("broadcast.launchLive")}
             </button>
-          </div>
-        )}
+          ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)_340px] xl:grid-cols-[400px_minmax(0,1fr)_360px] items-start">
-          {/* LEFT COLUMN: Cuisine coop */}
-          <aside className="space-y-5 order-2 lg:order-1" aria-label={t("broadcast.coopTitle")}>
-            <section className="overflow-hidden rounded-[30px] border border-black/8 bg-white/75 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)] flex flex-col h-[780px] sticky top-6">
-              <div className="flex items-center justify-between border-b border-black/8 px-5 py-4 dark:border-white/10">
-                <div>
-                  <h2 className="text-base font-bold text-gray-950 dark:text-white">
-                    {t("broadcast.coopTitle")}
-                  </h2>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("broadcast.coopSubtitle")}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 min-h-0">
-                <CookingAssistant
-                  dishName={liveInfo?.dish_name}
-                  roomTitle={displayRoom ? `Studio ${displayRoom.slice(0, 8)}` : "Studio"}
-                  roomParticipants={actualParticipants}
-                  recipeData={parsedRecipe}
-                />
-              </div>
-            </section>
-          </aside>
-
-          {/* CENTER COLUMN: Vidéo & Statistiques */}
-          <section className="min-w-0 space-y-5 order-1 lg:order-2" aria-label={t("broadcast.previewTitle")}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-3xl border border-black/8 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-                <div className="mb-2 inline-flex rounded-2xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                  <Video aria-hidden="true" className="h-4 w-4" />
-                </div>
-                <div className="text-2xl font-bold text-gray-950 dark:text-white">
-                  {state === "live" ? "ON" : "OFF"}
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("broadcast.statCamera")}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-black/8 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-                <div className="mb-2 inline-flex rounded-2xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                  <Users aria-hidden="true" className="h-4 w-4" />
-                </div>
-                <div className="text-2xl font-bold text-gray-950 dark:text-white">
-                  {coStreamerCount}/5
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("broadcast.statCoStreamers")}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-black/8 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-                <div className="mb-2 inline-flex rounded-2xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                  <MessageCircle aria-hidden="true" className="h-4 w-4" />
-                </div>
-                <div className="text-2xl font-bold text-gray-950 dark:text-white">
-                  {chatMessages.length}
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("broadcast.statMessages")}
-                </div>
-              </div>
-            </div>
-
-            <LivePreview
-              isDisconnected={isDisconnected}
-              localStream={localStream}
-              isStreaming={isStreaming}
-              emptyStateMessage={emptyStateMessage}
-              isAudioMuted={isAudioMuted}
-              isVideoMuted={isVideoMuted}
-              onToggleAudio={toggleAudio}
-              onToggleVideo={toggleVideo}
-            />
-          </section>
-
-          {/* RIGHT COLUMN: Co-streamers & Chat */}
-          <aside className="space-y-5 order-3" aria-label={t("broadcast.coStreamersTitle")}>
-            <section className="rounded-[30px] border border-black/8 bg-white/75 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/65 dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold text-gray-950 dark:text-white">
-                    {t("broadcast.coStreamersTitle")}
-                  </h2>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("broadcast.coStreamersDesc")}
-                  </div>
-                </div>
-
-                <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-                  {coStreamerCount}/5
-                </span>
-              </div>
-
-              {remoteStreams.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-black/10 bg-white/60 px-4 py-6 text-center text-sm text-gray-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
-                  {t("broadcast.noCoStreamers")}
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  {remoteStreams.map((stream, index) => (
-                    <BroadcastRemoteCard
-                      key={stream.id}
-                      stream={stream}
-                      index={index}
-                      isHost={isHost}
-                      onKick={() => handleKickParticipant(index, stream)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <ChatPanel
-              chatMessages={chatMessages}
-              message={message}
-              sending={sending}
-              onMessageChange={setMessage}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  void onSendMessage();
-                }
-              }}
-              onSendMessage={onSendMessage}
-            />
-          </aside>
+          {isStreaming && isHost ? (
+            <button
+              onClick={handleStopLive}
+              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(239,68,68,0.25)] transition hover:bg-red-400"
+              type="button"
+            >
+              <Square aria-hidden="true" className="h-4 w-4" />
+              {t("broadcast.stopLive")}
+            </button>
+          ) : null}
         </div>
+      </header>
+
+      {error ? (
+        <div
+          role="alert"
+          className="shrink-0 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {!isHost && liveInfo?.status === "scheduled" && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-sm font-medium text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200"
+        >
+          <div>
+            <p className="font-bold">{t("broadcast.scheduledNotStartedTitle")}</p>
+            <p className="mt-0.5 text-xs text-blue-600 dark:text-blue-300">
+              {t("broadcast.scheduledNotStartedDesc")}
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/home")}
+            className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-500"
+          >
+            {t("common.back")}
+          </button>
+        </div>
+      )}
+
+      {isHost && !hasStarted ? (
+        <p className="shrink-0 text-xs text-gray-600 dark:text-gray-400">
+          {t("broadcast.recordingNotice")}
+        </p>
+      ) : null}
+
+      {isHost && !hasStarted && liveInfo && liveInfo.status !== "ended" ? (
+        <LiveDetailsCard tags={liveTagNames} onSave={handleSaveTags} dismissKey={roomIdFromUrl} />
+      ) : null}
+
+      {/* Stage + drawers */}
+      <div className="flex min-h-0 flex-1 gap-3">
+        <SidePanel
+          title={t("broadcast.coopTitle")}
+          open={recipeOpen}
+          side="left"
+          closeLabel={t("common.close")}
+          onClose={() => setRecipeOpen(false)}
+          onTop={lastOpened === "recipe"}
+        >
+          <CookingAssistant
+            dishName={liveInfo?.dish_name}
+            roomTitle={displayRoom ? `Studio ${displayRoom.slice(0, 8)}` : "Studio"}
+            roomParticipants={actualParticipants}
+            recipeData={parsedRecipe}
+          />
+        </SidePanel>
+
+        <section
+          aria-label={t("broadcast.previewTitle")}
+          className="min-w-0 flex-1 rounded-[28px] bg-neutral-950 p-3"
+        >
+          <VideoGrid tiles={tiles} />
+        </section>
+
+        <SidePanel
+          title={t("broadcast.chatLive")}
+          open={chatOpen}
+          side="right"
+          closeLabel={t("common.close")}
+          onClose={() => setChatOpen(false)}
+          onTop={lastOpened === "chat"}
+        >
+          <ChatPanel
+            chatMessages={chatMessages}
+            message={message}
+            sending={sending}
+            scrollRef={chatScrollRef}
+            onMessageChange={setMessage}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                void onSendMessage();
+              }
+            }}
+            onSendMessage={onSendMessage}
+          />
+        </SidePanel>
       </div>
     </main>
   );
