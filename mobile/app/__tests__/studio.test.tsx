@@ -38,10 +38,18 @@ async function renderStudio() {
 }
 
 type View = Awaited<ReturnType<typeof renderStudio>>;
+/** Pictograms are hidden from screen readers (the name next to them says it all): tests must opt in. */
+const HIDDEN = { includeHiddenElements: true } as const;
 const goTo = (view: View, step: 1 | 2 | 3) => fireEvent.press(view.getByTestId(`step-${step}`));
+
+/** The date and time only appear after a first press on "Planifier le live". */
+function openSchedule(view: View) {
+    if (!view.queryByTestId('schedule-date')) fireEvent.press(view.getByTestId('schedule-live'));
+}
 
 /** Sets a far-future slot so the schedule is always valid, whatever time the test runs at. */
 function pickFutureSlot(view: View) {
+    openSchedule(view);
     fireEvent(view.getByTestId('schedule-date'), 'onChange', {}, new Date(2030, 4, 12, 9, 30));
     fireEvent(view.getByTestId('schedule-time'), 'onChange', {}, new Date(2030, 4, 12, 9, 30));
 }
@@ -82,6 +90,9 @@ describe('StudioScreen - wizard', () => {
         expect(view.getByTestId('schedule-live')).toBeTruthy();
         expect(view.getByTestId('go-live')).toBeTruthy();
         expect(view.queryByTestId('step-next')).toBeNull();
+        // no date to fill before asking to schedule
+        expect(view.queryByTestId('schedule-date')).toBeNull();
+        expect(view.queryByTestId('schedule-time')).toBeNull();
 
         goTo(view, 1);
         expect(view.getByTestId('studio-title').props.value).toBe('Pasta maison');
@@ -107,7 +118,9 @@ describe('StudioScreen - wizard', () => {
 
     it('previews a date and time the user picked', async () => {
         const view = await renderStudio();
+        fireEvent.changeText(view.getByTestId('studio-title'), 'Pasta maison');
         goTo(view, 3);
+        openSchedule(view);
         fireEvent(view.getByTestId('schedule-date'), 'onChange', {}, new Date(2030, 4, 12, 9, 30));
         fireEvent(view.getByTestId('schedule-time'), 'onChange', {}, new Date(2030, 4, 12, 9, 30));
         expect(within(view.getByTestId('studio-preview')).getByText(/09:30/)).toBeTruthy();
@@ -336,7 +349,8 @@ describe('StudioScreen - step 2 (recipe)', () => {
         fireEvent.press(view.getByTestId('utensil-add'));
         fireEvent.changeText(view.getByTestId('utensil-input'), 'Fouet');
         fireEvent.press(view.getByTestId('utensil-add'));
-        expect(view.getAllByText('Fouet')).toHaveLength(1);
+        expect(view.getByTestId('utensil-item-0')).toBeTruthy();
+        expect(view.queryByTestId('utensil-item-1')).toBeNull();
 
         fireEvent.changeText(view.getByTestId('plating-input'), 'Dresser en nid');
         fireEvent.press(view.getByTestId('plating-add'));
@@ -348,6 +362,69 @@ describe('StudioScreen - step 2 (recipe)', () => {
         expect(view.getByTestId('prep-time').props.value).toBe('15');
         expect(view.getByTestId('rest-time').props.value).toBe('30');
         expect(view.getByTestId('cook-time').props.value).toBe('180'); // timer capped at 3 h
+    });
+});
+
+describe('StudioScreen - step 2 (utensils, steppers)', () => {
+    async function onStep2() {
+        const view = await renderStudio();
+        goTo(view, 2);
+        return view;
+    }
+
+    it('previews a pictogram while typing a utensil and shows it on the chip', async () => {
+        const view = await onStep2();
+        expect(view.getByTestId('utensil-emoji', HIDDEN).props.children).toBe('🍽️');
+        fireEvent.changeText(view.getByTestId('utensil-input'), 'Couteau de chef');
+        expect(view.getByTestId('utensil-emoji', HIDDEN).props.children).toBe('🔪');
+        fireEvent.press(view.getByTestId('utensil-add'));
+        expect(within(view.getByTestId('utensil-item-0')).getByText('🔪', HIDDEN)).toBeTruthy();
+        expect(within(view.getByTestId('utensil-item-0')).getByText('Couteau de chef')).toBeTruthy();
+    });
+
+    it('adds and removes a utensil with the quick-add pictogram chips', async () => {
+        const view = await onStep2();
+        fireEvent.press(view.getByTestId('utensil-preset-pan'));
+        fireEvent.press(view.getByTestId('utensil-preset-whisk'));
+        expect(view.getByTestId('utensil-item-0')).toBeTruthy();
+        expect(within(view.getByTestId('utensil-item-0')).getByText('Poêle')).toBeTruthy();
+        expect(within(view.getByTestId('utensil-item-1')).getByText('Fouet')).toBeTruthy();
+        expect(view.getByTestId('utensil-preset-pan').props.accessibilityState).toMatchObject({ selected: true });
+
+        fireEvent.press(view.getByTestId('utensil-preset-pan'));
+        expect(view.queryByTestId('utensil-item-1')).toBeNull();
+        expect(within(view.getByTestId('utensil-item-0')).getByText('Fouet')).toBeTruthy();
+        expect(view.getByTestId('utensil-preset-pan').props.accessibilityState).toMatchObject({ selected: false });
+    });
+
+    it('steps the three times with big - / + buttons (5 min), within their bounds', async () => {
+        const view = await onStep2();
+        expect(view.getByTestId('prep-time-minus').props.accessibilityState).toMatchObject({ disabled: true });
+
+        fireEvent.press(view.getByTestId('prep-time-plus'));
+        fireEvent.press(view.getByTestId('prep-time-plus'));
+        expect(view.getByTestId('prep-time').props.value).toBe('10');
+        fireEvent.press(view.getByTestId('prep-time-minus'));
+        expect(view.getByTestId('prep-time').props.value).toBe('5');
+        fireEvent.press(view.getByTestId('prep-time-minus'));
+        expect(view.getByTestId('prep-time').props.value).toBe('');
+
+        fireEvent.press(view.getByTestId('rest-time-plus'));
+        expect(view.getByTestId('rest-time').props.value).toBe('5');
+
+        fireEvent.changeText(view.getByTestId('cook-time'), '178');
+        fireEvent.press(view.getByTestId('cook-time-plus'));
+        expect(view.getByTestId('cook-time').props.value).toBe('180');
+        expect(view.getByTestId('cook-time-plus').props.accessibilityState).toMatchObject({ disabled: true });
+    });
+
+    it('fills the progress bar as the form is completed', async () => {
+        const view = await renderStudio();
+        expect(view.getByTestId('form-progress-text').props.children).toBe('Fiche complétée à 0 %');
+        fireEvent.changeText(view.getByTestId('studio-title'), 'Pasta maison');
+        expect(view.getByTestId('form-progress-text').props.children).toBe('Fiche complétée à 13 %');
+        fireEvent.press(view.getByTestId('tag-Italien'));
+        expect(view.getByTestId('form-progress-text').props.children).toBe('Fiche complétée à 25 %');
     });
 });
 
@@ -549,6 +626,42 @@ describe('StudioScreen - schedule', () => {
         return view;
     }
 
+    it('asks for no date up front: "Planifier le live" first reveals a prefilled date and time', async () => {
+        const view = await ready();
+        expect(view.queryByTestId('schedule-date')).toBeNull();
+        expect(view.getByText('Planifier le live')).toBeTruthy();
+
+        await act(async () => {
+            fireEvent.press(view.getByTestId('schedule-live'));
+        });
+        expect(mockedSchedule).not.toHaveBeenCalled();
+        expect(view.getByTestId('schedule-date')).toBeTruthy();
+        expect(view.getByTestId('schedule-time')).toBeTruthy();
+        expect(view.getByText('Confirmer la planification')).toBeTruthy();
+        // prefilled with a slot in the future, so confirming right away works
+        expect(view.queryByTestId('schedule-invalid')).toBeNull();
+    });
+
+    it('lets the user cancel the planning and go back to the plain button', async () => {
+        const view = await ready();
+        fireEvent.press(view.getByTestId('schedule-live'));
+        expect(view.getByTestId('schedule-date')).toBeTruthy();
+        fireEvent.press(view.getByTestId('schedule-cancel'));
+        expect(view.queryByTestId('schedule-date')).toBeNull();
+        expect(view.queryByTestId('schedule-cancel')).toBeNull();
+        expect(view.getByText('Planifier le live')).toBeTruthy();
+    });
+
+    it('schedules with the prefilled slot when confirming without touching the date', async () => {
+        const view = await ready();
+        fireEvent.press(view.getByTestId('schedule-live'));
+        await act(async () => {
+            fireEvent.press(view.getByTestId('schedule-live'));
+        });
+        expect(mockedSchedule).toHaveBeenCalledTimes(1);
+        expect(new Date(mockedSchedule.mock.calls[0][0].scheduledAt).getTime()).toBeGreaterThan(Date.now());
+    });
+
     it('creates a scheduled live, resets the form and shows a confirmation', async () => {
         mockedScheduled.mockResolvedValueOnce(null).mockResolvedValueOnce({ room_id: 'room-new', title: 'Brunch du dimanche', scheduled_at: '2030-05-12T07:30:00Z' });
         const view = await ready();
@@ -592,6 +705,7 @@ describe('StudioScreen - schedule', () => {
 
     it('refuses a slot in the past', async () => {
         const view = await ready();
+        openSchedule(view);
         fireEvent(view.getByTestId('schedule-date'), 'onChange', {}, new Date(2020, 0, 1, 10, 0));
         await act(async () => {
             fireEvent.press(view.getByTestId('schedule-live'));

@@ -4,15 +4,18 @@ import { Pressable, Text, View } from 'react-native';
 import FloatingLabelInput from '@/components/FloatingLabelInput';
 import { AddRow, NumberedList, RemovableChips } from '@/components/studio/ListEditors';
 import { FieldLabel, IconButton, Notice, Panel, StudioInput } from '@/components/studio/primitives';
+import StepperShell from '@/components/studio/StepperShell';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles } from '@/contexts/ThemeContext';
 import { type StudioForm } from '@/hooks/useStudioForm';
+import { getUtensilEmoji, UTENSIL_PRESETS } from '@/utils/utensils';
 import {
     canAppendHint,
     COOK_TIMER_MAX_MINUTES,
     DEFAULT_QUANTITY,
     DESCRIPTION_HINTS,
     DESCRIPTION_MAX,
+    MINUTES_MAX,
     parseMinutes,
     type RecipeForm,
 } from '@/utils/studioRecipe';
@@ -24,17 +27,32 @@ type Props = {
     onAddHint: (hint: string) => void;
 };
 
+const MINUTES_STEP = 5;
+
+/** "- [ 15 min ] +": the field and the two buttons share the same height; typing still works. */
 function MinutesField({
     label,
     value,
     onChange,
-    max,
+    max = MINUTES_MAX,
     testID,
 }: Readonly<{ label: string; value: number; onChange: (minutes: number) => void; max?: number; testID: string }>) {
+    const { t } = useI18n();
     const styles = useStyles();
+    const clamp = (minutes: number) => Math.min(max, Math.max(0, minutes));
     return (
-        <Panel style={styles.minutesPanel}>
-            <View style={styles.minutesInputRow}>
+        <Panel>
+            <StepperShell
+                value={value}
+                onDecrement={() => onChange(clamp(value - MINUTES_STEP))}
+                onIncrement={() => onChange(clamp(value + MINUTES_STEP))}
+                decrementDisabled={value <= 0}
+                incrementDisabled={value >= max}
+                decrementLabel={`${t('common.decrease')} – ${label}`}
+                incrementLabel={`${t('common.increase')} – ${label}`}
+                decrementTestID={`${testID}-minus`}
+                incrementTestID={`${testID}-plus`}
+            >
                 <StudioInput
                     style={styles.minutesInput}
                     value={value === 0 ? '' : String(value)}
@@ -47,7 +65,7 @@ function MinutesField({
                     testID={testID}
                 />
                 <Text style={styles.unit}>min</Text>
-            </View>
+            </StepperShell>
         </Panel>
     );
 }
@@ -83,6 +101,13 @@ export default function StepRecipe({ form, onChange, onRecipeChange, onAddHint }
         if (!text) return;
         if (!recipe.utensils.includes(text)) onRecipeChange({ utensils: [...recipe.utensils, text] });
         setUtensil('');
+    };
+    /** Quick-add chips: tap to add, tap again to remove. */
+    const togglePresetUtensil = (name: string) => {
+        const exists = recipe.utensils.some((item) => item.toLowerCase() === name.toLowerCase());
+        onRecipeChange({
+            utensils: exists ? recipe.utensils.filter((item) => item.toLowerCase() !== name.toLowerCase()) : [...recipe.utensils, name],
+        });
     };
     const addPlating = () => {
         const text = platingStep.trim();
@@ -189,15 +214,14 @@ export default function StepRecipe({ form, onChange, onRecipeChange, onAddHint }
                     </Panel>
                 </View>
 
-                <View style={styles.minutesRow}>
-                    <View style={styles.minutesCol}>
-                        <FieldLabel label={t('studio.recipe.prepTime')} />
-                        <MinutesField label={t('studio.recipe.prepTime')} value={recipe.prepTimeMins} onChange={(v) => onRecipeChange({ prepTimeMins: v })} testID="prep-time" />
-                    </View>
-                    <View style={styles.minutesCol}>
-                        <FieldLabel label={t('studio.recipe.restTime')} />
-                        <MinutesField label={t('studio.recipe.restTime')} value={recipe.restTimeMins} onChange={(v) => onRecipeChange({ restTimeMins: v })} testID="rest-time" />
-                    </View>
+                <View style={styles.field}>
+                    <FieldLabel label={t('studio.recipe.prepTime')} />
+                    <MinutesField label={t('studio.recipe.prepTime')} value={recipe.prepTimeMins} onChange={(v) => onRecipeChange({ prepTimeMins: v })} testID="prep-time" />
+                </View>
+
+                <View style={styles.field}>
+                    <FieldLabel label={t('studio.recipe.restTime')} />
+                    <MinutesField label={t('studio.recipe.restTime')} value={recipe.restTimeMins} onChange={(v) => onRecipeChange({ restTimeMins: v })} testID="rest-time" />
                 </View>
 
                 <View style={styles.field}>
@@ -210,8 +234,35 @@ export default function StepRecipe({ form, onChange, onRecipeChange, onAddHint }
                             placeholder={t('studio.recipe.utensilPlaceholder')}
                             addLabel={t('studio.recipe.addUtensil')}
                             testID="utensil"
+                            leading={getUtensilEmoji(utensil)}
                         />
-                        <RemovableChips items={recipe.utensils} onRemove={(index) => onRecipeChange({ utensils: recipe.utensils.filter((_, i) => i !== index) })} testID="utensil-item" />
+                        <Text style={styles.quickLabel}>{t('studio.recipe.utensilQuickAdd')}</Text>
+                        <View style={styles.presets}>
+                            {UTENSIL_PRESETS.map((preset) => {
+                                const name = t(preset.labelKey);
+                                const selected = recipe.utensils.some((item) => item.toLowerCase() === name.toLowerCase());
+                                return (
+                                    <Pressable
+                                        key={preset.id}
+                                        onPress={() => togglePresetUtensil(name)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected }}
+                                        accessibilityLabel={name}
+                                        style={({ pressed }) => [styles.preset, selected && styles.presetSelected, pressed && styles.presetPressed]}
+                                        testID={`utensil-preset-${preset.id}`}
+                                    >
+                                        <Text style={styles.presetEmoji}>{preset.emoji}</Text>
+                                        <Text style={[styles.presetText, selected && styles.presetTextSelected]}>{name}</Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                        <RemovableChips
+                            items={recipe.utensils}
+                            onRemove={(index) => onRecipeChange({ utensils: recipe.utensils.filter((_, i) => i !== index) })}
+                            testID="utensil-item"
+                            prefix={getUtensilEmoji}
+                        />
                     </Panel>
                 </View>
 
@@ -308,28 +359,55 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     ingredientQty: {
         width: 86,
     },
-    minutesRow: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    minutesCol: {
-        flex: 1,
-        gap: 8,
-    },
-    minutesPanel: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    minutesInputRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
     minutesInput: {
-        // two columns on a 360 px phone leave ~110 px: input + "min" must fit
-        width: 64,
+        // sits inside the stepper field: no border of its own, the number is the star
+        minWidth: 56,
+        minHeight: 48,
+        borderWidth: 0,
+        backgroundColor: 'transparent',
+        fontSize: 20,
         fontWeight: '800',
+    },
+    quickLabel: {
+        color: colors.muted,
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+    },
+    presets: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    preset: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 36,
+        paddingHorizontal: 10,
+        borderRadius: radii.pill,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+    },
+    presetSelected: {
+        borderColor: colors.orange,
+        backgroundColor: colors.orange,
+    },
+    presetPressed: {
+        transform: [{ scale: 0.95 }],
+    },
+    presetEmoji: {
+        fontSize: 15,
+    },
+    presetText: {
+        color: colors.text,
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    presetTextSelected: {
+        color: colors.onBrand,
     },
     unit: {
         color: colors.muted,

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { Bump, Pop, Rise } from '@/components/studio/motion';
 import { IconButton, StudioInput } from '@/components/studio/primitives';
 import { makeStyles } from '@/contexts/ThemeContext';
 import { useI18n } from '@/contexts/LanguageContext';
+
+const EMOJI_BOX = 36;
 
 type AddRowProps = {
     value: string;
@@ -13,13 +16,22 @@ type AddRowProps = {
     addLabel: string;
     testID: string;
     maxLength?: number;
+    /** Pictogram previewed in front of the input (it changes with what is typed). */
+    leading?: string;
 };
 
 /** One-line input + "+" button; the keyboard "done" key adds too. */
-export function AddRow({ value, onChangeText, onAdd, placeholder, addLabel, testID, maxLength }: Readonly<AddRowProps>) {
+export function AddRow({ value, onChangeText, onAdd, placeholder, addLabel, testID, maxLength, leading }: Readonly<AddRowProps>) {
     const styles = useStyles();
     return (
         <View style={styles.addRow}>
+            {leading ? (
+                <Bump trigger={leading} style={styles.leading}>
+                    <Text style={styles.leadingEmoji} testID={`${testID}-emoji`} accessibilityElementsHidden importantForAccessibility="no">
+                        {leading}
+                    </Text>
+                </Bump>
+            ) : null}
             <StudioInput
                 style={styles.addInput}
                 value={value}
@@ -41,25 +53,33 @@ export function RemovableChips({
     items,
     onRemove,
     testID,
-}: Readonly<{ items: readonly string[]; onRemove: (index: number) => void; testID: string }>) {
+    prefix,
+}: Readonly<{ items: readonly string[]; onRemove: (index: number) => void; testID: string; /** Pictogram shown in front of an item. */ prefix?: (item: string) => string }>) {
     const styles = useStyles();
     const { t } = useI18n();
     if (items.length === 0) return null;
     return (
         <View style={styles.chips}>
             {items.map((item, index) => (
-                <View key={`${item}-${index}`} style={styles.chip} testID={`${testID}-${index}`}>
-                    <Text style={styles.chipText}>{item}</Text>
-                    <Pressable
-                        onPress={() => onRemove(index)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${t('common.delete')} ${item}`}
-                        hitSlop={10}
-                        testID={`${testID}-${index}-remove`}
-                    >
-                        <Text style={styles.chipRemove}>✕</Text>
-                    </Pressable>
-                </View>
+                <Pop key={`${item}-${index}`} style={styles.chipPop}>
+                    <View style={styles.chip} testID={`${testID}-${index}`}>
+                        {prefix ? (
+                            <Text style={styles.chipEmoji} accessibilityElementsHidden importantForAccessibility="no">
+                                {prefix(item)}
+                            </Text>
+                        ) : null}
+                        <Text style={styles.chipText}>{item}</Text>
+                        <Pressable
+                            onPress={() => onRemove(index)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${t('common.delete')} ${item}`}
+                            hitSlop={10}
+                            testID={`${testID}-${index}-remove`}
+                        >
+                            <Text style={styles.chipRemove}>✕</Text>
+                        </Pressable>
+                    </View>
+                </Pop>
             ))}
         </View>
     );
@@ -92,34 +112,36 @@ export function NumberedList({
     return (
         <View style={styles.list}>
             {items.map((item, index) => (
-                <View key={`${item}-${index}`} style={styles.step} testID={`${testID}-${index}`}>
-                    {editing === index ? (
-                        <View style={styles.editBox}>
-                            <StudioInput value={draft} onChangeText={setDraft} multiline style={styles.editInput} autoFocus testID={`${testID}-${index}-edit-input`} />
-                            <View style={styles.editActions}>
-                                <Pressable onPress={() => setEditing(null)} accessibilityRole="button" style={styles.textButton} testID={`${testID}-${index}-cancel`}>
-                                    <Text style={styles.textButtonLabel}>{t('studio.recipe.cancelEdit')}</Text>
-                                </Pressable>
-                                <Pressable onPress={save} accessibilityRole="button" style={[styles.textButton, styles.saveButton]} testID={`${testID}-${index}-save`}>
-                                    <Text style={styles.saveLabel}>{t('studio.recipe.saveStep')}</Text>
-                                </Pressable>
+                <Rise key={`${item}-${index}`}>
+                    <View style={styles.step} testID={`${testID}-${index}`}>
+                        {editing === index ? (
+                            <View style={styles.editBox}>
+                                <StudioInput value={draft} onChangeText={setDraft} multiline style={styles.editInput} autoFocus testID={`${testID}-${index}-edit-input`} />
+                                <View style={styles.editActions}>
+                                    <Pressable onPress={() => setEditing(null)} accessibilityRole="button" style={styles.textButton} testID={`${testID}-${index}-cancel`}>
+                                        <Text style={styles.textButtonLabel}>{t('studio.recipe.cancelEdit')}</Text>
+                                    </Pressable>
+                                    <Pressable onPress={save} accessibilityRole="button" style={[styles.textButton, styles.saveButton]} testID={`${testID}-${index}-save`}>
+                                        <Text style={styles.saveLabel}>{t('studio.recipe.saveStep')}</Text>
+                                    </Pressable>
+                                </View>
                             </View>
-                        </View>
-                    ) : (
-                        <View style={styles.stepRow}>
-                            <Text style={styles.stepText}>
-                                <Text style={styles.stepNumber}>{index + 1}. </Text>
-                                {item}
-                            </Text>
-                            <View style={styles.stepActions}>
-                                {onEdit ? (
-                                    <IconButton icon="pencil" label={t('studio.recipe.editStep')} tone="quiet" onPress={() => startEdit(index)} testID={`${testID}-${index}-edit`} />
-                                ) : null}
-                                <IconButton icon="close" label={t('common.delete')} tone="quiet" onPress={() => onRemove(index)} testID={`${testID}-${index}-remove`} />
+                        ) : (
+                            <View style={styles.stepRow}>
+                                <Text style={styles.stepText}>
+                                    <Text style={styles.stepNumber}>{index + 1}. </Text>
+                                    {item}
+                                </Text>
+                                <View style={styles.stepActions}>
+                                    {onEdit ? (
+                                        <IconButton icon="pencil" label={t('studio.recipe.editStep')} tone="quiet" onPress={() => startEdit(index)} testID={`${testID}-${index}-edit`} />
+                                    ) : null}
+                                    <IconButton icon="close" label={t('common.delete')} tone="quiet" onPress={() => onRemove(index)} testID={`${testID}-${index}-remove`} />
+                                </View>
                             </View>
-                        </View>
-                    )}
-                </View>
+                        )}
+                    </View>
+                </Rise>
             ))}
         </View>
     );
@@ -134,6 +156,21 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     addInput: {
         flex: 1,
         minWidth: 0,
+    },
+    leading: {
+        width: EMOJI_BOX,
+        height: EMOJI_BOX,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    leadingEmoji: {
+        fontSize: 26,
+    },
+    chipPop: {
+        maxWidth: '100%',
+    },
+    chipEmoji: {
+        fontSize: 16,
     },
     chips: {
         flexDirection: 'row',
