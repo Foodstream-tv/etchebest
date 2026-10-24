@@ -3,6 +3,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
+import FormProgress from '@/components/studio/FormProgress';
+import { Rise } from '@/components/studio/motion';
 import StepInfo from '@/components/studio/StepInfo';
 import StepMedia from '@/components/studio/StepMedia';
 import StepRecipe from '@/components/studio/StepRecipe';
@@ -21,7 +23,7 @@ import { getMyScheduledLive, type MyScheduledLive } from '@/services/social';
 import { scheduleLive, stopMyActiveLive, uploadThumbnail } from '@/services/studio';
 import { getPublicMediaUrl } from '@/utils/media';
 import { buildDescription, recipeFromMarmiton, type MarmitonRecipe } from '@/utils/studioRecipe';
-import { buildScheduledAt } from '@/utils/studioSchedule';
+import { buildScheduledAt, defaultSchedule } from '@/utils/studioSchedule';
 import { haptics } from '@/utils/haptics';
 import { setLiveDraft } from '@/utils/liveDraft';
 import { sanitizeDescription, sanitizeTitle, serializeTags } from '@/utils/webrtcParams';
@@ -51,6 +53,8 @@ export default function StudioScreen() {
 
     const [submitted, setSubmitted] = useState(false);
     const [scheduleTried, setScheduleTried] = useState(false);
+    /** The date and time stay hidden until the user presses "Schedule" (a live started now needs none). */
+    const [showSchedule, setShowSchedule] = useState(false);
     const [busy, setBusy] = useState<Busy>('idle');
     const [error, setError] = useState<string | null>(null);
     const [conflict, setConflict] = useState(false);
@@ -83,6 +87,7 @@ export default function StudioScreen() {
                 studio.reset();
                 setSubmitted(false);
                 setScheduleTried(false);
+                setShowSchedule(false);
                 setError(null);
                 setConflict(false);
             }
@@ -164,6 +169,12 @@ export default function StudioScreen() {
         setConflict(false);
         setSuccess(null);
         if (!guardTitle()) return;
+        if (!showSchedule) {
+            // First press: reveal the date and time, prefilled with the next full hour.
+            update(defaultSchedule());
+            setShowSchedule(true);
+            return;
+        }
         setScheduleTried(true);
         const scheduledAt = hasValidSchedule ? buildScheduledAt(form.date, form.time) : null;
         if (!scheduledAt) return;
@@ -189,6 +200,7 @@ export default function StudioScreen() {
             studio.reset();
             setSubmitted(false);
             setScheduleTried(false);
+            setShowSchedule(false);
             setSuccess(t('studio.go.scheduledSuccess'));
             scrollRef.current?.scrollTo({ y: 0, animated: true });
             await refreshScheduled();
@@ -205,6 +217,11 @@ export default function StudioScreen() {
             submittingRef.current = false;
             setBusy('idle');
         }
+    };
+
+    const cancelSchedule = () => {
+        setShowSchedule(false);
+        setScheduleTried(false);
     };
 
     const stopActiveLive = async () => {
@@ -245,6 +262,19 @@ export default function StudioScreen() {
     const previewTags = [...form.tags.slice(0, 3), t(LEVEL_KEYS[form.level])];
     const previewImage = form.image?.uri || remoteImageUri(form.imageUrl) || getPublicMediaUrl(undefined);
     const submitting = busy !== 'idle';
+
+    const { recipe } = form;
+    const completionChecks = [
+        form.title.trim().length > 0,
+        form.tags.length > 0,
+        form.description.trim().length > 0,
+        Boolean(form.image) || form.imageUrl.trim().length > 0,
+        recipe.ingredients.length > 0,
+        recipe.prepSteps.length > 0,
+        recipe.utensils.length > 0,
+        recipe.cookTimeMins > 0,
+    ];
+    const completionPercent = Math.round((completionChecks.filter(Boolean).length / completionChecks.length) * 100);
 
     return (
         <Screen>
@@ -287,10 +317,13 @@ export default function StudioScreen() {
                         </Card>
                     ) : null}
 
+                    <FormProgress percent={completionPercent} />
+
                     <StudioStepper active={step} onSelect={goToStep} />
 
                     <Card style={styles.card}>
                         <View style={styles.cardBody}>
+                            <Rise key={step} style={styles.stepBody}>
                             {step === 1 ? (
                                 <StepInfo
                                     form={form}
@@ -305,8 +338,16 @@ export default function StudioScreen() {
                             ) : null}
                             {step === 2 ? <StepRecipe form={form} onChange={update} onRecipeChange={updateRecipe} onAddHint={studio.addHint} /> : null}
                             {step === 3 ? (
-                                <StepMedia form={form} onChange={update} onDuration={studio.setDuration} scheduleInvalid={scheduleTried && !hasValidSchedule} busy={submitting} />
+                                <StepMedia
+                                    form={form}
+                                    onChange={update}
+                                    onDuration={studio.setDuration}
+                                    scheduleInvalid={scheduleTried && !hasValidSchedule}
+                                    showSchedule={showSchedule}
+                                    busy={submitting}
+                                />
                             ) : null}
+                            </Rise>
 
                             <View style={styles.nav}>
                                 {step > 1 ? (
@@ -333,13 +374,22 @@ export default function StudioScreen() {
                             {step === 3 ? (
                                 <View style={styles.actions}>
                                     <Button
-                                        label={t('studio.broadcast.scheduleBtn')}
+                                        label={t(showSchedule ? 'studio.broadcast.scheduleConfirm' : 'studio.broadcast.scheduleBtn')}
                                         onPress={schedule}
                                         loading={busy === 'scheduling' || (busy === 'uploading' && scheduleTried)}
                                         disabled={submitting || !!scheduled}
                                         icon={<Ionicons name="calendar-outline" size={20} color={colors.onBrand} />}
                                         testID="schedule-live"
                                     />
+                                    {showSchedule ? (
+                                        <Button
+                                            label={t('studio.broadcast.scheduleCancel')}
+                                            variant="ghost"
+                                            onPress={cancelSchedule}
+                                            disabled={submitting}
+                                            testID="schedule-cancel"
+                                        />
+                                    ) : null}
                                     <Button
                                         label={t('studio.broadcast.startNowBtn')}
                                         variant="secondary"
@@ -405,6 +455,9 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     },
     card: {
         width: '100%',
+    },
+    stepBody: {
+        gap: 16,
     },
     cardBody: {
         padding: 18,
