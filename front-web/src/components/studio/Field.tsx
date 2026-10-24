@@ -12,7 +12,7 @@ export default function Field({
   const id = useId();
 
   return (
-    <div className="space-y-2.5">
+    <div className="fs-rise space-y-2.5">
       <label
         htmlFor={id}
         className="block text-sm font-semibold text-gray-800 dark:text-white/80"
