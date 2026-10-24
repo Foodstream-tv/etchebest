@@ -27,11 +27,11 @@ export default function FollowButton({
 
   const isOwnProfile = user?.id === userId;
 
+  // Nothing to load for a visitor or on one's own profile: never "loading" then.
+  const canFollow = Boolean(token && userId && !isOwnProfile);
+
   useEffect(() => {
-    if (!token || !userId || isOwnProfile) {
-      setLoading(false);
-      return;
-    }
+    if (!canFollow) return;
 
     let mounted = true;
 
@@ -60,10 +60,10 @@ export default function FollowButton({
     return () => {
       mounted = false;
     };
-  }, [token, userId, isOwnProfile]);
+  }, [canFollow, token, userId]);
 
   async function handleToggleFollow() {
-    if (!token || saving || loading || isOwnProfile) return;
+    if (!token || saving || (canFollow && loading) || isOwnProfile) return;
 
     try {
       setSaving(true);
@@ -84,7 +84,7 @@ export default function FollowButton({
 
   if (isOwnProfile) return null;
 
-  const isBusy = loading || saving;
+  const isBusy = (canFollow && loading) || saving;
 
   return (
     <button

@@ -7,5 +7,7 @@ export function startSocialAuth(provider: SocialProvider) {
   // so the button works even when NEXT_PUBLIC_API_BASE_URL is not set.
   const callbackUrl = `${window.location.origin}/auth/callback`;
   const url = `${API_BASE_URL}/auth/${provider}?redirect=${encodeURIComponent(callbackUrl)}`;
+  // /api is proxied to the backend, not a Next page: the browser must really leave the app.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = url;
 }

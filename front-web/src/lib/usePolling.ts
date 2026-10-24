@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
 
+type PollingOptions = {
+  /** Also call `callback` as soon as polling starts (first load), not only after `intervalMs`. */
+  immediate?: boolean;
+  /** Polling starts over (with the immediate call) when this value changes, e.g. the room id. */
+  key?: unknown;
+};
+
 /**
  * Calls `callback` every `intervalMs` while the tab is visible. The timer is
  * stopped when the tab is hidden (no requests, no re-renders for nobody) and
@@ -9,7 +16,8 @@ import { useEffect, useRef } from "react";
 export function usePolling(
   callback: () => void | Promise<void>,
   intervalMs: number,
-  enabled = true
+  enabled = true,
+  { immediate = false, key }: PollingOptions = {}
 ) {
   const callbackRef = useRef(callback);
 
@@ -44,12 +52,15 @@ export function usePolling(
       }
     };
 
-    if (!document.hidden) start();
+    if (!document.hidden) {
+      if (immediate) tick();
+      start();
+    }
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       stop();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [intervalMs, enabled]);
+  }, [intervalMs, enabled, immediate, key]);
 }

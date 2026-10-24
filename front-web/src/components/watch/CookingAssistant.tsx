@@ -9,7 +9,6 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Timer,
   Users,
   ChefHat,
   Info,
@@ -157,10 +156,22 @@ const RECIPES: Record<string, Recipe> = {
   },
 };
 
+// A co-streamer as the pages send it: a name, or an object with a name and optional progress.
+type RoomPeer =
+  | string
+  | {
+      username?: string;
+      name?: string;
+      step?: number;
+      activeStep?: number;
+      progress?: number;
+      prepProgress?: number;
+    };
+
 type Props = {
   dishName?: string;
   roomTitle?: string;
-  roomParticipants?: any[];
+  roomParticipants?: RoomPeer[];
   recipeData?: {
     ingredients?: { name: string; qty: string }[];
     prepSteps?: string[];
@@ -236,13 +247,15 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
   const [timerLeft, setTimerLeft] = useState(recipe?.timerDuration ?? 0);
   const [timerRunning, setTimerRunning] = useState(false);
 
-  // Reset timer on recipe change
-  useEffect(() => {
+  // Reset timer on recipe change (adjusted during render, not in an effect)
+  const [timerRecipe, setTimerRecipe] = useState(recipe);
+  if (recipe !== timerRecipe) {
+    setTimerRecipe(recipe);
     if (recipe) {
       setTimerLeft(recipe.timerDuration);
     }
     setTimerRunning(false);
-  }, [recipe]);
+  }
 
   // Timer effect
   useEffect(() => {
@@ -284,7 +297,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
     if (!roomParticipants || roomParticipants.length === 0) {
       return [];
     }
-    return roomParticipants.map((p: any) => ({
+    return roomParticipants.map((p) => ({
       username: typeof p === "string" ? p : p?.username || p?.name || "Participant",
       activeStep: typeof p === "object" ? (p?.step ?? p?.activeStep ?? 0) : 0,
       prepProgress: typeof p === "object" ? (p?.progress ?? p?.prepProgress ?? 0) : 0,
@@ -306,7 +319,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
           Cuisine Coop vide
         </h3>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 max-w-[240px] leading-relaxed">
-          Le chef n'a pas configuré d'étapes de recette ni de minuteur pour ce live.
+          Le chef n&apos;a pas configuré d&apos;étapes de recette ni de minuteur pour ce live.
         </p>
       </div>
     );

@@ -14,6 +14,9 @@ import TextField from "@/components/auth/TextField";
 import PasswordField from "@/components/auth/PasswordField";
 import OAuthButton from "@/components/auth/OAuthButton";
 
+// The API refuses shorter passwords (binding min=8 on /login and /register).
+const PASSWORD_MIN_LENGTH = 8;
+
 type LoginResponse = {
   token: string;
 };
@@ -67,6 +70,12 @@ export default function SignInPage() {
       return;
     }
 
+    // Same rule as the API: a shorter password cannot belong to any account.
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(t("auth.signin.passwordTooShort", { min: PASSWORD_MIN_LENGTH }));
+      return;
+    }
+
     try {
       const login = await submit("/login", {
         email: email.trim().toLowerCase(),
@@ -96,7 +105,10 @@ export default function SignInPage() {
 
       router.replace("/home");
     } catch (err) {
-      console.error("Login error:", err);
+      // Refusals from the API are expected and shown below; only log what is not one (network, bug…).
+      if (!(err instanceof ApiError)) {
+        console.error("Login error:", err);
+      }
 
       if (
         err instanceof ApiError &&
@@ -120,7 +132,8 @@ export default function SignInPage() {
         return;
       }
 
-      if (err instanceof ApiError && err.status === 401) {
+      // 400: the API rejected the credentials' format (e.g. too short), which a sign-in form reports as wrong credentials.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 400)) {
         setError(t("auth.signin.invalidCreds"));
         return;
       }
@@ -161,14 +174,19 @@ export default function SignInPage() {
           aria-describedby={hasError ? "signin-error" : undefined}
         />
 
-        <PasswordField
-          value={password}
-          onChange={setPassword}
-          placeholder={t("auth.signin.passwordPlaceholder")}
-          autoComplete="current-password"
-          disabled={loading}
-          aria-describedby={hasError ? "signin-error" : undefined}
-        />
+        <div>
+          <PasswordField
+            value={password}
+            onChange={setPassword}
+            placeholder={t("auth.signin.passwordPlaceholder")}
+            autoComplete="current-password"
+            disabled={loading}
+            aria-describedby={hasError ? "signin-error signin-password-hint" : "signin-password-hint"}
+          />
+          <p id="signin-password-hint" className="mt-1.5 px-1 text-xs text-gray-500 dark:text-gray-400">
+            {t("auth.signin.passwordHint", { min: PASSWORD_MIN_LENGTH })}
+          </p>
+        </div>
 
         <div className="flex items-center justify-between text-sm">
           <label className="flex cursor-pointer items-center gap-3 text-gray-600 dark:text-gray-300">

@@ -55,12 +55,9 @@ export default function AppTopNav() {
     { label: t("nav.replays"), href: "/replays" },
   ];
 
+  // An empty query is handled in onChange: here, only search.
   useEffect(() => {
-    if (!search.trim()) {
-      setResults(null);
-      setSearchOpen(false);
-      return;
-    }
+    if (!search.trim()) return;
 
     const timeout = window.setTimeout(async () => {
       try {
@@ -180,7 +177,14 @@ export default function AppTopNav() {
                   id="top-nav-search"
                   name="q"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setSearch(next);
+                    if (!next.trim()) {
+                      setResults(null);
+                      setSearchOpen(false);
+                    }
+                  }}
                   onFocus={() => {
                     if (results) setSearchOpen(true);
                   }}

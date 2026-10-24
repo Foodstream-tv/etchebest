@@ -14,9 +14,7 @@ import FollowListModal from "@/components/profile/FollowListModal";
 import PrivacyDataCard from "@/components/profile/PrivacyDataCard";
 import { initialsOf } from "@/components/profile/profileUtils";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { getMyActivities } from "@/lib/activity";
-import { usePathname, useRouter } from "next/navigation";
-import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { useRouter } from "next/navigation";
 import { useI18n } from "@/i18n/LanguageContext";
 
 type MeProfile = {
@@ -33,7 +31,6 @@ type MeProfile = {
   followersIds: string[];
 };
 
-type ThemeChoice = "Clair" | "Sombre" | "Système";
 
 function PreferenceRow({
   icon: Icon,
@@ -73,22 +70,9 @@ export default function ProfilePage() {
     }
   }, [ready, user, router]);
 
-  const pathname = usePathname();
-  const { pushNotification } = useNotifications();
-
   const [profile, setProfile] = useState<MeProfile | null>(null);
 
   const [followersCount, setFollowersCount] = useState(0);
-  const [newFollowerNotification, setNewFollowerNotification] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
-
-  const [activities, setActivities] = useState<
-    {
-      id: string;
-      text: string;
-      createdAt?: string;
-    }[]
-  >([]);
   const [followingCount, setFollowingCount] = useState(0);
   const [followModalType, setFollowModalType] = useState<
     "followers" | "following" | null
@@ -97,12 +81,9 @@ export default function ProfilePage() {
   const [followModalLoading, setFollowModalLoading] = useState(false);
 
   const { theme, setTheme } = useTheme();
-  const themeChoice: ThemeChoice = theme === "dark" ? "Sombre" : "Clair";
   const [notifLives, setNotifLives] = useState(true);
   const [notifReplays, setNotifReplays] = useState(false);
   const [notifChefs, setNotifChefs] = useState(true);
-
-
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editUsername, setEditUsername] = useState("");
@@ -114,87 +95,38 @@ export default function ProfilePage() {
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState("");
 
-  const getReadActivityStorageKey = () => {
-    return `readActivityIds:${user?.id ?? "unknown"}`;
-  };
-
-  const refreshProfile = async () => {
+  // The profile (and its follow counts) is refreshed every 3 s. Activity notifications are
+  // NotificationPoller's job, app-wide.
+  useEffect(() => {
     if (!token) return;
+    let ignore = false;
 
-    const freshProfile = await apiFetch<MeProfile>("/users/me", {
-      token,
-      cache: "no-store",
-    });
-
-    const activitiesRes = await getMyActivities(token ?? undefined);
-    const backendActivities = activitiesRes.activities ?? [];
-
-    setActivities(
-      backendActivities.map((activity) => ({
-        id: activity.id,
-        text: activity.text,
-        createdAt: activity.created_at,
-      }))
-    );
-
-    const readActivityIds = JSON.parse(
-      localStorage.getItem(getReadActivityStorageKey()) || "[]"
-    ) as string[];
-
-    const unreadActivities = backendActivities.filter(
-      (activity) => !readActivityIds.includes(activity.id)
-    );
-
-    if (pathname !== "/profile" && unreadActivities.length > 0) {
-      unreadActivities.forEach((activity) => {
-        pushNotification({
-          title: t("profile.newActivity"),
-          message: activity.text,
-          href: "/profile",
+    async function loadProfile() {
+      try {
+        const freshProfile = await apiFetch<MeProfile>("/users/me", {
+          token: token ?? undefined,
+          cache: "no-store",
         });
-      });
+        if (ignore) return;
 
-      localStorage.setItem(
-        getReadActivityStorageKey(),
-        JSON.stringify(
-          backendActivities.map((activity) => activity.id)
-        )
-      );
+        setProfile(freshProfile);
+        setFollowersCount(
+          freshProfile.followersIds?.length ?? freshProfile.followerCount ?? 0
+        );
+        setFollowingCount(freshProfile.followingIds?.length ?? 0);
+      } catch {
+        // the next refresh tries again
+      }
     }
 
-    if (pathname === "/profile") {
-      setNotificationCount(unreadActivities.length);
-      setNewFollowerNotification(unreadActivities.length > 0);
-    }
+    loadProfile();
+    const interval = window.setInterval(loadProfile, 3000);
 
-    setProfile(freshProfile);
-  };
-
-  useEffect(() => {
-    if (!token) return;
-
-    refreshProfile().catch(() => {});
-
-    const interval = window.setInterval(() => {
-      refreshProfile().catch(() => {});
-    }, 3000);
-
-    return () => window.clearInterval(interval);
+    return () => {
+      ignore = true;
+      window.clearInterval(interval);
+    };
   }, [token]);
-
-  useEffect(() => {
-    if (!profile) return;
-
-    setFollowersCount(
-      profile.followersIds?.length ??
-        profile.followerCount ??
-        0
-    );
-
-    setFollowingCount(profile.followingIds?.length ?? 0);
-  }, [profile]);
-
-
 
   if (!ready || !user) {
     return (
@@ -218,6 +150,8 @@ export default function ProfilePage() {
 
   const handleSignOut = async () => {
     await signOut();
+    // A full page load on purpose: nothing of the signed-out session stays in memory.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/signin?logout=true";
   };
 

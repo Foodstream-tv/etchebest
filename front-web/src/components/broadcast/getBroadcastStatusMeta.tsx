@@ -1,3 +1,5 @@
+import type { TranslationKey } from "@/i18n";
+
 export type BroadcastState =
   | "idle"
   | "creating"
@@ -13,7 +15,7 @@ type BroadcastStatusMeta = Readonly<{
 
 export default function getBroadcastStatusMeta(
   state: BroadcastState,
-  t?: (key: any) => string
+  t?: (key: TranslationKey) => string
 ): BroadcastStatusMeta {
   switch (state) {
     case "live":

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/lib/useAuth";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
-import { useI18n } from "@/i18n";
+import { useI18n, type TranslationKey } from "@/i18n";
 import {
   SESSION_TERMINATED_EVENT,
   formatBanMessage,
@@ -14,7 +14,7 @@ import {
 
 function buildToast(
   detail: SessionTerminationDetail,
-  t: (key: any, vars?: Record<string, string | number>) => string,
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
   locale: "fr" | "en"
 ): {
   title: string;
@@ -71,7 +71,7 @@ export default function SessionGuard() {
     return () => {
       window.removeEventListener(SESSION_TERMINATED_EVENT, onTerminated);
     };
-  }, [router, signOut, pushNotification]);
+  }, [router, signOut, pushNotification, t, locale]);
 
   return null;
 }

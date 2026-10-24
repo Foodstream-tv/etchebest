@@ -132,8 +132,5 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      # The web app has pre-existing lint errors (no-explicit-any, set-state-in-effect…): reported on the
-      # run but not blocking yet. Drop continue-on-error once they are fixed.
-      - name: Lint (non-blocking)
-        continue-on-error: true
+      - name: Lint
         run: npm run lint

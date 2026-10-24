@@ -22,7 +22,7 @@ export interface RoomInfo {
   host?: string;
   maxParticipants: number;
   /** Reserved and connected users (ids): includes people who never connected. */
-  participants: any[];
+  participants: string[];
   /** Same people with a name and a connection state (absent on an older backend). */
   participantsInfo?: RoomParticipant[];
   /** Co-streamers (host excluded) with an active peer connection (absent on an older backend). */
@@ -41,10 +41,7 @@ export async function getRoom(roomId: string, token?: string): Promise<RoomInfo>
   return apiFetch<RoomInfo>(`/rooms/${rid}`, { token, cache: "no-store" });
 }
 
-export async function createRoom(
-  name: string,
-  token?: string
-): Promise<{ roomId: string }> {
+export async function createRoom(name: string): Promise<{ roomId: string }> {
   const res = await fetch(`${API_BASE_URL}/rooms`, {
     method: "POST",
     headers: jsonHeaders,
@@ -90,7 +87,7 @@ export async function cancelReserveRoom(roomId: string, token?: string): Promise
   });
 }
 
-export async function disconnectRoom(roomId: string, token?: string): Promise<void> {
+export async function disconnectRoom(roomId: string): Promise<void> {
   const rid = encodeURIComponent(roomId);
   await fetch(`${API_BASE_URL}/rooms/${rid}/disconnect`, {
     method: "POST",
@@ -101,7 +98,7 @@ export async function disconnectRoom(roomId: string, token?: string): Promise<vo
 
 // ---------- WebRTC signaling ----------
 
-export async function sendOffer(roomId: string,sdp: string,token?: string): Promise<{ sdp: string }> {
+export async function sendOffer(roomId: string, sdp: string): Promise<{ sdp: string }> {
   const rid = encodeURIComponent(roomId);
 
   const res = await fetch(`${API_BASE_URL}/webrtc?roomId=${rid}`, {
@@ -114,11 +111,7 @@ export async function sendOffer(roomId: string,sdp: string,token?: string): Prom
   return res.json();
 }
 
-export async function sendRenegotiationAnswer(
-  roomId: string,
-  sdp: string,
-  token?: string
-): Promise<void> {
+export async function sendRenegotiationAnswer(roomId: string, sdp: string): Promise<void> {
   const rid = encodeURIComponent(roomId);
 
   const res = await fetch(`${API_BASE_URL}/webrtc/answer?roomId=${rid}`, {
@@ -129,12 +122,7 @@ export async function sendRenegotiationAnswer(
   });
   if (!res.ok) throw new Error(`Renegotiation answer failed (${res.status})`);
 }
-// Removed duplicate sendRenegotiationAnswer function
-export async function sendICECandidate(
-  roomId: string,
-  candidate: RTCIceCandidateInit,
-  token?: string
-): Promise<void> {
+export async function sendICECandidate(roomId: string, candidate: RTCIceCandidateInit): Promise<void> {
   const rid = encodeURIComponent(roomId);
 
   const safeCandidate: Record<string, unknown> = {
@@ -149,12 +137,11 @@ export async function sendICECandidate(
     safeCandidate.sdpMLineIndex = candidate.sdpMLineIndex;
   }
 
-  if (typeof (candidate as any).usernameFragment === "string") {
-    safeCandidate.usernameFragment = (candidate as any).usernameFragment;
+  if (typeof candidate.usernameFragment === "string") {
+    safeCandidate.usernameFragment = candidate.usernameFragment;
   }
 
   const body = JSON.stringify(safeCandidate);
-  console.log("[ICE] request body =", body);
 
   const res = await fetch(`${API_BASE_URL}/ice?roomId=${rid}`, {
     method: "POST",

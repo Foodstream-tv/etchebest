@@ -24,6 +24,7 @@ import {
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { parseIngredient } from "@/lib/ingredient";
+import type { LiveDTO } from "@/lib/lives";
 import HomeFooter from "@/components/home/HomeFooter";
 import Field from "@/components/studio/Field";
 import Chip from "@/components/studio/Chip";
@@ -41,6 +42,19 @@ const UTENSILS_VISIBLE = 10;
 
 type CreateRoomRes = { roomId: string };
 type UploadImageRes = { url: string };
+
+// What /scrape/marmiton returns (every field may be missing on a page that is not a recipe).
+type MarmitonRecipe = {
+  error?: string;
+  title?: string;
+  description?: string;
+  ingredients?: string[];
+  steps?: string[];
+  cook_time_mins?: number;
+  prep_time_mins?: number;
+  rest_time_mins?: number;
+  utensils?: string[];
+};
 
 export default function StudioPage() {
   const { token, user, ready } = useAuth();
@@ -186,7 +200,7 @@ export default function StudioPage() {
     setImportSuccess("");
 
     try {
-      const response = await apiFetch<any>(`/scrape/marmiton?url=${encodeURIComponent(url)}`, {
+      const response = await apiFetch<MarmitonRecipe>(`/scrape/marmiton?url=${encodeURIComponent(url)}`, {
         token: token ?? undefined,
       });
 
@@ -210,7 +224,7 @@ export default function StudioPage() {
 
       // Populate ingredients
       if (response.ingredients && Array.isArray(response.ingredients)) {
-        const parsedIngs = response.ingredients.map((raw: string) => parseIngredient(raw));
+        const parsedIngs = response.ingredients.map((raw) => parseIngredient(raw));
         setIngredients(parsedIngs);
       }
 
@@ -244,9 +258,9 @@ export default function StudioPage() {
       setSourceName("Marmiton");
       setMarmitonUrl("");
       setImportSuccess(t("studio.marmiton.success"));
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      setImportError(e?.message || t("studio.marmiton.errorGeneric"));
+      setImportError((e instanceof Error && e.message) || t("studio.marmiton.errorGeneric"));
     } finally {
       setImporting(false);
     }
@@ -281,19 +295,13 @@ export default function StudioPage() {
     if (!token || !user) router.replace("/signin");
   }, [ready, token, user, router]);
 
+  // The preview URL is created with the file (selectThumbnail) and released when it is replaced.
   useEffect(() => {
-    if (!thumbnailFile) {
-      setThumbnailPreview("");
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(thumbnailFile);
-    setThumbnailPreview(objectUrl);
-
+    if (!thumbnailPreview) return;
     return () => {
-      URL.revokeObjectURL(objectUrl);
+      URL.revokeObjectURL(thumbnailPreview);
     };
-  }, [thumbnailFile]);
+  }, [thumbnailPreview]);
 
   const previewTitle = title.trim() || "Ramen Tonkotsu en 30 minutes";
 
@@ -388,15 +396,20 @@ export default function StudioPage() {
     });
   };
 
+  const selectThumbnail = (file: File | null) => {
+    setThumbnailFile(file);
+    setThumbnailPreview(file ? URL.createObjectURL(file) : "");
+  };
+
   const removeSelectedFile = () => {
-    setThumbnailFile(null);
+    selectThumbnail(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
 
     if (!file) {
-      setThumbnailFile(null);
+      selectThumbnail(null);
       return;
     }
 
@@ -411,7 +424,7 @@ export default function StudioPage() {
     }
 
     setError(null);
-    setThumbnailFile(file);
+    selectThumbnail(file);
     setImageUrl("");
   };
 
@@ -514,9 +527,9 @@ export default function StudioPage() {
       setStatus("creating");
       await createRoom("draft");
       setStatus("idle");
-    } catch (e: any) {
+    } catch (e) {
       setStatus("error");
-      setError(e?.message || "Erreur");
+      setError((e instanceof Error && e.message) || "Erreur");
     }
   };
 
@@ -527,9 +540,9 @@ export default function StudioPage() {
       const id = await createRoom("scheduled");
       setStatus("idle");
       router.push(`/broadcast/${encodeURIComponent(id)}?mode=host`);
-    } catch (e: any) {
+    } catch (e) {
       setStatus("error");
-      setError(e?.message || "Erreur");
+      setError((e instanceof Error && e.message) || "Erreur");
     }
   };
 
@@ -544,9 +557,9 @@ export default function StudioPage() {
 
       setStatus("idle");
       router.push(`/broadcast/${encodeURIComponent(id)}?mode=host`);
-    } catch (e: any) {
+    } catch (e) {
       setStatus("error");
-      setError(e?.message || "Erreur");
+      setError((e instanceof Error && e.message) || "Erreur");
     }
   };
 
@@ -557,7 +570,7 @@ export default function StudioPage() {
       setEndingLive(true);
       setError(null);
 
-      const res = await apiFetch<{ lives: any[] }>("/lives", { token });
+      const res = await apiFetch<{ lives: LiveDTO[] }>("/lives", { token });
       const myLive = res.lives?.find((live) => live.user?.id === user.id);
 
       if (!myLive) {
@@ -571,8 +584,8 @@ export default function StudioPage() {
 
       setError(null);
       setStatus("idle");
-    } catch (e: any) {
-      setError(e?.message || "Impossible de couper le live en cours.");
+    } catch (e) {
+      setError((e instanceof Error && e.message) || "Impossible de couper le live en cours.");
     } finally {
       setEndingLive(false);
     }
@@ -1444,8 +1457,8 @@ export default function StudioPage() {
                             value={imageUrl}
                             onChange={(e) => {
                               setImageUrl(e.target.value);
-                              if (e.target.value.trim()) {
-                                setThumbnailFile(null);
+                              if (e.target.value.trim() && thumbnailFile) {
+                                selectThumbnail(null);
                               }
                             }}
                             className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
