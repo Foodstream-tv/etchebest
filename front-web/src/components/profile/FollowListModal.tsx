@@ -50,7 +50,7 @@ export default function FollowListModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-2xl dark:border-white/10 dark:bg-neutral-950"
+        className="w-full max-w-md overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-2xl dark:border-white/10 dark:bg-[#1f1712]"
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
           <h2

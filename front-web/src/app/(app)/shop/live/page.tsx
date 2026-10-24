@@ -60,6 +60,9 @@ function ProductCard({ product }: Readonly<{ product: Product }>) {
           src={product.image}
           alt=""
           fill
+          // Unsplash already serves a sized, compressed image (w/q/auto=format in the URL):
+          // skipping Next's optimizer avoids a server-side fetch that can fail (500) on some networks.
+          unoptimized={process.env.NODE_ENV === "development"}
           sizes="(max-width: 768px) 100vw, 300px"
           className="object-cover"
         />
@@ -78,7 +81,7 @@ function ProductCard({ product }: Readonly<{ product: Product }>) {
           type="button"
           onClick={() => addToCart(product)}
           aria-label={`${t("shop.food.addToCart")}: ${product.name}`}
-          className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+          className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-600"
         >
           {t("shop.food.addToCart")}
         </button>
@@ -108,7 +111,7 @@ export default function LiveShopPage() {
       </Link>
 
       <section className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-neutral-900 md:p-8">
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
           {t("shop.liveGear.title")}
         </h1>
 

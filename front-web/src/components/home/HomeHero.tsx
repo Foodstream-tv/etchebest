@@ -1,67 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { ChefHat, Globe, Salad, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
-import LiveMomentCard from "@/components/home/hero/LiveMomentCard";
+import Image from "next/image";
+import { Plus_Jakarta_Sans } from "next/font/google";
+
 import HomeFiltersSelect from "@/components/home/HomeFiltersSelect";
-import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { TAG_GROUPS } from "@/lib/tagGroups";
 import { useI18n } from "@/i18n/LanguageContext";
 
-const TAG_GROUPS = [
-  {
-    key: "cuisine",
-    titleKey: "home.hero.group.cuisine" as const,
-    defaultTitle: "Cuisine",
-    icon: Globe,
-    tags: [
-      "Asiatique",
-      "Africain",
-      "Européen",
-      "Américain",
-      "Français",
-      "Italien",
-      "Mexicain",
-      "Japonais",
-      "Coréen",
-      "Chinois",
-      "Indien",
-    ],
-  },
-  {
-    key: "dishType",
-    titleKey: "home.hero.group.dishType" as const,
-    defaultTitle: "Type de plat",
-    icon: Salad,
-    tags: [
-      "Végétarien",
-      "Vegan",
-      "Pâtisserie",
-      "Dessert",
-      "Street Food",
-      "BBQ",
-      "Healthy",
-      "Apéro",
-      "Petit-déjeuner",
-      "Boisson",
-    ],
-  },
-  {
-    key: "format",
-    titleKey: "home.hero.group.format" as const,
-    defaultTitle: "Format",
-    icon: ChefHat,
-    tags: [
-      "Recette rapide",
-      "Pas à pas",
-      "Débutant friendly",
-      "Meal prep",
-      "Cuisine économique",
-      "Challenge",
-      "Fait maison",
-    ],
-  },
-];
+// The hero uses the same typeface as the design mock-up (heavy, rounded headline).
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["500", "700", "800"],
+  display: "swap",
+  fallback: ["Inter", "system-ui", "sans-serif"],
+});
 
 type HomeHeroProps = Readonly<{
   onSearch?: (params: { q: string; tags: string[] }) => void;
@@ -79,28 +34,41 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
     });
   };
 
+  // "Regarde, cuisine, partage." -> the last word goes on its own line, in italic.
+  const title = t("home.hero.title");
+  const splitAt = title.lastIndexOf(", ");
+  const heroTitleStart = splitAt > 0 ? title.slice(0, splitAt + 1) : title;
+  const heroTitleEnd = splitAt > 0 ? title.slice(splitAt + 2) : "";
+
   return (
     <section
       aria-labelledby="home-hero-title"
-      className="grid gap-8 lg:grid-cols-[1.6fr_0.92fr] lg:items-start"
+      className={`${jakarta.className} grid gap-6 lg:grid-cols-2 lg:items-center lg:gap-4`}
     >
-      <div className="pt-2">
+      <div className="relative z-20 pt-2">
         <h1
           id="home-hero-title"
-          className="mt-4 max-w-3xl text-4xl font-semibold leading-[1.02] tracking-tight text-gray-900 dark:text-gray-50 lg:text-[3.2rem]"
+          className="font-display text-[clamp(2.75rem,5.4vw,5.25rem)] font-semibold leading-[1.02] tracking-tight text-[#1f1711] dark:text-[#f5ede0]"
         >
-          {t("home.hero.title")}
+          {heroTitleStart}
+          {heroTitleEnd ? (
+            <>
+              <br />
+              <span className="italic">{heroTitleEnd}</span>
+            </>
+          ) : null}
         </h1>
 
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-600 dark:text-gray-400 md:text-base">
+        <p className="mt-4 max-w-[40rem] text-base font-medium leading-relaxed text-gray-600 dark:text-gray-300 lg:text-[clamp(1rem,1.3vw,1.375rem)]">
           {t("home.hero.subtitle")}
         </p>
 
-        <div className="mt-6 rounded-[28px] border border-black/8 bg-white/75 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+        {/* One pill; wider than the column so it runs slightly over the illustration. */}
+        <div className="mt-7 w-full max-w-[46rem] rounded-3xl border border-black/15 bg-white p-2 shadow-[0_10px_25px_-4px_rgba(45,25,10,0.1),0_2px_6px_-1px_rgba(0,0,0,0.04)] backdrop-blur-md dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] sm:rounded-full lg:w-[calc(100%+3rem)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">
               <Search
-                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 dark:text-orange-400"
                 aria-hidden="true"
               />
 
@@ -116,21 +84,21 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
                   if (event.key === "Enter") handleSearch();
                 }}
                 placeholder={t("home.hero.searchPlaceholder")}
-                className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                className="h-11 w-full rounded-full bg-transparent pl-11 pr-3 text-sm font-medium text-gray-900 outline-none placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-orange-300/50 dark:text-white"
               />
             </div>
 
-            <button
-              type="button"
-              onClick={handleSearch}
-              className="h-12 shrink-0 rounded-2xl px-6 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:scale-[1.01] active:scale-[0.98]"
-              style={{ background: ORANGE_GRADIENT_CSS }}
-            >
-              {t("home.hero.discover")}
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSearch}
+                className="h-11 flex-1 rounded-full bg-[#ff7a1a] px-6 text-sm font-bold text-[#1a0f05] shadow-md transition hover:bg-[#ea6a0c] active:scale-95 sm:flex-none"
+              >
+                {t("home.hero.discover")}
+              </button>
 
-            <div className="ml-auto shrink-0">
               <HomeFiltersSelect
+                variant="pill"
                 label={t("home.hero.filters")}
                 description={t("home.hero.filtersDescription")}
                 closeLabel={t("home.hero.closeFilters")}
@@ -152,7 +120,20 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
         </div>
       </div>
 
-      <LiveMomentCard />
+      {/* Illustration: decorative, larger than its column and tucked under the search pill. */}
+      <div
+        aria-hidden="true"
+        className="relative z-10 h-[300px] w-full sm:h-[400px] lg:-ml-24 lg:h-[clamp(420px,36vw,620px)] lg:w-[calc(100%+6rem)]"
+      >
+        <Image
+          src="/images/home-hero.png"
+          alt=""
+          fill
+          priority
+          sizes="(min-width: 1024px) 55vw, 100vw"
+          className="select-none object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.10)] transition-transform duration-300 hover:scale-[1.02] dark:drop-shadow-[0_20px_40px_rgba(0,0,0,0.45)]"
+        />
+      </div>
     </section>
   );
 }
