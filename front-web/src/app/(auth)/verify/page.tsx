@@ -97,7 +97,7 @@ function VerifyContent() {
         setAuth({ user: res.user });
         setIsSuccess(true);
         setTimeout(() => {
-          router.replace("/home");
+          router.replace("/onboarding");
         }, 1200);
       } else {
         setIsSuccess(true);
