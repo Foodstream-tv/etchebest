@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
+import { findUtensilsInText, getUtensilEmoji } from "@/lib/utensils";
 import { useI18n } from "@/i18n/LanguageContext";
 
 type Ingredient = {
@@ -345,7 +346,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                     : "text-gray-400 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                 }`}
               >
-                <div className="flex flex-col items-center gap-0.5 text-[10px] sm:text-xs font-semibold leading-tight text-center">
+                <div className="flex flex-col items-center gap-0.5 text-[0.625rem] sm:text-xs font-semibold leading-tight text-center">
                   {completed ? (
                     <Check className="h-3 w-3 stroke-[3]" />
                   ) : null}
@@ -405,7 +406,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                           <div
                             className={`mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition ${
                               isChecked
-                                ? "border-orange-500 bg-orange-500 text-white"
+                                ? "border-orange-500 bg-orange-500 text-[#1a0f05]"
                                 : "border-gray-300 dark:border-gray-600 bg-transparent"
                             }`}
                           >
@@ -467,16 +468,21 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                   {t("cook.utensilsNeeded")}
                 </h3>
 
-                <div className="flex flex-wrap gap-2">
+                <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {recipe.utensils.map((ut, idx) => (
-                    <div
+                    <li
                       key={`${ut}-${idx}`}
-                      className="rounded-xl border border-black/5 bg-white/50 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/5 dark:bg-white/[0.02] dark:text-gray-200"
+                      className="flex flex-col items-center gap-1.5 rounded-2xl border border-black/5 bg-white/50 px-2 py-3 text-center dark:border-white/5 dark:bg-white/[0.02]"
                     >
-                      {ut}
-                    </div>
+                      <span aria-hidden="true" className="text-2xl leading-none">
+                        {getUtensilEmoji(ut)}
+                      </span>
+                      <span className="text-xs font-semibold leading-4 text-gray-700 dark:text-gray-200">
+                        {ut}
+                      </span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             )}
           </div>
@@ -489,7 +495,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
               <div className="grid grid-cols-2 gap-3 mb-4">
                 {recipe.prepTimeMins && recipe.prepTimeMins > 0 ? (
                   <div className="rounded-2xl border border-black/5 bg-white/60 p-3 text-center dark:border-white/5 dark:bg-white/[0.02]">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
+                    <span className="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400 block mb-1">
                       {t("cook.prepBadge")}
                     </span>
                     <span className="text-sm font-black text-orange-600 dark:text-orange-400">
@@ -500,7 +506,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
 
                 {recipe.restTimeMins && recipe.restTimeMins > 0 ? (
                   <div className="rounded-2xl border border-black/5 bg-white/60 p-3 text-center dark:border-white/5 dark:bg-white/[0.02]">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
+                    <span className="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400 block mb-1">
                       {t("cook.restBadge")}
                     </span>
                     <span className="text-sm font-black text-orange-600 dark:text-orange-400">
@@ -595,7 +601,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                 <button
                   type="button"
                   onClick={() => setTimerRunning(!timerRunning)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-md hover:bg-orange-600 transition active:scale-95"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-[#1a0f05] shadow-md hover:bg-orange-600 transition active:scale-95"
                 >
                   {timerRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-white" />}
                 </button>
@@ -606,7 +612,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                     setTimerRunning(false);
                     setTimerLeft(recipe.timerDuration);
                   }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-black/8 bg-white/70 text-gray-700 hover:bg-white transition active:scale-95 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-black/15 bg-white shadow-sm text-gray-700 hover:bg-white transition active:scale-95 dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:text-gray-200"
                 >
                   <RotateCcw className="h-4 w-4" />
                 </button>
@@ -628,7 +634,35 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500/10 text-xs font-black text-orange-600 dark:bg-orange-500/20 dark:text-orange-400">
                       {idx + 1}
                     </span>
-                    <span className="leading-6">{stepText}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="leading-6">{stepText}</span>
+
+                      {(() => {
+                        const used = findUtensilsInText(
+                          stepText,
+                          recipe.utensils ?? []
+                        );
+
+                        return used.length > 0 ? (
+                          <ul
+                            className="mt-2 flex flex-wrap gap-1.5"
+                            aria-label={t("cook.utensilsUsedInStep")}
+                          >
+                            {used.map((ut) => (
+                              <li
+                                key={ut}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-500/15 dark:text-orange-300"
+                              >
+                                <span aria-hidden="true">
+                                  {getUtensilEmoji(ut)}
+                                </span>
+                                {ut}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null;
+                      })()}
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -673,7 +707,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
                 </a>
               </span>
             </p>
-            <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+            <p className="mt-1 text-[0.625rem] text-gray-400 dark:text-gray-500">
               {t("recipe.citationLegal")}
             </p>
           </div>
@@ -687,7 +721,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
             <Users className="h-4 w-4" />
             {t("cook.roomProgress")}
           </h3>
-          <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500">
+          <span className="text-[0.6875rem] font-semibold text-gray-400 dark:text-gray-500">
             {t("cook.connectedCount", { count: 1 + peers.length, plural: peers.length > 0 ? "s" : "" })}
           </span>
         </div>
@@ -750,7 +784,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
           type="button"
           disabled={activeStep === 0}
           onClick={() => setActiveStep((prev) => prev - 1)}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-black/8 bg-white/70 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-black/15 bg-white shadow-sm px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:text-gray-200"
         >
           <ChevronLeft className="h-4 w-4" />
           {t("cook.prevStep")}
@@ -760,7 +794,7 @@ export default function CookingAssistant({ dishName, roomTitle, roomParticipants
           type="button"
           disabled={activeStep === 3}
           onClick={() => setActiveStep((prev) => prev + 1)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-[#1a0f05] hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
         >
           {t("cook.nextStep")}
           <ChevronRight className="h-4 w-4" />

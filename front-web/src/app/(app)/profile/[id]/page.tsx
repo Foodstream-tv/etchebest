@@ -123,7 +123,7 @@ export default function PublicProfilePage() {
 
           <Link
             href="/signin"
-            className="mt-3 inline-block rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+            className="mt-3 inline-block rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-[#1a0f05] hover:bg-orange-400"
           >
             {t("profile.public.loginBtn")}
           </Link>
@@ -183,7 +183,7 @@ export default function PublicProfilePage() {
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                  <h1 className="text-xl font-bold text-gray-950 dark:text-white">
+                  <h1 className="font-display text-2xl font-semibold text-gray-950 dark:text-white">
                     {displayName}
                   </h1>
 

@@ -349,7 +349,7 @@ export default function ProfilePage() {
   return (
     <main id="main-content" className="min-h-screen">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-        <h1 className="mb-6 text-2xl font-bold tracking-tight text-gray-950 sm:mb-8 sm:text-3xl dark:text-white">
+        <h1 className="font-display mb-6 text-3xl font-semibold tracking-tight text-gray-950 sm:mb-8 sm:text-3xl dark:text-white">
           {t("nav.myProfile")}
         </h1>
 
@@ -428,7 +428,7 @@ export default function ProfilePage() {
               <div className="mt-5 space-y-2">
                 <button
                   onClick={openEditModal}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30"
                   type="button"
                   aria-label={t("profile.editAria")}
                 >
@@ -438,7 +438,7 @@ export default function ProfilePage() {
 
                 <button
                   onClick={handleSignOut}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-black/8 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/[0.06]"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-black/15 bg-white shadow-sm px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:bg-[#fffaf2] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none dark:hover:bg-[#f5ede0]/[0.18]"
                   type="button"
                   aria-label={t("profile.signoutAria")}
                 >
@@ -528,9 +528,9 @@ export default function ProfilePage() {
             aria-modal="true"
             aria-labelledby="edit-profile-title"
             aria-describedby="edit-profile-description"
-            className="w-full max-w-2xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-neutral-950"
+            className="w-full max-w-2xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#1f1712]"
           >
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-white/10">
               <div>
                 <h2
                   id="edit-profile-title"
@@ -549,7 +549,7 @@ export default function ProfilePage() {
 
               <button
                 onClick={closeEditModal}
-                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
                 type="button"
                 aria-label={t("profile.editModal.closeAria")}
               >
@@ -593,7 +593,7 @@ export default function ProfilePage() {
                     type="text"
                     autoComplete="username"
                     placeholder={t("profile.editModal.usernamePlaceholder")}
-                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
 
@@ -612,7 +612,7 @@ export default function ProfilePage() {
                     type="email"
                     autoComplete="email"
                     placeholder="email@foodstream.com"
-                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -631,7 +631,7 @@ export default function ProfilePage() {
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={5}
                   placeholder={t("profile.editModal.bioPlaceholder")}
-                  className="w-full resize-none rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                  className="w-full resize-none rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
                 />
               </div>
 
@@ -651,7 +651,7 @@ export default function ProfilePage() {
                     type="password"
                     autoComplete="new-password"
                     placeholder={t("profile.editModal.newPasswordPlaceholder")}
-                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
 
@@ -670,15 +670,15 @@ export default function ProfilePage() {
                     type="password"
                     autoComplete="new-password"
                     placeholder={t("profile.editModal.confirmPasswordPlaceholder")}
-                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-gray-700 dark:bg-neutral-900 dark:text-white"
+                    className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
                   />
                 </div>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-5 sm:flex-row sm:justify-end dark:border-gray-800">
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-5 sm:flex-row sm:justify-end dark:border-white/10">
                 <button
                   onClick={closeEditModal}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/10"
                   type="button"
                 >
                   <X aria-hidden="true" className="h-4 w-4" />
@@ -686,7 +686,7 @@ export default function ProfilePage() {
                 </button>
 
                 <button
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
                   type="submit"
                   disabled={editLoading}
                 >

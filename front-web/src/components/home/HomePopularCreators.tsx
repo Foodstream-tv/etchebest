@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Star, Users } from "lucide-react";
+import { ArrowRight, Users } from "lucide-react";
 
 export default function HomePopularCreators() {
   return (
@@ -11,14 +11,9 @@ export default function HomePopularCreators() {
     >
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-            <Star className="h-3.5 w-3.5" aria-hidden="true" />
-            Créateurs
-          </div>
-
           <h2
             id="popular-creators-title"
-            className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
+            className="font-display text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
           >
             Chefs à découvrir
           </h2>

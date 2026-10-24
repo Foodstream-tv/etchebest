@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import HomeFooter from "@/components/home/HomeFooter";
+import ThumbnailFallback from "@/components/ui/ThumbnailFallback";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 import { useAuth } from "@/lib/useAuth";
 import ReplayRemovalCard from "@/components/watch/ReplayRemovalCard";
@@ -340,7 +341,7 @@ export default function ReplayDetailPage() {
     );
   }
 
-  const thumbnail = replay.thumbnail_url || "/images/live-fallback.png";
+  const thumbnail = replay.thumbnail_url;
 
   return (
     <main id="main-content" className="min-h-screen">
@@ -348,14 +349,14 @@ export default function ReplayDetailPage() {
         <div className="mb-5">
           <Link
             href="/replays"
-            className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
+            className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white shadow-sm px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-[#fffaf2] dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none dark:hover:bg-[#f5ede0]/[0.18]"
           >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             {t("replays.back")}
           </Link>
         </div>
 
-        <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/72 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/72 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
           <div className="relative aspect-video bg-black">
             {replay.replay_url ? (
               <>
@@ -413,15 +414,20 @@ export default function ReplayDetailPage() {
               </>
             ) : (
               <>
-                <img
-                  src={thumbnail}
-                  alt=""
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src =
-                      "/images/live-fallback.png";
-                  }}
-                  className="h-full w-full object-cover opacity-80"
-                />
+                <ThumbnailFallback />
+
+                {thumbnail ? (
+                  // Hidden when it fails to load, which reveals the fallback underneath.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={thumbnail}
+                    alt=""
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                    className="absolute inset-0 h-full w-full object-cover opacity-80"
+                  />
+                ) : null}
 
                 <div aria-hidden="true" className="absolute inset-0 bg-black/35" />
 
@@ -445,7 +451,7 @@ export default function ReplayDetailPage() {
 
           <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:p-8">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-950 dark:text-white md:text-3xl">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-950 dark:text-white md:text-3xl">
                 {replay.title}
               </h1>
 
@@ -615,7 +621,7 @@ export default function ReplayDetailPage() {
                             key={idx}
                             className="flex items-start gap-3.5 rounded-2xl border border-black/5 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-white/[0.02]"
                           >
-                            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm">
+                            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-orange-500 text-xs font-bold text-[#1a0f05] shadow-sm">
                               {idx + 1}
                             </span>
                             <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">

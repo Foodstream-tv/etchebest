@@ -46,6 +46,8 @@ export default function ScheduledLiveToast() {
   const router = useRouter();
   const pathname = usePathname();
   const { ready, user, token } = useAuth();
+  // Hooks must run on every render: keep this above the early returns below.
+  const { t, locale } = useI18n();
 
   const [scheduledLive, setScheduledLive] = useState<MyScheduledLive | null>(
     null
@@ -97,8 +99,6 @@ export default function ScheduledLiveToast() {
     return null;
   }
 
-  const { t, locale } = useI18n();
-
   const dismiss = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -134,7 +134,7 @@ export default function ScheduledLiveToast() {
     urgency === "upcoming"
       ? ORANGE_GRADIENT_CSS
       : urgency === "imminent"
-        ? "#dc2626"
+        ? "var(--color-red-600, #dc2626)"
         : "#0a0a0a";
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://foodstream.tv";

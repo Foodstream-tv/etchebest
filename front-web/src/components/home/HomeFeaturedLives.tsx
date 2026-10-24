@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Flame } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
+import GoLiveIncentive from "@/components/home/GoLiveIncentive";
 import LiveGridCard from "@/components/home/live/LiveGridCard";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/i18n";
@@ -87,6 +88,17 @@ export default function HomeFeaturedLives({ query, tags = [] }: Props) {
     return lives.slice(0, 4);
   }, [lives]);
 
+  const isFiltered = Boolean(query?.trim()) || tagsKey !== "";
+
+  // No live at all: skip the "trending" section and only invite to create one.
+  if (!loading && displayedLives.length === 0 && !isFiltered) {
+    return (
+      <div className="mt-10">
+        <GoLiveIncentive />
+      </div>
+    );
+  }
+
   return (
     <section
       className="mt-10"
@@ -95,14 +107,9 @@ export default function HomeFeaturedLives({ query, tags = [] }: Props) {
     >
       <div className="mb-5 flex items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-            <Flame className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("common.live")}
-          </div>
-
           <h2
             id="featured-lives-title"
-            className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
+            className="font-display text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
           >
             {t("home.featured.title")}
           </h2>
@@ -114,7 +121,7 @@ export default function HomeFeaturedLives({ query, tags = [] }: Props) {
 
         <Link
           href="/watch"
-          className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
+          className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white shadow-sm px-4 py-2 text-sm font-semibold text-gray-900 transition hover:bg-[#fffaf2] dark:hover:bg-[#f5ede0]/[0.18] dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none"
         >
           {t("home.featured.viewAll")}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -153,15 +160,13 @@ export default function HomeFeaturedLives({ query, tags = [] }: Props) {
                 author: live.user?.username || "Foodstream",
                 viewers: live.current_viewers ?? 0,
                 isLive: true,
+                imageUrl: live.thumbnail_url,
               }}
             />
           ))}
         </div>
       ) : (
-        <p
-          role="status"
-          className="rounded-[28px] border border-black/8 bg-white/70 p-8 text-sm text-gray-500 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-400"
-        >
+        <p role="status" className="text-sm text-gray-500 dark:text-gray-400">
           {t("home.featured.empty")}
         </p>
       )}

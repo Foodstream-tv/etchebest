@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Eye } from "lucide-react";
 
+import ThumbnailFallback from "@/components/ui/ThumbnailFallback";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import { useI18n } from "@/i18n";
 
@@ -14,6 +15,7 @@ type CardItem = {
   viewers?: number;
   when?: string;
   isLive?: boolean;
+  imageUrl?: string;
 };
 
 type LiveGridCardProps = Readonly<{
@@ -34,12 +36,23 @@ export default function LiveGridCard({ item }: LiveGridCardProps) {
           title: item.title,
           author: item.author,
         })}
-        className="block overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
+        className="block overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
       >
-        <div className="relative aspect-[16/9] w-full bg-black/[0.06] dark:bg-white/10">
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/[0.06] dark:bg-white/10">
+          {item.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.imageUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <ThumbnailFallback />
+          )}
+
           {item.isLive ? (
             <div
-              className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+              className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#1a0f05]"
               style={{ background: ORANGE_GRADIENT_CSS }}
             >
               LIVE

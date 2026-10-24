@@ -8,9 +8,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   Search,
-  ShoppingBag,
+  Video,
 } from "lucide-react";
 
+import AccessibilityButton from "@/components/accessibility/AccessibilityButton";
 import { globalSearch, type SearchResponse } from "@/lib/search";
 import { useAuth } from "@/lib/useAuth";
 
@@ -50,7 +51,7 @@ export default function AppTopNav() {
   const navItems: NavItem[] = [
     { label: t("nav.home"), href: "/home" },
     { label: t("nav.lives"), href: "/watch" },
-    { label: t("nav.studio"), href: "/studio" },
+    { label: t("nav.shop"), href: "/shop" },
     { label: t("nav.replays"), href: "/replays" },
   ];
 
@@ -106,7 +107,7 @@ export default function AppTopNav() {
     Boolean(results?.users?.length) || Boolean(results?.lives?.length);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-black/5 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/70">
+    <header className="sticky top-0 z-50 border-b border-black/5 bg-[#f6f1e9]/85 backdrop-blur-xl dark:border-white/10 dark:bg-[#14100d]/80">
       <div className="mx-auto w-full px-4 sm:px-6 lg:max-w-[1400px] xl:max-w-[1600px]">
         <div className="flex h-16 items-center gap-3">
           <Link
@@ -114,19 +115,19 @@ export default function AppTopNav() {
             aria-label={t("nav.homeAria")}
             className="group flex items-center gap-3"
           >
-            <div className="relative grid h-16 w-16 place-items-center overflow-hidden rounded-2xl group-hover:shadow-lg">
+            <div className="relative h-10 w-12 transition-transform group-hover:scale-105">
               <Image
-                src="/logo.png"
+                src="/images/logo-cloche.png"
                 alt=""
                 fill
-                sizes="64px"
-                className="object-contain p-2"
+                sizes="48px"
+                className="object-contain"
                 priority
                 aria-hidden="true"
               />
             </div>
 
-            <span className="hidden bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-xl font-extrabold tracking-tight text-transparent sm:block">
+            <span className="font-display hidden text-2xl font-semibold tracking-tight text-[#1f1711] dark:text-[#f5ede0] sm:block">
               Foodstream
             </span>
           </Link>
@@ -163,11 +164,11 @@ export default function AppTopNav() {
             <div className="relative">
               <form
                 role="search"
-                className="relative flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2.5 ring-1 ring-black/5 transition focus-within:ring-orange-500/30 dark:bg-white/5 dark:ring-white/10"
+                className="relative flex items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 shadow-sm ring-1 ring-black/15 transition focus-within:ring-2 focus-within:ring-[#ff7a1a]/60 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:ring-[#f5ede0]/25 dark:focus-within:bg-[#f5ede0]/[0.14]"
                 onSubmit={(event) => event.preventDefault()}
               >
                 <Search
-                  className="h-4 w-4 text-gray-500 dark:text-gray-400"
+                  className="h-4 w-4 text-gray-500 dark:text-[#f5ede0]/70"
                   aria-hidden="true"
                 />
 
@@ -187,7 +188,7 @@ export default function AppTopNav() {
                   autoComplete="off"
                   aria-expanded={searchOpen}
                   aria-controls="top-nav-search-results"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-gray-500 dark:placeholder:text-[#f5ede0]/55"
                 />
               </form>
 
@@ -312,20 +313,20 @@ export default function AppTopNav() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-
+            <AccessibilityButton />
 
             <Link
-              href="/shop"
-              className="hidden items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 md:inline-flex"
+              href="/studio"
+              className="hidden items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-[#1a0f05] shadow-sm hover:bg-orange-600 md:inline-flex"
             >
-              <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-              {t("nav.shop")}
+              <Video className="h-4 w-4" aria-hidden="true" />
+              {t("nav.studio")}
             </Link>
 
             {ready && !user ? (
               <Link
                 href="/signin"
-                className="rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-600 transition"
+                className="rounded-xl bg-[#ff7a1a] px-4 py-2 text-sm font-bold text-[#1a0f05] shadow-sm hover:bg-[#ea6a0c] transition"
               >
                 {t("nav.signin")}
               </Link>

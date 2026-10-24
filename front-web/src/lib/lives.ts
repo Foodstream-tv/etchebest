@@ -41,6 +41,8 @@ export type LiveDTO = {
 export type GetLivesParams = {
   q?: string;
   tag?: string;
+  /** Several tags at once (the backend ORs/ANDs them like the home search). */
+  tags?: readonly string[];
   status?: "all" | "scheduled" | "live" | "ended";
   page?: number;
   limit?: number;
@@ -52,6 +54,9 @@ export async function getLives(params: GetLivesParams = {}, token?: string) {
   if (params.q) searchParams.set("q", params.q);
   if (params.tag && params.tag !== "Tout" && params.tag !== "All") {
     searchParams.set("tag", params.tag);
+  }
+  for (const tag of params.tags ?? []) {
+    searchParams.append("tag", tag);
   }
 
   if (params.status && params.status !== "all") {
@@ -104,5 +109,14 @@ export async function getMyScheduledLive(token: string) {
   return apiFetch<{ live: MyScheduledLive | null }>("/users/me/scheduled-live", {
     token,
     cache: "no-store",
+  });
+}
+
+// Replaces the tags of a live (host only, live not ended). Tags are optional at creation.
+export async function updateLiveTags(roomId: string, tags: string[], token: string) {
+  return apiFetch<LiveDTO>(`/lives/${encodeURIComponent(roomId)}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify({ tags }),
+    token,
   });
 }

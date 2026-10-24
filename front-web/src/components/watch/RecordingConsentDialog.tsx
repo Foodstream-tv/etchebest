@@ -74,7 +74,7 @@ export default function RecordingConsentDialog({ busy = false, onAccept, onCance
             type="button"
             onClick={onAccept}
             disabled={!agreed || busy}
-            className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-[#1a0f05] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? t("consent.recording.busy") : t("consent.recording.confirm")}
           </button>

@@ -1,5 +1,7 @@
 import React from "react";
 import AuthRouteTransition from "@/components/auth/AuthRouteTransition";
+import AuthHero from "@/components/auth/AuthHero";
+import AccessibilityButton from "@/components/accessibility/AccessibilityButton";
 
 export default function AuthLayout({
   children,
@@ -7,29 +9,22 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <main id="main-content" className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-6 py-12">
-      <div className="grid w-full items-center gap-10 lg:grid-cols-[1.05fr_480px]">
-        <section className="hidden lg:block">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-orange-500 dark:text-orange-400">
-            FOODSTREAM
-          </p>
-
-          <h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-[1.03] tracking-[-0.03em] text-gray-900 dark:text-gray-50 xl:text-6xl">
-            Cuisinez, diffusez et partagez vos lives avec les{" "}
-            <span className="text-orange-500 dark:text-orange-400">
-              meilleurs chefs
-            </span>.
-          </h1>
-
-          <p className="mt-6 max-w-xl text-base leading-8 text-gray-600 dark:text-gray-400">
-            Lives culinaires, masterclass privées et une communauté qui cuisine ensemble.
-          </p>
+    <>
+    <AccessibilityButton variant="floating" />
+    <main id="main-content" className="mx-auto flex min-h-screen w-full max-w-[92rem] items-center justify-center px-6 py-12 lg:px-12 [@media(min-height:800px)]:lg:pb-20">
+      <div className="grid w-full items-start gap-10 lg:grid-cols-[1fr_600px] lg:gap-14">
+        {/* Natural height, top of the grid. The form card is pushed to the bottom of the row,
+            so the room preview and the card end on the same line; on the long sign-up
+            form the hero is sticky and stays in view. */}
+        <section className="hidden lg:sticky lg:top-12 lg:flex lg:flex-col lg:self-start">
+          <AuthHero />
         </section>
 
-        <section>
+        <section className="lg:self-end">
           <AuthRouteTransition>{children}</AuthRouteTransition>
         </section>
       </div>
     </main>
+    </>
   );
 }

@@ -128,7 +128,7 @@ export default function PhoneField({
       </div>
 
       {open ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-black/8 bg-white/95 shadow-[0_18px_50px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/92 dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+        <div className="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-black/8 bg-white/95 shadow-[0_18px_50px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/92 dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
           <div
             id={listboxId}
             role="listbox"

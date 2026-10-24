@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,10 +10,13 @@ import {
   PlayCircle,
   Radio,
   Ticket,
+  Trash2,
   Users,
 } from "lucide-react";
 
+import ThumbnailFallback from "@/components/ui/ThumbnailFallback";
 import type { LiveDTO } from "@/lib/lives";
+import { deleteLive } from "@/services/streaming";
 import { useAuth } from "@/lib/useAuth";
 import { useI18n } from "@/i18n/LanguageContext";
 
@@ -21,16 +24,36 @@ type Props = {
   tagName: string;
   lives: LiveDTO[];
   mode?: "live" | "replay";
+  /** Called after the host deleted one of their own lives, so the parent can drop it from its list. */
+  onDeleted?: (live: LiveDTO) => void;
 };
 
 export default function WatchTagSection({
   tagName,
   lives,
   mode = "live",
+  onDeleted,
 }: Props) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { t, locale } = useI18n();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // A host can always remove their own live that has not ended (e.g. one stuck on "live" after a crash).
+  const handleDelete = async (live: LiveDTO) => {
+    if (!token || deletingId !== null) return;
+    if (!window.confirm(t("watch.deleteLiveConfirm"))) return;
+
+    setDeletingId(live.id);
+    try {
+      await deleteLive(live.room_id || live.id, token);
+      onDeleted?.(live);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t("watch.deleteLiveError"));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const formatScheduledDate = (value?: string) => {
     if (!value) return t("watch.upcomingDate");
@@ -72,7 +95,7 @@ export default function WatchTagSection({
         <div>
           <h2
             id={`tag-${tagName}`}
-            className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
+            className="font-display text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
           >
             {tagName}
           </h2>
@@ -91,7 +114,7 @@ export default function WatchTagSection({
               type="button"
               onClick={() => scroll("left")}
               aria-label={t("watch.scrollLeftAria", { tagName })}
-              className="grid h-10 w-10 place-items-center rounded-2xl border border-black/8 bg-white/80 text-gray-900 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
+              className="grid h-10 w-10 place-items-center rounded-2xl border border-black/15 bg-white shadow-sm/80 text-gray-900 transition hover:bg-white dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:text-white dark:hover:bg-white/[0.08]"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -100,7 +123,7 @@ export default function WatchTagSection({
               type="button"
               onClick={() => scroll("right")}
               aria-label={t("watch.scrollRightAria", { tagName })}
-              className="grid h-10 w-10 place-items-center rounded-2xl border border-black/8 bg-white/80 text-gray-900 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
+              className="grid h-10 w-10 place-items-center rounded-2xl border border-black/15 bg-white shadow-sm/80 text-gray-900 transition hover:bg-white dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:text-white dark:hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -114,22 +137,25 @@ export default function WatchTagSection({
       >
         {displayedLives.map((live) => {
           const rid = encodeURIComponent(live.room_id || String(live.id));
-          const thumbnail = live.thumbnail_url || "/images/live-fallback.png";
           const isScheduled = live.status === "scheduled";
           const isHost = Boolean(user?.id && live.user?.id && String(user.id) === String(live.user.id));
 
           return (
             <article
               key={live.id}
-              className="group min-w-[430px] max-w-[430px] overflow-hidden rounded-[30px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#120b05]/60 dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
+              className="group min-w-[430px] max-w-[430px] overflow-hidden rounded-[30px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-[#1f1712]/60 dark:hover:shadow-[0_22px_50px_rgba(0,0,0,0.45)]"
             >
               <div className="relative h-56 overflow-hidden bg-black">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={thumbnail}
-                  alt={t("watch.thumbnailAlt", { title: live.title })}
-                  className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-105"
-                />
+                {live.thumbnail_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={live.thumbnail_url}
+                    alt={t("watch.thumbnailAlt", { title: live.title })}
+                    className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-105"
+                  />
+                ) : (
+                  <ThumbnailFallback />
+                )}
 
                 <div
                   className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"
@@ -235,7 +261,7 @@ export default function WatchTagSection({
                       </Link>
                       <Link
                         href={`/broadcast/${rid}?mode=host`}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-orange-400"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-[#1a0f05] shadow-md transition hover:bg-orange-400"
                       >
                         <Radio className="h-4 w-4" />
                         {t("watch.myStudio")}
@@ -244,7 +270,7 @@ export default function WatchTagSection({
                   ) : (
                     <Link
                       href={`/broadcast/${rid}?mode=join`}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition hover:bg-orange-400"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-[#1a0f05] shadow-sm transition hover:bg-orange-400"
                     >
                       <Radio className="h-4 w-4" />
                       {t("watch.joinLive")}
@@ -261,7 +287,7 @@ export default function WatchTagSection({
                       </Link>
                       <Link
                         href={`/broadcast/${rid}?mode=host`}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-orange-400"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-[#1a0f05] shadow-md transition hover:bg-orange-400"
                       >
                         <Radio className="h-4 w-4" />
                         {t("watch.startLive")}
@@ -289,6 +315,18 @@ export default function WatchTagSection({
                     {t("watch.offline")}
                   </div>
                 )}
+
+                {isHost && mode !== "replay" && live.status !== "ended" ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(live)}
+                    disabled={deletingId === live.id}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-500/10"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    {t("watch.deleteLive")}
+                  </button>
+                ) : null}
               </div>
             </article>
           );

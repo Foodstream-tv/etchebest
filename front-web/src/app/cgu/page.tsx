@@ -63,7 +63,7 @@ export default function CGUPage() {
           Légal & Réglementation
         </p>
 
-        <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 sm:text-5xl">
+        <h1 className="font-display text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 sm:text-5xl">
           Conditions Générales d&apos;Utilisation
         </h1>
 
@@ -104,13 +104,13 @@ export default function CGUPage() {
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
             href="/"
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-semibold text-white transition hover:bg-orange-400"
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-400"
           >
             Retour à l&apos;accueil
           </Link>
           <Link
             href="/confidentialite"
-            className="inline-flex h-11 items-center justify-center rounded-2xl border border-black/10 bg-white px-5 text-sm font-semibold text-gray-700 transition hover:bg-black/[0.02] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+            className="inline-flex h-11 items-center justify-center rounded-2xl border border-black/15 bg-white shadow-sm px-5 text-sm font-semibold text-gray-800 transition hover:bg-[#fffaf2] dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none dark:hover:bg-[#f5ede0]/[0.18]"
           >
             Politique de confidentialité
           </Link>

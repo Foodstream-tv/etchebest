@@ -14,7 +14,7 @@ export default function StatCard({
   return (
     <article
       aria-label={`${label} : ${value}`}
-      className="rounded-[28px] border border-black/8 bg-white/72 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+      className="rounded-[28px] border border-black/8 bg-white/72 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
     >
       <div
         aria-hidden="true"

@@ -39,6 +39,8 @@ import CookingAssistant from "@/components/watch/CookingAssistant";
 import RecordingConsentDialog from "@/components/watch/RecordingConsentDialog";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 import { useI18n } from "@/i18n/LanguageContext";
+import { usePolling } from "@/lib/usePolling";
+import { mergeChatMessages } from "@/lib/chatMessages";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
 
@@ -100,6 +102,11 @@ export default function WatchRoomPage() {
   const [userSelectedQuality, setUserSelectedQuality] = useState<string | null>(
     null
   );
+
+  // Read by handleManifestParsed through refs so that choosing a quality does not rebuild the player.
+  const selectedQualityRef = useRef("auto");
+  const userSelectedQualityRef = useRef<string | null>(null);
+  const stickToBottomRef = useRef(true);
 
   const [isLiked, setIsLiked] = useState(false);
   const [message, setMessage] = useState("");
@@ -293,6 +300,8 @@ export default function WatchRoomPage() {
   }, []);
 
   const handleQualityChange = (value: string) => {
+    userSelectedQualityRef.current = value;
+    selectedQualityRef.current = value;
     setUserSelectedQuality(value);
     setSelectedQuality(value);
     applyQuality(value);
@@ -314,7 +323,7 @@ export default function WatchRoomPage() {
       ...uniqueLevels.map(formatQualityOption),
     ]);
 
-    const qualityToApply = userSelectedQuality || selectedQuality;
+    const qualityToApply = userSelectedQualityRef.current || selectedQualityRef.current;
     applyQuality(qualityToApply, hls);
 
     const playVideo = () => {
@@ -329,18 +338,13 @@ export default function WatchRoomPage() {
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
     }
-  }, [userSelectedQuality, selectedQuality, applyQuality, setQualities, setLoading, setError]);
+  }, [applyQuality]);
 
   useEffect(() => {
     fetchRoom(true);
-
-    if (!roomId || !token) return;
-
-    const interval = setInterval(() => {
-      fetchRoom(false);
-    }, 10_000);
-    return () => clearInterval(interval);
   }, [roomId, token, fetchRoom]);
+
+  usePolling(() => fetchRoom(false), 10_000, Boolean(roomId && token));
 
   useEffect(() => {
     const video = videoRef.current;
@@ -357,6 +361,8 @@ export default function WatchRoomPage() {
     setQualities([{ label: "Auto", value: "auto" }]);
     setUserSelectedQuality(null);
     setSelectedQuality("auto");
+    userSelectedQualityRef.current = null;
+    selectedQualityRef.current = "auto";
     retryAttemptsRef.current = 0;
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
@@ -438,7 +444,8 @@ export default function WatchRoomPage() {
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
-          backBufferLength: 900,
+          // A live is watched forward: keep one minute behind the playhead, not fifteen.
+          backBufferLength: 60,
           maxBufferLength: 30,
           maxMaxBufferLength: 90,
         });
@@ -500,7 +507,7 @@ export default function WatchRoomPage() {
 
     try {
       const msgs = await getChatMessages(roomId, token);
-      setChatMessages(msgs ?? []);
+      setChatMessages((previous) => mergeChatMessages(previous, msgs ?? []));
     } catch (err) {
       console.error("Fetch chat error:", err);
     }
@@ -510,14 +517,15 @@ export default function WatchRoomPage() {
     if (!roomId || !token) return;
 
     fetchChat();
-
-    const interval = setInterval(fetchChat, 5000);
-    return () => clearInterval(interval);
   }, [roomId, token, fetchChat]);
 
+  usePolling(fetchChat, 5000, Boolean(roomId && token));
+
+  // Follow new messages only while the reader is at the bottom (do not yank them away from older ones).
   useEffect(() => {
-    if (!chatScrollRef.current) return;
-    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    const el = chatScrollRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [chatMessages]);
 
   const onRetry = () => {
@@ -539,6 +547,7 @@ export default function WatchRoomPage() {
 
     setMessage("");
     setSending(true);
+    stickToBottomRef.current = true;
 
     try {
       await postChatMessage(roomId, trimmed, token);
@@ -583,7 +592,7 @@ export default function WatchRoomPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/watch"
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#1f1712]/60 dark:text-white"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Retour
@@ -614,13 +623,13 @@ export default function WatchRoomPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-black/8 bg-white/72 px-3 py-2 text-xs text-gray-500 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-400">
+            <div className="rounded-2xl border border-black/8 bg-white/72 px-3 py-2 text-xs text-gray-500 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:text-gray-400">
               Room: {roomId ? `${roomId.slice(0, 8)}…` : "—"}
             </div>
 
             <button
               onClick={onRetry}
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#120b05]/60 dark:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-[#1f1712]/60 dark:text-white"
               type="button"
             >
               <RefreshCcw className="h-4 w-4" aria-hidden="true" />
@@ -631,12 +640,12 @@ export default function WatchRoomPage() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="space-y-6">
-            <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+            <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
               <div className="relative aspect-video bg-black">
                 {isScheduled ? (
                   isHost ? (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-orange-950 via-neutral-900 to-black text-white">
-                      <div className="mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-orange-500 text-white shadow-[0_0_30px_rgba(249,115,22,0.4)]">
+                      <div className="mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-orange-500 text-[#1a0f05] ">
                         <Radio className="h-8 w-8 animate-pulse" />
                       </div>
                       <h2 className="text-xl font-bold">{t("watch.room.hostScheduledTitle")}</h2>
@@ -652,7 +661,7 @@ export default function WatchRoomPage() {
                       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                         <Link
                           href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(249,115,22,0.35)] transition hover:bg-orange-400 hover:scale-105 active:scale-95"
+                          className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 hover:scale-105 active:scale-95"
                         >
                           <Radio className="h-4 w-4" />
                           {t("watch.room.hostScheduledBtn")}
@@ -743,7 +752,7 @@ export default function WatchRoomPage() {
                               type="button"
                               disabled={reserving}
                               onClick={() => onReserve()}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                              className="inline-flex items-center gap-2 rounded-2xl bg-[#ff7a1a] px-6 py-3.5 text-sm font-bold text-[#1a0f05] shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50"
                             >
                               <Users className="h-4 w-4" />
                               {reserving ? t("watch.room.reserving") : t("watch.room.reserve")}
@@ -777,7 +786,7 @@ export default function WatchRoomPage() {
                     {isHost ? (
                       <Link
                         href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
-                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-orange-400 hover:scale-105 active:scale-95"
+                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-[#1a0f05] shadow-lg transition hover:bg-orange-400 hover:scale-105 active:scale-95"
                       >
                         <Radio className="h-4 w-4" />
                         {t("watch.room.accessHostStudio")}
@@ -813,7 +822,7 @@ export default function WatchRoomPage() {
                     </div>
                     <Link
                       href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
-                      className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-bold text-white shrink-0 hover:bg-orange-400 transition shadow-md"
+                      className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-bold text-[#1a0f05] shrink-0 hover:bg-orange-400 transition shadow-md"
                     >
                       <Radio className="h-4 w-4" />
                       {t("watch.room.startLiveBtn")}
@@ -823,7 +832,7 @@ export default function WatchRoomPage() {
 
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50 sm:text-3xl">
+                    <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 sm:text-3xl">
                       {roomLoading ? t("common.loading") : liveTitle}
                     </h1>
 
@@ -841,7 +850,7 @@ export default function WatchRoomPage() {
                       onClick={onLike}
                       aria-pressed={isLiked}
                       aria-label={isLiked ? t("watch.room.unlikeAria") : t("watch.room.likeAria")}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white shadow-sm px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:text-white"
                       type="button"
                     >
                       <Heart
@@ -855,7 +864,7 @@ export default function WatchRoomPage() {
                     <button
                       onClick={onShare}
                       aria-label={t("watch.room.shareAria")}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/72 px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white shadow-sm px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:translate-y-0 active:scale-[0.98] dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none dark:text-white"
                       type="button"
                     >
                       <Share2 className="h-4 w-4" />
@@ -903,7 +912,7 @@ export default function WatchRoomPage() {
           </section>
 
           <aside className="min-w-0">
-            <div className="flex h-full max-h-[760px] flex-col overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+            <div className="flex h-full max-h-[760px] flex-col overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
               {/* Tab Selector Header */}
               <div className="flex border-b border-black/8 dark:border-white/10 bg-white/20 dark:bg-black/30">
                 <button
@@ -941,6 +950,10 @@ export default function WatchRoomPage() {
 
                   <div
                     ref={chatScrollRef}
+                    onScroll={(event) => {
+                      const el = event.currentTarget;
+                      stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                    }}
                     aria-live="polite"
                     aria-label={t("watch.room.chatHeading")}
                     className="flex h-[360px] flex-1 flex-col gap-3 overflow-y-auto bg-black/[0.02] px-4 py-4 dark:bg-white/[0.03]"
@@ -987,7 +1000,7 @@ export default function WatchRoomPage() {
                             if (e.key === "Enter") onSendMessage();
                           }}
                           placeholder={t("watch.room.chatPlaceholderShort")}
-                          className="w-full rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#1b140e] dark:text-white dark:placeholder:text-gray-500"
+                          className="w-full rounded-2xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#1f1712] dark:text-white dark:placeholder:text-gray-500"
                           disabled={sending}
                           maxLength={MAX_MSG}
                         />
@@ -1000,7 +1013,7 @@ export default function WatchRoomPage() {
                           <button
                             onClick={onSendMessage}
                             style={{ background: ORANGE_GRADIENT_CSS }}
-                            className="inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:opacity-95 hover:shadow-[0_14px_32px_rgba(249,115,22,0.38)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                            className="inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold text-[#1a0f05] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:opacity-95 hover:shadow-sm active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                             type="button"
                             disabled={sending}
                           >
