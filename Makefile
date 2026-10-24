@@ -65,4 +65,4 @@ test-web: ## Web: types, lint
 
 test-scripts: ## Shell tests of the dev scripts (dev-setup, seed)
 	@./scripts/test-dev-setup.sh
-	@./scripts/test-seed.sh 2>&1 | grep -v -E '^(-{10,}|Traceback|  File|    |Exception occurred|KeyError)'
+	@set -o pipefail; ./scripts/test-seed.sh 2>&1 | grep -v -E '^(-{10,}|Traceback|  File|    |Exception occurred|KeyError)'

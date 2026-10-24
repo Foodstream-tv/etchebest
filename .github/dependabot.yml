@@ -1,0 +1,60 @@
+# Weekly version updates, grouped per project (security updates keep coming as soon as an alert appears).
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /front-web
+    schedule:
+      interval: weekly
+    groups:
+      web:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /analytics
+    schedule:
+      interval: weekly
+    groups:
+      analytics:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # Expo packages and React Native move together with the SDK (npx expo install expo@^NN --fix), never one by one.
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "react-test-renderer"
+      - dependency-name: "@types/react"
+    groups:
+      mobile:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
