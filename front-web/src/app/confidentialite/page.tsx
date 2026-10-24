@@ -82,7 +82,7 @@ export default function ConfidentialitePage() {
           Légal
         </p>
 
-        <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 sm:text-5xl">
+        <h1 className="font-display text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 sm:text-5xl">
           Politique de confidentialité
         </h1>
 
@@ -140,7 +140,7 @@ export default function ConfidentialitePage() {
         <div className="mt-5">
           <Link
             href="/"
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-4 text-sm font-semibold text-white transition hover:bg-orange-400"
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-4 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-400"
           >
             Retour à l&apos;accueil
           </Link>

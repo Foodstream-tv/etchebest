@@ -11,7 +11,7 @@ export default function HomeFooter() {
       <div className="mx-auto w-full max-w-7xl px-6 py-10">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+            <h2 className="font-display text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-50">
               Foodstream
             </h2>
 

@@ -219,7 +219,7 @@ export default function HomeLiveGrid({
         Lives FoodStream
       </h2>
 
-      <div className="rounded-[28px] border border-black/8 bg-white/72 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+      <div className="rounded-[28px] border border-black/8 bg-white/72 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
         <div
           className="flex flex-wrap items-center gap-2"
           role="tablist"
@@ -237,7 +237,7 @@ export default function HomeLiveGrid({
                 onClick={() => setTab(tabItem.key)}
                 className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
                   active
-                    ? "text-white"
+                    ? "text-[#1a0f05]"
                     : "text-gray-600 hover:bg-black/[0.04] dark:text-gray-300 dark:hover:bg-white/[0.06]"
                 }`}
                 style={active ? { background: ORANGE_GRADIENT_CSS } : undefined}
@@ -261,7 +261,7 @@ export default function HomeLiveGrid({
               {Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={index}
-                  className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                  className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60"
                 >
                   <div className="aspect-[16/9] w-full animate-pulse bg-black/[0.06] dark:bg-white/10" />
                   <div className="space-y-2 p-4">
@@ -279,7 +279,7 @@ export default function HomeLiveGrid({
               >
                 <article
                   aria-label={`${t("home.stats.activeLives")} : ${stats.liveCount}`}
-                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60"
                 >
                   <div
                     className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200"
@@ -299,7 +299,7 @@ export default function HomeLiveGrid({
 
                 <article
                   aria-label={`${t("home.stats.viewers")} : ${stats.totalViewers}`}
-                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60"
                 >
                   <div
                     className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200"
@@ -319,7 +319,7 @@ export default function HomeLiveGrid({
 
                 <article
                   aria-label={`${t("home.stats.creators")} : ${stats.uniqueCreators}`}
-                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                  className="rounded-2xl border border-black/8 bg-white/72 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60"
                 >
                   <div
                     className="mb-2 inline-flex rounded-xl bg-orange-50 p-2 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200"
@@ -350,7 +350,7 @@ export default function HomeLiveGrid({
           ) : (
             <p
               role="status"
-              className="rounded-[28px] border border-black/8 bg-white/72 p-6 text-sm text-gray-600 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-300"
+              className="rounded-[28px] border border-black/8 bg-white/72 p-6 text-sm text-gray-600 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:text-gray-300"
             >
               {t("home.empty")}
             </p>
@@ -360,7 +360,7 @@ export default function HomeLiveGrid({
         <aside className="space-y-6" aria-label={t("home.sidebarAria")}>
           <section
             aria-labelledby="upcoming-lives-title"
-            className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+            className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
           >
             <h3
               id="upcoming-lives-title"
@@ -383,7 +383,7 @@ export default function HomeLiveGrid({
 
           <section
             aria-labelledby="featured-creators-title"
-            className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+            className="rounded-[28px] border border-black/8 bg-white/72 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
           >
             <div className="mb-3 flex items-center justify-between">
               <h3
