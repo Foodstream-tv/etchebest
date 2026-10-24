@@ -60,13 +60,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Delete a user by their ID (admin only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
+                "description": "Erase a user and all their personal data (admin only)",
                 "tags": [
                     "users"
                 ],
@@ -83,6 +77,15 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
                     "500": {
                         "description": "error: Failed to delete user",
@@ -157,6 +160,616 @@
                     },
                     "500": {
                         "description": "error: Failed to update user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users/{userId}/ban": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ban a user temporarily (durationHours \u003e 0) or permanently (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Ban a user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ban details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.BanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid JSON",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "error: Cannot ban this user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to ban user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users/{userId}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Toggle verified / featured chef / role for a user (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update a user's status flags",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.StatusPatch"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid JSON or invalid role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "error: Cannot change your own role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to update user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users/{userId}/unban": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lift an active ban on a user (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Unban a user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to unban user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/forgot-password": {
+            "post": {
+                "description": "Send a password reset email if the user exists",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Forgot password request",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RequestForgotPassword"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: If an account exists, a reset link has been sent",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/google": {
+            "get": {
+                "description": "Generates Google OAuth URL and redirects user to Google consent screen",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Start Google OAuth Flow",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Redirect URL after callback (will be stored in state)",
+                        "name": "redirect",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirects to Google OAuth consent screen"
+                    },
+                    "400": {
+                        "description": "error: Missing configuration",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/google/callback": {
+            "post": {
+                "description": "Handle Google OAuth callback and authenticate user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Google OAuth Callback",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization code from Google",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "State parameter for security",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "token: JWT token string",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/google/mobile": {
+            "post": {
+                "description": "Exchange Google access token for JWT token (for mobile apps)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Google OAuth Mobile Callback",
+                "parameters": [
+                    {
+                        "description": "Google access token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.GoogleMobileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "token: JWT token string, userId: user ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "error: Invalid access token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/reset-password": {
+            "post": {
+                "description": "Reset user password using a valid reset token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Reset password",
+                "parameters": [
+                    {
+                        "description": "Reset password details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RequestResetPassword"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Password reset successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid or expired token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/discover": {
+            "get": {
+                "description": "Returns trending country, categories list and top dishes",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discover"
+                ],
+                "summary": "Get discover page data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/discover.DiscoverResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/discover/categories": {
+            "get": {
+                "description": "Returns all active country categories with their live counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discover"
+                ],
+                "summary": "Get all categories",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/discover.CategoryWithCount"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/discover/categories/{id}/lives": {
+            "get": {
+                "description": "Returns paginated lives for a given country category",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discover"
+                ],
+                "summary": "Get lives for a category",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Country ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort: views | viewers | recent",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/discover.CategoryLivesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -286,6 +899,15 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "error: Account banned or not verified",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "500": {
                         "description": "error: Internal server error",
                         "schema": {
@@ -300,7 +922,7 @@
         },
         "/api/register": {
             "post": {
-                "description": "Create a new user account with email and password",
+                "description": "Create a new user account and send an email verification code",
                 "consumes": [
                     "application/json"
                 ],
@@ -324,7 +946,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: User registered",
+                        "description": "message: User registered, verification code sent",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid request or User already exists",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -332,8 +961,61 @@
                             }
                         }
                     },
+                    "500": {
+                        "description": "error: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/resend-code": {
+            "post": {
+                "description": "Resend a new 6-digit OTP code to the user via email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Resend verification code",
+                "parameters": [
+                    {
+                        "description": "Resend details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RequestResendCode"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Verification code resent",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
                     "400": {
-                        "description": "error: Invalid request or User already exists",
+                        "description": "error: Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "error: Rate limit exceeded",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -375,12 +1057,9 @@
                     "200": {
                         "description": "rooms: list of rooms",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/room.Room"
-                                }
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/room.Room"
                             }
                         }
                     },
@@ -465,6 +1144,81 @@
                 }
             }
         },
+        "/api/rooms/{roomId}": {
+            "get": {
+                "description": "Get details of a specific room including participants and reservation count",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "Get room by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/room.Room"
+                        }
+                    },
+                    "404": {
+                        "description": "error: Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rooms/{roomId}/chats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a chat by it's ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms chats"
+                ],
+                "summary": "Delete chat",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "ErrRecordNotFound record not found error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/rooms/{roomId}/disconnect": {
             "post": {
                 "security": [
@@ -523,14 +1277,14 @@
                 }
             }
         },
-        "/api/rooms/{roomId}/reserve": {
+        "/api/rooms/{roomId}/kick": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Reserve a participant slot in a room in advance",
+                "description": "Room host can remove an active participant or co-streamer from the room",
                 "consumes": [
                     "application/json"
                 ],
@@ -538,6 +1292,56 @@
                     "application/json"
                 ],
                 "tags": [
+                    "rooms"
+                ],
+                "summary": "Kick participant from room",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID of the participant",
+                        "name": "participantId",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rooms/{roomId}/reserve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reserve a participant slot in a room in advance\nReserve a participant slot in a room in advance (max 5 registered viewers)",
+                "consumes": [
+                    "application/json",
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json",
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms",
                     "rooms"
                 ],
                 "summary": "Reserve a spot in a room",
@@ -548,16 +1352,21 @@
                         "name": "roomId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "message: reserved successfully, or you already reserved this room",
+                        "description": "message: reserved successfully",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -598,6 +1407,69 @@
                     },
                     "500": {
                         "description": "error: Failed to save reservation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancel a participant's reservation for a scheduled room",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "Cancel reservation in a room",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: reservation cancelled successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "error: not reserved",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to cancel reservation",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -700,8 +1572,52 @@
                             "$ref": "#/definitions/user.User"
                         }
                     },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "500": {
                         "description": "error: Failed to fetch user",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Erase the authenticated user's account and all their personal data",
+                "tags": [
+                    "users"
+                ],
+                "summary": "Delete current user",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to delete user",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -776,6 +1692,127 @@
                 }
             }
         },
+        "/api/users/me/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download everything the platform holds about the authenticated user (GDPR access and portability)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Export my data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/account.Export"
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to export data",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/me/password": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update the authenticated user's password and password update timestamp",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update current user password",
+                "parameters": [
+                    {
+                        "description": "Current and new password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.UpdatePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid JSON or invalid new password",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "error: Invalid current password",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Failed to update password",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/users/unfollow/{userId}": {
             "post": {
                 "security": [
@@ -833,6 +1870,114 @@
                     },
                     "500": {
                         "description": "error: Failed to save",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/{userId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a public user profile by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/verify": {
+            "post": {
+                "description": "Verify the 6-digit OTP code sent via email and activate the account",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify registration code",
+                "parameters": [
+                    {
+                        "description": "Verification code details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.RequestVerifyCode"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Account verified",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "error: Invalid or expired code",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "error: User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "error: Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -931,9 +2076,299 @@
                     }
                 }
             }
+        },
+        "/webrtc/offers": {
+            "get": {
+                "tags": [
+                    "WebRTC"
+                ],
+                "summary": "Establish WebSocket connection for receiving renegotiation offers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Room ID",
+                        "name": "roomId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Room not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "account.ActivityExport": {
+            "type": "object",
+            "properties": {
+                "actorId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "account.ChatExport": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "roomId": {
+                    "type": "string"
+                }
+            }
+        },
+        "account.ConsentExport": {
+            "type": "object",
+            "properties": {
+                "consentedAt": {
+                    "type": "string"
+                },
+                "roomId": {
+                    "type": "string"
+                }
+            }
+        },
+        "account.Export": {
+            "type": "object",
+            "properties": {
+                "actionsPerformed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/account.ActivityExport"
+                    }
+                },
+                "chatMessages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/account.ChatExport"
+                    }
+                },
+                "followersIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "followingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "generatedAt": {
+                    "type": "string"
+                },
+                "lives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/account.LiveExport"
+                    }
+                },
+                "notificationsReceived": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/account.ActivityExport"
+                    }
+                },
+                "profile": {
+                    "$ref": "#/definitions/account.ProfileExport"
+                },
+                "recordingConsents": {
+                    "description": "RecordingConsents lists the recorded lives the person agreed to take part in, with the date.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/account.ConsentExport"
+                    }
+                }
+            }
+        },
+        "account.LiveExport": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "dishName": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "endedAt": {
+                    "type": "string"
+                },
+                "hasReplay": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "replayUrl": {
+                    "type": "string"
+                },
+                "roomId": {
+                    "type": "string"
+                },
+                "scheduledAt": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "viewCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "account.ProfileExport": {
+            "type": "object",
+            "properties": {
+                "banReason": {
+                    "type": "string"
+                },
+                "bannedAt": {
+                    "type": "string"
+                },
+                "bannedUntil": {
+                    "type": "string"
+                },
+                "countryNumberPhone": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isBanned": {
+                    "type": "boolean"
+                },
+                "isEmailVerified": {
+                    "type": "boolean"
+                },
+                "isPhoneVerified": {
+                    "type": "boolean"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "numberPhone": {
+                    "type": "string"
+                },
+                "oauthProvider": {
+                    "type": "string"
+                },
+                "passwordUpdatedAt": {
+                    "type": "string"
+                },
+                "profileImageUrl": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.GoogleMobileRequest": {
+            "type": "object",
+            "required": [
+                "access_token"
+            ],
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "example": "ya29.a0AfH6SMBx..."
+                }
+            }
+        },
+        "auth.RequestForgotPassword": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
         "auth.RequestLogin": {
             "type": "object",
             "required": [
@@ -949,31 +2384,38 @@
                     "type": "string",
                     "minLength": 8,
                     "example": "Password123@"
+                },
+                "rememberMe": {
+                    "description": "RememberMe only affects the web session cookie: false makes it a session cookie. Default true.",
+                    "type": "boolean"
                 }
             }
         },
         "auth.RequestRegister": {
             "type": "object",
             "required": [
-                "countryNumberPhone",
-                "description",
+                "ageConfirmed",
                 "email",
                 "firstName",
                 "lastName",
-                "numberPhone",
                 "password",
-                "profileImage",
                 "username"
             ],
             "properties": {
+                "ageConfirmed": {
+                    "description": "AgeConfirmed must be true: the service is for people aged 15 or more.",
+                    "type": "boolean",
+                    "example": true
+                },
                 "countryNumberPhone": {
                     "type": "integer",
                     "minimum": 1,
                     "example": 33
                 },
                 "description": {
+                    "description": "Description, CountryNumberPhone and NumberPhone are optional (data minimisation): only the\ne-mail, the password and the names are needed to create an account.",
                     "type": "string",
-                    "minLength": 10,
+                    "maxLength": 500,
                     "example": "I like eating sushi"
                 },
                 "email": {
@@ -992,7 +2434,7 @@
                 },
                 "numberPhone": {
                     "type": "string",
-                    "minLength": 1,
+                    "maxLength": 30,
                     "example": "123456"
                 },
                 "password": {
@@ -1010,6 +2452,292 @@
                     "type": "string",
                     "minLength": 2,
                     "example": "JohnDoe23"
+                }
+            }
+        },
+        "auth.RequestResendCode": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RequestResetPassword": {
+            "type": "object",
+            "required": [
+                "password",
+                "token"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "Password123@"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RequestVerifyCode": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 8,
+                    "minLength": 4
+                },
+                "email": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "chat.Chat": {
+            "type": "object",
+            "required": [
+                "message"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "roomId": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "country.CountryDTO": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "discover.CategoryLivesResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/discover.CategoryWithCount"
+                },
+                "lives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/live.LiveDTO"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/discover.PaginationMeta"
+                }
+            }
+        },
+        "discover.CategoryWithCount": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "discover.DiscoverResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/discover.CategoryWithCount"
+                    }
+                },
+                "top_dishes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/discover.DishWithStats"
+                    }
+                },
+                "trending_country": {
+                    "$ref": "#/definitions/discover.CategoryWithCount"
+                }
+            }
+        },
+        "discover.DishWithStats": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "$ref": "#/definitions/country.CountryDTO"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "total_views": {
+                    "type": "integer"
+                }
+            }
+        },
+        "discover.PaginationMeta": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dish.DishDTO": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "$ref": "#/definitions/country.CountryDTO"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "live.LiveDTO": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "$ref": "#/definitions/country.CountryDTO"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_viewers": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "dish": {
+                    "$ref": "#/definitions/dish.DishDTO"
+                },
+                "dish_name": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "has_replay": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "like_count": {
+                    "type": "integer"
+                },
+                "preview_gif": {
+                    "type": "string"
+                },
+                "replay_enabled": {
+                    "description": "ReplayEnabled is false when the host chose not to keep a replay (the live is not recorded for later).",
+                    "type": "boolean"
+                },
+                "replay_removed": {
+                    "description": "ReplayRemoved is true when the replay was withdrawn after the live.",
+                    "type": "boolean"
+                },
+                "replay_url": {
+                    "type": "string"
+                },
+                "replay_views": {
+                    "type": "integer"
+                },
+                "room_id": {
+                    "type": "string"
+                },
+                "scheduled_at": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tag.TagDTO"
+                    }
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/user.UserDTO"
+                },
+                "view_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -1056,9 +2784,87 @@
                 }
             }
         },
+        "tag.TagDTO": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "live_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.BanRequest": {
+            "type": "object",
+            "properties": {
+                "durationHours": {
+                    "description": "0 or omitted = permanent ban",
+                    "type": "integer",
+                    "example": 24
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "Inappropriate behavior during a live"
+                }
+            }
+        },
+        "user.StatusPatch": {
+            "type": "object",
+            "properties": {
+                "isFeaturedChef": {
+                    "type": "boolean"
+                },
+                "isVerified": {
+                    "type": "boolean"
+                },
+                "role": {
+                    "description": "ADMIN or USER",
+                    "type": "string"
+                }
+            }
+        },
+        "user.UpdatePasswordRequest": {
+            "type": "object",
+            "required": [
+                "currentPassword",
+                "newPassword"
+            ],
+            "properties": {
+                "currentPassword": {
+                    "type": "string"
+                },
+                "newPassword": {
+                    "type": "string",
+                    "minLength": 8
+                }
+            }
+        },
         "user.User": {
             "type": "object",
             "properties": {
+                "banReason": {
+                    "type": "string"
+                },
+                "bannedAt": {
+                    "type": "string"
+                },
+                "bannedUntil": {
+                    "description": "nil while IsBanned = permanent ban",
+                    "type": "string"
+                },
                 "countryNumberPhone": {
                     "type": "integer"
                 },
@@ -1069,6 +2875,96 @@
                     "type": "string"
                 },
                 "email": {
+                    "type": "string"
+                },
+                "facebookId": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "followerCount": {
+                    "type": "integer"
+                },
+                "followersIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "followingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "googleId": {
+                    "description": "OAuth fields",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isAccountVerified": {
+                    "description": "Verification fields",
+                    "type": "boolean"
+                },
+                "isBanned": {
+                    "description": "Moderation fields",
+                    "type": "boolean"
+                },
+                "isEmailVerified": {
+                    "type": "boolean"
+                },
+                "isFeaturedChef": {
+                    "type": "boolean"
+                },
+                "isPhoneVerified": {
+                    "type": "boolean"
+                },
+                "isVerified": {
+                    "type": "boolean"
+                },
+                "lastLiveAt": {
+                    "type": "string"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "numberPhone": {
+                    "type": "string"
+                },
+                "oauthProvider": {
+                    "description": "\"google\" or \"facebook\"",
+                    "type": "string"
+                },
+                "passwordUpdatedAt": {
+                    "type": "string"
+                },
+                "profileImageUrl": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "totalLives": {
+                    "type": "integer"
+                },
+                "totalViews": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.UserDTO": {
+            "type": "object",
+            "properties": {
+                "description": {
                     "type": "string"
                 },
                 "firstName": {
@@ -1098,28 +2994,10 @@
                 "isVerified": {
                     "type": "boolean"
                 },
-                "lastLiveAt": {
-                    "type": "string"
-                },
                 "lastName": {
                     "type": "string"
                 },
-                "numberPhone": {
-                    "type": "string"
-                },
                 "profileImageUrl": {
-                    "type": "string"
-                },
-                "role": {
-                    "type": "string"
-                },
-                "totalLives": {
-                    "type": "integer"
-                },
-                "totalViews": {
-                    "type": "integer"
-                },
-                "updatedAt": {
                     "type": "string"
                 },
                 "username": {

@@ -60,8 +60,8 @@ test-backend: ## Go: vet + tests with the race detector
 test-mobile: ## Mobile: types, lint, jest
 	cd mobile && npx tsc --noEmit && npx expo lint && CI=true npx jest
 
-test-web: ## Web: types
-	cd front-web && npx tsc --noEmit
+test-web: ## Web: types, lint
+	cd front-web && npx tsc --noEmit && npm run lint
 
 test-scripts: ## Shell tests of the dev scripts (dev-setup, seed)
 	@./scripts/test-dev-setup.sh
