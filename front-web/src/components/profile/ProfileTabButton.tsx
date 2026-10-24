@@ -19,8 +19,8 @@ export default function ProfileTabButton({
       role="tab"
       className={`rounded-2xl px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-orange-500 text-white"
-          : "bg-black/[0.04] text-gray-700 hover:bg-black/[0.08] dark:bg-white/[0.05] dark:text-gray-200 dark:hover:bg-white/10"
+          ? "bg-orange-500 text-[#1a0f05]"
+          : "bg-white text-gray-800 ring-1 ring-black/15 shadow-sm hover:bg-[#fffaf2] dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none dark:ring-[#f5ede0]/25 dark:hover:bg-[#f5ede0]/[0.18]"
       }`}
     >
       {children}

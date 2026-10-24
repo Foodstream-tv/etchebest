@@ -35,7 +35,7 @@ export default function UpcomingCard({
       <button
         type="button"
         aria-label={t("home.upcoming.remindAria", { title, author })}
-        className="mt-3 w-full rounded-xl py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.24)] transition hover:bg-orange-400"
+        className="mt-3 w-full rounded-xl py-2.5 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400"
         style={{ background: ORANGE_GRADIENT_CSS }}
       >
         {t("home.upcoming.remind")}

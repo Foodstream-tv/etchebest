@@ -23,6 +23,9 @@ function CategoryCard({ category, exploreLabel }: Readonly<{ category: Category;
         src={category.image}
         alt=""
         fill
+        // Unsplash already serves a sized, compressed image (w/q/auto=format in the URL):
+        // skipping Next's optimizer avoids a server-side fetch that can fail (500) on some networks.
+        unoptimized={process.env.NODE_ENV === "development"}
         sizes="(max-width: 768px) 100vw, 33vw"
         priority={category.priority}
         className="object-cover transition duration-500 group-hover:scale-110"
@@ -34,7 +37,7 @@ function CategoryCard({ category, exploreLabel }: Readonly<{ category: Category;
       />
 
       <div className="absolute bottom-0 p-6 text-white">
-        <h2 className="text-2xl font-extrabold">
+        <h2 className="font-display text-2xl font-semibold">
           {category.title}
         </h2>
 
@@ -88,23 +91,15 @@ export default function ShopPage() {
       id="main-content"
       className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-10"
     >
-      <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-orange-50 via-white to-amber-50 p-8 dark:border-gray-800 dark:from-neutral-900 dark:via-neutral-950 dark:to-neutral-900">
-        <div
-          aria-hidden="true"
-          className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-orange-300/30 blur-3xl"
-        />
+      <section className="relative overflow-hidden rounded-3xl border border-black/10 bg-white p-8 dark:border-white/10 dark:bg-white/[0.04]">
 
-        <div
-          aria-hidden="true"
-          className="absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-orange-200/20 blur-3xl"
-        />
 
         <div className="relative z-10">
           <p className="text-sm font-semibold uppercase tracking-widest text-orange-600 dark:text-orange-300">
             {t("shop.title")}
           </p>
 
-          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+          <h1 className="font-display mt-3 text-4xl font-semibold tracking-tight text-gray-900 dark:text-white">
             {t("shop.heroTitle")}
           </h1>
 
@@ -115,14 +110,14 @@ export default function ShopPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-600"
             >
               {t("shop.trends")}
             </button>
 
             <button
               type="button"
-              className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold transition hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-neutral-800"
+              className="rounded-xl border border-black/15 bg-white shadow-sm px-5 py-2.5 text-sm font-semibold transition hover:bg-[#fffaf2] dark:hover:bg-[#f5ede0]/[0.18] dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none"
             >
               {t("shop.popular")}
             </button>
