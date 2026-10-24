@@ -1,42 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Flame, Radio, Search, Star, Video } from "lucide-react";
+import { CalendarDays, Flame, Search, Star } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import GoLiveIncentive from "@/components/home/GoLiveIncentive";
+import HomeFiltersSelect from "@/components/home/HomeFiltersSelect";
 import HomeFooter from "@/components/home/HomeFooter";
 import { getLives, type LiveDTO } from "@/lib/lives";
+import { TAG_GROUPS } from "@/lib/tagGroups";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import WatchTagSection from "@/components/watch/WatchTagSection";
 import { useI18n } from "@/i18n/LanguageContext";
 
 type TabKey = "all" | "live" | "scheduled" | "ended";
 
-const TAGS = [
-  "Tout",
-  "Asiatique",
-  "Africain",
-  "Européen",
-  "Américain",
-  "Français",
-  "Italien",
-  "Coréen",
-  "Japonais",
-  "Végétarien",
-  "Pâtisserie",
-  "Street Food",
-  "BBQ",
-  "Healthy",
-];
-
 export default function WatchListPage() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
 
   const initialQ = searchParams.get("q") ?? "";
-  const initialTag = searchParams.get("tag") ?? "Tout";
+  const initialTag = searchParams.get("tag");
 
   const [q, setQ] = useState(initialQ);
-  const [tag, setTag] = useState(initialTag);
+  // Tags picked in the filter panel (empty = everything). "?tag=BBQ" links preselect one.
+  const [tags, setTags] = useState<string[]>(
+    initialTag && initialTag !== "Tout" && initialTag !== "All" ? [initialTag] : []
+  );
+  // Stable dependency: a new array holding the same tags must not refetch.
+  const tagsKey = tags.join("\n");
   const [tab, setTab] = useState<TabKey>("all");
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = useMemo(
@@ -67,7 +58,7 @@ export default function WatchListPage() {
 
       const res = await getLives({
         q,
-        tag,
+        tags,
         status: tab === "all" ? "all" : tab,
         page: targetPage,
         limit,
@@ -92,9 +83,11 @@ export default function WatchListPage() {
     const tTimer = window.setInterval(refresh, 10_000);
     return () => window.clearInterval(tTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, tag, tab]);
+  }, [q, tagsKey, tab]);
 
   const hasLives = lives.length > 0;
+  // A search, a tag or a status tab narrows the list: "nothing found" then differs from "no live yet".
+  const isFiltered = q.trim() !== "" || tags.length > 0 || tab !== "all";
 
   const livesByTag = useMemo(() => {
     const map = new Map<string, LiveDTO[]>();
@@ -123,15 +116,10 @@ export default function WatchListPage() {
     <div className="min-h-screen">
       <div className="mx-auto w-full max-w-7xl px-6 py-8 md:py-10">
         <div className="space-y-8">
-          <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/70 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/58 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-8">
+          <section className="overflow-hidden rounded-[34px] border border-black/8 bg-white/70 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/58 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
-                  <Radio className="h-4 w-4" aria-hidden="true" />
-                  {t("watch.catalogBadge")}
-                </div>
-
-                <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 md:text-4xl">
+                <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-50 md:text-4xl">
                   {t("watch.heroTitle")}
                 </h1>
 
@@ -145,7 +133,7 @@ export default function WatchListPage() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="relative min-w-0 flex-1">
                   <Search
-                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 dark:text-[#f5ede0]/70"
                     aria-hidden="true"
                   />
 
@@ -155,12 +143,12 @@ export default function WatchListPage() {
                     placeholder={t("watch.searchPlaceholder")}
                     aria-label={t("watch.searchAria")}
                     type="search"
-                    className="h-12 w-full rounded-2xl border border-black/8 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                    className="h-12 w-full rounded-2xl border border-black/15 bg-white shadow-sm pl-11 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/40 dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none dark:placeholder:text-[#f5ede0]/55"
                   />
                 </div>
 
                 <div
-                  className="flex overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  className="flex overflow-hidden rounded-2xl border border-black/15 bg-white shadow-sm dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:shadow-none"
                   aria-label={t("watch.filterStatusAria")}
                 >
                   {tabs.map((item, index) => {
@@ -178,7 +166,7 @@ export default function WatchListPage() {
                             ? "border-l border-black/8 dark:border-white/10"
                             : "",
                           active
-                            ? "text-white"
+                            ? "text-[#1a0f05]"
                             : "text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-300 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
                         ].join(" ")}
                         style={
@@ -191,32 +179,24 @@ export default function WatchListPage() {
                     );
                   })}
                 </div>
-              </div>
 
-              <div
-                className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10"
-                aria-label={t("watch.filterCategoryAria")}
-              >
-                {TAGS.map((item) => {
-                  const active = tag === item;
-
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setTag(item)}
-                      aria-pressed={active}
-                      className={[
-                        "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                        active
-                          ? "bg-orange-500 text-white shadow-sm"
-                          : "bg-white text-gray-700 ring-1 ring-black/5 hover:bg-orange-50 hover:text-orange-700 dark:bg-white/5 dark:text-gray-200 dark:ring-white/10 dark:hover:bg-orange-500/10 dark:hover:text-orange-300",
-                      ].join(" ")}
-                    >
-                      {item === "Tout" ? t("replays.tagAll") : item}
-                    </button>
-                  );
-                })}
+                <div className="shrink-0">
+                  <HomeFiltersSelect
+                    iconOnly
+                    label={t("home.hero.filters")}
+                    description={t("home.hero.filtersDescription")}
+                    closeLabel={t("home.hero.closeFilters")}
+                    resetLabel={t("home.hero.resetFilters")}
+                    applyLabel={t("home.hero.applyFilters")}
+                    value={tags}
+                    groups={TAG_GROUPS.map((group) => ({
+                      label: t(group.titleKey),
+                      icon: group.icon,
+                      tags: group.tags,
+                    }))}
+                    onChange={setTags}
+                  />
+                </div>
               </div>
             </div>
           </section>
@@ -245,7 +225,7 @@ export default function WatchListPage() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60"
+                  className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60"
                 >
                   <div className="h-44 animate-pulse bg-black/[0.05] dark:bg-white/10" />
                   <div className="space-y-3 p-5">
@@ -257,19 +237,19 @@ export default function WatchListPage() {
               ))}
             </section>
           ) : !error && !hasLives ? (
-            <section className="rounded-[28px] border border-black/8 bg-white/72 p-10 text-center shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#120b05]/60">
-              <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200">
-                <Video className="h-8 w-8" aria-hidden="true" />
-              </div>
+            isFiltered ? (
+              <section className="rounded-[28px] border border-black/8 bg-white/72 p-10 text-center shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60">
+                <h2 className="font-display text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+                  {t("watch.emptyTitle")}
+                </h2>
 
-              <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-                {t("watch.emptyTitle")}
-              </h2>
-
-              <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-gray-600 dark:text-gray-400">
-                {t("watch.emptyDesc")}
-              </p>
-            </section>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-gray-600 dark:text-gray-400">
+                  {t("watch.emptyDesc")}
+                </p>
+              </section>
+            ) : (
+              <GoLiveIncentive />
+            )
           ) : (
             <div className="space-y-10">
               {livesByTag.map((section) => (
@@ -277,6 +257,10 @@ export default function WatchListPage() {
                   key={section.tagName}
                   tagName={section.tagName}
                   lives={section.lives}
+                  onDeleted={(deleted) => {
+                    setLives((prev) => prev.filter((l) => l.id !== deleted.id));
+                    setTotal((prev) => Math.max(0, prev - 1));
+                  }}
                 />
               ))}
             </div>
@@ -288,7 +272,7 @@ export default function WatchListPage() {
                 type="button"
                 onClick={() => setPage((prev) => prev + 1)}
                 disabled={loading}
-                className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-white shadow-[0_10px_30px_rgba(249,115,22,0.25)] transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? t("common.loading") : t("watch.loadMore")}
               </button>
