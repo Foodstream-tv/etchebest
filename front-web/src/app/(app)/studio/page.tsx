@@ -12,6 +12,7 @@ import {
   Upload,
   X,
   ChevronDown,
+  ChevronUp,
   Plus,
   Sparkles,
   ArrowRight,
@@ -26,63 +27,17 @@ import { parseIngredient } from "@/lib/ingredient";
 import HomeFooter from "@/components/home/HomeFooter";
 import Field from "@/components/studio/Field";
 import Chip from "@/components/studio/Chip";
+import NumberStepper from "@/components/studio/NumberStepper";
+import FormProgress from "@/components/studio/FormProgress";
+import { getUtensilEmoji, UTENSIL_PRESETS } from "@/lib/utensils";
 import StudioPreviewCard from "@/components/studio/StudioPreviewCard";
 import { useI18n } from "@/i18n/LanguageContext";
 
 type Level = "Débutant" | "Intermédiaire" | "Avancé";
 type Visibility = "Public" | "Non listé" | "Privé";
 
-const TAG_GROUPS = [
-  {
-    title: "Cuisine",
-    tags: [
-      "Asiatique",
-      "Africain",
-      "Américain",
-      "Européen",
-      "Français",
-      "Italien",
-      "Mexicain",
-      "Japonais",
-      "Coréen",
-      "Chinois",
-      "Indien",
-      "Méditerranéen",
-    ],
-  },
-  {
-    title: "Type de plat",
-    tags: [
-      "Pâtisserie",
-      "Dessert",
-      "Végétarien",
-      "Vegan",
-      "Healthy",
-      "Street food",
-      "BBQ",
-      "Petit-déjeuner",
-      "Apéro",
-      "Plat familial",
-      "Snack",
-      "Boisson",
-    ],
-  },
-  {
-    title: "Format du live",
-    tags: [
-      "Recette rapide",
-      "Pas à pas",
-      "Débutant friendly",
-      "Meal prep",
-      "Batch cooking",
-      "Challenge",
-      "Cuisine économique",
-      "Sans four",
-      "Air fryer",
-      "Fait maison",
-    ],
-  },
-];
+/** Utensil tiles shown before "show more" (the last slot is the + tile). */
+const UTENSILS_VISIBLE = 10;
 
 type CreateRoomRes = { roomId: string };
 type UploadImageRes = { url: string };
@@ -92,12 +47,12 @@ export default function StudioPage() {
   const router = useRouter();
   const { t } = useI18n();
 
-  // Stepper state: 1: Source & Infos, 2: Recette & Étapes, 3: Média & Diffusion
+  // Stepper state: 1: Source & Infos (+ recipe times), 2: Recette & Étapes, 3: Média & Diffusion.
+  // Tags are not asked here: they are optional and added later from the live room (see LiveDetailsCard).
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
-  const [tags, setTags] = useState<string[]>(["Asiatique"]);
   const [level, setLevel] = useState<Level>("Débutant");
 
   const [date, setDate] = useState<string>(() => {
@@ -116,6 +71,8 @@ export default function StudioPage() {
   });
 
   const [duration, setDuration] = useState<number>(60);
+  // Date/time pickers only appear once the streamer presses "Planifier le live".
+  const [showSchedule, setShowSchedule] = useState(false);
   const [visibility] = useState<Visibility>("Public");
   const [imageUrl, setImageUrl] = useState<string>("");
 
@@ -137,8 +94,6 @@ export default function StudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [endingLive, setEndingLive] = useState(false);
 
-  const [openTagGroup, setOpenTagGroup] = useState<string>("Cuisine");
-  const [customTag, setCustomTag] = useState("");
 
   // Custom Recipe states
   const [ingredients, setIngredients] = useState<{ name: string; qty: string }[]>([]);
@@ -184,6 +139,7 @@ export default function StudioPage() {
 
   const [utensils, setUtensils] = useState<string[]>([]);
   const [newUtensil, setNewUtensil] = useState("");
+  const [showAllUtensils, setShowAllUtensils] = useState(false);
 
   const [marmitonUrl, setMarmitonUrl] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -210,6 +166,12 @@ export default function StudioPage() {
       setUtensils((prev) => [...prev, cleaned]);
     }
     setNewUtensil("");
+  };
+
+  const togglePresetUtensil = (label: string) => {
+    setUtensils((prev) =>
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
+    );
   };
 
   const removeUtensil = (index: number) => {
@@ -336,8 +298,8 @@ export default function StudioPage() {
   const previewTitle = title.trim() || "Ramen Tonkotsu en 30 minutes";
 
   const previewTags = useMemo(
-    () => [...tags.slice(0, 3), level],
-    [tags, level]
+    () => [level],
+    [level]
   );
 
   const isSafeThumbnailPreviewUrl = (value: string): boolean => {
@@ -372,31 +334,23 @@ export default function StudioPage() {
     ? safeThumbnailPreview
     : isSafeRemoteImageUrl(imageUrl)
       ? imageUrl.trim()
-      : "/images/live-fallback.png";
+      : "";
+
+  const completionChecks = [
+    title.trim().length > 0,
+    desc.trim().length > 0,
+    Boolean(thumbnailFile) || imageUrl.trim().length > 0,
+    ingredients.length > 0,
+    prepSteps.length > 0,
+    utensils.length > 0,
+    cookingTimer > 0,
+  ];
+  const completionPercent = Math.round(
+    (completionChecks.filter(Boolean).length / completionChecks.length) * 100
+  );
 
   const canCreate = title.trim().length > 0;
   const canSchedule = canCreate && !!date && !!time;
-
-  const toggleTag = (tag: string) => {
-    setTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((item) => item !== tag)
-        : [...prev, tag]
-    );
-  };
-
-  const addCustomTag = () => {
-    const cleaned = customTag.trim();
-    if (!cleaned) return;
-
-    if (tags.includes(cleaned)) {
-      setCustomTag("");
-      return;
-    }
-
-    setTags((prev) => [...prev, cleaned]);
-    setCustomTag("");
-  };
 
   const buildScheduledAt = (): string | null => {
     if (!date || !time) return null;
@@ -405,6 +359,22 @@ export default function StudioPage() {
     if (Number.isNaN(dt.getTime())) return null;
 
     return dt.toISOString();
+  };
+
+  const openSchedule = () => {
+    // Suggest "in one hour, rounded up to 5 minutes" instead of the (already past) current time.
+    const next = new Date(Date.now() + 60 * 60 * 1000);
+    next.setMinutes(Math.ceil(next.getMinutes() / 5) * 5, 0, 0);
+
+    const yyyy = next.getFullYear();
+    const mm = String(next.getMonth() + 1).padStart(2, "0");
+    const dd = String(next.getDate()).padStart(2, "0");
+    const hh = String(next.getHours()).padStart(2, "0");
+    const min = String(next.getMinutes()).padStart(2, "0");
+
+    setDate(`${yyyy}-${mm}-${dd}`);
+    setTime(`${hh}:${min}`);
+    setShowSchedule(true);
   };
 
   const appendDescriptionHint = (hint: string) => {
@@ -504,7 +474,7 @@ export default function StudioPage() {
       name: roomName,
       title: roomName,
       description: finalDescription,
-      tags,
+      tags: [],
       level,
       durationMinutes: duration,
       visibility,
@@ -629,52 +599,34 @@ export default function StudioPage() {
       <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-10">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* Main Form Column */}
-          <section className="rounded-[32px] border border-black/8 bg-white/72 p-5 text-gray-900 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md md:p-7 dark:border-white/10 dark:bg-[#120b05]/60 dark:text-gray-100 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+          <section className="rounded-[32px] border border-black/8 bg-white/72 p-5 text-gray-900 shadow-[0_20px_60px_rgba(0,0,0,0.05)] backdrop-blur-md md:p-7 dark:border-white/10 dark:bg-[#1f1712]/60 dark:text-gray-100 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             {/* Header */}
             <div className="mb-6 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-orange-500 shadow-[0_10px_24px_rgba(249,115,22,0.28)]">
-                  <Radio aria-hidden="true" className="h-5 w-5 text-white" />
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-orange-500 shadow-sm">
+                  <Radio aria-hidden="true" className="h-5 w-5 text-[#1a0f05]" />
                 </div>
 
-                <div className="leading-tight">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-500 dark:text-orange-400">
-                    Foodstream Studio
-                  </p>
-
-                  <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-                    {t("studio.info.title")}
-                  </h1>
-                </div>
+                <h1 className="font-display text-2xl font-semibold tracking-tight">
+                  {t("studio.info.title")}
+                </h1>
               </div>
-
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
-                {t("cook.step", { step: activeStep, total: 3 })}
-              </span>
             </div>
 
             {/* Stepper Navigation */}
+            <div className="mb-4">
+              <FormProgress percent={completionPercent} />
+            </div>
+
             <nav
               aria-label={t("studio.steps.step1")}
               className="mb-8 overflow-hidden rounded-2xl border border-black/8 bg-white/80 p-1.5 dark:border-white/10 dark:bg-white/[0.03]"
             >
               <div className="grid grid-cols-3 gap-1.5">
                 {[
-                  {
-                    step: 1 as const,
-                    label: t("studio.steps.step1"),
-                    desc: "Marmiton & Titre",
-                  },
-                  {
-                    step: 2 as const,
-                    label: t("studio.steps.step2"),
-                    desc: "Ingrédients & Détails",
-                  },
-                  {
-                    step: 3 as const,
-                    label: t("studio.steps.step3"),
-                    desc: "Miniature & Diffusion",
-                  },
+                  { step: 1 as const, label: t("studio.wizard.info") },
+                  { step: 2 as const, label: t("studio.wizard.recipe") },
+                  { step: 3 as const, label: t("studio.wizard.media") },
                 ].map((item) => {
                   const isCurrent = activeStep === item.step;
                   const isDone = activeStep > item.step;
@@ -686,7 +638,7 @@ export default function StudioPage() {
                       onClick={() => setActiveStep(item.step)}
                       className={`flex flex-col items-center sm:items-start rounded-xl px-2.5 py-2 sm:px-3 sm:py-2.5 text-left transition ${
                         isCurrent
-                          ? "bg-orange-500 text-white shadow-sm"
+                          ? "bg-orange-500 text-[#1a0f05] shadow-sm"
                           : isDone
                           ? "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-300 hover:bg-orange-500/15"
                           : "text-gray-500 hover:bg-black/[0.03] dark:text-white/50 dark:hover:bg-white/5"
@@ -718,12 +670,12 @@ export default function StudioPage() {
 
             {/* STEP 1: Source & Informations de base */}
             {activeStep === 1 && (
-              <div className="space-y-6">
+              <div key="step-1" className="fs-rise space-y-6">
                 {/* Marmiton Import Option - PROMINENT AT TOP */}
                 <div className="rounded-[28px] border-2 border-dashed border-orange-500/35 bg-gradient-to-br from-orange-500/[0.06] to-transparent p-5 dark:border-orange-500/30 dark:from-orange-500/[0.08]">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-500 text-white shadow-sm">
+                      <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-500 text-[#1a0f05] shadow-sm">
                         <Sparkles className="h-4 w-4" />
                       </div>
                       <h2 className="text-base font-bold text-gray-900 dark:text-white">
@@ -742,13 +694,13 @@ export default function StudioPage() {
                       value={marmitonUrl}
                       onChange={(e) => setMarmitonUrl(e.target.value)}
                       placeholder={t("studio.marmiton.placeholder")}
-                      className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35"
+                      className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white dark:placeholder:text-white/35"
                     />
                     <button
                       type="button"
                       onClick={importMarmitonRecipe}
                       disabled={importing || !marmitonUrl.trim()}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50 shrink-0"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-400 disabled:opacity-50 shrink-0"
                     >
                       {importing ? (
                         <>
@@ -779,7 +731,7 @@ export default function StudioPage() {
                     </div>
                   )}
 
-                  <p className="mt-3 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+                  <p className="mt-3 text-[0.6875rem] leading-relaxed text-gray-400 dark:text-gray-500">
                     ℹ️ {t("studio.marmiton.disclaimer")}
                   </p>
                 </div>
@@ -847,7 +799,7 @@ export default function StudioPage() {
                     </div>
                     <input
                       aria-label={t("studio.info.liveTitle")}
-                      className="w-full rounded-xl border border-black/8 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 md:text-lg dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
+                      className="w-full rounded-xl border border-black/8 bg-white px-4 py-3 text-base font-semibold text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 md:text-lg dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
                       placeholder={t("studio.info.liveTitlePlaceholder")}
                       value={title}
                       maxLength={100}
@@ -856,105 +808,8 @@ export default function StudioPage() {
                   </div>
                 </Field>
 
-                {/* Tags & Level in 2 columns */}
-                <div className="grid gap-5 md:grid-cols-2">
-                  <Field label={t("studio.info.tags")}>
-                    <div className="rounded-2xl border border-black/8 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-                      <div className="mb-3 flex flex-wrap gap-2">
-                        {tags.length === 0 ? (
-                          <span className="text-xs text-gray-400 dark:text-white/35">
-                            {t("studio.info.tags")}
-                          </span>
-                        ) : (
-                          tags.map((tag) => (
-                            <Chip
-                              key={tag}
-                              active
-                              onClick={() => toggleTag(tag)}
-                              label={tag}
-                            />
-                          ))
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        {TAG_GROUPS.map((group) => {
-                          const open = openTagGroup === group.title;
-                          const panelId = `tag-group-${group.title
-                            .toLowerCase()
-                            .replace(/\s+/g, "-")}`;
-
-                          return (
-                            <div
-                              key={group.title}
-                              className="rounded-xl border border-black/5 bg-white/70 dark:border-white/10 dark:bg-white/[0.03]"
-                            >
-                              <button
-                                type="button"
-                                aria-expanded={open}
-                                aria-controls={panelId}
-                                onClick={() =>
-                                  setOpenTagGroup(open ? "" : group.title)
-                                }
-                                className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-white/45"
-                              >
-                                {group.title}
-
-                                <ChevronDown
-                                  aria-hidden="true"
-                                  className={`h-4 w-4 transition ${
-                                    open ? "rotate-180" : ""
-                                  }`}
-                                />
-                              </button>
-
-                              {open ? (
-                                <div
-                                  id={panelId}
-                                  className="flex flex-wrap gap-2 border-t border-black/5 px-3 py-3 dark:border-white/10"
-                                >
-                                  {group.tags.map((tag) => (
-                                    <Chip
-                                      key={tag}
-                                      active={tags.includes(tag)}
-                                      onClick={() => toggleTag(tag)}
-                                      label={tag}
-                                    />
-                                  ))}
-                                </div>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="mt-3 flex gap-2">
-                        <input
-                          aria-label={t("studio.info.addTag")}
-                          value={customTag}
-                          onChange={(e) => setCustomTag(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              addCustomTag();
-                            }
-                          }}
-                          placeholder={t("studio.info.addTag")}
-                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={addCustomTag}
-                          className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
-                        >
-                          <Plus aria-hidden="true" className="h-4 w-4" />
-                          {t("studio.info.addTagBtn")}
-                        </button>
-                      </div>
-                    </div>
-                  </Field>
-
+                {/* Level */}
+                <div>
                   <Field label={t("studio.info.level")}>
                     <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04] space-y-3">
                       <p className="text-xs text-gray-500 dark:text-white/45">
@@ -982,12 +837,58 @@ export default function StudioPage() {
                   </Field>
                 </div>
 
+                {/* Recipe times: prep, rest and cooking timer */}
+                <div className="grid gap-5">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <Field label={t("studio.recipe.prepTime")}>
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60 flex items-center justify-center">
+                      <NumberStepper
+                      value={prepTime}
+                      onChange={setPrepTime}
+                      min={0}
+                      step={5}
+                      ariaLabel={t("studio.recipe.prepTime")}
+                      emptyWhenZero
+                    />
+                    </div>
+                  </Field>
+
+                  <Field label={t("studio.recipe.restTime")}>
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60 flex items-center justify-center">
+                      <NumberStepper
+                      value={restTime}
+                      onChange={setRestTime}
+                      min={0}
+                      step={5}
+                      ariaLabel={t("studio.recipe.restTime")}
+                      emptyWhenZero
+                    />
+                    </div>
+                  </Field>
+                </div>
+
+                <Field label={t("studio.recipe.cookTime")}>
+                  <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60 flex items-center justify-center">
+                    <NumberStepper
+                      value={cookingTimer}
+                      onChange={setCookingTimer}
+                      min={0}
+                      max={180}
+                      step={5}
+                      ariaLabel={t("studio.recipe.cookTime")}
+                      emptyWhenZero
+                    />
+                  </div>
+                </Field>
+
+                </div>
+
                 {/* Step 1 Navigation */}
                 <div className="flex justify-end pt-4 border-t border-black/5 dark:border-white/5">
                   <button
                     type="button"
                     onClick={() => setActiveStep(2)}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.25)] transition hover:bg-orange-400"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400"
                   >
                     <span>{t("studio.steps.next")}</span>
                     <ArrowRight className="h-4 w-4" />
@@ -998,7 +899,7 @@ export default function StudioPage() {
 
             {/* STEP 2: Recette & Description */}
             {activeStep === 2 && (
-              <div className="space-y-6">
+              <div key="step-2" className="fs-rise space-y-6">
                 {/* Description with strict 500 limit */}
                 <Field label={t("studio.info.desc")}>
                   <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1023,7 +924,7 @@ export default function StudioPage() {
 
                     <textarea
                       aria-label={t("studio.info.desc")}
-                      className="w-full min-h-[160px] resize-y rounded-xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
+                      className="w-full min-h-[160px] resize-y rounded-xl border border-black/8 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white dark:placeholder:text-white/35 dark:focus:border-orange-400 dark:focus:ring-orange-500/20"
                       placeholder={t("studio.info.descPlaceholder")}
                       value={desc}
                       maxLength={500}
@@ -1084,14 +985,14 @@ export default function StudioPage() {
 
                   {/* Ingredients Section */}
                   <Field label={t("studio.recipe.ingredients")}>
-                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60">
                       <div className="flex gap-2">
                         <input
                           aria-label={t("studio.recipe.ingredients")}
                           value={newIngName}
                           onChange={(e) => setNewIngName(e.target.value)}
                           placeholder={t("studio.recipe.ingNamePlaceholder")}
-                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
@@ -1104,7 +1005,7 @@ export default function StudioPage() {
                           value={newIngQty}
                           onChange={(e) => setNewIngQty(e.target.value)}
                           placeholder={t("studio.recipe.ingQtyPlaceholder")}
-                          className="w-28 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          className="w-28 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
@@ -1115,7 +1016,7 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={addIngredient}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-[#1a0f05] transition hover:bg-orange-400 shrink-0"
                           title={t("studio.recipe.addIngredient")}
                         >
                           <Plus className="h-4 w-4" />
@@ -1127,7 +1028,7 @@ export default function StudioPage() {
                           {ingredients.map((ing, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center gap-1.5 rounded-full bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400"
+                              className="fs-pop flex items-center gap-1.5 rounded-full bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400"
                             >
                               <span>
                                 {ing.name} ({ing.qty})
@@ -1150,7 +1051,7 @@ export default function StudioPage() {
 
                   {/* Preparation Steps Section */}
                   <Field label={t("studio.recipe.steps")}>
-                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60">
                       {prepSteps.length > 0 && (
                         <div className="mb-3 flex items-center gap-2 rounded-xl bg-orange-500/[0.07] px-3 py-2 text-xs text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">
                           <span>💡</span>
@@ -1166,7 +1067,7 @@ export default function StudioPage() {
                           value={newPrepStep}
                           onChange={(e) => setNewPrepStep(e.target.value)}
                           placeholder={t("studio.recipe.stepPlaceholder")}
-                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
@@ -1177,7 +1078,7 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={addPrepStep}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-[#1a0f05] transition hover:bg-orange-400 shrink-0"
                           title={t("studio.recipe.addStep")}
                         >
                           <Plus className="h-4 w-4" />
@@ -1189,7 +1090,7 @@ export default function StudioPage() {
                           {prepSteps.map((step, idx) => (
                             <li
                               key={idx}
-                              className="rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
+                              className="fs-rise rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
                             >
                               {editingPrepStepIdx === idx ? (
                                 <div className="space-y-2">
@@ -1197,20 +1098,20 @@ export default function StudioPage() {
                                     value={editingPrepStepText}
                                     onChange={(e) => setEditingPrepStepText(e.target.value)}
                                     rows={2}
-                                    className="w-full rounded-lg border border-orange-400/40 bg-white p-2 text-xs text-gray-900 outline-none focus:border-orange-500 dark:bg-[#120b05] dark:text-white"
+                                    className="w-full rounded-lg border border-orange-400/40 bg-white p-2 text-xs text-gray-900 outline-none focus:border-orange-500 dark:bg-[#1f1712] dark:text-white"
                                   />
                                   <div className="flex justify-end gap-1.5">
                                     <button
                                       type="button"
                                       onClick={cancelEditPrepStep}
-                                      className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-gray-500 hover:bg-black/5 dark:hover:bg-white/10"
+                                      className="rounded-lg px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 hover:bg-black/5 dark:hover:bg-white/10"
                                     >
                                       {t("studio.recipe.cancelEdit")}
                                     </button>
                                     <button
                                       type="button"
                                       onClick={saveEditPrepStep}
-                                      className="rounded-lg bg-orange-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-orange-400"
+                                      className="rounded-lg bg-orange-500 px-3 py-1 text-[0.6875rem] font-semibold text-[#1a0f05] hover:bg-orange-400"
                                     >
                                       {t("studio.recipe.saveStep")}
                                     </button>
@@ -1250,85 +1151,121 @@ export default function StudioPage() {
                     </div>
                   </Field>
 
-                  {/* Durations Section */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label={t("studio.recipe.prepTime")}>
-                      <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
-                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                          {t("studio.recipe.prepTime")} :
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            value={prepTime === 0 ? "" : prepTime}
-                            onChange={(e) => setPrepTime(Number(e.target.value))}
-                            placeholder="0"
-                            className="w-20 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                          />
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
-                            min
-                          </span>
-                        </div>
-                      </div>
-                    </Field>
-
-                    <Field label={t("studio.recipe.restTime")}>
-                      <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
-                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                          {t("studio.recipe.restTime")} :
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            value={restTime === 0 ? "" : restTime}
-                            onChange={(e) => setRestTime(Number(e.target.value))}
-                            placeholder="0"
-                            className="w-20 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                          />
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
-                            min
-                          </span>
-                        </div>
-                      </div>
-                    </Field>
-                  </div>
-
                   {/* Utensils Section */}
                   <Field label={t("studio.recipe.utensils")}>
-                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60">
                       <div className="flex gap-2">
-                        <input
-                          aria-label={t("studio.recipe.utensils")}
-                          value={newUtensil}
-                          onChange={(e) => setNewUtensil(e.target.value)}
-                          placeholder={t("studio.recipe.utensilPlaceholder")}
-                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              addUtensil();
-                            }
-                          }}
-                        />
+                        <div className="fs-field flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-black/8 bg-white px-3 focus-within:border-orange-400 dark:border-white/10 dark:bg-[#1f1712]/80">
+                          {/* pictogram of what is being typed; remounts (and pops) when it changes */}
+                          <span
+                            key={newUtensil.trim() ? getUtensilEmoji(newUtensil) : "idle"}
+                            aria-hidden="true"
+                            className="fs-pop text-xl leading-none"
+                          >
+                            {newUtensil.trim() ? getUtensilEmoji(newUtensil) : "🍽️"}
+                          </span>
+
+                          <input
+                            aria-label={t("studio.recipe.utensils")}
+                            value={newUtensil}
+                            onChange={(e) => setNewUtensil(e.target.value)}
+                            placeholder={t("studio.recipe.utensilPlaceholder")}
+                            className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none placeholder:text-gray-400 dark:text-white"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addUtensil();
+                              }
+                            }}
+                          />
+                        </div>
+
                         <button
                           type="button"
                           onClick={addUtensil}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-orange-500 text-[#1a0f05] transition hover:bg-orange-400 active:scale-90 shrink-0"
                           title={t("studio.recipe.addUtensil")}
+                          aria-label={t("studio.recipe.addUtensil")}
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-5 w-5" />
                         </button>
                       </div>
 
+                      <div className="mt-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                          {t("studio.recipe.utensilQuickAdd")}
+                        </p>
+
+                        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+                          {(showAllUtensils
+                            ? UTENSIL_PRESETS
+                            : UTENSIL_PRESETS.slice(0, UTENSILS_VISIBLE - 1)
+                          ).map((preset) => {
+                            const label = t(preset.labelKey);
+                            const selected = utensils.includes(label);
+
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() => togglePresetUtensil(label)}
+                                className={`relative flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-2 text-center transition active:scale-95 ${
+                                  selected
+                                    ? "border-orange-500 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-200"
+                                    : "border-black/8 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50/60 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:border-orange-400/50"
+                                }`}
+                              >
+                                <span aria-hidden="true" className="text-4xl leading-none">
+                                  {preset.emoji}
+                                </span>
+                                <span className="text-xs font-semibold leading-tight">{label}</span>
+                                {selected ? (
+                                  <span
+                                    aria-hidden="true"
+                                    className="fs-pop absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-orange-500 text-[#1a0f05]"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={() => setShowAllUtensils((value) => !value)}
+                            aria-expanded={showAllUtensils}
+                            aria-label={
+                              showAllUtensils
+                                ? t("utensils.showLess")
+                                : t("utensils.showMore", { count: UTENSIL_PRESETS.length - (UTENSILS_VISIBLE - 1) })
+                            }
+                            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-gray-300 text-gray-600 transition hover:border-orange-400 hover:text-orange-700 active:scale-95 dark:border-white/20 dark:text-gray-300 dark:hover:border-orange-400"
+                          >
+                            {showAllUtensils ? (
+                              <>
+                                <ChevronUp aria-hidden="true" className="h-7 w-7" />
+                                <span className="text-xs font-semibold">{t("utensils.lessLabel")}</span>
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown aria-hidden="true" className="h-7 w-7" />
+                                <span className="text-xs font-semibold">{t("utensils.moreLabel")}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
                       {utensils.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-4 flex flex-wrap gap-2 border-t border-black/5 pt-3 dark:border-white/10">
                           {utensils.map((ut, idx) => (
                             <div
-                              key={idx}
-                              className="flex items-center gap-1.5 rounded-full bg-gray-200 dark:bg-white/10 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200"
+                              key={`${ut}-${idx}`}
+                              className="fs-pop flex items-center gap-1.5 rounded-full bg-gray-200 dark:bg-white/10 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200"
                             >
+                              <span aria-hidden="true">{getUtensilEmoji(ut)}</span>
                               <span>{ut}</span>
                               <button
                                 type="button"
@@ -1346,39 +1283,16 @@ export default function StudioPage() {
                     </div>
                   </Field>
 
-                  {/* Cooking Timer Section */}
-                  <Field label={t("studio.recipe.cookTime")}>
-                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60 flex items-center justify-between gap-4">
-                      <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                        {t("studio.recipe.cookTime")} :
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          max={180}
-                          value={cookingTimer === 0 ? "" : cookingTimer}
-                          onChange={(e) => setCookingTimer(Number(e.target.value))}
-                          placeholder="0"
-                          className="w-24 text-center rounded-xl border border-black/8 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
-                        />
-                        <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">
-                          min
-                        </span>
-                      </div>
-                    </div>
-                  </Field>
-
                   {/* Plating Steps Section */}
                   <Field label={t("studio.recipe.plating")}>
-                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#120b05]/60">
+                    <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-[#1f1712]/60">
                       <div className="flex gap-2">
                         <input
                           aria-label={t("studio.recipe.plating")}
                           value={newPlatingStep}
                           onChange={(e) => setNewPlatingStep(e.target.value)}
                           placeholder={t("studio.recipe.platingPlaceholder")}
-                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#120b05]/80 dark:text-white"
+                          className="min-w-0 flex-1 rounded-xl border border-black/8 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-300/30 dark:border-white/10 dark:bg-[#1f1712]/80 dark:text-white"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
@@ -1389,7 +1303,7 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={addPlatingStep}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-400 shrink-0"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-[#1a0f05] transition hover:bg-orange-400 shrink-0"
                           title={t("studio.recipe.addPlating")}
                         >
                           <Plus className="h-4 w-4" />
@@ -1401,7 +1315,7 @@ export default function StudioPage() {
                           {platingSteps.map((step, idx) => (
                             <li
                               key={idx}
-                              className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
+                              className="fs-rise flex items-center justify-between gap-3 rounded-xl bg-black/[0.02] p-2.5 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-200"
                             >
                               <span className="font-semibold">
                                 {idx + 1}. {step}
@@ -1437,7 +1351,7 @@ export default function StudioPage() {
                   <button
                     type="button"
                     onClick={() => setActiveStep(3)}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(249,115,22,0.25)] transition hover:bg-orange-400"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400"
                   >
                     <span>{t("studio.steps.next")}</span>
                     <ArrowRight className="h-4 w-4" />
@@ -1448,7 +1362,7 @@ export default function StudioPage() {
 
             {/* STEP 3: Média & Diffusion */}
             {activeStep === 3 && (
-              <div className="space-y-6">
+              <div key="step-3" className="fs-rise space-y-6">
                 {/* Thumbnail upload with crash-proof preview & safe API */}
                 <Field label={t("studio.broadcast.thumbnail")}>
                   <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1459,7 +1373,7 @@ export default function StudioPage() {
 
                     <div className="space-y-4">
                       {/* File upload zone */}
-                      <div className="rounded-xl border border-dashed border-black/10 bg-white p-4 dark:border-white/10 dark:bg-[#120b05]/80">
+                      <div className="rounded-xl border border-dashed border-black/10 bg-white p-4 dark:border-white/10 dark:bg-[#1f1712]/80">
                         <input
                           id="thumbnail-file"
                           type="file"
@@ -1470,7 +1384,7 @@ export default function StudioPage() {
 
                         <label
                           htmlFor="thumbnail-file"
-                          className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400"
+                          className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-[#1a0f05] transition hover:bg-orange-400"
                         >
                           <Upload aria-hidden="true" className="h-4 w-4" />
                           {t("studio.broadcast.chooseImageDevice")}
@@ -1518,7 +1432,7 @@ export default function StudioPage() {
                         <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/45">
                           {t("studio.broadcast.orPasteUrl")}
                         </label>
-                        <div className="flex items-center gap-3 rounded-xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#120b05]/80">
+                        <div className="flex items-center gap-3 rounded-xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#1f1712]/80">
                           <ImageIcon
                             aria-hidden="true"
                             className="h-5 w-5 shrink-0 text-gray-400 dark:text-white/40"
@@ -1552,7 +1466,12 @@ export default function StudioPage() {
                   </div>
                 </Field>
 
-                {/* Date & Time */}
+                {/* Date & Time: revealed once the streamer chooses to schedule */}
+                {showSchedule && (
+                <div className="fs-slide-down space-y-3 rounded-2xl border border-orange-200/70 bg-orange-50/60 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  {t("studio.broadcast.scheduleHint")}
+                </p>
                 <div className="grid gap-5 md:grid-cols-2">
                   <Field label={t("studio.broadcast.dateField")}>
                     <div className="flex w-full items-center gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1588,16 +1507,23 @@ export default function StudioPage() {
                     </div>
                   </Field>
                 </div>
+                </div>
+                )}
 
                 {/* Duration */}
                 <Field label={t("studio.broadcast.durationField")}>
                   <div className="rounded-2xl border border-black/8 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-sm font-semibold">{t("studio.broadcast.plannedDuration")}</span>
+                    <div className="mb-4 space-y-2.5">
+                      <span className="block text-sm font-semibold">{t("studio.broadcast.plannedDuration")}</span>
 
-                      <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-gray-900 ring-1 ring-black/5 dark:bg-[#120b05]/80 dark:text-white dark:ring-white/10">
-                        {duration} min
-                      </span>
+                      <NumberStepper
+                        value={duration}
+                        onChange={setDuration}
+                        min={10}
+                        max={180}
+                        step={5}
+                        ariaLabel={t("studio.broadcast.durationAria")}
+                      />
                     </div>
 
                     <input
@@ -1666,17 +1592,34 @@ export default function StudioPage() {
 
                     <button
                       type="button"
-                      onClick={onSchedule}
-                      disabled={status !== "idle" || !canSchedule}
-                      className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition hover:bg-orange-400 disabled:opacity-50"
+                      onClick={showSchedule ? onSchedule : openSchedule}
+                      disabled={
+                        status !== "idle" ||
+                        !canCreate ||
+                        (showSchedule && !canSchedule)
+                      }
+                      className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-[#1a0f05] shadow-sm transition hover:bg-orange-400 disabled:opacity-50"
                       title={
-                        canSchedule
+                        canCreate
                           ? undefined
                           : t("studio.broadcast.scheduleTooltip")
                       }
                     >
-                      {t("studio.broadcast.scheduleBtn")}
+                      {showSchedule
+                        ? t("studio.broadcast.scheduleConfirm")
+                        : t("studio.broadcast.scheduleBtn")}
                     </button>
+
+                    {showSchedule && (
+                      <button
+                        type="button"
+                        onClick={() => setShowSchedule(false)}
+                        disabled={status !== "idle"}
+                        className="rounded-2xl px-3 py-3 text-sm font-semibold text-gray-600 transition hover:text-orange-600 disabled:opacity-50 dark:text-gray-300 dark:hover:text-orange-300"
+                      >
+                        {t("studio.broadcast.scheduleCancel")}
+                      </button>
+                    )}
 
                     <button
                       type="button"
