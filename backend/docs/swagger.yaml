@@ -1,5 +1,165 @@
 basePath: /
 definitions:
+  account.ActivityExport:
+    properties:
+      actorId:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      text:
+        type: string
+      type:
+        type: string
+      userId:
+        type: string
+    type: object
+  account.ChatExport:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      roomId:
+        type: string
+    type: object
+  account.ConsentExport:
+    properties:
+      consentedAt:
+        type: string
+      roomId:
+        type: string
+    type: object
+  account.Export:
+    properties:
+      actionsPerformed:
+        items:
+          $ref: '#/definitions/account.ActivityExport'
+        type: array
+      chatMessages:
+        items:
+          $ref: '#/definitions/account.ChatExport'
+        type: array
+      followersIds:
+        items:
+          type: string
+        type: array
+      followingIds:
+        items:
+          type: string
+        type: array
+      generatedAt:
+        type: string
+      lives:
+        items:
+          $ref: '#/definitions/account.LiveExport'
+        type: array
+      notificationsReceived:
+        items:
+          $ref: '#/definitions/account.ActivityExport'
+        type: array
+      profile:
+        $ref: '#/definitions/account.ProfileExport'
+      recordingConsents:
+        description: RecordingConsents lists the recorded lives the person agreed
+          to take part in, with the date.
+        items:
+          $ref: '#/definitions/account.ConsentExport'
+        type: array
+    type: object
+  account.LiveExport:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      dishName:
+        type: string
+      duration:
+        type: integer
+      endedAt:
+        type: string
+      hasReplay:
+        type: boolean
+      id:
+        type: integer
+      replayUrl:
+        type: string
+      roomId:
+        type: string
+      scheduledAt:
+        type: string
+      startedAt:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      viewCount:
+        type: integer
+    type: object
+  account.ProfileExport:
+    properties:
+      banReason:
+        type: string
+      bannedAt:
+        type: string
+      bannedUntil:
+        type: string
+      countryNumberPhone:
+        type: integer
+      createdAt:
+        type: string
+      description:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: string
+      isBanned:
+        type: boolean
+      isEmailVerified:
+        type: boolean
+      isPhoneVerified:
+        type: boolean
+      lastName:
+        type: string
+      numberPhone:
+        type: string
+      oauthProvider:
+        type: string
+      passwordUpdatedAt:
+        type: string
+      profileImageUrl:
+        type: string
+      role:
+        type: string
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
+  auth.GoogleMobileRequest:
+    properties:
+      access_token:
+        example: ya29.a0AfH6SMBx...
+        type: string
+    required:
+    - access_token
+    type: object
+  auth.RequestForgotPassword:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
   auth.RequestLogin:
     properties:
       email:
@@ -9,19 +169,31 @@ definitions:
         example: Password123@
         minLength: 8
         type: string
+      rememberMe:
+        description: 'RememberMe only affects the web session cookie: false makes
+          it a session cookie. Default true.'
+        type: boolean
     required:
     - email
     - password
     type: object
   auth.RequestRegister:
     properties:
+      ageConfirmed:
+        description: 'AgeConfirmed must be true: the service is for people aged 15
+          or more.'
+        example: true
+        type: boolean
       countryNumberPhone:
         example: 33
         minimum: 1
         type: integer
       description:
+        description: |-
+          Description, CountryNumberPhone and NumberPhone are optional (data minimisation): only the
+          e-mail, the password and the names are needed to create an account.
         example: I like eating sushi
-        minLength: 10
+        maxLength: 500
         type: string
       email:
         example: user@example.com
@@ -36,7 +208,7 @@ definitions:
         type: string
       numberPhone:
         example: "123456"
-        minLength: 1
+        maxLength: 30
         type: string
       password:
         example: Password123@
@@ -51,15 +223,203 @@ definitions:
         minLength: 2
         type: string
     required:
-    - countryNumberPhone
-    - description
+    - ageConfirmed
     - email
     - firstName
     - lastName
-    - numberPhone
     - password
-    - profileImage
     - username
+    type: object
+  auth.RequestResendCode:
+    properties:
+      email:
+        type: string
+      userId:
+        type: string
+    type: object
+  auth.RequestResetPassword:
+    properties:
+      password:
+        example: Password123@
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - password
+    - token
+    type: object
+  auth.RequestVerifyCode:
+    properties:
+      code:
+        maxLength: 8
+        minLength: 4
+        type: string
+      email:
+        type: string
+      userId:
+        type: string
+    required:
+    - code
+    type: object
+  chat.Chat:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      roomId:
+        type: string
+      userId:
+        type: string
+    required:
+    - message
+    type: object
+  country.CountryDTO:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      name:
+        type: string
+    type: object
+  discover.CategoryLivesResponse:
+    properties:
+      category:
+        $ref: '#/definitions/discover.CategoryWithCount'
+      lives:
+        items:
+          $ref: '#/definitions/live.LiveDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/discover.PaginationMeta'
+    type: object
+  discover.CategoryWithCount:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      live_count:
+        type: integer
+      name:
+        type: string
+    type: object
+  discover.DiscoverResponse:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/discover.CategoryWithCount'
+        type: array
+      top_dishes:
+        items:
+          $ref: '#/definitions/discover.DishWithStats'
+        type: array
+      trending_country:
+        $ref: '#/definitions/discover.CategoryWithCount'
+    type: object
+  discover.DishWithStats:
+    properties:
+      country:
+        $ref: '#/definitions/country.CountryDTO'
+      description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      live_count:
+        type: integer
+      name:
+        type: string
+      total_views:
+        type: integer
+    type: object
+  discover.PaginationMeta:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dish.DishDTO:
+    properties:
+      country:
+        $ref: '#/definitions/country.CountryDTO'
+      description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      name:
+        type: string
+    type: object
+  live.LiveDTO:
+    properties:
+      country:
+        $ref: '#/definitions/country.CountryDTO'
+      created_at:
+        type: string
+      current_viewers:
+        type: integer
+      description:
+        type: string
+      dish:
+        $ref: '#/definitions/dish.DishDTO'
+      dish_name:
+        type: string
+      ended_at:
+        type: string
+      has_replay:
+        type: boolean
+      id:
+        type: integer
+      like_count:
+        type: integer
+      preview_gif:
+        type: string
+      replay_enabled:
+        description: ReplayEnabled is false when the host chose not to keep a replay
+          (the live is not recorded for later).
+        type: boolean
+      replay_removed:
+        description: ReplayRemoved is true when the replay was withdrawn after the
+          live.
+        type: boolean
+      replay_url:
+        type: string
+      replay_views:
+        type: integer
+      room_id:
+        type: string
+      scheduled_at:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/tag.TagDTO'
+        type: array
+      thumbnail_url:
+        type: string
+      title:
+        type: string
+      user:
+        $ref: '#/definitions/user.UserDTO'
+      view_count:
+        type: integer
     type: object
   room.AddParticipantReq:
     properties:
@@ -90,8 +450,61 @@ definitions:
       viewers:
         type: integer
     type: object
+  tag.TagDTO:
+    properties:
+      color:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      live_count:
+        type: integer
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  user.BanRequest:
+    properties:
+      durationHours:
+        description: 0 or omitted = permanent ban
+        example: 24
+        type: integer
+      reason:
+        example: Inappropriate behavior during a live
+        type: string
+    type: object
+  user.StatusPatch:
+    properties:
+      isFeaturedChef:
+        type: boolean
+      isVerified:
+        type: boolean
+      role:
+        description: ADMIN or USER
+        type: string
+    type: object
+  user.UpdatePasswordRequest:
+    properties:
+      currentPassword:
+        type: string
+      newPassword:
+        minLength: 8
+        type: string
+    required:
+    - currentPassword
+    - newPassword
+    type: object
   user.User:
     properties:
+      banReason:
+        type: string
+      bannedAt:
+        type: string
+      bannedUntil:
+        description: nil while IsBanned = permanent ban
+        type: string
       countryNumberPhone:
         type: integer
       createdAt:
@@ -99,6 +512,67 @@ definitions:
       description:
         type: string
       email:
+        type: string
+      facebookId:
+        type: string
+      firstName:
+        type: string
+      followerCount:
+        type: integer
+      followersIds:
+        items:
+          type: string
+        type: array
+      followingIds:
+        items:
+          type: string
+        type: array
+      googleId:
+        description: OAuth fields
+        type: string
+      id:
+        type: string
+      isAccountVerified:
+        description: Verification fields
+        type: boolean
+      isBanned:
+        description: Moderation fields
+        type: boolean
+      isEmailVerified:
+        type: boolean
+      isFeaturedChef:
+        type: boolean
+      isPhoneVerified:
+        type: boolean
+      isVerified:
+        type: boolean
+      lastLiveAt:
+        type: string
+      lastName:
+        type: string
+      numberPhone:
+        type: string
+      oauthProvider:
+        description: '"google" or "facebook"'
+        type: string
+      passwordUpdatedAt:
+        type: string
+      profileImageUrl:
+        type: string
+      role:
+        type: string
+      totalLives:
+        type: integer
+      totalViews:
+        type: integer
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
+  user.UserDTO:
+    properties:
+      description:
         type: string
       firstName:
         type: string
@@ -118,21 +592,9 @@ definitions:
         type: boolean
       isVerified:
         type: boolean
-      lastLiveAt:
-        type: string
       lastName:
         type: string
-      numberPhone:
-        type: string
       profileImageUrl:
-        type: string
-      role:
-        type: string
-      totalLives:
-        type: integer
-      totalViews:
-        type: integer
-      updatedAt:
         type: string
       username:
         type: string
@@ -193,20 +655,22 @@ paths:
       - users
   /api/admin/users/{userId}:
     delete:
-      consumes:
-      - application/json
-      description: Delete a user by their ID (admin only)
+      description: Erase a user and all their personal data (admin only)
       parameters:
       - description: User ID
         in: path
         name: userId
         required: true
         type: string
-      produces:
-      - application/json
       responses:
         "204":
           description: No Content
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: 'error: Failed to delete user'
           schema:
@@ -264,6 +728,406 @@ paths:
       summary: Update a user by ID
       tags:
       - users
+  /api/admin/users/{userId}/ban:
+    post:
+      consumes:
+      - application/json
+      description: Ban a user temporarily (durationHours > 0) or permanently (admin
+        only)
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Ban details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.BanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.User'
+        "400":
+          description: 'error: Invalid JSON'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: 'error: Cannot ban this user'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to ban user'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Ban a user
+      tags:
+      - users
+  /api/admin/users/{userId}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Toggle verified / featured chef / role for a user (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Status fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.StatusPatch'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.User'
+        "400":
+          description: 'error: Invalid JSON or invalid role'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: 'error: Cannot change your own role'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to update user'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a user's status flags
+      tags:
+      - users
+  /api/admin/users/{userId}/unban:
+    post:
+      consumes:
+      - application/json
+      description: Lift an active ban on a user (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.User'
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to unban user'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Unban a user
+      tags:
+      - users
+  /api/auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Send a password reset email if the user exists
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RequestForgotPassword'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: If an account exists, a reset link has been sent'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 'error: Invalid request'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Forgot password request
+      tags:
+      - auth
+  /api/auth/google:
+    get:
+      description: Generates Google OAuth URL and redirects user to Google consent
+        screen
+      parameters:
+      - description: Redirect URL after callback (will be stored in state)
+        in: query
+        name: redirect
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Redirects to Google OAuth consent screen
+        "400":
+          description: 'error: Missing configuration'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Start Google OAuth Flow
+      tags:
+      - auth
+  /api/auth/google/callback:
+    post:
+      consumes:
+      - application/json
+      description: Handle Google OAuth callback and authenticate user
+      parameters:
+      - description: Authorization code from Google
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: State parameter for security
+        in: query
+        name: state
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'token: JWT token string'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'error: Invalid request'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Google OAuth Callback
+      tags:
+      - auth
+  /api/auth/google/mobile:
+    post:
+      consumes:
+      - application/json
+      description: Exchange Google access token for JWT token (for mobile apps)
+      parameters:
+      - description: Google access token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.GoogleMobileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'token: JWT token string, userId: user ID'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'error: Invalid request'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'error: Invalid access token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Google OAuth Mobile Callback
+      tags:
+      - auth
+  /api/auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Reset user password using a valid reset token
+      parameters:
+      - description: Reset password details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RequestResetPassword'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Password reset successfully'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'error: Invalid or expired token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Reset password
+      tags:
+      - auth
+  /api/discover:
+    get:
+      description: Returns trending country, categories list and top dishes
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/discover.DiscoverResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get discover page data
+      tags:
+      - discover
+  /api/discover/categories:
+    get:
+      description: Returns all active country categories with their live counts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/discover.CategoryWithCount'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get all categories
+      tags:
+      - discover
+  /api/discover/categories/{id}/lives:
+    get:
+      description: Returns paginated lives for a given country category
+      parameters:
+      - description: Country ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: 'Sort: views | viewers | recent'
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/discover.CategoryLivesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get lives for a category
+      tags:
+      - discover
   /api/ice:
     post:
       consumes:
@@ -340,6 +1204,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "403":
+          description: 'error: Account banned or not verified'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: 'error: Internal server error'
           schema:
@@ -353,7 +1223,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new user account with email and password
+      description: Create a new user account and send an email verification code
       parameters:
       - description: Registration details
         in: body
@@ -365,10 +1235,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: 'message: User registered'
+          description: 'message: User registered, verification code sent'
           schema:
-            additionalProperties:
-              type: string
+            additionalProperties: true
             type: object
         "400":
           description: 'error: Invalid request or User already exists'
@@ -385,6 +1254,47 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /api/resend-code:
+    post:
+      consumes:
+      - application/json
+      description: Resend a new 6-digit OTP code to the user via email
+      parameters:
+      - description: Resend details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RequestResendCode'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Verification code resent'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 'error: Invalid request'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: 'error: Rate limit exceeded'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Resend verification code
+      tags:
+      - auth
   /api/rooms:
     get:
       consumes:
@@ -396,11 +1306,9 @@ paths:
         "200":
           description: 'rooms: list of rooms'
           schema:
-            additionalProperties:
-              items:
-                $ref: '#/definitions/room.Room'
-              type: array
-            type: object
+            items:
+              $ref: '#/definitions/room.Room'
+            type: array
         "500":
           description: 'error: Failed to fetch rooms'
           schema:
@@ -412,6 +1320,55 @@ paths:
       summary: Get all rooms
       tags:
       - rooms
+  /api/rooms/{roomId}:
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific room including participants and reservation
+        count
+      parameters:
+      - description: Room ID
+        in: path
+        name: roomId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/room.Room'
+        "404":
+          description: 'error: Room not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get room by ID
+      tags:
+      - rooms
+  /api/rooms/{roomId}/chats:
+    get:
+      consumes:
+      - application/json
+      description: Deletes a chat by it's ID
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "500":
+          description: ErrRecordNotFound record not found error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete chat
+      tags:
+      - rooms chats
   /api/rooms/{roomId}/disconnect:
     post:
       consumes:
@@ -449,11 +1406,40 @@ paths:
       summary: Disconnect from room
       tags:
       - webrtc
-  /api/rooms/{roomId}/reserve:
+  /api/rooms/{roomId}/kick:
     post:
       consumes:
       - application/json
-      description: Reserve a participant slot in a room in advance
+      description: Room host can remove an active participant or co-streamer from
+        the room
+      parameters:
+      - description: Room ID
+        in: path
+        name: roomId
+        required: true
+        type: string
+      - description: User ID of the participant
+        in: path
+        name: participantId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Kick participant from room
+      tags:
+      - rooms
+  /api/rooms/{roomId}/reserve:
+    delete:
+      consumes:
+      - application/json
+      description: Cancel a participant's reservation for a scheduled room
       parameters:
       - description: Room ID
         in: path
@@ -464,11 +1450,59 @@ paths:
       - application/json
       responses:
         "200":
-          description: 'message: reserved successfully, or you already reserved this
-            room'
+          description: 'message: reservation cancelled successfully'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 'error: not reserved'
           schema:
             additionalProperties:
               type: string
+            type: object
+        "404":
+          description: 'error: Room not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to cancel reservation'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel reservation in a room
+      tags:
+      - rooms
+    post:
+      consumes:
+      - application/json
+      - application/json
+      description: |-
+        Reserve a participant slot in a room in advance
+        Reserve a participant slot in a room in advance (max 5 registered viewers)
+      parameters:
+      - description: Room ID
+        in: path
+        name: roomId
+        required: true
+        type: string
+      - description: Room ID
+        in: path
+        name: roomId
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/json
+      responses:
+        "200":
+          description: 'message: reserved successfully'
+          schema:
+            additionalProperties: true
             type: object
         "400":
           description: 'error: RoomID is required'
@@ -502,8 +1536,10 @@ paths:
             type: object
       security:
       - BearerAuth: []
+      - BearerAuth: []
       summary: Reserve a spot in a room
       tags:
+      - rooms
       - rooms
   /api/rooms/participant:
     post:
@@ -549,6 +1585,35 @@ paths:
       summary: Add participant to room
       tags:
       - rooms
+  /api/users/{userId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a public user profile by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.User'
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - users
   /api/users/follow/{userId}:
     post:
       consumes:
@@ -593,6 +1658,28 @@ paths:
       tags:
       - users
   /api/users/me:
+    delete:
+      description: Erase the authenticated user's account and all their personal data
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to delete user'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete current user
+      tags:
+      - users
     get:
       consumes:
       - application/json
@@ -604,6 +1691,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/user.User'
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: 'error: Failed to fetch user'
           schema:
@@ -656,6 +1749,84 @@ paths:
       summary: Update current user
       tags:
       - users
+  /api/users/me/export:
+    get:
+      description: Download everything the platform holds about the authenticated
+        user (GDPR access and portability)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/account.Export'
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to export data'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Export my data
+      tags:
+      - users
+  /api/users/me/password:
+    patch:
+      consumes:
+      - application/json
+      description: Update the authenticated user's password and password update timestamp
+      parameters:
+      - description: Current and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.UpdatePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'error: Invalid JSON or invalid new password'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'error: Invalid current password'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Failed to update password'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update current user password
+      tags:
+      - users
   /api/users/unfollow/{userId}:
     post:
       consumes:
@@ -699,6 +1870,47 @@ paths:
       summary: Unfollow a user
       tags:
       - users
+  /api/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verify the 6-digit OTP code sent via email and activate the account
+      parameters:
+      - description: Verification code details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RequestVerifyCode'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Account verified'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 'error: Invalid or expired code'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'error: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'error: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify registration code
+      tags:
+      - auth
   /api/webrtc:
     post:
       consumes:
@@ -759,6 +1971,38 @@ paths:
       summary: Establish WebRTC connection
       tags:
       - webrtc
+  /webrtc/offers:
+    get:
+      parameters:
+      - description: Room ID
+        in: query
+        name: roomId
+        required: true
+        type: string
+      responses:
+        "101":
+          description: Switching Protocols
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Room not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Establish WebSocket connection for receiving renegotiation offers
+      tags:
+      - WebRTC
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

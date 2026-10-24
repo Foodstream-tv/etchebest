@@ -1,186 +1,449 @@
 # Foodstream (Etchebest)
 
-Plateforme interactive de live streaming culinaire développée dans le cadre d'un Epitech Innovation Project (EIP).
-Un streamer hôte peut animer un atelier culinaire interactif en direct et accueillir jusqu'à 5 co-streamers en visio temps réel (WebRTC). En parallèle, les spectateurs peuvent regarder la session sans limite d'audience grâce à la diffusion HLS générée via un pont FFmpeg en direct.
+Plateforme de live streaming culinaire interactif, développée dans le cadre d'un
+Epitech Innovation Project (EIP).
+
+Un **hôte** anime un atelier de cuisine en direct et peut accueillir jusqu'à **5
+co-streamers** en visio temps réel (WebRTC). Les **spectateurs**, sans limite de
+nombre, regardent le direct en HLS, produit par FFmpeg à partir du flux WebRTC.
+Chaque live peut être conservé en **replay**.
+
+## Sommaire
+
+1. [Architecture](#architecture)
+2. [Démarrage rapide](#démarrage-rapide)
+3. [Commandes](#commandes)
+4. [Configuration (`.env`)](#configuration-env)
+5. [Travailler sur chaque projet](#travailler-sur-chaque-projet)
+6. [Tests, lint et CI](#tests-lint-et-ci)
+7. [Conventions Git : branches, commits, PR](#conventions-git--branches-commits-pr)
+8. [Dépannage](#dépannage)
+9. [Déploiement](#déploiement)
+10. [Documentation complémentaire](#documentation-complémentaire)
 
 ---
 
-## Architecture globale
+## Architecture
 
-Le projet est structuré en plusieurs sous-projets :
-
-- **`backend/`** : API REST, WebSocket, moteur WebRTC (Pion en Go) et transcodeur HLS (FFmpeg).
-- **`front-web/`** : Application web Next.js pour le broadcast, le chat et le visionnage HLS.
-- **`analytics/`** : Application web Next.js pour l'administration, la supervision et les métriques.
-- **`mobile/`** : Application mobile Expo React Native avec WebRTC natif (`react-native-webrtc`).
-
-```en
-┌─────────────────────────────────────────────────────────────┐
-│                    Clients Web / Mobile                     │
-│  - Streamer (Hôte) & Co-streamers (jusqu'à 5) : WebRTC      │
-│  - Viewers (Spectateurs illimités) : HLS                    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-           WebRTC (UDP)        │        HTTP / WS
+```text
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  front-web       │  │  mobile          │  │  analytics       │
+│  Next.js 16      │  │  Expo SDK 57     │  │  Next.js 16      │
+│  :3000           │  │  Metro :8082     │  │  :3001 (admin)   │
+└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+         │  HTTP / WebSocket (API, chat, signalisation)  │
+         │  WebRTC UDP (hôte + co-streamers)             │
+         │  HLS (spectateurs, replays)                   │
+         ▼                     ▼                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│  backend (Go 1.25, Gin)                               :8081  │
+│  - API REST + WebSocket, Swagger : /api/swagger/index.html   │
+│  - SFU WebRTC (Pion) : un hôte, jusqu'à 5 co-streamers       │
+│  - FFmpeg : WebRTC → HLS (.m3u8 / segments) et replays       │
+│    échelle de qualité selon la source, plafond HLS_MAX_LIVES │
+│  - Fichiers (replays, uploads) : volume Docker backend_data  │
+└──────────────────────────────┬───────────────────────────────┘
                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 Backend Foodstream (Go)                     │
-│  - Pion WebRTC SFU / Media Engine (H.264 Baseline)          │
-│  - Relais UDP interne vers FFmpeg                           │
-│  - FFmpeg → Segments HLS (.m3u8 / .ts)                      │
-│  - API REST & WebSocket (Renégociation, Auth, Chat, Rooms)  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-                     PostgreSQL 16 (Données)
+                 PostgreSQL 16 (volume postgres_data)
 ```
 
+| Dossier | Rôle | Stack |
+| :--- | :--- | :--- |
+| `backend/` | API, signalisation WebRTC, SFU, HLS, replays, e-mails | Go 1.25, Gin, Pion WebRTC v4, GORM, FFmpeg |
+| `front-web/` | Application web : accueil, lives, Studio, diffusion, replays, profil, boutique | Next.js 16, React 19, TypeScript, Tailwind, hls.js |
+| `mobile/` | Application mobile : les mêmes parcours, WebRTC natif | Expo SDK 57, React Native 0.86, expo-router, react-native-webrtc |
+| `analytics/` | Tableau de bord d'administration : utilisateurs, modération, statistiques | Next.js 16, React 19 |
+| `scripts/` | Mise en place du dev, comptes de démo, test de capacité d'une room | Bash |
+| `backlog/` | Génération des issues GitHub à partir des audits | Python |
+
+Organisation du backend (`backend/internal/`) :
+
+- `auth/` : inscription, connexion, codes de vérification, Google OAuth, session
+  par cookie httpOnly ;
+- `modules/` : un dossier par domaine (`room`, `live`, `chat`, `user`,
+  `account`, `activity`, `audit`, `discover`, `search`, `tag`, `dish`,
+  `country`, `scrape`, `upload`) ;
+- `hls/` : pilotage de FFmpeg ;
+- `notify/` : envoi des e-mails ;
+- `middleware/`, `routes/`, `db/`, `httpx/`, `utils/` : le reste de la
+  plomberie.
+
+Le détail du live (signalisation, SFU, HLS, replays) est dans
+[`TECHNICAL.md`](TECHNICAL.md).
+
 ---
 
-## Démarrage rapide (développement)
+## Démarrage rapide
 
-Prérequis : Docker (Compose v2), Node 22 ; Go 1.25 pour lancer les tests du backend.
+### Prérequis
+
+- Docker avec Compose v2, et `make` ;
+- Node 22 (le CI l'utilise ; React Native demande au minimum 20.19.4) ;
+- Go 1.25, seulement pour lancer les tests du backend hors Docker ;
+- pour l'application mobile : Android Studio (SDK et émulateur) et JDK 17, ou un
+  téléphone Android ; un Mac avec Xcode pour iOS.
 
 ```bash
-make dev
+git clone git@github.com:Foodstream-tv/etchebest.git
+cd etchebest
+make dev     # .env, Postgres + backend, puis Metro pour le mobile
+make seed    # (autre terminal) comptes de démo et un live planifié
 ```
 
-Cette seule commande :
+`make dev` :
 
-1. crée `.env` depuis `.env.example` s'il n'existe pas (génère `JWT_SECRET`, active `DEV_MODE` pour afficher les codes de vérification) ;
-2. règle `WEBRTC_IP` sur l'adresse IP de votre machine sur le réseau local ;
-3. démarre PostgreSQL et le backend, et attend qu'ils soient prêts (`up --wait`) ;
-4. lance Metro pour l'application mobile sur le port **8082** (le backend occupe le 8081).
+1. crée `.env` depuis `.env.example` s'il n'existe pas (génère `JWT_SECRET`,
+   active `DEV_MODE`) ;
+2. règle `WEBRTC_IP` sur l'adresse de la machine sur le réseau local ;
+3. démarre PostgreSQL et le backend et attend qu'ils soient prêts ;
+4. lance Metro (application mobile) sur le port **8082**, le backend occupant
+   le 8081.
 
-L'application mobile trouve l'API toute seule à partir de l'adresse de Metro : plus rien à synchroniser quand vous changez de réseau.
+Pour aussi lancer le web et l'analytics dans Docker : `make full`.
+
+| Service | Adresse |
+| :--- | :--- |
+| API | <http://localhost:8081/api> |
+| Swagger | <http://localhost:8081/api/swagger/index.html> |
+| Front web (Docker) | <http://localhost:3000> |
+| Analytics (Docker) | <http://localhost:3001> |
+| Metro (mobile) | port 8082 |
+
+**Comptes de démo** créés par `make seed` (mot de passe `Demo1234!`) :
+
+- `demo.host@example.com` : un hôte avec un live planifié ;
+- `demo.viewer@example.com` : un spectateur ou co-streamer.
+
+Pour tester un live, connectez-vous avec l'hôte d'un côté et avec le spectateur
+de l'autre (un autre navigateur, une fenêtre privée ou l'application mobile).
+
+---
+
+## Commandes
+
+### Racine (`make help`)
 
 | Commande | Rôle |
 | :--- | :--- |
-| `make dev` | Tout démarrer (backend + Metro) |
-| `make up` / `make mobile` | Le backend seul / Metro seul |
-| `make full` | Tout démarrer, y compris le front web (`:3000`) et l'analytics (`:3001`) |
-| `make seed` | Créer 2 comptes de démo vérifiés (`demo.host@example.com`, `demo.viewer@example.com`, mot de passe `Demo1234!`) et un live planifié (nécessite `DEV_MODE=true`) |
-| `make logs` | Suivre les logs du backend |
-| `make restart` | Reconstruire et relancer le backend |
-| `make down` | Arrêter les conteneurs (les données sont conservées) |
-| `make reset` | **Tout supprimer** (base, replays, uploads) après confirmation |
-| `make test` | Lancer tous les tests (backend, mobile, web, scripts) |
-| `make help` | Lister toutes les commandes |
+| `make dev` | Backend + Metro : toute la boucle de dev mobile |
+| `make up` | Postgres + backend seuls, attend qu'ils soient prêts |
+| `make full` | Tout dans Docker : Postgres, backend, web (:3000), analytics (:3001) |
+| `make mobile` | Metro seul, port 8082 (`METRO_PORT=...` pour le changer) |
+| `make setup` | (Re)crée `.env` et met à jour `WEBRTC_IP` |
+| `make seed` | Comptes de démo vérifiés et un live planifié (nécessite `DEV_MODE=true`) |
+| `make logs` | Suit les logs du backend |
+| `make restart` | Reconstruit et relance le backend seul |
+| `make ps` | Liste les conteneurs |
+| `make down` | Arrête les conteneurs, les données sont conservées |
+| `make reset` | **Supprime** la base, les replays et les uploads (confirmation demandée) |
+| `make test` | Toutes les vérifications : backend, mobile, web, scripts |
+| `make test-backend` / `test-mobile` / `test-web` / `test-scripts` | Une seule partie |
 
-### Dépannage
+### Par projet
 
-- **« Port 8081 déjà utilisé »** : c'est souvent Metro lancé sur son port par défaut. Arrêtez-le et utilisez `make mobile` (port 8082).
-- **« Erreur réseau » sur le téléphone** : vérifiez que le PC et le téléphone sont sur le même Wi-Fi, que `curl http://<IP du PC>:8081/api/lives` répond, puis le pare-feu. Sous Fedora : `sudo firewall-cmd --add-port=8081/tcp --add-port=50000-50100/udp` (ajoutez `--permanent` pour le conserver).
-- **La caméra ne se connecte pas depuis un autre appareil** : `WEBRTC_IP` doit être l'IP du PC sur le réseau (`make setup` la met à jour ; relancez le backend avec `make restart`).
-- **Émulateur Android** : l'application joint le PC via `10.0.2.2` automatiquement.
-- **Code de vérification à l'inscription** : avec `DEV_MODE=true`, il est affiché dans les logs du backend (`make logs`) et l'application propose de le pré-remplir.
-- **Replays et uploads** : ils sont dans le volume Docker `backend_data` et survivent aux reconstructions. Avant la toute première recréation du conteneur backend sur une installation plus ancienne, sauvegardez-les : `docker cp backend-foodstream:/foodstream/storage ./backup-storage`.
+| Projet | Lancer | Vérifier |
+| :--- | :--- | :--- |
+| backend | `make up` (Docker), ou hors Docker : voir [Backend](#backend) | `go vet ./... && go test -race ./...` |
+| front-web | `npm ci && npm run dev` | `npx tsc --noEmit && npm run lint` ; `npm run build` |
+| mobile | `npx expo start --dev-client --port 8082` | `npx tsc --noEmit && npx expo lint && npx jest` |
+| analytics | `npm ci && npm run dev` | `npm run lint` ; `npm run build` |
 
 ---
 
-## Démarrage rapide avec Docker
+## Configuration (`.env`)
 
-L'ensemble de la stack (Base de données, Backend API, Frontend Web et Dashboard Analytics) démarre d'un coup :
+Un seul `.env` à la racine, lu par Docker Compose et par le backend. Il est
+ignoré par Git ; partez de `.env.example`. Les variables les plus utiles :
 
-```bash
-# 1. Cloner le projet et se positionner à la racine
-cd etchebest
+| Variable | Rôle |
+| :--- | :--- |
+| `JWT_SECRET` | Secret des sessions. Généré par `make setup`. **Jamais commité.** |
+| `DEV_MODE` | `true` en local : l'API renvoie les codes de vérification (inscription, renvoi de code) et les écrit dans les logs si aucun SMTP n'est configuré. `make setup` ne l'ajoute que dans un `.env` neuf (issue #293) : sur un `.env` existant, ajoutez `DEV_MODE=true` à la main puis `make restart`. |
+| `WEBRTC_IP` | Adresse que les clients WebRTC utilisent pour joindre le backend. `127.0.0.1` suffit pour un navigateur sur la même machine ; mettez l'IP LAN (`make setup`) pour un téléphone ou une autre machine. |
+| `WEBRTC_PORT_MIN` / `WEBRTC_PORT_MAX` | Plage UDP du média WebRTC (50000-50100 par défaut ; 40000-40050 si Hyper-V ou Teams occupent la plage sous Windows). |
+| `HLS_MAX_LIVES` / `HLS_FULL_LADDER_LIVES` | Nombre de lives encodés en HLS en même temps, et seuil à partir duquel un nouveau live n'a plus que 480p et 360p. |
+| `SMTP_*` | Envoi réel des e-mails. Sans SMTP, le contenu est simulé dans les logs (en `DEV_MODE`). |
+| `APP_URL` | URL du front web (liens des e-mails, retour de la connexion Google). |
+| `ALLOWED_REDIRECT_ORIGINS` | Autres origines autorisées pour le retour Google (ex. `http://localhost:3002`). |
+| `CORS_ALLOWED_ORIGINS` | Autres applications autorisées à appeler l'API avec le cookie de session (ex. l'analytics en production). En `DEV_MODE`, tout `localhost` est accepté. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Connexion Google (facultatif). |
+| `PRIVACY_CONTACT_EMAIL` | Contact affiché dans la politique de confidentialité. |
 
-# 2. Configurer les variables d'environnement (si besoin d'ajustement)
-cp .env.example .env
+Le front web n'a pas besoin de `.env` en local : il appelle `/api`, que Next
+redirige vers `API_PROXY_TARGET` (`http://localhost:8081` par défaut). Le mobile
+déduit l'adresse de l'API de celle de Metro.
 
-# 3. Lancer l'ensemble des conteneurs
-docker compose up -d --build
-```
+---
 
-### Table des ports exposés
+## Travailler sur chaque projet
 
-| Service | Port | Protocole | Description |
+### Backend
+
+- **Après une modification du backend**, `make restart` reconstruit l'image et
+  relance le conteneur. Suivez les logs avec `make logs`.
+- **Hors Docker** (itérations plus rapides, débogueur) : FFmpeg doit être
+  installé pour le HLS. Le backend lit `../.env`, où `POSTGRES_HOST=postgres` ne
+  vaut que dans Docker :
+
+  ```bash
+  docker compose up -d --wait postgres
+  docker compose stop backend          # libère le port 8081
+  cd backend && POSTGRES_HOST=localhost go run ./cmd/server
+  ```
+
+- **Swagger** est généré par [swag](https://github.com/swaggo/swag) depuis les
+  commentaires `// @Summary`, `// @Router`… des handlers. Après avoir ajouté ou
+  modifié une route :
+
+  ```bash
+  cd backend
+  go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o docs
+  ```
+
+  et commitez `backend/docs/`.
+
+- **`go.mod` doit rester propre** : la CI lance `go mod tidy -diff`. Lancez
+  `go mod tidy` après un ajout ou un retrait de dépendance.
+- **Base de données** :
+  `docker exec -it db-foodstream psql -U root -d foodstream`.
+- **Compte admin** (pour l'analytics) : promouvez un compte existant :
+
+  ```bash
+  docker exec db-foodstream psql -U root -d foodstream \
+    -c "UPDATE users SET role='ADMIN' WHERE email='demo.host@example.com';"
+  ```
+
+### Front web
+
+- `npm run dev` démarre sur le port 3000, ou sur le suivant libre si le
+  conteneur `frontend` tourne déjà (souvent **3002**, le 3001 étant pris par
+  l'analytics). Testez vos changements sur ce port-là : le conteneur du 3000
+  contient la version construite au dernier `make full`.
+- Pour la connexion Google depuis ce port, ajoutez-le à
+  `ALLOWED_REDIRECT_ORIGINS`.
+- **Textes** : tout texte affiché passe par `t("clé")` et existe dans
+  `src/i18n/messages/fr.ts` **et** `en.ts`.
+- **Appels API** : passez par `apiFetch` (`src/lib/api.ts`) ou les services de
+  `src/services/`. La session est un cookie httpOnly : aucun jeton n'est stocké
+  dans le navigateur.
+- **Effets React** : le lint applique les règles du React Compiler
+  (`set-state-in-effect`, `preserve-manual-memoization`…). Préférez une valeur
+  dérivée pendant le rendu, `useSyncExternalStore` pour lire `localStorage`, et
+  le chargement dans l'effet avec un drapeau `ignore`. `usePolling`
+  (`src/lib/usePolling.ts`) gère le premier chargement (`immediate`) et le
+  changement de room (`key`).
+
+### Application mobile
+
+- **Development build obligatoire pour le live.** Expo Go ne contient ni
+  `react-native-webrtc` ni Google Sign-In. Il suffit pour vérifier l'interface
+  (`npx expo start --go`), mais pas pour diffuser, rejoindre un live ou se
+  connecter avec Google.
+- **Les dossiers `android/` et `ios/` ne sont pas commités** : ils sont générés
+  depuis `app.json` (Continuous Native Generation). Tout réglage natif
+  (permissions, textes iOS, plugins) va dans `app.json` ou dans un config
+  plugin, jamais dans ces dossiers.
+- **Régénérez-les** après un pull qui touche `app.json`, une dépendance native
+  ou la version d'Expo, et après chaque montée de SDK :
+
+  ```bash
+  cd mobile
+  npm ci
+  npx expo prebuild --clean
+  ```
+
+- **Lancer sur un appareil :**
+
+  ```bash
+  npx expo run:android            # émulateur ou téléphone branché en USB
+  npx expo run:ios                # macOS uniquement
+  npx eas build --profile development --platform android|ios   # dev client dans le cloud
+  ```
+
+  Puis `npx expo start --dev-client --port 8082` (ou `make mobile`) et ouvrez
+  l'application.
+
+- **Navigation** : importez depuis `expo-router/react-navigation` et
+  `expo-router/js-tabs`, pas depuis `@react-navigation/*`.
+- **Lint** : 0 erreur ; les règles du React Compiler (`react-hooks/refs`,
+  `set-state-in-effect`, `use-memo`) sont en avertissement le temps de corriger
+  le code existant. N'en ajoutez pas de nouveaux.
+
+### Analytics
+
+Réservé aux comptes `ADMIN` (voir [Backend](#backend)). En local, `make full` le
+lance sur le port 3001 ; `npm run dev` dans `analytics/` pour travailler dessus.
+Il n'est pas encore vérifié par la CI.
+
+---
+
+## Tests, lint et CI
+
+### Ce qui est vérifié
+
+| Projet | Vérifications | En local | CI |
 | :--- | :--- | :--- | :--- |
-| **Frontend Web** | `3000` | HTTP | Interface utilisateur web (`http://localhost:3000`) |
-| **Analytics & Admin** | `3001` | HTTP | Dashboard d'administration (`http://localhost:3001`) |
-| **Backend API** | `8081` | HTTP / WS | API REST, WebSocket, Swagger (`/api/swagger/index.html`) |
-| **WebRTC Media** | `50000-50100` | UDP | Transport des paquets RTP audio/vidéo Pion |
-| **PostgreSQL** | `5432` (127.0.0.1 uniquement) | TCP | Base de données relationnelle |
+| backend | build, `go vet`, `go mod tidy -diff`, tests avec `-race` | `make test-backend` | ✅ bloquant |
+| mobile | types, lint, tests Jest | `make test-mobile` | ✅ bloquant |
+| front-web | types, lint | `make test-web` | ✅ bloquant |
+| scripts | tests shell de `dev-setup.sh` et `seed.sh` | `make test-scripts` | — |
+| analytics | — | `npm run lint` | — |
 
-Pour arrêter les conteneurs :
-
-```bash
-docker compose down
-```
-
----
-
-## Configuration Réseau & WebRTC en Local / LAN
-
-WebRTC nécessite que les clients puissent joindre le backend sur son adresse IP réelle.
-
-### Pour tester depuis un navigateur sur la même machine
-
-La valeur par défaut `WEBRTC_IP=127.0.0.1` dans `.env` fonctionne directement grâce au mapping des ports `50000-50100/udp` dans Docker Compose.
-
-### Pour tester avec des téléphones ou d'autres machines sur le réseau local (LAN)
-
-Lancez `make setup` (ou `./set-ip.sh`) : le script détecte votre adresse IP LAN (ex: `192.168.1.50`) et met à jour `WEBRTC_IP` dans `.env`. Une valeur choisie volontairement (IP publique, nom d'hôte) n'est jamais écrasée. Côté mobile, rien à configurer : l'application déduit l'adresse de l'API de celle de Metro.
-
----
-
-## Application Mobile Expo
-
-Pour le streaming vidéo WebRTC sur mobile :
-
-- **Expo Go** ne supporte pas le WebRTC natif (`react-native-webrtc`).
-- Un **development build natif** est nécessaire :
+**Tests backend avec Postgres.** Les tests qui exécutent du vrai SQL (effacement
+et export de compte, journal d'audit…) sont **ignorés** sans
+`TEST_DATABASE_DSN`. Pour les lancer en local, utilisez une base jetable, pas
+celle de dev :
 
 ```bash
-cd mobile
-npm install
-
-# Lancement sur Android
-npx expo run:android
-
-# Lancement sur iOS (sur macOS)
-npx expo run:ios
-```
-
----
-
-## Tests & Simulation de charge
-
-### Tests automatisés du Backend
-
-```bash
+docker run --rm -d --name pg-test -p 5433:5432 \
+  -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test postgres:16-alpine
 cd backend
-go test -v ./...
+TEST_DATABASE_DSN="host=localhost port=5433 user=postgres password=test dbname=test sslmode=disable" \
+  go test -race ./...
+docker stop pg-test
 ```
 
-### Tests du Front Web
+**Test de capacité d'une room.** `./scripts/simulate_room_capacity.sh` simule 5
+participants, vérifie le refus du 6ᵉ, le départ d'un participant et la fermeture
+par l'hôte (backend lancé).
 
-```bash
-cd front-web
-npm run build
-```
+### CI (GitHub Actions)
 
-### Tests unitaires Mobile
-
-```bash
-cd mobile
-npm test -- --watchAll=false
-```
-
-### Simulation multi-clients & Capacité de room
-
-Un script de test automatisé simule 5 participants en direct, teste le rejet au 6ème participant (saturation à 5/5), le départ d'un participant et la fermeture de room par l'hôte :
-
-```bash
-./scripts/simulate_room_capacity.sh
-```
+- **`CI - Build & Test`** (`.github/workflows/ci.yml`) tourne sur chaque PR et
+  sur les push vers `main`, `dev` et `feature/*`. Il a trois jobs : Backend,
+  Mobile, Web. Un nouveau push annule le run en cours sur la même branche.
+- **CodeQL** analyse la sécurité du code sur chaque PR, via la configuration par
+  défaut de GitHub (JS/TS, Python, Actions). Le workflow avancé
+  `.github/workflows/codeql.yml` (qui ajoute Go, Kotlin et Swift) se désactive
+  tant que cette configuration par défaut est active.
+- **Dependabot** propose les mises à jour de dépendances. Une mise à jour d'un
+  paquet Expo isolé vers une autre SDK (ex. `expo-router` 58 alors que l'app est
+  en SDK 57) se ferme : les paquets Expo montent ensemble, dans une PR dédiée
+  (`npx expo install expo@^58 --fix`).
 
 ---
 
-## Déploiement en Production (VM & Nom de domaine)
+## Conventions Git : branches, commits, PR
 
-Pour déployer la stack sur une machine virtuelle avec nom de domaine (`foodstream.tv`), certificats SSL Let's Encrypt et reverse-proxy Nginx :
+### Branches
 
-1. `./setup-ssl.sh` (une seule fois, sur la VM) génère les certificats.
-2. `docker compose -f docker-compose.vm.yml up -d --build` démarre la stack derrière Nginx (`nginx.conf`).
+Partez toujours de `main` à jour, une branche par sujet :
+
+```text
+feat/studio-wizard          nouvelle fonctionnalité
+fix/web-lint                correction
+chore/expo-sdk-57           maintenance, dépendances, outillage
+refactor/…                  réorganisation sans changement de comportement
+docs/…                      documentation
+```
+
+### Commits
+
+Format [Conventional Commits](https://www.conventionalcommits.org/fr/), message
+**en français**, à l'impératif ou au présent :
+
+```text
+type(périmètre): ce que fait le commit
+
+Pourquoi ce changement, ce qui change pour l'utilisateur ou le dev,
+ce qui a été vérifié. Une ligne vide entre le titre et le corps.
+```
+
+- **Types** : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `build`
+  (dépendances), `ci`.
+- **Périmètres courants** : `web`, `mobile`, `live`, `backend`, `rgpd`,
+  `security`, `dev`, `deps`.
+- Exemples tirés de l'historique :
+  - `fix(live): FFmpeg est supervisé, relancé après un crash et arrêté proprement`
+  - `feat(rgpd): codes de vérification et tokens de reset stockés hachés`
+- Un commit = un changement cohérent. Ne mélangez pas une correction et un
+  reformatage massif.
+- Ne commitez jamais `.env`, une clé, un mot de passe ni un fichier généré
+  localement (`node_modules`, `mobile/android`, `mobile/ios`, `.next`…).
+
+### Pull requests
+
+1. **Avant d'ouvrir** : `make test` (ou au moins le `make test-…` du projet
+   touché) passe en local, la branche est à jour avec `main`.
+2. **Titre** : au format d'un commit (`fix(web): …`). Il devient le message du
+   commit sur `main`.
+3. **Description**, en français :
+   - **Pourquoi** : le problème ou le besoin, avec l'issue (`Refs #123`, ou
+     `Closes #123` si la PR la termine) ;
+   - **Changements** : ce qui change, fichier ou comportement ;
+   - **Vérifié** : ce qui a été testé (commandes, navigateur, appareil
+     Android/iOS) et ce qui **ne l'a pas** été ;
+   - **À savoir** : migration, variable d'environnement à ajouter, action à
+     faire après le merge (ex. `npx expo prebuild --clean`).
+4. **CI verte obligatoire** avant le merge. Faites relire par au moins une autre
+   personne quand la PR touche le live, l'authentification, les données
+   personnelles ou les dépendances natives.
+5. **Merge en « Squash and merge »** : un commit propre par PR sur `main`.
+   Supprimez la branche ensuite.
+6. Une PR = un sujet. Une PR plus petite est relue plus vite et plus
+   sérieusement.
+
+### Issues et tableau de suivi
+
+- Le suivi se fait sur le projet GitHub
+  **[Foodstream](https://github.com/orgs/Foodstream-tv/projects/2)**, avec les
+  colonnes Backlog, In progress, In review et Done.
+- **Une issue par tâche**, avec des critères d'acceptation. Quand vous la
+  prenez, assignez-vous et passez-la en _In progress_. La PR la fait passer en
+  _In review_, et le merge (avec `Closes #…`) en _Done_.
+- La feuille de route technique est rangée par milestones (Phase 2 à 5, Qualité
+  & tests), issues de `AUDIT_LIVE_WEBRTC.md` (voir `backlog/README.md`).
+
+---
+
+## Dépannage
+
+| Symptôme | Cause et solution |
+| :--- | :--- |
+| **Port 8081 déjà utilisé** | Souvent Metro lancé sur son port par défaut. Arrêtez-le et utilisez `make mobile` (port 8082). |
+| **« Erreur réseau » sur le téléphone** | Le PC et le téléphone doivent être sur le même Wi-Fi. Vérifiez que `curl http://<IP du PC>:8081/api/lives` répond, puis le pare-feu. Sous Fedora : `sudo firewall-cmd --add-port=8081/tcp --add-port=50000-50100/udp` (ajoutez `--permanent` pour le conserver). |
+| **La caméra ne se connecte pas depuis un autre appareil** | `WEBRTC_IP` doit être l'IP du PC sur le réseau : `make setup`, puis `make restart`. |
+| **Pas de code de vérification** | Vérifiez `DEV_MODE=true` dans `.env` (puis `make restart`). Avec `DEV_MODE`, la page de vérification affiche le code renvoyé par l'API ; si vous arrivez sur cette page depuis la connexion, cliquez sur « Renvoyer un code ». Si un SMTP est configuré, le code part aussi par e-mail. Sinon, utilisez les comptes de `make seed`. |
+| **Mes changements web n'apparaissent pas** | Vous êtes sur le conteneur du port 3000, construit au dernier `make full`. Utilisez le port de `npm run dev` (souvent 3002). |
+| **Expo Go : le live ou Google ne marchent pas** | Normal : il faut un development build (voir [Application mobile](#application-mobile)). |
+| **Build natif en erreur après un pull ou une montée de SDK** | Dossiers natifs périmés : `npm ci && npx expo prebuild --clean` dans `mobile/`, puis réinstallez le dev client. |
+| **`expo-doctor` signale des doublons de `react` / `react-native`** | Un `node_modules` traîne à la racine du dépôt (reste de l'ancienne app). Supprimez-le : `rm -rf node_modules` à la racine. |
+| **L'émulateur Android se ferme au démarrage** | Problème de rendu graphique : lancez-le en rendu logiciel, `emulator @<nom_avd> -gpu swiftshader_indirect`, ou mettez l'émulateur à jour. |
+| **Émulateur Android et API** | L'application joint le PC via `10.0.2.2` automatiquement. |
+| **Replays et uploads** | Ils sont dans le volume Docker `backend_data` et survivent aux reconstructions ; `make reset` les supprime. |
+
+---
+
+## Déploiement
+
+Sur une machine virtuelle avec nom de domaine (`foodstream.tv`), certificats
+Let's Encrypt et reverse-proxy Nginx :
+
+1. `./setup-ssl.sh` (une seule fois, sur la VM) génère les certificats ;
+2. `docker compose -f docker-compose.vm.yml up -d --build` démarre la stack
+   derrière Nginx (`nginx.conf`).
+
+Avant une mise en production, vérifiez au minimum :
+
+- `DEV_MODE=false` ;
+- un `JWT_SECRET` propre à l'environnement ;
+- un SMTP configuré ;
+- `APP_URL`, `ALLOWED_REDIRECT_ORIGINS` et `CORS_ALLOWED_ORIGINS` (avec l'URL de
+  l'analytics) pointant sur les vrais domaines ;
+- `WEBRTC_IP` sur l'IP publique, et les ports UDP ouverts.
+
+Les points encore ouverts sont suivis dans les issues #121, #227 et #287.
+
+---
+
+## Documentation complémentaire
+
+| Document | Contenu |
+| :--- | :--- |
+| [`TECHNICAL.md`](TECHNICAL.md) | Architecture détaillée du live : WebRTC, SFU, HLS, replays |
+| [`USER_JOURNEY.md`](USER_JOURNEY.md) | Parcours utilisateur : spectateur, hôte, co-streamer |
+| [`BETA_TEST_PLAN.md`](BETA_TEST_PLAN.md) | Plan de test de la bêta et fonctionnalités démontrées |
+| [`AUDIT_LIVE_WEBRTC.md`](AUDIT_LIVE_WEBRTC.md) | Audit du live, source des milestones Phase 2 à 5 |
+| [`AUDIT_RGPD.md`](AUDIT_RGPD.md) / [`RGPD_RECAP.md`](RGPD_RECAP.md) | Audit RGPD et état d'avancement |
+| [`backlog/README.md`](backlog/README.md) | Génération des issues à partir des audits |
+| Swagger | <http://localhost:8081/api/swagger/index.html> (API lancée) |
