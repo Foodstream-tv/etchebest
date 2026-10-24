@@ -1,5 +1,25 @@
 @import "tailwindcss";
+@import "./accessibility.css";
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Art direction: a brighter, food-inspired orange. It is the colour of primary actions,
+   so every orange-* utility of the app follows it. */
+@theme {
+  --color-orange-400: #ff8d3a;
+  --color-orange-500: #ff7a1a;
+  --color-orange-600: #ea6a0c;
+}
+
+/* Editorial serif for page and section headlines (font loaded in the root layout). */
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+}
+
+/* Cream rather than pure white on the warm charcoal background. */
+html.dark body {
+  color: #f5ede0;
+}
 
 :root {
   --bg-blur: 20px;
@@ -17,7 +37,7 @@ body {
 
 .input {
   @apply w-full appearance-none border-0 bg-transparent outline-none;
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1.4;
   font-weight: 500;
   padding: 4px 0;
@@ -97,10 +117,10 @@ body {
 }
 
 .auth-field {
-  @apply flex items-center gap-3 rounded-2xl border border-black/8 bg-white/72 px-4 py-3.5 shadow-sm backdrop-blur-sm transition;
+  @apply flex items-center gap-3 rounded-2xl border border-black/15 bg-white px-4 py-3.5 transition;
   @apply focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-300/50;
-  @apply dark:border-white/10 dark:bg-white/[0.045] dark:focus-within:border-orange-400 dark:focus-within:ring-orange-500/30;
-  min-height: 58px;
+  @apply dark:border-white/15 dark:bg-white/[0.06] dark:focus-within:border-orange-400 dark:focus-within:ring-orange-500/30;
+  min-height: 70px;
 }
 
 .auth-field-textarea {
@@ -114,15 +134,15 @@ body {
 .auth-input {
   @apply w-full appearance-none border-0 bg-transparent outline-none text-gray-900 placeholder:text-gray-400;
   @apply dark:text-gray-50 dark:placeholder:text-gray-500;
-  font-size: 18px;
+  font-size: 1.25rem;
   line-height: 1.45;
   font-weight: 500;
   padding: 4px 0;
 }
 
 .auth-btn-primary {
-  @apply w-full rounded-2xl bg-orange-500 px-4 py-3 text-base font-semibold text-white shadow-[0_10px_30px_rgba(249,115,22,0.28)] transition;
-  @apply hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply w-full rounded-2xl bg-[#ff7a1a] px-4 py-4 text-base font-semibold text-[#1a0f05] shadow-[0_10px_30px_rgba(255,122,26,0.25)] transition;
+  @apply hover:bg-[#ff8d3a] disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -237,27 +257,102 @@ body {
   animation-delay: 220ms;
 }
 
+@keyframes foodFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-1deg);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0) rotate(1.5deg);
+  }
+}
+
+@keyframes foodSteam {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scaleX(0.9);
+  }
+  30% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(6px, -46px, 0) scaleX(1.25);
+  }
+}
+
+.fi-float {
+  animation: foodFloat 11s ease-in-out infinite;
+}
+
+.fi-float-2 {
+  animation-duration: 13s;
+  animation-delay: -4s;
+}
+
+.fi-float-3 {
+  animation-duration: 12s;
+  animation-delay: -7s;
+}
+
+.fi-steam {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: foodSteam 6.5s ease-out infinite;
+}
+
+.fi-steam-2 {
+  animation-delay: 1.8s;
+}
+
+.fi-steam-3 {
+  animation-delay: 3.6s;
+}
+
+.dark .fi-steam-ink {
+  stroke: #ffffff;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-page-enter-forward,
   .auth-page-enter-backward,
-  .steam-line {
+  .steam-line,
+  .fi-float,
+  .fi-steam {
     animation: none !important;
+  }
+
+  .fi-steam {
+    opacity: 0.35;
   }
 }
 
 :where(
   a,
   button,
-  input,
-  textarea,
   select,
   summary,
   [role="button"],
-  [tabindex]:not([tabindex="-1"])
+  [tabindex]:not([tabindex="-1"]),
+  input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"])
 ):focus-visible {
   outline: none;
   box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.35);
   border-radius: 12px;
+}
+
+/* Text fields: no ring on the <input> itself. Its wrapper (.auth-field,
+   .fs-field, .field, ...) already shows the focus state (orange border +
+   soft glow), so a second 4px ring around the inner input looked heavy and
+   collided with password-manager icons. A bare input keeps the browser's
+   thin default indication through its own border/ring utilities. */
+:where(
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"]),
+  textarea
+):focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -266,4 +361,138 @@ body {
   *::after {
     scroll-behavior: auto !important;
   }
+}
+/* ---- Form-filling motion (studio, onboarding, auth fields) ---- */
+@keyframes fsPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fsRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fsSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes fsBump {
+  0% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.55);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 10px rgba(249, 115, 22, 0);
+  }
+}
+
+@keyframes fsShimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.fs-pop {
+  animation: fsPop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.fs-rise {
+  animation: fsRise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fs-slide-down {
+  transform-origin: top;
+  animation: fsSlideDown 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fs-bump-ring {
+  animation: fsBump 0.55s ease-out both;
+}
+
+.fs-progress-fill {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-orange-500),
+    var(--color-orange-400),
+    var(--color-red-500),
+    var(--color-orange-400),
+    var(--color-orange-500)
+  );
+  background-size: 200% 100%;
+  animation: fsShimmer 3s linear infinite;
+}
+
+.fs-field {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.fs-field:focus-within {
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.18);
+  transform: translateY(-1px);
+}
+
+.auth-field {
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-field:focus-within {
+  box-shadow: 0 10px 28px rgba(249, 115, 22, 0.16);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-pop,
+  .fs-rise,
+  .fs-slide-down,
+  .fs-bump-ring,
+  .fs-progress-fill {
+    animation: none !important;
+  }
+
+  .fs-field:focus-within,
+  .auth-field:focus-within {
+    transform: none;
+  }
+}
+
+/* Opacity-only entrance (no movement), used by images that appear once loaded. */
+@keyframes fsFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fs-fade-in {
+  animation: fsFadeIn 0.45s ease-out both;
 }
