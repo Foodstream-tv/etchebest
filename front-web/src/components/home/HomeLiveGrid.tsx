@@ -178,7 +178,7 @@ export default function HomeLiveGrid({
 
   const liveItems = useMemo<CardItem[]>(() => {
     return lives.map(liveToCardItem);
-  }, [lives]);
+  }, [lives, liveToCardItem]);
 
   const items = useMemo(() => {
     if (tab === "popular") {

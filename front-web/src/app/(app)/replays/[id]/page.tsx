@@ -82,8 +82,8 @@ export default function ReplayDetailPage() {
 
         const data = await getLiveByRoomId(replayId);
         setReplay(data);
-      } catch (err: any) {
-        setError(err?.message || "Impossible de charger le replay.");
+      } catch (err) {
+        setError((err instanceof Error && err.message) || "Impossible de charger le replay.");
         setReplay(null);
       } finally {
         setLoading(false);

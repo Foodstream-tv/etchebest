@@ -14,7 +14,7 @@ import { TAG_GROUPS } from "@/lib/tagGroups";
 import { useI18n } from "@/i18n/LanguageContext";
 
 export default function ReplaysPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { token } = useAuth();
   const [q, setQ] = useState("");
   // Tags picked in the filter panel (empty = everything), like on the lives page.
@@ -32,38 +32,52 @@ export default function ReplaysPage() {
       setReplays((prev) =>
         prev.filter((r) => r.id !== replay.id && r.room_id !== replay.room_id)
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to delete replay:", err);
-      alert(err?.message || "Erreur lors de la suppression de la rediffusion");
+      alert((err instanceof Error && err.message) || "Erreur lors de la suppression de la rediffusion");
     }
   };
 
-  const refresh = async () => {
-    try {
-      setError(null);
-      setLoading(true);
-
-      const res = await getLives({
-        q,
-        tags,
-        status: "ended",
-        page: 1,
-        limit: 48,
-      });
-
-      setReplays(res.lives ?? []);
-    } catch (e: any) {
-      setError(e?.message ?? t("replays.errorTitle"));
-      setReplays([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Bumped by the refresh button to fetch again with the same search.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, tagsKey]);
+    // An answer that arrives after the search changed is dropped.
+    let ignore = false;
+
+    async function loadReplays() {
+      try {
+        const res = await getLives({
+          q,
+          tags: tagsKey ? tagsKey.split("\n") : [],
+          status: "ended",
+          page: 1,
+          limit: 48,
+        });
+        if (ignore) return;
+
+        setReplays(res.lives ?? []);
+        setError(null);
+      } catch (e) {
+        if (ignore) return;
+        setError((e instanceof Error && e.message) || t("replays.errorTitle"));
+        setReplays([]);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+
+    loadReplays();
+
+    return () => {
+      ignore = true;
+    };
+  }, [q, tagsKey, reloadKey, t]);
+
+  const refresh = () => {
+    setLoading(true);
+    setReloadKey((key) => key + 1);
+  };
 
   const replaysByTag = useMemo(() => {
     const map = new Map<string, LiveDTO[]>();

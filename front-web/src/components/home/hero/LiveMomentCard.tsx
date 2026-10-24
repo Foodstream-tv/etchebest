@@ -100,6 +100,7 @@ export default function LiveMomentCard() {
       <div className="overflow-hidden rounded-2xl border border-black/8 dark:border-white/10">
         <div className="relative h-52 bg-black/[0.06] dark:bg-white/10 overflow-hidden">
           {thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element -- thumbnail served by the API, any host
             <img
               src={thumbnail}
               alt={live.title}

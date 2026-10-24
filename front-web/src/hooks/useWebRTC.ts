@@ -215,7 +215,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
     if (rid) {
       try {
-        await disconnectRoom(rid, tokenRef.current);
+        await disconnectRoom(rid);
       } catch (err) {
         console.warn("[WebRTC] disconnect call failed:", err);
       }
@@ -284,11 +284,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
-          await sendRenegotiationAnswer(
-            currentRoomId,
-            answer.sdp || "",
-            tokenRef.current
-          );
+          await sendRenegotiationAnswer(currentRoomId, answer.sdp || "");
         }
       } catch (err) {
         console.error("[WebRTC] WebSocket message handling error:", err);
@@ -304,7 +300,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
     };
 
     wsRef.current = ws;
-  }, []);
+  }, [cleanupLocalState]);
 
   const getLocalMedia = useCallback(async (): Promise<MediaStream> => {
     if (!navigator?.mediaDevices?.getUserMedia) {
@@ -367,7 +363,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         if (!payload.candidate?.includes(" udp ")) return;
 
-        sendICECandidate(currentRoomId, payload, tokenRef.current).catch((err) => {
+        sendICECandidate(currentRoomId, payload).catch((err) => {
           console.warn("[WebRTC] ICE send failed:", err);
         });
       };
@@ -435,11 +431,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
       await pc.setLocalDescription(offer);
 
-      const { sdp: answerSdp } = await sendOffer(
-        currentRoomId,
-        offer.sdp || "",
-        tokenRef.current
-      );
+      const { sdp: answerSdp } = await sendOffer(currentRoomId, offer.sdp || "");
 
       await pc.setRemoteDescription(
         new RTCSessionDescription({
@@ -459,7 +451,7 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         setState("creating");
         resetStateForStart();
 
-        const { roomId: newRoomId } = await createRoom(roomName, tokenRef.current);
+        const { roomId: newRoomId } = await createRoom(roomName);
 
         setRoomId(newRoomId);
         roomIdRef.current = newRoomId;
@@ -471,8 +463,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         await negotiate(pc, newRoomId);
         setupWebSocketListener(newRoomId);
-      } catch (err: any) {
-        setError(err?.message || "Failed to start live");
+      } catch (err) {
+        setError((err instanceof Error && err.message) || "Failed to start live");
         setState("error");
       }
     },
@@ -502,8 +494,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
 
         await negotiate(pc, existingRoomId);
         setupWebSocketListener(existingRoomId);
-      } catch (err: any) {
-        setError(err?.message || "Failed to host stream");
+      } catch (err) {
+        setError((err instanceof Error && err.message) || "Failed to host stream");
         setState("error");
       }
     },
@@ -551,8 +543,8 @@ export function useWebRTC(token?: string): UseWebRTCReturn {
         await negotiate(pc, targetRoomId);
         setupWebSocketListener(targetRoomId);
         return "joined";
-      } catch (err: any) {
-        setError(err?.message || "Failed to join stream");
+      } catch (err) {
+        setError((err instanceof Error && err.message) || "Failed to join stream");
         setState("error");
         return "joined";
       }

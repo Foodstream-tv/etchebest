@@ -51,7 +51,7 @@ export default function PrivacyDataCard() {
     setExportDone(false);
 
     try {
-      const blob = await exportMyData(token);
+      const blob = await exportMyData();
       downloadBlob(blob, EXPORT_FILENAME);
       setExportDone(true);
     } catch {
@@ -93,6 +93,8 @@ export default function PrivacyDataCard() {
     // cookies and the /api/auth/logout route), then leave the app. The dialog
     // stays in its "deleting" state until the navigation happens.
     await signOut();
+    // A full page load on purpose: nothing of the deleted account stays in memory.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/signin?logout=true";
   };
 

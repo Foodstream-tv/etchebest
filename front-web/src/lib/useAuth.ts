@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import { SESSION_TOKEN } from "@/lib/session";
 
@@ -34,21 +34,64 @@ function parseStored(raw: string | null): AuthState | null {
   return { user: parsed.user };
 }
 
-function readAuth(): AuthState | null {
-  if (typeof window === "undefined") return null;
+// Fired in this tab when the stored profile changes ("storage" only reaches the other tabs).
+const AUTH_CHANGE_EVENT = "fs_auth_change";
 
+function readRaw(): string | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
-    const auth = parseStored(raw);
-    if (raw && auth && raw.includes('"token"')) {
-      // Left over from before the cookie: drop the token that was stored in clear.
-      const store = localStorage.getItem(STORAGE_KEY) ? localStorage : sessionStorage;
-      store.setItem(STORAGE_KEY, JSON.stringify(auth));
-    }
-    return auth;
+    return localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
   } catch {
     return null;
   }
+}
+
+let cachedRaw: string | null = null;
+let cachedAuth: AuthState | null = null;
+
+// Snapshot for useSyncExternalStore: the same object as long as the stored value does not change.
+function getAuthSnapshot(): AuthState | null {
+  const raw = readRaw();
+  if (raw !== cachedRaw) {
+    cachedRaw = raw;
+    try {
+      cachedAuth = parseStored(raw);
+    } catch {
+      cachedAuth = null;
+    }
+  }
+  return cachedAuth;
+}
+
+function getServerAuthSnapshot(): AuthState | null {
+  return null;
+}
+
+// Left over from before the cookie: drop the token that was stored in clear.
+function dropLegacyToken() {
+  try {
+    const store = localStorage.getItem(STORAGE_KEY) ? localStorage : sessionStorage;
+    const raw = store.getItem(STORAGE_KEY);
+    const auth = parseStored(raw);
+    if (raw && auth && raw.includes('"token"')) {
+      store.setItem(STORAGE_KEY, JSON.stringify(auth));
+    }
+  } catch {
+    // unreadable storage: nothing to clean
+  }
+}
+
+function subscribeAuth(onChange: () => void) {
+  dropLegacyToken();
+  window.addEventListener("storage", onChange);
+  window.addEventListener(AUTH_CHANGE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(AUTH_CHANGE_EVENT, onChange);
+  };
+}
+
+function notifyAuthChange() {
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
 }
 
 function saveAuth(auth: AuthState, rememberMe: boolean) {
@@ -56,45 +99,33 @@ function saveAuth(auth: AuthState, rememberMe: boolean) {
   sessionStorage.removeItem(STORAGE_KEY);
 
   (rememberMe ? localStorage : sessionStorage).setItem(STORAGE_KEY, JSON.stringify({ user: auth.user }));
+  notifyAuthChange();
 }
 
 function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
+  notifyAuthChange();
   // The httpOnly cookie can only be removed by the server.
   if (typeof window !== "undefined") {
     fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
   }
 }
 
+const subscribeNothing = () => () => {};
+
 export function useAuth() {
-  const [auth, setAuthState] = useState<AuthState | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setAuthState(readAuth());
-    setReady(true);
-
-    const onStorage = () => {
-      setAuthState(readAuth());
-    };
-
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+  const auth = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
+  // False during the server render and hydration (storage not read yet), true afterwards.
+  const ready = useSyncExternalStore(subscribeNothing, () => true, () => false);
 
   const setAuth = useCallback((nextAuth: AuthState | null, rememberMe = true) => {
     if (!nextAuth) {
       clearAuth();
-      setAuthState(null);
       return;
     }
 
     saveAuth(nextAuth, rememberMe);
-    setAuthState(nextAuth);
   }, []);
 
   const signOut = useCallback(async () => {
