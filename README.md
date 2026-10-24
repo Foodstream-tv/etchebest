@@ -283,11 +283,12 @@ Il n'est pas encore vérifié par la CI.
 
 | Projet | Vérifications | En local | CI |
 | :--- | :--- | :--- | :--- |
-| backend | build, `go vet`, `go mod tidy -diff`, tests avec `-race` | `make test-backend` | ✅ bloquant |
-| mobile | types, lint, tests Jest | `make test-mobile` | ✅ bloquant |
-| front-web | types, lint | `make test-web` | ✅ bloquant |
-| scripts | tests shell de `dev-setup.sh` et `seed.sh` | `make test-scripts` | — |
-| analytics | — | `npm run lint` | — |
+| backend | build, `go vet`, `go mod tidy -diff`, tests avec `-race`, Swagger à jour | `make test-backend` | ✅ |
+| mobile | types, lint, tests Jest, `expo install --check`, `expo-doctor` | `make test-mobile` | ✅ |
+| front-web | types, lint, build | `make test-web` ; `npm run build` | ✅ |
+| analytics | types, lint, build | `npx tsc --noEmit && npm run lint && npm run build` | ✅ |
+| scripts | tests shell de `dev-setup.sh` et `seed.sh` | `make test-scripts` | ✅ |
+| titre de PR | format Conventional Commits | — | ✅ |
 
 **Tests backend avec Postgres.** Les tests qui exécutent du vrai SQL (effacement
 et export de compte, journal d'audit…) sont **ignorés** sans
@@ -310,16 +311,25 @@ par l'hôte (backend lancé).
 ### CI (GitHub Actions)
 
 - **`CI - Build & Test`** (`.github/workflows/ci.yml`) tourne sur chaque PR et
-  sur les push vers `main`, `dev` et `feature/*`. Il a trois jobs : Backend,
-  Mobile, Web. Un nouveau push annule le run en cours sur la même branche.
-- **CodeQL** analyse la sécurité du code sur chaque PR, via la configuration par
-  défaut de GitHub (JS/TS, Python, Actions). Le workflow avancé
-  `.github/workflows/codeql.yml` (qui ajoute Go, Kotlin et Swift) se désactive
-  tant que cette configuration par défaut est active.
-- **Dependabot** propose les mises à jour de dépendances. Une mise à jour d'un
-  paquet Expo isolé vers une autre SDK (ex. `expo-router` 58 alors que l'app est
-  en SDK 57) se ferme : les paquets Expo montent ensemble, dans une PR dédiée
-  (`npx expo install expo@^58 --fix`).
+  sur les push vers `main`, `dev` et `feature/*`. Il a cinq jobs : Backend,
+  Mobile, Web, Analytics, Dev scripts. Un nouveau push annule le run en cours sur
+  la même branche.
+- **Swagger à jour** : le job Backend régénère `backend/docs` et échoue s'il
+  diffère de la version commitée. Après avoir ajouté ou modifié une route,
+  régénérez-le (voir [Backend](#backend)).
+- **`PR title`** (`.github/workflows/pr-title.yml`) vérifie que le titre de la
+  PR suit Conventional Commits (`type(périmètre): …`) : c'est lui qui devient le
+  commit sur `main`.
+- **CodeQL** analyse la sécurité du code (Go, JS/TS, Python, GitHub Actions) sur
+  chaque PR et sur `main`, via la configuration par défaut de GitHub (Settings →
+  Code security).
+- **Secret scanning** avec push protection : un push qui contient une clé ou un
+  mot de passe reconnu est bloqué avant d'arriver sur GitHub.
+- **Dependabot** (`.github/dependabot.yml`) propose chaque semaine une PR
+  groupée par projet (Go, web, analytics, mobile, GitHub Actions) ; les alertes
+  de sécurité arrivent toujours au fil de l'eau. Côté mobile, les paquets Expo,
+  React et React Native sont exclus : ils montent ensemble avec la SDK, dans une
+  PR dédiée (`npx expo install expo@^58 --fix`).
 
 ---
 
