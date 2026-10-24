@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { getMyActivities } from "@/lib/activity";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { useAuth } from "@/lib/useAuth";
+import { usePolling } from "@/lib/usePolling";
 
 type Activity = {
   id: string;
@@ -36,56 +37,58 @@ export default function NotificationPoller() {
   const { ready, user, token } = useAuth();
   const { pushNotification } = useNotifications();
 
+  // Read through a ref: navigating must not restart the polling (nor trigger an extra request).
+  const pathnameRef = useRef(pathname);
   useEffect(() => {
-    if (!ready || !user?.id || !token) return;
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
-    let cancelled = false;
-    const storageKey = `readActivityIds:${user.id}`;
+  const userId = user?.id;
+  const enabled = Boolean(ready && userId && token);
 
-    const checkActivities = async () => {
-      try {
-        const res = await getMyActivities(token);
+  const checkActivities = useCallback(async () => {
+    if (!enabled || !userId || !token) return;
 
-        if (cancelled) return;
+    const storageKey = `readActivityIds:${userId}`;
 
-        const activities: Activity[] = Array.isArray(res.activities)
-          ? res.activities
-          : [];
+    try {
+      const res = await getMyActivities(token);
 
-        const readActivityIds = getReadActivityIds(storageKey);
+      const activities: Activity[] = Array.isArray(res.activities)
+        ? res.activities
+        : [];
 
-        const unreadActivities = activities.filter(
-          (activity) => !readActivityIds.includes(activity.id)
-        );
+      const readActivityIds = new Set(getReadActivityIds(storageKey));
 
-        if (pathname !== "/profile" && unreadActivities.length > 0) {
-          unreadActivities.forEach((activity) => {
-            pushNotification({
-              title: "Nouvelle activité",
-              message: activity.text,
-              href: "/profile",
-            });
+      const unreadActivities = activities.filter(
+        (activity) => !readActivityIds.has(activity.id)
+      );
+
+      if (pathnameRef.current !== "/profile" && unreadActivities.length > 0) {
+        unreadActivities.forEach((activity) => {
+          pushNotification({
+            title: "Nouvelle activité",
+            message: activity.text,
+            href: "/profile",
           });
-        }
-
-        window.localStorage.setItem(
-          storageKey,
-          JSON.stringify(activities.map((activity) => activity.id))
-        );
-      } catch {
-        // Échec silencieux pour éviter de gêner l'utilisateur.
+        });
       }
-    };
 
-    checkActivities();
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify(activities.map((activity) => activity.id))
+      );
+    } catch {
+      // Échec silencieux pour éviter de gêner l'utilisateur.
+    }
+  }, [enabled, userId, token, pushNotification]);
 
-    const interval = window.setInterval(checkActivities, 30_000);
+  useEffect(() => {
+    void checkActivities();
+  }, [checkActivities]);
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [ready, user?.id, token, pathname, pushNotification]);
+  // Every 30 s, but only while the tab is visible.
+  usePolling(checkActivities, 30_000, enabled);
 
   return null;
 }

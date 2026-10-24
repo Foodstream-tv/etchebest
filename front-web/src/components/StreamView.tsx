@@ -35,6 +35,8 @@ export default function StreamView({ stream, muted }: Readonly<{ stream: MediaSt
       return () => {
         stream.removeEventListener("addtrack", handleTrackChange);
         stream.removeEventListener("removetrack", handleTrackChange);
+        // Let go of the stream so the browser can free the decoder right away.
+        video.srcObject = null;
       };
     }
   }, [stream]);
