@@ -67,6 +67,15 @@ jobs:
       # -race catches the unsynchronised access to shared room state that crashes the whole server.
       - name: Test (race detector)
         run: go test -race ./...
+
+      # backend/docs is generated from the handlers' comments: a route added without regenerating it fails here.
+      - name: Swagger is up to date
+        run: |
+          go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o docs --quiet
+          git diff --exit-code -- docs || {
+            echo "::error::backend/docs is stale. Run in backend/: go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o docs"
+            exit 1
+          }
         env:
           TEST_DATABASE_DSN: host=localhost port=5432 user=postgres password=test dbname=test sslmode=disable
 
@@ -105,8 +114,15 @@ jobs:
       - name: Unit tests
         run: npx jest --ci
 
+      # Every Expo package at the version of the SDK in use, no duplicated native module.
+      - name: Expo dependencies match the SDK
+        run: npx expo install --check
+
+      - name: Expo doctor
+        run: npx expo-doctor@1.20.4
+
   web:
-    name: Web (types, lint)
+    name: Web (types, lint, build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -134,3 +150,53 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # The build also renders the static pages: it catches what tsc and the lint do not (server rendering, routes).
+      - name: Build
+        run: npm run build
+
+  analytics:
+    name: Analytics (types, lint, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: analytics
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: analytics/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  scripts:
+    name: Dev scripts (dev-setup, seed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: dev-setup.sh
+        run: ./scripts/test-dev-setup.sh
+
+      - name: seed.sh
+        run: ./scripts/test-seed.sh

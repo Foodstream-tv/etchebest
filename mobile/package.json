@@ -69,5 +69,15 @@
     "@tootallnate/once": "3.0.1",
     "postcss": "^8.5.23"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-webrtc"
+        ],
+        "listUnknownPackages": false
+      }
+    }
+  }
 }
