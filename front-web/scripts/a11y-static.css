@@ -1,0 +1,54 @@
+/* ---- Text size (rem-based sizes scale with the root font size) ---- */
+html[data-a11y-text="115"] {
+  font-size: 115%;
+}
+
+html[data-a11y-text="130"] {
+  font-size: 130%;
+}
+
+/* ---- High contrast ---- */
+html[data-a11y-contrast="high"] body {
+  color: #000;
+}
+
+html[data-a11y-contrast="high"].dark body {
+  color: #fff;
+}
+
+/* Hairline borders become clearly visible (3:1 against the page). */
+html[data-a11y-contrast="high"]:not(.dark)
+  :is([class*="border-black/"], [class*="border-gray-"]):not(:focus):not(:focus-within) {
+  border-color: var(--color-gray-500, #6a7282);
+}
+
+html[data-a11y-contrast="high"].dark
+  :is([class*="border-white/"], [class*="border-gray-"]):not(:focus):not(:focus-within) {
+  border-color: var(--color-gray-400, #99a1af);
+}
+
+/* Faded text becomes solid. */
+html[data-a11y-contrast="high"]:not(.dark) [class*="text-black/"] {
+  color: #000;
+}
+
+html[data-a11y-contrast="high"].dark [class*="text-white/"] {
+  color: #fff;
+}
+
+/* Frosted-glass effects reduce legibility behind text. */
+html[data-a11y-contrast="high"] * {
+  backdrop-filter: none !important;
+}
+
+/* Very visible keyboard focus. */
+html[data-a11y-contrast="high"] :focus-visible {
+  outline: 3px solid #000 !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px #fff !important;
+}
+
+html[data-a11y-contrast="high"].dark :focus-visible {
+  outline-color: #fff !important;
+  box-shadow: 0 0 0 6px #000 !important;
+}
