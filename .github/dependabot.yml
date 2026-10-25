@@ -1,4 +1,6 @@
-# Weekly version updates, grouped per project (security updates keep coming as soon as an alert appears).
+# Weekly version updates, grouped per project: one PR for minor/patch updates, one for major ones.
+# Minor/patch groups are merged automatically once CI is green (dependabot-auto-merge.yml); majors stay manual.
+# Security updates keep coming as soon as an alert appears.
 version: 2
 updates:
   - package-ecosystem: gomod
@@ -8,26 +10,44 @@ updates:
     groups:
       go:
         patterns: ["*"]
+        update-types: [minor, patch]
+      go-major:
+        patterns: ["*"]
+        update-types: [major]
 
   - package-ecosystem: npm
     directory: /front-web
     schedule:
       interval: weekly
+    ignore:
+      # Types of the Node version the app runs on (22): no newer major.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       web:
         patterns: ["*"]
         update-types: [minor, patch]
+      web-major:
+        patterns: ["*"]
+        update-types: [major]
 
   - package-ecosystem: npm
     directory: /analytics
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       analytics:
         patterns: ["*"]
         update-types: [minor, patch]
+      analytics-major:
+        patterns: ["*"]
+        update-types: [major]
 
-  # Expo packages and React Native move together with the SDK (npx expo install expo@^NN --fix), never one by one.
+  # Expo, React, React Native and what the SDK pins (TypeScript, Jest) move together with the SDK
+  # (npx expo install expo@^NN --fix), never one by one.
   - package-ecosystem: npm
     directory: /mobile
     schedule:
@@ -46,10 +66,21 @@ updates:
       - dependency-name: "@react-native-community/*"
       - dependency-name: "react-test-renderer"
       - dependency-name: "@types/react"
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/jest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     groups:
       mobile:
         patterns: ["*"]
         update-types: [minor, patch]
+      mobile-major:
+        patterns: ["*"]
+        update-types: [major]
 
   - package-ecosystem: github-actions
     directory: /
@@ -58,3 +89,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: [minor, patch]
+      actions-major:
+        patterns: ["*"]
+        update-types: [major]

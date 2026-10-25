@@ -1,0 +1,25 @@
+name: Weekly report
+
+# Every Monday morning, a summary of the past week is posted on the "Point hebdomadaire" issue
+# (scripts/weekly-report.sh). Run it by hand from the Actions tab at any time.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post the weekly report
+        run: ./scripts/weekly-report.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}

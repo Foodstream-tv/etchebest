@@ -1,0 +1,40 @@
+# Labels added to a PR from the files it changes (.github/workflows/pr-triage.yml).
+area:backend:
+  - changed-files:
+      - any-glob-to-any-file: ["backend/**"]
+
+area:web:
+  - changed-files:
+      - any-glob-to-any-file: ["front-web/**"]
+
+area:mobile:
+  - changed-files:
+      - any-glob-to-any-file: ["mobile/**"]
+
+area:analytics:
+  - changed-files:
+      - any-glob-to-any-file: ["analytics/**"]
+
+area:infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - ".githooks/**"
+          - "docker-compose*.yml"
+          - "nginx.conf"
+          - "Makefile"
+          - "scripts/**"
+          - "*.sh"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.md"]
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/package.json"
+          - "**/package-lock.json"
+          - "**/pnpm-lock.yaml"
+          - "backend/go.mod"
+          - "backend/go.sum"
