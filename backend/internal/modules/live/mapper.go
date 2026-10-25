@@ -11,8 +11,8 @@ func LiveToDTO(live Live) LiveDTO {
 	dtoLive := LiveDTO{
 		ID:             live.ID,
 		Title:          live.Title,
-		RoomID:   		live.RoomID,
-		DishName: 		live.DishName,
+		RoomID:         live.RoomID,
+		DishName:       live.DishName,
 		Description:    live.Description,
 		Status:         live.Status,
 		ViewCount:      live.ViewCount,
@@ -28,7 +28,7 @@ func LiveToDTO(live Live) LiveDTO {
 		ReplayEnabled:  !live.ReplayDisabled,
 		ReplayRemoved:  live.ReplayRemovedAt != nil,
 		CreatedAt:      live.CreatedAt,
-		ScheduledAt: live.ScheduledAt,
+		ScheduledAt:    live.ScheduledAt,
 	}
 
 	// User

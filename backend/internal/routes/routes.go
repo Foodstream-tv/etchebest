@@ -12,10 +12,10 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/discover"
 	"github.com/Foodstream-io/etchebest/internal/modules/live"
 	"github.com/Foodstream-io/etchebest/internal/modules/room"
-	"github.com/Foodstream-io/etchebest/internal/modules/search"
-	"github.com/Foodstream-io/etchebest/internal/modules/user"
-	"github.com/Foodstream-io/etchebest/internal/modules/upload"
 	"github.com/Foodstream-io/etchebest/internal/modules/scrape"
+	"github.com/Foodstream-io/etchebest/internal/modules/search"
+	"github.com/Foodstream-io/etchebest/internal/modules/upload"
+	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 

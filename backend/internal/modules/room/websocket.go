@@ -1,7 +1,6 @@
 package room
 
 import (
-	"time"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -73,7 +73,7 @@ var upgrader = websocket.Upgrader{
 			}
 		}
 		// Allow foodstream domains
-if hostname == "foodstream.tv" || strings.HasSuffix(hostname, ".foodstream.tv") {
+		if hostname == "foodstream.tv" || strings.HasSuffix(hostname, ".foodstream.tv") {
 			return true
 		}
 		log.Printf("[WS] CheckOrigin rejected origin: %s", origin)
@@ -343,4 +343,3 @@ func NotifyUserKicked(roomID, userID string) bool {
 		return false
 	}
 }
-
