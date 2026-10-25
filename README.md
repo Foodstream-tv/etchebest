@@ -444,6 +444,21 @@ Avant une mise en production, vérifiez au minimum :
 
 Les points encore ouverts sont suivis dans les issues #121, #227 et #287.
 
+### Versions et builds mobiles
+
+- **Releases** (`release-please.yml`) : à chaque merge sur `main`, une PR
+  « chore(main): release x.y.z » tient à jour `CHANGELOG.md` à partir des titres
+  de PR. La merger crée le tag `vX.Y.Z` et la release GitHub. `feat` augmente la
+  version mineure, `fix` le correctif. Nécessite le secret
+  `RELEASE_PLEASE_TOKEN` (token à grain fin, droits _contents_ et _pull
+  requests_ en écriture) pour que la PR de release passe par la CI.
+- **Builds EAS** (`eas-build.yml`) : build mobile sur les serveurs d'Expo, sans
+  Mac pour iOS. Lancement à la main depuis l'onglet Actions (profil et
+  plateforme au choix), et build Android `preview` automatique à chaque release.
+  Le suivi et le téléchargement se font sur expo.dev. Nécessite le secret
+  `EXPO_TOKEN` ; pour iOS, les identifiants Apple configurés une fois avec
+  `npx eas credentials`.
+
 ---
 
 ## Documentation complémentaire
