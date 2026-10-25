@@ -48,7 +48,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.2
+          # The version go.mod asks for: a dependency update that raises it is picked up here too.
+          go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
       - name: Download dependencies
@@ -208,3 +209,29 @@ jobs:
 
       - name: seed.sh
         run: ./scripts/test-seed.sh
+
+  # The images that run in production: a base image older than go.mod or package.json asks for, or a
+  # Dockerfile step that breaks, fails here instead of on the next `make up` or deployment.
+  docker:
+    name: Docker (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, front-web, analytics]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
