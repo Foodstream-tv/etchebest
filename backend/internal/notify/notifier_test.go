@@ -59,3 +59,19 @@ func TestLogSimulationKeepsSecretsOutOfProductionLogs(t *testing.T) {
 		t.Fatalf("dev mode should still print the code for local testing: %q", buf.String())
 	}
 }
+
+func TestUserTextKeepsUserInputOnOneLine(t *testing.T) {
+	cases := map[string]string{
+		"Chef Anna":                            "Chef Anna",
+		"Anna\r\nBcc: victim@example.com":      "Anna Bcc: victim@example.com",
+		"Tarte\n\n\nCliquez ici":               "Tarte Cliquez ici",
+		"  espaces   multiples\t":              "espaces multiples",
+		"bip\x07\x00":                          "bip",
+		strings.Repeat("é", maxUserTextLen+10): strings.Repeat("é", maxUserTextLen) + "…",
+	}
+	for in, want := range cases {
+		if got := userText(in); got != want {
+			t.Errorf("userText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

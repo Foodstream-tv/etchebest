@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -100,11 +101,11 @@ func (n *DefaultNotifier) SendLiveScheduledEmail(toEmail, hostName, title string
 	}
 
 	greeting := "Bonjour"
-	if hostName != "" {
-		greeting = fmt.Sprintf("Bonjour %s", hostName)
+	if name := userText(hostName); name != "" {
+		greeting = fmt.Sprintf("Bonjour %s", name)
 	}
 
-	cleanTitle := strings.ReplaceAll(strings.ReplaceAll(title, "\r", ""), "\n", " ")
+	cleanTitle := userText(title)
 	subject := fmt.Sprintf("FoodStream - Votre live « %s » est programmé !", cleanTitle)
 	body := fmt.Sprintf(
 		"%s,\r\n\r\n"+
@@ -144,11 +145,11 @@ func (n *DefaultNotifier) SendReservationConfirmationEmail(toEmail, userName, ti
 	}
 
 	greeting := "Bonjour"
-	if userName != "" {
-		greeting = fmt.Sprintf("Bonjour %s", userName)
+	if name := userText(userName); name != "" {
+		greeting = fmt.Sprintf("Bonjour %s", name)
 	}
 
-	cleanTitle := strings.ReplaceAll(strings.ReplaceAll(title, "\r", ""), "\n", " ")
+	cleanTitle := userText(title)
 	subject := fmt.Sprintf("FoodStream - Votre place est réservée pour « %s »", cleanTitle)
 	body := fmt.Sprintf(
 		"%s,\r\n\r\n"+
@@ -161,6 +162,28 @@ func (n *DefaultNotifier) SendReservationConfirmationEmail(toEmail, userName, ti
 		greeting, cleanTitle, formattedDate, liveUrl, gcalLink)
 
 	return sendEmail(toEmail, subject, body, "Live reservation confirmation email")
+}
+
+// maxUserTextLen bounds a name or a live title quoted in an email.
+const maxUserTextLen = 120
+
+// userText prepares text typed by a user (name, live title) for an email: one line (no CR/LF, so it
+// cannot fake extra lines or headers), no other control character, and a bounded length.
+func userText(s string) string {
+	s = strings.Map(func(r rune) rune {
+		switch {
+		case r == '\r' || r == '\n' || r == '\t':
+			return ' '
+		case unicode.IsControl(r):
+			return -1
+		}
+		return r
+	}, s)
+	s = strings.Join(strings.Fields(s), " ")
+	if runes := []rune(s); len(runes) > maxUserTextLen {
+		s = string(runes[:maxUserTextLen]) + "…"
+	}
+	return s
 }
 
 func sendEmail(toEmail, subject, body, desc string) error {
