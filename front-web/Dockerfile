@@ -3,20 +3,17 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-COPY pnpm-lock.yaml ./
-COPY pnpm-workspace.yaml ./
+# npm and package-lock.json, like the CI and Dependabot: one lockfile, the versions that were tested.
+COPY package.json package-lock.json ./
 
-RUN corepack enable \
-  && corepack prepare pnpm@9.15.5 --activate \
-  && pnpm install
+RUN npm ci
 
 COPY . .
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 
-RUN pnpm run build && mkdir -p /app/public
+RUN npm run build && mkdir -p /app/public
 
 FROM node:22-alpine
 

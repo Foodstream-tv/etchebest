@@ -35,6 +35,5 @@ dependencies:
       - any-glob-to-any-file:
           - "**/package.json"
           - "**/package-lock.json"
-          - "**/pnpm-lock.yaml"
           - "backend/go.mod"
           - "backend/go.sum"
