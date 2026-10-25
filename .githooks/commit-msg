@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Checks the commit message against Conventional Commits (see "Conventions Git" in the README).
+# Installed by `make setup` (git config core.hooksPath .githooks). Skip once with: git commit --no-verify
+set -euo pipefail
+
+first_line="$(head -n1 "$1")"
+
+# Messages Git writes itself: merges, reverts, fixup!/squash! for an interactive rebase.
+if [[ "$first_line" =~ ^(Merge |Revert \"|fixup! |squash! |amend! ) ]]; then
+  exit 0
+fi
+
+types='feat|fix|refactor|perf|style|docs|test|chore|build|ci|revert'
+if [[ "$first_line" =~ ^($types)(\([a-z0-9._/-]+\))?!?:\ .+ ]]; then
+  exit 0
+fi
+
+cat >&2 <<MSG
+commit-msg: le message ne suit pas Conventional Commits :
+  $first_line
+
+Format attendu : type(périmètre): description
+  types      : ${types//|/, }
+  périmètre  : facultatif, ex. web, mobile, live, backend, rgpd, dev, deps
+  exemple    : fix(live): FFmpeg est relancé après un crash
+MSG
+exit 1

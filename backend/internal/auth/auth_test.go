@@ -92,10 +92,10 @@ func TestBannedUserCheck(t *testing.T) {
 
 func TestEmailAndUsernameNormalization(t *testing.T) {
 	testCases := []struct {
-		emailInput        string
-		expectedEmail     string
-		usernameInput     string
-		expectedUsername  string
+		emailInput       string
+		expectedEmail    string
+		usernameInput    string
+		expectedUsername string
 	}{
 		{"Test@Example.COM", "test@example.com", "  ChefJohn  ", "ChefJohn"},
 		{"  user@foodstream.tv  ", "user@foodstream.tv", "foodie123", "foodie123"},

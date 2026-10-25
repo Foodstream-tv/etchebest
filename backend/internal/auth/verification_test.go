@@ -101,4 +101,3 @@ func TestPasswordResetTokenValidity(t *testing.T) {
 		t.Errorf("expected expired reset token to be invalid")
 	}
 }
-

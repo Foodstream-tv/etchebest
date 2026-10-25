@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/Foodstream-io/etchebest/internal/modules/activity"
+	"github.com/Foodstream-io/etchebest/internal/utils"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

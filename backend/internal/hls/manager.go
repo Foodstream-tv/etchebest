@@ -47,21 +47,21 @@ func RegisterToStream(roomID string, stop func(), status func() Status) {
 		Stop:   stop,
 		status: status,
 	}
-	
+
 	// Log segment generation progress every 2 seconds
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			mu.Lock()
 			_, exists := streams[roomID]
 			mu.Unlock()
-			
+
 			if !exists {
 				return // Stream stopped
 			}
-			
+
 			logSegmentStatus(roomID)
 		}
 	}()
@@ -70,14 +70,14 @@ func RegisterToStream(roomID string, stop func(), status func() Status) {
 func logSegmentStatus(roomID string) {
 	qualities := qualityNames()
 	const playlistFile = "index.m3u8"
-	
+
 	for _, quality := range qualities {
 		indexPath := filepath.Join("./hls", roomID, quality, playlistFile)
 		data, err := os.ReadFile(indexPath)
 		if err != nil {
 			continue
 		}
-		
+
 		// Count segments in the playlist
 		lines := strings.Split(string(data), "\n")
 		segmentCount := 0
@@ -86,7 +86,7 @@ func logSegmentStatus(roomID string) {
 				segmentCount++
 			}
 		}
-		
+
 		log.Printf("[HLS] %s: %d segments ready", quality, segmentCount)
 	}
 }

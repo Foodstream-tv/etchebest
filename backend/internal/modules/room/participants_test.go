@@ -76,7 +76,7 @@ func TestGhostParticipantsAreThoseWhoNeverConnectedAfterTheGrace(t *testing.T) {
 	now := time.Now()
 	room := liveRoomWithHost(now.Add(-10 * time.Minute))
 	room.Connections = append(room.Connections, PeerConnection{UserID: "alice", PeerCon: fakePC()}) // really connected
-	markPending(room, "bob", now.Add(-4*time.Minute))                                              // took a slot long ago, never connected
+	markPending(room, "bob", now.Add(-4*time.Minute))                                               // took a slot long ago, never connected
 
 	ghosts := ghostParticipants(room, now, 3*time.Minute)
 	if len(ghosts) != 1 || ghosts[0] != "bob" {

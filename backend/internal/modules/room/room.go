@@ -52,7 +52,6 @@ type AddParticipantReq struct {
 const errRoomIDRequired = "room ID is required"
 const errRoomNotFound = "room not found"
 
-
 var (
 	// mu guards the *contents* of rooms (connections, participants, peer state).
 	mu sync.Mutex
@@ -1657,7 +1656,6 @@ type peerTrack struct {
 	pt uint8
 }
 
-
 // skipVP8ExtendedDescriptor advances offset past the extended VP8 descriptor
 // fields (I, L, T/K sub-fields) as described in RFC 7741.
 // Returns the new offset, or -1 if the payload is too short.
@@ -1752,7 +1750,6 @@ func isH264KeyframeWithParams(payload []byte) bool {
 
 	return false
 }
-
 
 // extractAndSendAllSTAPAUnits takes a STAP-A packet and sends each NAL unit
 // as a separate RTP packet to FFmpeg. Returns true if any units were sent.
@@ -2195,7 +2192,6 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 		}
 	}
 }
-
 
 // onPeerDisconnected cleans up room state when a peer leaves.
 // It is safe to call multiple times for the same PC (idempotent).

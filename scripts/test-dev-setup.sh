@@ -49,6 +49,12 @@ check "never overrides an existing DEV_MODE"     '[[ "$(env_of "$ROOT2" DEV_MODE
 check "never overrides an existing JWT secret"   '[[ "$(env_of "$ROOT2" JWT_SECRET)" == "mine" ]]'
 check "leaves a deliberate public WEBRTC_IP"     '[[ "$(env_of "$ROOT2" WEBRTC_IP)" == "203.0.113.9" ]]'
 
+ROOT4="$(new_root)"
+printf 'JWT_SECRET=mine\nWEBRTC_IP=203.0.113.9\n' >"$ROOT4/.env"
+FOODSTREAM_ROOT="$ROOT4" "$SCRIPT" >/dev/null 2>&1
+check "adds DEV_MODE=true to an older .env"      '[[ "$(env_of "$ROOT4" DEV_MODE)" == "true" ]]'
+check "adds DEV_MODE only once"                  '[[ "$(grep -c "^DEV_MODE=" "$ROOT4/.env")" -eq 1 ]]'
+
 ROOT3="$(new_root)"
 printf 'WEBRTC_IP=192.168.1.99\n' >"$ROOT3/.env"
 FOODSTREAM_ROOT="$ROOT3" "$SCRIPT" --ip-only >/dev/null 2>&1

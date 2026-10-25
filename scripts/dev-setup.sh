@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prepares the local development environment. Safe to run any number of times.
 #
-#   scripts/dev-setup.sh            create .env if missing (JWT secret, DEV_MODE), set WEBRTC_IP, check the API port
+#   scripts/dev-setup.sh            create .env if missing (JWT secret, DEV_MODE), add DEV_MODE to an older .env,
+#                                   set WEBRTC_IP, check the API port
 #   scripts/dev-setup.sh --ip-only  only refresh WEBRTC_IP (and restart the backend if it changed and is running)
 #
 # FOODSTREAM_ROOT overrides the project root (used by the tests).
@@ -60,6 +61,16 @@ ensure_env_file() {
   # Local development: verification codes are printed by the backend (and offered by the mobile app).
   set_env DEV_MODE true
   log "created .env from .env.example (DEV_MODE=true)"
+}
+
+# An older .env may have no DEV_MODE at all: without it no verification code shows up and signing up looks
+# stuck. Add it, but never override a value set on purpose (DEV_MODE=false stays false).
+ensure_dev_mode() {
+  if grep -q '^DEV_MODE=' "$ENV_FILE"; then
+    return 0
+  fi
+  set_env DEV_MODE true
+  log "added DEV_MODE=true to .env (verification codes are returned by the API)"
 }
 
 ensure_jwt_secret() {
@@ -135,6 +146,7 @@ case "$MODE" in
     ;;
   all)
     ensure_env_file
+    ensure_dev_mode
     ensure_jwt_secret
     update_webrtc_ip || true
     check_api_port
