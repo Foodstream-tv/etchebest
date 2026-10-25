@@ -74,8 +74,14 @@ func copyFile(src string, dst string) error {
 }
 
 func GenerateReplay(roomID string) (string, error) {
-	sourceDir := filepath.Join("./hls", roomID)
-	replayDir := filepath.Join("./storage/replays", roomID)
+	sourceDir, err := roomDir(liveDir, roomID)
+	if err != nil {
+		return "", err
+	}
+	replayDir, err := roomDir(replaysDir, roomID)
+	if err != nil {
+		return "", err
+	}
 
 	masterPath := filepath.Join(sourceDir, "master.m3u8")
 	if _, err := os.Stat(masterPath); err != nil {

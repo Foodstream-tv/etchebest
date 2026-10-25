@@ -68,11 +68,15 @@ func RegisterToStream(roomID string, stop func(), status func() Status) {
 }
 
 func logSegmentStatus(roomID string) {
+	dir, err := roomDir(liveDir, roomID)
+	if err != nil {
+		return
+	}
 	qualities := qualityNames()
 	const playlistFile = "index.m3u8"
 
 	for _, quality := range qualities {
-		indexPath := filepath.Join("./hls", roomID, quality, playlistFile)
+		indexPath := filepath.Join(dir, quality, playlistFile)
 		data, err := os.ReadFile(indexPath)
 		if err != nil {
 			continue
@@ -92,10 +96,14 @@ func logSegmentStatus(roomID string) {
 }
 
 func finalizePlaylist(roomID string) error {
+	dir, err := roomDir(liveDir, roomID)
+	if err != nil {
+		return err
+	}
 	const playlistFile = "index.m3u8"
-	playlists := []string{filepath.Join("./hls", roomID, "master.m3u8")}
+	playlists := []string{filepath.Join(dir, "master.m3u8")}
 	for _, quality := range qualityNames() { // a light-ladder live has no 1080p/720p: missing files are skipped
-		playlists = append(playlists, filepath.Join("./hls", roomID, quality, playlistFile))
+		playlists = append(playlists, filepath.Join(dir, quality, playlistFile))
 	}
 
 	for _, playlistPath := range playlists {
@@ -144,10 +152,11 @@ func DiscardStream(roomID string) {
 	if exists {
 		stream.Stop()
 	}
-	if roomID == "" || roomID != filepath.Base(roomID) || roomID == "." || roomID == ".." {
+	dir, err := roomDir(liveDir, roomID)
+	if err != nil {
 		return
 	}
-	if err := os.RemoveAll(filepath.Join("./hls", roomID)); err != nil {
+	if err := os.RemoveAll(dir); err != nil {
 		log.Printf("[HLS] could not delete the recording of room %s: %v", roomID, err)
 	}
 }
@@ -179,8 +188,10 @@ func StopStream(roomID string) (string, error) {
 
 	// Only delete the recording once it is safely stored as a replay (or when there was nothing to
 	// keep). A failed replay (disk full, copy error) must never also destroy its only source.
-	sourceDir := filepath.Join("./hls", roomID)
+	sourceDir, dirErr := roomDir(liveDir, roomID)
 	switch {
+	case dirErr != nil:
+		// Nothing was ever written for an id that cannot name a directory.
 	case err == nil, errors.Is(err, ErrNoReplayContent):
 		if rmErr := os.RemoveAll(sourceDir); rmErr != nil {
 			log.Printf("[HLS] cleanup failed for room %s: %v", roomID, rmErr)

@@ -288,7 +288,10 @@ func (s *supervisor) stop() {
 // Start launches FFmpeg for the room and keeps it running: it reads RTP audio and video from two
 // local UDP ports and produces an adaptive HLS stream. The returned writer feeds those ports.
 func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*HLSWriter, func(), error) {
-	hlsDir := filepath.Join("./hls", roomID)
+	hlsDir, err := roomDir(liveDir, roomID)
+	if err != nil {
+		return nil, nil, err
+	}
 	ladder, releaseSlot, err := reserveSlot(roomID)
 	if err != nil {
 		return nil, nil, err
@@ -375,7 +378,7 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	// Wait a moment for FFmpeg to create initial playlists, then log status
 	go func() {
 		time.Sleep(3 * time.Second)
-		masterPath := filepath.Join("./hls", roomID, "master.m3u8")
+		masterPath := filepath.Join(hlsDir, "master.m3u8")
 		if data, err := os.ReadFile(masterPath); err == nil {
 			log.Printf("[HLS] master.m3u8 created for room %s:\n%s", roomID, string(data))
 		} else {
