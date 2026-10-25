@@ -1,0 +1,49 @@
+name: Release
+
+# On every merge to main, release-please keeps a "chore(main): release x.y.z" PR up to date with the
+# changelog built from the commit titles (Conventional Commits). Merging that PR tags vX.Y.Z and publishes
+# the GitHub release. feat bumps the minor version, fix the patch one (the major stays 0 until 1.0.0).
+#
+# RELEASE_PLEASE_TOKEN (a fine-grained token: contents and pull requests read/write) is needed so that the
+# release PR runs the CI like any other PR: a PR opened with GITHUB_TOKEN triggers no workflow, and the
+# required checks of the main ruleset would never come. Without the secret, the workflow does nothing.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Skip without RELEASE_PLEASE_TOKEN
+        if: env.RELEASE_PLEASE_TOKEN == ''
+        run: 'echo "::notice::RELEASE_PLEASE_TOKEN is not set: no release PR (see the comment at the top of release-please.yml)."'
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - uses: googleapis/release-please-action@v4
+        id: release
+        if: env.RELEASE_PLEASE_TOKEN != ''
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+  # A release gets an Android preview build (an APK to install from the EAS page).
+  android-preview:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/eas-build.yml
+    with:
+      profile: preview
+      platform: android
+    secrets: inherit
