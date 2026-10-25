@@ -2,10 +2,12 @@ name: EAS build
 
 # Mobile builds on Expo's servers (no Mac needed for iOS): by hand from the Actions tab, and an Android
 # preview build for every release (release-please.yml). The build is queued and the job ends right away:
-# follow it, and download the result, on expo.dev.
+# it shows up in the expo.dev dashboard (foodstream-org → etchebest → Builds) with its commit, like a build
+# started from a laptop; follow it and download the result there.
 #
-# Needs the EXPO_TOKEN secret (expo.dev → Account settings → Access tokens). Without it, nothing happens.
-# iOS builds also need the Apple credentials set up once in EAS (npx eas credentials).
+# Needs the EXPO_TOKEN secret: a robot token of the foodstream-org organisation (expo.dev → foodstream-org →
+# Settings → Access tokens), not a personal one. Without it, nothing happens.
+# iOS builds also need an Apple Developer account and its credentials set up once (npx eas credentials).
 on:
   workflow_dispatch:
     inputs:

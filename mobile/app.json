@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "foodstream",
-    "slug": "foodstream",
+    "slug": "etchebest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,9 +11,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Cette application utilise la caméra pour diffuser des lives.",
-        "NSMicrophoneUsageDescription": "Cette application utilise le microphone pour diffuser des lives."
+        "NSMicrophoneUsageDescription": "Cette application utilise le microphone pour diffuser des lives.",
+        "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.nicolasgillard.foodstream"
+      "bundleIdentifier": "tv.foodstream.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +31,7 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT"
       ],
-      "package": "com.nicolasgillard.foodstream"
+      "package": "tv.foodstream.app"
     },
     "web": {
       "bundler": "metro",
@@ -68,9 +69,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5661e13e-c4cb-4890-bf07-c759eb9a0308"
+        "projectId": "c3cf11fd-6068-4929-9a82-c5b39160f9af"
       }
     },
-    "owner": "nicolasgillard"
+    "owner": "foodstream-org"
   }
 }

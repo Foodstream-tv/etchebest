@@ -264,6 +264,11 @@ déduit l'adresse de l'API de celle de Metro.
   Puis `npx expo start --dev-client --port 8082` (ou `make mobile`) et ouvrez
   l'application.
 
+- **Identifiants** : `tv.foodstream.app` sur Android et iOS, projet EAS
+  `etchebest` de l'organisation `foodstream-org`. La connexion Google dépend de
+  ces identifiants : un client OAuth Android (identifiant + empreinte SHA-1 de
+  la clé de signature, debug et EAS) et un client OAuth iOS (bundle ID) dans
+  Google Cloud.
 - **Navigation** : importez depuis `expo-router/react-navigation` et
   `expo-router/js-tabs`, pas depuis `@react-navigation/*`.
 - **Lint** : 0 erreur ; les règles du React Compiler (`react-hooks/refs`,
@@ -481,9 +486,15 @@ Les points encore ouverts sont suivis dans les issues #121, #227 et #287.
 - **Builds EAS** (`eas-build.yml`) : build mobile sur les serveurs d'Expo, sans
   Mac pour iOS. Lancement à la main depuis l'onglet Actions (profil et
   plateforme au choix), et build Android `preview` automatique à chaque release.
-  Le suivi et le téléchargement se font sur expo.dev. Nécessite le secret
-  `EXPO_TOKEN` ; pour iOS, les identifiants Apple configurés une fois avec
-  `npx eas credentials`.
+  Les builds apparaissent dans le dashboard Expo (organisation `foodstream-org`,
+  projet `etchebest`), avec leur commit : suivi et téléchargement s'y font.
+  Nécessite le secret `EXPO_TOKEN`, un _robot token_ de l'organisation
+  `foodstream-org` (pas un token personnel) ; pour iOS, un compte Apple Developer
+  et ses identifiants configurés une fois avec `npx eas credentials`.
+- **Profils** (`mobile/eas.json`) : `development` (dev client, APK), `preview`
+  (APK à installer pour tester) et `production` (AAB pour le Play Store, non
+  installable directement). Les numéros de build sont gérés par EAS
+  (`appVersionSource: remote`).
 
 ---
 
