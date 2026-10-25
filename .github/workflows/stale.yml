@@ -1,0 +1,34 @@
+name: Inactivity reminder
+
+# A comment and an "inactif" label after 30 days without activity; nothing is ever closed automatically.
+# Roadmap issues (in a milestone) and priorities P0/P1 are left alone.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 30
+          days-before-close: -1
+          stale-issue-label: inactif
+          stale-pr-label: inactif
+          exempt-all-milestones: true
+          exempt-issue-labels: "P0,P1,in progress,point-hebdo"
+          exempt-pr-labels: "P0,P1"
+          exempt-draft-pr: true
+          operations-per-run: 50
+          stale-issue-message: >
+            Pas d'activité depuis 30 jours. Toujours d'actualité ? Si oui, assignez-vous ou
+            précisez la suite ; sinon, fermez-la. (Le label disparaît au prochain commentaire.)
+          stale-pr-message: >
+            Pas d'activité depuis 30 jours. À finir, à faire relire ou à fermer ?
+            (Le label disparaît au prochain push ou commentaire.)

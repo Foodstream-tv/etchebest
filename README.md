@@ -326,11 +326,24 @@ par l'hôte (backend lancé).
   Code security).
 - **Secret scanning** avec push protection : un push qui contient une clé ou un
   mot de passe reconnu est bloqué avant d'arriver sur GitHub.
-- **Dependabot** (`.github/dependabot.yml`) propose chaque semaine une PR
-  groupée par projet (Go, web, analytics, mobile, GitHub Actions) ; les alertes
-  de sécurité arrivent toujours au fil de l'eau. Côté mobile, les paquets Expo,
-  React et React Native sont exclus : ils montent ensemble avec la SDK, dans une
-  PR dédiée (`npx expo install expo@^58 --fix`).
+- **Dependabot** (`.github/dependabot.yml`) propose chaque semaine, par projet
+  (Go, web, analytics, mobile, GitHub Actions), une PR pour les mises à jour
+  mineures et correctives et une autre pour les majeures. Les premières sont
+  **mergées automatiquement** quand la CI est verte
+  (`dependabot-auto-merge.yml`) ; les majeures restent à relire. Côté mobile,
+  Expo, React, React Native et ce que la SDK fixe (TypeScript, Jest, ESLint)
+  sont exclus : ils montent avec la SDK, dans une PR dédiée
+  (`npx expo install expo@^58 --fix`). Les alertes de sécurité arrivent toujours
+  au fil de l'eau.
+
+### Automatisations
+
+| Workflow | Quand | Ce qu'il fait |
+| :--- | :--- | :--- |
+| `pr-triage.yml` | Ouverture et push d'une PR | Labels `area:*`, `documentation`, `dependencies` selon les fichiers touchés (`.github/labeler.yml`) ; assigne l'auteur |
+| `dependabot-auto-merge.yml` | PR Dependabot | Active le merge automatique des mises à jour mineures et correctives |
+| `stale.yml` | Chaque jour | Commentaire et label `inactif` après 30 jours sans activité ; ne ferme rien, ignore les issues de milestone et les P0/P1 |
+| `weekly-report.yml` | Lundi matin, ou à la main | Publie le point de la semaine sur l'issue « Point hebdomadaire » (`scripts/weekly-report.sh --dry-run` pour le voir en local) |
 
 ---
 
