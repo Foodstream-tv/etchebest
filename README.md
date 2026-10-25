@@ -36,7 +36,7 @@ Chaque live peut être conservé en **replay**.
          │  HLS (spectateurs, replays)                   │
          ▼                     ▼                       ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  backend (Go 1.25, Gin)                               :8081  │
+│  backend (Go 1.26, Gin)                               :8081  │
 │  - API REST + WebSocket, Swagger : /api/swagger/index.html   │
 │  - SFU WebRTC (Pion) : un hôte, jusqu'à 5 co-streamers       │
 │  - FFmpeg : WebRTC → HLS (.m3u8 / segments) et replays       │
@@ -49,7 +49,7 @@ Chaque live peut être conservé en **replay**.
 
 | Dossier | Rôle | Stack |
 | :--- | :--- | :--- |
-| `backend/` | API, signalisation WebRTC, SFU, HLS, replays, e-mails | Go 1.25, Gin, Pion WebRTC v4, GORM, FFmpeg |
+| `backend/` | API, signalisation WebRTC, SFU, HLS, replays, e-mails | Go 1.26, Gin, Pion WebRTC v4, GORM, FFmpeg |
 | `front-web/` | Application web : accueil, lives, Studio, diffusion, replays, profil, boutique | Next.js 16, React 19, TypeScript, Tailwind, hls.js |
 | `mobile/` | Application mobile : les mêmes parcours, WebRTC natif | Expo SDK 57, React Native 0.86, expo-router, react-native-webrtc |
 | `analytics/` | Tableau de bord d'administration : utilisateurs, modération, statistiques | Next.js 16, React 19 |
@@ -79,7 +79,7 @@ Le détail du live (signalisation, SFU, HLS, replays) est dans
 
 - Docker avec Compose v2, et `make` ;
 - Node 22 (le CI l'utilise ; React Native demande au minimum 20.19.4) ;
-- Go 1.25, seulement pour lancer les tests du backend hors Docker ;
+- Go 1.26, seulement pour lancer les tests du backend hors Docker ;
 - pour l'application mobile : Android Studio (SDK et émulateur) et JDK 17, ou un
   téléphone Android ; un Mac avec Xcode pour iOS.
 
@@ -294,6 +294,7 @@ Il n'est pas encore vérifié par la CI.
 | front-web | types, lint, build | `make test-web` ; `npm run build` | ✅ |
 | analytics | types, lint, build | `npx tsc --noEmit && npm run lint && npm run build` | ✅ |
 | scripts | tests shell de `dev-setup.sh` et `seed.sh` | `make test-scripts` | ✅ |
+| images Docker | build des images backend, front-web et analytics | `docker compose build` | ✅ |
 | titre de PR | format Conventional Commits | — | ✅ |
 
 **Tests backend avec Postgres.** Les tests qui exécutent du vrai SQL (effacement
@@ -317,9 +318,9 @@ par l'hôte (backend lancé).
 ### CI (GitHub Actions)
 
 - **`CI - Build & Test`** (`.github/workflows/ci.yml`) tourne sur chaque PR et
-  sur les push vers `main`, `dev` et `feature/*`. Il a cinq jobs : Backend,
-  Mobile, Web, Analytics, Dev scripts. Un nouveau push annule le run en cours sur
-  la même branche.
+  sur les push vers `main`, `dev` et `feature/*`. Il a six jobs : Backend,
+  Mobile, Web, Analytics, Dev scripts et Docker (une image par service). Un
+  nouveau push annule le run en cours sur la même branche.
 - **Swagger à jour** : le job Backend régénère `backend/docs` et échoue s'il
   diffère de la version commitée. Après avoir ajouté ou modifié une route,
   régénérez-le (voir [Backend](#backend)).
