@@ -7,13 +7,16 @@ COMPOSE ?= docker compose
 METRO_PORT ?= 8082
 
 .DEFAULT_GOAL := help
-.PHONY: help setup up full dev mobile seed down restart logs ps reset test test-backend test-mobile test-web test-scripts
+.PHONY: help setup hooks up full dev mobile seed down restart logs ps reset test test-backend test-mobile test-web test-scripts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-setup: ## Create .env (JWT secret, DEV_MODE), set WEBRTC_IP to the LAN address, check the API port
+setup: hooks ## Create .env (JWT secret, DEV_MODE), set WEBRTC_IP to the LAN address, check the API port
 	@./scripts/dev-setup.sh
+
+hooks: ## Use the repository's Git hooks (.githooks: commit message, gofmt, ESLint on staged files)
+	@git config core.hooksPath .githooks
 
 up: setup ## Start Postgres + backend and wait until they are healthy
 	$(COMPOSE) up -d --build --wait postgres backend
@@ -54,8 +57,8 @@ reset: ## Stop everything and DELETE the database and the replays/uploads volume
 
 test: test-backend test-mobile test-web test-scripts ## Run every test suite
 
-test-backend: ## Go: vet + tests with the race detector
-	cd backend && go vet ./... && go test -race ./...
+test-backend: ## Go: gofmt, vet, tests with the race detector
+	cd backend && test -z "$$(gofmt -l .)" && go vet ./... && go test -race ./...
 
 test-mobile: ## Mobile: types, lint, jest
 	cd mobile && npx tsc --noEmit && npx expo lint && CI=true npx jest

@@ -129,7 +129,8 @@ de l'autre (un autre navigateur, une fenêtre privée ou l'application mobile).
 | `make up` | Postgres + backend seuls, attend qu'ils soient prêts |
 | `make full` | Tout dans Docker : Postgres, backend, web (:3000), analytics (:3001) |
 | `make mobile` | Metro seul, port 8082 (`METRO_PORT=...` pour le changer) |
-| `make setup` | (Re)crée `.env` et met à jour `WEBRTC_IP` |
+| `make setup` | (Re)crée `.env`, complète `DEV_MODE`, met à jour `WEBRTC_IP` et installe les hooks Git |
+| `make hooks` | Installe seulement les hooks Git (`.githooks/`) |
 | `make seed` | Comptes de démo vérifiés et un live planifié (nécessite `DEV_MODE=true`) |
 | `make logs` | Suit les logs du backend |
 | `make restart` | Reconstruit et relance le backend seul |
@@ -158,7 +159,7 @@ ignoré par Git ; partez de `.env.example`. Les variables les plus utiles :
 | Variable | Rôle |
 | :--- | :--- |
 | `JWT_SECRET` | Secret des sessions. Généré par `make setup`. **Jamais commité.** |
-| `DEV_MODE` | `true` en local : l'API renvoie les codes de vérification (inscription, renvoi de code) et les écrit dans les logs si aucun SMTP n'est configuré. `make setup` ne l'ajoute que dans un `.env` neuf (issue #293) : sur un `.env` existant, ajoutez `DEV_MODE=true` à la main puis `make restart`. |
+| `DEV_MODE` | `true` en local : l'API renvoie les codes de vérification (inscription, renvoi de code) et les écrit dans les logs si aucun SMTP n'est configuré. `make setup` l'ajoute à un `.env` qui ne l'a pas, sans écraser une valeur existante. |
 | `WEBRTC_IP` | Adresse que les clients WebRTC utilisent pour joindre le backend. `127.0.0.1` suffit pour un navigateur sur la même machine ; mettez l'IP LAN (`make setup`) pour un téléphone ou une autre machine. |
 | `WEBRTC_PORT_MIN` / `WEBRTC_PORT_MAX` | Plage UDP du média WebRTC (50000-50100 par défaut ; 40000-40050 si Hyper-V ou Teams occupent la plage sous Windows). |
 | `HLS_MAX_LIVES` / `HLS_FULL_LADDER_LIVES` | Nombre de lives encodés en HLS en même temps, et seuil à partir duquel un nouveau live n'a plus que 480p et 360p. |
@@ -283,7 +284,7 @@ Il n'est pas encore vérifié par la CI.
 
 | Projet | Vérifications | En local | CI |
 | :--- | :--- | :--- | :--- |
-| backend | build, `go vet`, `go mod tidy -diff`, tests avec `-race`, Swagger à jour | `make test-backend` | ✅ |
+| backend | build, `go vet`, `gofmt`, `go mod tidy -diff`, tests avec `-race`, Swagger à jour | `make test-backend` | ✅ |
 | mobile | types, lint, tests Jest, `expo install --check`, `expo-doctor` | `make test-mobile` | ✅ |
 | front-web | types, lint, build | `make test-web` ; `npm run build` | ✅ |
 | analytics | types, lint, build | `npx tsc --noEmit && npm run lint && npm run build` | ✅ |
@@ -359,8 +360,8 @@ Pourquoi ce changement, ce qui change pour l'utilisateur ou le dev,
 ce qui a été vérifié. Une ligne vide entre le titre et le corps.
 ```
 
-- **Types** : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `build`
-  (dépendances), `ci`.
+- **Types** : `feat`, `fix`, `refactor`, `perf`, `style` (formatage seul),
+  `docs`, `test`, `chore`, `build` (dépendances), `ci`, `revert`.
 - **Périmètres courants** : `web`, `mobile`, `live`, `backend`, `rgpd`,
   `security`, `dev`, `deps`.
 - Exemples tirés de l'historique :
@@ -370,6 +371,18 @@ ce qui a été vérifié. Une ligne vide entre le titre et le corps.
   reformatage massif.
 - Ne commitez jamais `.env`, une clé, un mot de passe ni un fichier généré
   localement (`node_modules`, `mobile/android`, `mobile/ios`, `.next`…).
+
+### Hooks Git
+
+`make setup` (ou `make hooks`) configure Git pour utiliser `.githooks/` :
+
+- **`commit-msg`** refuse un message qui ne suit pas le format ci-dessus ;
+- **`pre-commit`** vérifie seulement les fichiers ajoutés au commit : `gofmt`
+  pour le Go, ESLint pour `front-web`, `analytics` et `mobile` (les erreurs
+  bloquent, pas les avertissements).
+
+Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
+`git commit --no-verify` passe outre.
 
 ### Pull requests
 

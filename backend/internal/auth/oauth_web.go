@@ -335,4 +335,3 @@ func Logout() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 	}
 }
-

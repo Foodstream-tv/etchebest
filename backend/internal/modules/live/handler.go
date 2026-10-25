@@ -212,7 +212,6 @@ func DeleteLive(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-
 // replaysDir is where finished replays are stored.
 const replaysDir = "./storage/replays"
 
