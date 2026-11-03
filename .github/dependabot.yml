@@ -23,6 +23,12 @@ updates:
       # Types of the Node version the app runs on (22): no newer major.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # typescript-eslint does not support TypeScript 7 yet, and eslint-config-next / eslint-plugin-react do
+      # not load under ESLint 10 yet: both break lint. Lift these once those packages support them.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     groups:
       web:
         patterns: ["*"]
@@ -37,6 +43,11 @@ updates:
       interval: weekly
     ignore:
       - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Same reasons as the web app: typescript-eslint has no TypeScript 7, eslint-config-next no ESLint 10.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
     groups:
       analytics:
@@ -73,6 +84,12 @@ updates:
       - dependency-name: "@types/jest"
         update-types: ["version-update:semver-major"]
       - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      # babel-preset-expo is built on Babel 7: Babel 8 moves with the Expo SDK.
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      # v14 makes render() asynchronous: every test (60 files) must be migrated at once, not by a bump.
+      - dependency-name: "@testing-library/react-native"
         update-types: ["version-update:semver-major"]
     groups:
       mobile:
