@@ -16,6 +16,7 @@ import { useId, useRef, useState } from "react";
 import ThumbnailFallback from "@/components/ui/ThumbnailFallback";
 import type { LiveDTO } from "@/lib/lives";
 import { useAuth } from "@/lib/useAuth";
+import { formatReplayDate, formatReplayDateLong, replayDate } from "@/lib/replayDate";
 import { useI18n } from "@/i18n/LanguageContext";
 
 type Props = {
@@ -25,7 +26,7 @@ type Props = {
 };
 
 export default function ReplayCarouselSection({ title, replays, onDeleteReplay }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { user } = useAuth();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
@@ -104,6 +105,8 @@ export default function ReplayCarouselSection({ title, replays, onDeleteReplay }
             const isOwner = Boolean(
               user?.id && replay.user?.id && String(user.id) === String(replay.user.id)
             );
+            const addedAt = replayDate(replay);
+            const addedLabel = formatReplayDate(addedAt, locale);
 
             return (
               <article
@@ -229,9 +232,21 @@ export default function ReplayCarouselSection({ title, replays, onDeleteReplay }
                       </div>
                     </div>
 
-                    <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
-                      {creatorName}
-                    </p>
+                    <div className="mt-1 flex items-baseline gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                      <span className="min-w-0 truncate">{creatorName}</span>
+                      {addedLabel ? (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <time
+                            dateTime={addedAt}
+                            title={formatReplayDateLong(addedAt, locale)}
+                            className="shrink-0 whitespace-nowrap"
+                          >
+                            {addedLabel}
+                          </time>
+                        </>
+                      ) : null}
+                    </div>
 
                     <p className="truncate text-sm text-gray-500 dark:text-gray-400">
                       {replay.dish_name || "Cuisine"}
