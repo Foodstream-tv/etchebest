@@ -2,6 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+import { ApiError, apiFetch } from "@/lib/api";
 import { SESSION_TOKEN } from "@/lib/session";
 
 export type User = {
@@ -80,8 +81,50 @@ function dropLegacyToken() {
   }
 }
 
+// The session is an httpOnly cookie: scripts cannot see it, only the profile kept in the browser says "signed
+// in" to the UI, while the server (proxy.ts) trusts the cookie. When the two disagree (a cookie left from the
+// old site or from a closed session, a cleared storage) the header offers "Connexion" and the proxy bounces
+// /signin back to /home: nothing seemed to happen. So, with no stored profile, the session is asked once per
+// page load: a valid cookie restores the profile, a cookie the API refuses is cleared.
+let probeDone = false;
+let probeStarted = false;
+const probeListeners = new Set<() => void>();
+
+function finishProbe() {
+  probeDone = true;
+  probeListeners.forEach((listener) => listener());
+}
+
+function runSessionProbe() {
+  if (probeStarted) return;
+  probeStarted = true;
+  apiFetch<User>("/users/me", { silent: true })
+    .then((user) => {
+      if (user?.id) saveAuth({ user }, true);
+    })
+    .catch((err: unknown) => {
+      if (!(err instanceof ApiError)) return; // API unreachable: nothing to conclude
+      // "missing or invalid token" is just "no cookie": nothing to clean. Anything else means the cookie
+      // is there and refused (expired server side, user gone, banned): remove it, or /signin keeps bouncing.
+      const noCookie = err.status === 401 && err.body?.error === "missing or invalid token";
+      if (!noCookie && (err.status === 401 || err.status === 403)) {
+        fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+      }
+    })
+    .finally(finishProbe);
+}
+
+function subscribeProbe(onChange: () => void) {
+  probeListeners.add(onChange);
+  return () => {
+    probeListeners.delete(onChange);
+  };
+}
+
 function subscribeAuth(onChange: () => void) {
   dropLegacyToken();
+  if (readRaw()) finishProbe();
+  else runSessionProbe();
   window.addEventListener("storage", onChange);
   window.addEventListener(AUTH_CHANGE_EVENT, onChange);
   return () => {
@@ -117,7 +160,11 @@ const subscribeNothing = () => () => {};
 export function useAuth() {
   const auth = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
   // False during the server render and hydration (storage not read yet), true afterwards.
-  const ready = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const sessionChecked = useSyncExternalStore(subscribeProbe, () => probeDone, () => false);
+  // Ready once the stored profile is read AND, when there is none, the session was asked about: a page that
+  // redirects the signed-out must not do it before knowing a valid cookie is about to restore the profile.
+  const ready = hydrated && (auth !== null || sessionChecked);
 
   const setAuth = useCallback((nextAuth: AuthState | null, rememberMe = true) => {
     if (!nextAuth) {
