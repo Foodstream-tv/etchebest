@@ -1,4 +1,6 @@
-import { findUtensilsInText, getUtensilEmoji, normalizeText, UTENSIL_PRESETS } from '../utensils';
+import sharedEn from '@/i18n/messages/shared.en';
+import sharedFr from '@/i18n/messages/shared.fr';
+import { findUtensilsInText, getUtensilEmoji, normalizeText, presetIdOf, UTENSIL_PRESETS } from '../utensils';
 
 describe('getUtensilEmoji', () => {
     it('picks a pictogram from free text, ignoring case and accents', () => {
@@ -12,6 +14,29 @@ describe('getUtensilEmoji', () => {
         expect(getUtensilEmoji('')).toBe('🍽️');
         expect(getUtensilEmoji('   ')).toBe('🍽️');
         expect(getUtensilEmoji('truc bizarre')).toBe('🍽️');
+    });
+});
+
+describe('quick-add presets, whatever the language they were added in', () => {
+    it('recognizes a preset by its French or English label', () => {
+        expect(presetIdOf('Poêle')).toBe('pan');
+        expect(presetIdOf('Pan')).toBe('pan');
+        expect(presetIdOf('  économe ')).toBe('peeler');
+        expect(presetIdOf('Peeler')).toBe('peeler');
+        expect(presetIdOf('poêle en fonte')).toBeUndefined(); // free text is not a preset
+        expect(presetIdOf('')).toBeUndefined();
+    });
+
+    it('gives a chip the pictogram of the button that added it, in both languages', () => {
+        for (const preset of UTENSIL_PRESETS) {
+            for (const catalog of [sharedFr, sharedEn] as Record<string, string>[]) {
+                const label = catalog[preset.labelKey];
+                expect(getUtensilEmoji(label)).toBe(preset.emoji);
+            }
+        }
+        // the two cases found in review: the keyword rules alone would have said 🍽️ and 🔪
+        expect(getUtensilEmoji('Pan')).toBe('🍳');
+        expect(getUtensilEmoji('Économe')).toBe('🥕');
     });
 });
 

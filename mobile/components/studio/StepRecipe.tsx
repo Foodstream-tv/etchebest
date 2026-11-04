@@ -8,7 +8,7 @@ import StepperShell from '@/components/studio/StepperShell';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles } from '@/contexts/ThemeContext';
 import { type StudioForm } from '@/hooks/useStudioForm';
-import { getUtensilEmoji, UTENSIL_PRESETS } from '@/utils/utensils';
+import { getUtensilEmoji, presetIdOf, UTENSIL_PRESETS } from '@/utils/utensils';
 import {
     canAppendHint,
     COOK_TIMER_MAX_MINUTES,
@@ -103,10 +103,11 @@ export default function StepRecipe({ form, onChange, onRecipeChange, onAddHint }
         setUtensil('');
     };
     /** Quick-add chips: tap to add, tap again to remove. */
-    const togglePresetUtensil = (name: string) => {
-        const exists = recipe.utensils.some((item) => item.toLowerCase() === name.toLowerCase());
+    // Matched by preset id, not by label: the label is in the language of the moment it was added.
+    const togglePresetUtensil = (id: string, name: string) => {
+        const exists = recipe.utensils.some((item) => presetIdOf(item) === id);
         onRecipeChange({
-            utensils: exists ? recipe.utensils.filter((item) => item.toLowerCase() !== name.toLowerCase()) : [...recipe.utensils, name],
+            utensils: exists ? recipe.utensils.filter((item) => presetIdOf(item) !== id) : [...recipe.utensils, name],
         });
     };
     const addPlating = () => {
@@ -240,11 +241,11 @@ export default function StepRecipe({ form, onChange, onRecipeChange, onAddHint }
                         <View style={styles.presets}>
                             {UTENSIL_PRESETS.map((preset) => {
                                 const name = t(preset.labelKey);
-                                const selected = recipe.utensils.some((item) => item.toLowerCase() === name.toLowerCase());
+                                const selected = recipe.utensils.some((item) => presetIdOf(item) === preset.id);
                                 return (
                                     <Pressable
                                         key={preset.id}
-                                        onPress={() => togglePresetUtensil(name)}
+                                        onPress={() => togglePresetUtensil(preset.id, name)}
                                         accessibilityRole="button"
                                         accessibilityState={{ selected }}
                                         accessibilityLabel={name}

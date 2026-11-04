@@ -116,6 +116,16 @@ describe('StudioScreen - wizard', () => {
         expect(preview.getByText('Avancé')).toBeTruthy();
     });
 
+    it('shows no planned slot in the preview until the scheduling is opened', async () => {
+        const view = await renderStudio();
+        fireEvent.changeText(view.getByTestId('studio-title'), 'Pasta maison');
+        goTo(view, 3);
+        // the form holds a prefilled default slot, which is not something the streamer chose
+        expect(within(view.getByTestId('studio-preview')).queryByText(/\d{2}:\d{2}/)).toBeNull();
+        openSchedule(view);
+        expect(within(view.getByTestId('studio-preview')).getByText(/\d{2}:\d{2}/)).toBeTruthy();
+    });
+
     it('previews a date and time the user picked', async () => {
         const view = await renderStudio();
         fireEvent.changeText(view.getByTestId('studio-title'), 'Pasta maison');

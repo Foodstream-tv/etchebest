@@ -2,6 +2,9 @@
 // (lower case, no accents) because utensils are typed by the streamer:
 // 'Poêle en fonte', 'couteau de chef', 'Spatule en bois'…
 
+import sharedEn from '@/i18n/messages/shared.en';
+import sharedFr from '@/i18n/messages/shared.fr';
+
 type UtensilRule = { emoji: string; label: string; keywords: string[] };
 
 const RULES: UtensilRule[] = [
@@ -37,9 +40,34 @@ export function normalizeText(value: string): string {
         .trim();
 }
 
+let presetIdByName: Map<string, string> | null = null;
+
+/**
+ * The quick-add preset a utensil name stands for, whatever the language it was added in ('Poêle' and 'Pan'
+ * are both 'pan'): presets are stored in the recipe under their translated label, and the app language can
+ * change afterwards. Undefined for a free-typed utensil.
+ */
+export function presetIdOf(name: string): string | undefined {
+    if (!presetIdByName) {
+        presetIdByName = new Map();
+        for (const preset of UTENSIL_PRESETS) {
+            for (const catalog of [sharedFr, sharedEn] as Record<string, string>[]) {
+                const label = catalog[preset.labelKey];
+                if (label) presetIdByName.set(normalizeText(label), preset.id);
+            }
+        }
+    }
+    return presetIdByName.get(normalizeText(name));
+}
+
 export function getUtensilEmoji(name: string): string {
     const text = normalizeText(name);
     if (!text) return DEFAULT_EMOJI;
+
+    // A quick-add preset keeps its own pictogram (the chip must look like the button that added it).
+    const presetId = presetIdOf(name);
+    const preset = presetId ? UTENSIL_PRESETS.find((item) => item.id === presetId) : undefined;
+    if (preset) return preset.emoji;
 
     const rule = RULES.find((item) =>
         item.keywords.some((keyword) => text.includes(keyword))

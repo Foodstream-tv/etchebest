@@ -422,7 +422,14 @@ export default function StudioScreen() {
                         </View>
                     </Card>
 
-                    <StudioPreviewCard imageUri={previewImage} title={previewTitle} tags={previewTags} date={form.date} time={form.time} />
+                    {/* The date and time are only the prefilled default until the streamer opens the scheduling: not a plan. */}
+                    <StudioPreviewCard
+                        imageUri={previewImage}
+                        title={previewTitle}
+                        tags={previewTags}
+                        date={showSchedule ? form.date : undefined}
+                        time={showSchedule ? form.time : undefined}
+                    />
                 </ScrollView>
             </KeyboardAvoidingView>
         </Screen>
