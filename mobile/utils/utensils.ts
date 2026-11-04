@@ -80,6 +80,13 @@ export function getUtensilEmoji(name: string): string {
   * Utensils from the recipe list that are mentioned in a step's text, so the
   * step can show which tool to pick up ('Émincer au couteau' → 🔪 Couteau).
   */
+/** True when `needle` appears in `haystack` as whole words ('pot' is not in 'potiron'). Both normalised. */
+function containsWord(haystack: string, needle: string): boolean {
+    if (!needle) return false;
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(haystack);
+}
+
 export function findUtensilsInText(
     text: string,
     utensils: readonly string[]
@@ -91,10 +98,9 @@ export function findUtensilsInText(
         const needle = normalizeText(utensil);
         if (!needle) return false;
 
-        // Whole name ('poêle en fonte'), or its first word ('poêle').
-        const head = needle.split(/\s+/)[0];
-        if (haystack.includes(needle)) return true;
-        if (head.length >= 4 && haystack.includes(head)) return true;
+        // The whole name ('poêle en fonte'). Its first word is not enough: 'petite casserole' would then
+        // match any step that says 'petite'. A known family is matched below, through its keywords.
+        if (containsWord(haystack, needle)) return true;
 
         // Same pictogram family: 'casserole' in the text, 'Petite casserole' listed.
         const rule = RULES.find((item) =>
@@ -102,7 +108,7 @@ export function findUtensilsInText(
         );
         return Boolean(
             rule?.keywords.some(
-                (keyword) => keyword.length >= 5 && haystack.includes(keyword)
+                (keyword) => keyword.length >= 5 && containsWord(haystack, keyword)
             )
         );
     });

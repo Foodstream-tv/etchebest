@@ -44,6 +44,7 @@ function MinutesField({
         <Panel>
             <StepperShell
                 value={value}
+                bumpOnChange={false}
                 onDecrement={() => onChange(clamp(value - MINUTES_STEP))}
                 onIncrement={() => onChange(clamp(value + MINUTES_STEP))}
                 decrementDisabled={value <= 0}

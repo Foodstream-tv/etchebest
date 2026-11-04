@@ -41,6 +41,15 @@ describe('quick-add presets, whatever the language they were added in', () => {
 });
 
 describe('findUtensilsInText', () => {
+    it('matches whole words only', () => {
+        expect(findUtensilsInText('Cuire le potiron', ['Pot'])).toEqual([]); // not 'pot' inside 'potiron'
+        expect(findUtensilsInText('Ajouter le symbole', ['Bol'])).toEqual([]);
+        expect(findUtensilsInText('Mettre dans le pot', ['Pot'])).toEqual(['Pot']);
+        expect(findUtensilsInText('Fouetter dans un bol.', ['Bol'])).toEqual(['Bol']);
+        expect(findUtensilsInText('Une petite quantité', ['Petite casserole'])).toEqual([]); // not on 'petite' alone
+        expect(findUtensilsInText('Faire chauffer la casserole', ['Petite casserole'])).toEqual(['Petite casserole']);
+    });
+
     it('finds the utensils a step mentions', () => {
         expect(findUtensilsInText('Émincer au couteau', ['Couteau de chef', 'Fouet'])).toEqual(['Couteau de chef']);
         expect(findUtensilsInText('', ['Fouet'])).toEqual([]);

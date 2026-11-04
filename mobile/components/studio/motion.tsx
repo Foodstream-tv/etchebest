@@ -1,24 +1,60 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useSyncExternalStore } from 'react';
 import { AccessibilityInfo, Animated, Easing, type StyleProp, type ViewStyle } from 'react-native';
+
+// One shared answer for the whole app: asked once, when this module loads (so it is known before the first
+// screen animates), and kept up to date while the system setting changes.
+let reduced = false;
+const listeners = new Set<() => void>();
+let probed = false;
+let subscription: { remove: () => void } | null = null;
+
+function setReduced(value: boolean) {
+    if (value === reduced) return;
+    reduced = value;
+    listeners.forEach((listener) => listener());
+}
+
+function probeOnce() {
+    if (probed) return;
+    probed = true;
+    try {
+        const probe = AccessibilityInfo?.isReduceMotionEnabled?.();
+        if (probe && typeof probe.then === 'function') probe.then((value) => setReduced(Boolean(value))).catch(() => undefined);
+    } catch {
+        // Optional: without the probe we animate.
+    }
+}
+probeOnce();
+
+function subscribe(listener: () => void) {
+    listeners.add(listener);
+    if (!subscription) {
+        try {
+            subscription = AccessibilityInfo?.addEventListener?.('reduceMotionChanged', (value: boolean) => setReduced(Boolean(value))) ?? null;
+        } catch {
+            subscription = null;
+        }
+    }
+    return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+            subscription?.remove?.();
+            subscription = null;
+        }
+    };
+}
 
 /** True when the system asks for less motion: animations then jump straight to their end state. */
 export function useReducedMotion(): boolean {
-    const [reduced, setReduced] = useState(false);
-    useEffect(() => {
-        let alive = true;
-        try {
-            const probe = AccessibilityInfo?.isReduceMotionEnabled?.();
-            if (probe && typeof probe.then === 'function') {
-                probe.then((value) => alive && setReduced(Boolean(value))).catch(() => undefined);
-            }
-        } catch {
-            // Optional: without the probe we animate.
-        }
-        return () => {
-            alive = false;
-        };
-    }, []);
-    return reduced;
+    return useSyncExternalStore(subscribe, () => reduced, () => false);
+}
+
+/** Test helper: forget what was learned from the system. */
+export function resetReducedMotionForTests() {
+    reduced = false;
+    probed = false;
+    listeners.clear();
+    subscription = null;
 }
 
 type MotionProps = {

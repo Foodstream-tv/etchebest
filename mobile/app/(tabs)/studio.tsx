@@ -170,8 +170,9 @@ export default function StudioScreen() {
         setSuccess(null);
         if (!guardTitle()) return;
         if (!showSchedule) {
-            // First press: reveal the date and time, prefilled with the next full hour.
-            update(defaultSchedule());
+            // First press: reveal the date and time. A slot the streamer already picked (then cancelled the
+            // scheduling) is kept; only a missing or past one is replaced by the next full hour.
+            if (!hasValidSchedule) update(defaultSchedule());
             setShowSchedule(true);
             return;
         }

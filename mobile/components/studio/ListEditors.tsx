@@ -8,6 +8,20 @@ import { useI18n } from '@/contexts/LanguageContext';
 
 const EMOJI_BOX = 36;
 
+/**
+ * Keys that survive the removal of another row: the text plus how many identical texts come before it.
+ * (`${item}-${index}` changed for every row after a removed one, remounting them: their entrance animation
+ * replayed and a row being edited lost its draft.)
+ */
+export function stableKeys(items: readonly string[]): string[] {
+    const seen = new Map<string, number>();
+    return items.map((item) => {
+        const n = seen.get(item) ?? 0;
+        seen.set(item, n + 1);
+        return `${item}#${n}`;
+    });
+}
+
 type AddRowProps = {
     value: string;
     onChangeText: (value: string) => void;
@@ -58,10 +72,11 @@ export function RemovableChips({
     const styles = useStyles();
     const { t } = useI18n();
     if (items.length === 0) return null;
+    const keys = stableKeys(items);
     return (
         <View style={styles.chips}>
             {items.map((item, index) => (
-                <Pop key={`${item}-${index}`} style={styles.chipPop}>
+                <Pop key={keys[index]} style={styles.chipPop}>
                     <View style={styles.chip} testID={`${testID}-${index}`}>
                         {prefix ? (
                             <Text style={styles.chipEmoji} accessibilityElementsHidden importantForAccessibility="no">
@@ -98,6 +113,7 @@ export function NumberedList({
     const [draft, setDraft] = useState('');
 
     if (items.length === 0) return null;
+    const keys = stableKeys(items);
 
     const startEdit = (index: number) => {
         setEditing(index);
@@ -112,7 +128,7 @@ export function NumberedList({
     return (
         <View style={styles.list}>
             {items.map((item, index) => (
-                <Rise key={`${item}-${index}`}>
+                <Rise key={keys[index]}>
                     <View style={styles.step} testID={`${testID}-${index}`}>
                         {editing === index ? (
                             <View style={styles.editBox}>

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { Bump } from '@/components/studio/motion';
@@ -37,6 +37,8 @@ type Props = {
     children: React.ReactNode;
     /** Changes whenever the value does: the field gives a small bump. */
     value: number;
+    /** False when the field is an input being typed in: it then bumps only on the - / + presses. */
+    bumpOnChange?: boolean;
     onDecrement: () => void;
     onIncrement: () => void;
     decrementDisabled?: boolean;
@@ -51,6 +53,7 @@ type Props = {
 export default function StepperShell({
     children,
     value,
+    bumpOnChange = true,
     onDecrement,
     onIncrement,
     decrementDisabled,
@@ -61,13 +64,18 @@ export default function StepperShell({
     incrementTestID,
 }: Readonly<Props>) {
     const styles = useStyles();
+    const [taps, setTaps] = useState(0);
+    const press = (action: () => void) => () => {
+        setTaps((n) => n + 1);
+        action();
+    };
     return (
         <View style={styles.row}>
-            <StepButton icon="remove" label={decrementLabel} onPress={onDecrement} disabled={decrementDisabled} testID={decrementTestID} />
-            <Bump trigger={value} style={styles.fieldWrap}>
+            <StepButton icon="remove" label={decrementLabel} onPress={press(onDecrement)} disabled={decrementDisabled} testID={decrementTestID} />
+            <Bump trigger={bumpOnChange ? value : taps} style={styles.fieldWrap}>
                 <View style={styles.field}>{children}</View>
             </Bump>
-            <StepButton icon="add" label={incrementLabel} onPress={onIncrement} disabled={incrementDisabled} testID={incrementTestID} />
+            <StepButton icon="add" label={incrementLabel} onPress={press(onIncrement)} disabled={incrementDisabled} testID={incrementTestID} />
         </View>
     );
 }
