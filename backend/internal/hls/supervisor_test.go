@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/pion/rtcp"
 )
 
 // TestHelperProcess is not a test: it is the stand-in for FFmpeg (see fakeFFmpeg). It binds the two
@@ -40,8 +42,10 @@ func TestHelperProcess(t *testing.T) {
 		fmt.Fprintln(os.Stderr, "fake ffmpeg: cannot open input")
 		os.Exit(1)
 	}
+	var rtpPorts []int
 	for _, m := range regexp.MustCompile(`m=(?:audio|video) (\d+)`).FindAllStringSubmatch(string(sdp), -1) {
 		port, _ := strconv.Atoi(m[1])
+		rtpPorts = append(rtpPorts, port)
 		conn, err := listenUDP(port)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "bind:", err)
@@ -68,12 +72,40 @@ func TestHelperProcess(t *testing.T) {
 	case mode == "stubborn":
 		signal.Ignore(syscall.SIGTERM)
 		select {} // ignores 'q' and SIGTERM: only a kill ends it
-	case mode == "second-signal":
-		// Like FFmpeg stuck in a blocking read: ignores 'q', and only leaves on the SECOND SIGTERM.
-		sigs := make(chan os.Signal, 4)
-		signal.Notify(sigs, syscall.SIGTERM)
-		<-sigs
-		<-sigs
+	case mode == "goodbye":
+		// Like FFmpeg stuck in a blocking read of its input: ignores 'q' and SIGTERM, and only leaves
+		// once every stream got a RTCP goodbye on the port next to its RTP port.
+		signal.Ignore(syscall.SIGTERM)
+		got := make(chan struct{}, len(rtpPorts))
+		for _, port := range rtpPorts {
+			conn, err := listenUDP(port + 1)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "bind rtcp:", err)
+				os.Exit(3)
+			}
+			go func() {
+				buf := make([]byte, 1500)
+				for {
+					n, _, err := conn.ReadFromUDP(buf)
+					if err != nil {
+						return
+					}
+					pkts, err := rtcp.Unmarshal(buf[:n])
+					if err != nil {
+						continue
+					}
+					for _, pkt := range pkts {
+						if _, ok := pkt.(*rtcp.Goodbye); ok {
+							got <- struct{}{}
+							return
+						}
+					}
+				}
+			}()
+		}
+		for range rtpPorts {
+			<-got
+		}
 		_ = os.WriteFile(filepath.Join(dir, "left-cleanly"), nil, 0644)
 		os.Exit(0)
 	}
@@ -105,13 +137,12 @@ func fakeFFmpeg(t *testing.T, mode string) (stateDir string) {
 func fastTimings(t *testing.T) {
 	t.Helper()
 	b, m, h, g, s := bindTimeout, maxBackoff, restartBackoffBase, gracefulStopWait, termStopWait
-	hl, sw := healthyAfter, secondSignalWait
+	hl := healthyAfter
 	t.Cleanup(func() {
 		bindTimeout, maxBackoff, restartBackoffBase, gracefulStopWait, termStopWait, healthyAfter = b, m, h, g, s, hl
-		secondSignalWait = sw
 	})
 	bindTimeout, maxBackoff, restartBackoffBase = 3*time.Second, 20*time.Millisecond, 5*time.Millisecond
-	gracefulStopWait, secondSignalWait, termStopWait = 300*time.Millisecond, 100*time.Millisecond, 300*time.Millisecond
+	gracefulStopWait, termStopWait = 300*time.Millisecond, 300*time.Millisecond
 	t.Setenv("HLS_RTP_PORT_MIN", "41000")
 	t.Setenv("HLS_RTP_PORT_MAX", "41099")
 	t.Chdir(t.TempDir()) // Start writes into ./hls
@@ -235,14 +266,15 @@ func TestAStubbornFFmpegIsKilled(t *testing.T) {
 	waitFor(t, "the stubborn process to be killed", func() bool { return !alive(pid) })
 }
 
-// FFmpeg waiting on a dead publisher only leaves on a second signal: it must be asked twice, not killed
-// (a kill loses the segment being written).
-func TestFFmpegBlockedOnItsInputLeavesOnTheSecondSignal(t *testing.T) {
+// FFmpeg waiting on a dead publisher only gives up about ten seconds later, and a second signal would
+// abort its last writes (an empty master playlist). It is told the input is over instead, and leaves
+// by itself with its files closed.
+func TestFFmpegBlockedOnItsInputIsToldTheInputEnded(t *testing.T) {
 	fastTimings(t)
-	dir := fakeFFmpeg(t, "second-signal")
+	dir := fakeFFmpeg(t, "goodbye")
 	audio, video := testCodecs()
 
-	_, stop, err := Start("room-second-signal", audio, video, SourceSize{})
+	_, stop, err := Start("room-goodbye", audio, video, SourceSize{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +282,7 @@ func TestFFmpegBlockedOnItsInputLeavesOnTheSecondSignal(t *testing.T) {
 	stop()
 	waitFor(t, "the process to be gone", func() bool { return !alive(pid) })
 	if _, err := os.Stat(filepath.Join(dir, "left-cleanly")); err != nil {
-		t.Fatal("the process was killed instead of leaving on the second SIGTERM")
+		t.Fatal("the process was killed instead of being told that its input ended")
 	}
 }
 
