@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/Foodstream-tv/etchebest/compare/v0.1.2...v0.2.0) (2026-11-04)
+
+
+### Nouveautés
+
+* **mobile:** studio form in steps with progress, motion and utensils ([#343](https://github.com/Foodstream-tv/etchebest/issues/343)) ([7973c94](https://github.com/Foodstream-tv/etchebest/commit/7973c94f52bd1f46a391933d90c95b3e3bd14863))
+
 ## [0.1.2](https://github.com/Foodstream-tv/etchebest/compare/v0.1.1...v0.1.2) (2026-10-25)
 
 
