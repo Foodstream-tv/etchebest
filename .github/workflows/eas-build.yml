@@ -48,17 +48,17 @@ jobs:
         working-directory: .
         run: 'echo "::notice::EXPO_TOKEN is not set: no EAS build (see the comment at the top of eas-build.yml)."'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.EXPO_TOKEN != ''
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: env.EXPO_TOKEN != ''
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - uses: expo/expo-github-action@v8
+      - uses: expo/expo-github-action@v9
         if: env.EXPO_TOKEN != ''
         with:
           eas-version: latest
