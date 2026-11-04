@@ -292,6 +292,10 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	workRoom, err := roomDir(workDir, roomID)
+	if err != nil {
+		return nil, nil, err
+	}
 	ladder, releaseSlot, err := reserveSlot(roomID)
 	if err != nil {
 		return nil, nil, err
@@ -317,6 +321,7 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	release := func() {
 		releasePorts(audioPort, videoPort)
 		releaseSlot()
+		_ = os.RemoveAll(workRoom) // the SDP: not needed once FFmpeg is gone
 	}
 	log.Printf("[HLS] room %s gets the %q ladder, %d rendition(s), source %dx%d (%d live(s) with HLS)",
 		roomID, ladder.Name, len(ladder.Rungs), src.Width, src.Height, ActiveLives())
@@ -324,7 +329,12 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	log.Printf("[HLS] audio UDP port=%d video UDP port=%d audio_codec=%v video_codec=%v",
 		audioPort, videoPort, codecSummary(audio), codecSummary(video))
 
-	sdpPath := filepath.Join(hlsDir, "stream.sdp")
+	// The SDP lives outside the served live tree (and so never reaches a replay or a viewer).
+	if err := os.MkdirAll(workRoom, 0755); err != nil {
+		release()
+		return nil, nil, fmt.Errorf("create work dir: %w", err)
+	}
+	sdpPath := filepath.Join(workRoom, "stream.sdp")
 	if err := os.WriteFile(sdpPath, []byte(buildSDP(audioPort, audio, videoPort, video)), 0644); err != nil {
 		release()
 		return nil, nil, fmt.Errorf("write sdp: %w", err)

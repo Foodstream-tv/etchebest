@@ -48,9 +48,9 @@ func RegisterToStream(roomID string, stop func(), status func() Status) {
 		status: status,
 	}
 
-	// Log segment generation progress every 2 seconds
+	// Log segment generation progress now and then (every 2 s per live was a lot of noise for little)
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 
 		for range ticker.C {
