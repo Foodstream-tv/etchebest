@@ -1,24 +1,34 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 
-import { IconButton, Panel } from '@/components/studio/primitives';
+import { Panel } from '@/components/studio/primitives';
+import StepperShell from '@/components/studio/StepperShell';
 import Chip from '@/components/ui/Chip';
 import { useI18n } from '@/contexts/LanguageContext';
 import { makeStyles } from '@/contexts/ThemeContext';
 import { DURATION_MAX, DURATION_MIN, DURATION_PRESETS, DURATION_STEP } from '@/hooks/useStudioForm';
 
-/** Planned duration (web range slider, 10-180 min by 5): -/+ buttons and the usual presets, no extra native module. */
+/** Planned duration (web range slider, 10-180 min by 5): big -/+ buttons as tall as the value field, plus the usual presets. */
 export default function DurationStepper({ minutes, onChange }: Readonly<{ minutes: number; onChange: (minutes: number) => void }>) {
     const { t } = useI18n();
     const styles = useStyles();
+    const label = t('studio.broadcast.durationAria');
     return (
         <Panel>
             <Text style={styles.title}>{t('studio.broadcast.plannedDuration')}</Text>
-            <View style={styles.row}>
-                <IconButton icon="remove" label={t('studio.broadcast.durationAria')} onPress={() => onChange(minutes - DURATION_STEP)} disabled={minutes <= DURATION_MIN} testID="duration-minus" />
+            <StepperShell
+                value={minutes}
+                onDecrement={() => onChange(minutes - DURATION_STEP)}
+                onIncrement={() => onChange(minutes + DURATION_STEP)}
+                decrementDisabled={minutes <= DURATION_MIN}
+                incrementDisabled={minutes >= DURATION_MAX}
+                decrementLabel={`${t('common.decrease')} – ${label}`}
+                incrementLabel={`${t('common.increase')} – ${label}`}
+                decrementTestID="duration-minus"
+                incrementTestID="duration-plus"
+            >
                 <Text style={styles.value} testID="duration-value" accessibilityLiveRegion="polite">{`${minutes} min`}</Text>
-                <IconButton icon="add" label={t('studio.broadcast.durationAria')} onPress={() => onChange(minutes + DURATION_STEP)} disabled={minutes >= DURATION_MAX} testID="duration-plus" />
-            </View>
+            </StepperShell>
             <View style={styles.presets}>
                 {DURATION_PRESETS.map((preset) => (
                     <Chip key={preset} label={`${preset} min`} active={minutes === preset} onPress={() => onChange(preset)} testID={`duration-${preset}`} />
@@ -33,11 +43,6 @@ const useStyles = makeStyles(({ colors }) => ({
         color: colors.text,
         fontSize: 14,
         fontWeight: '700',
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
     },
     value: {
         color: colors.text,

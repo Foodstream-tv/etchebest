@@ -3,6 +3,7 @@ import { Switch, Text, View } from 'react-native';
 
 import DateTimeFields from '@/components/studio/DateTimeFields';
 import DurationStepper from '@/components/studio/DurationStepper';
+import { Rise } from '@/components/studio/motion';
 import { FieldLabel, Notice } from '@/components/studio/primitives';
 import ThumbnailPicker from '@/components/studio/ThumbnailPicker';
 import { useI18n } from '@/contexts/LanguageContext';
@@ -15,11 +16,13 @@ type Props = {
     onDuration: (minutes: number) => void;
     /** Only flagged once the user tried to schedule: the slot must be in the future. */
     scheduleInvalid: boolean;
+    /** The date and time only appear once the user pressed "Schedule" (nothing to fill before). */
+    showSchedule: boolean;
     busy: boolean;
 };
 
 /** Step 3: thumbnail, date and time, planned duration. */
-export default function StepMedia({ form, onChange, onDuration, scheduleInvalid, busy }: Readonly<Props>) {
+export default function StepMedia({ form, onChange, onDuration, scheduleInvalid, showSchedule, busy }: Readonly<Props>) {
     const { t } = useI18n();
     const styles = useStyles();
     const { colors } = useTheme();
@@ -38,10 +41,13 @@ export default function StepMedia({ form, onChange, onDuration, scheduleInvalid,
                 />
             </View>
 
-            <View style={styles.field}>
-                <DateTimeFields date={form.date} time={form.time} onChange={(next) => onChange(next)} invalid={scheduleInvalid} />
-                {scheduleInvalid ? <Notice tone="error" testID="schedule-invalid">{t('studio.go.scheduleInPast')}</Notice> : null}
-            </View>
+            {showSchedule ? (
+                <Rise style={styles.field} testID="schedule-panel">
+                    <Text style={styles.scheduleHint}>{t('studio.broadcast.scheduleHint')}</Text>
+                    <DateTimeFields date={form.date} time={form.time} onChange={(next) => onChange(next)} invalid={scheduleInvalid} />
+                    {scheduleInvalid ? <Notice tone="error" testID="schedule-invalid">{t('studio.go.scheduleInPast')}</Notice> : null}
+                </Rise>
+            ) : null}
 
             <View style={styles.field}>
                 <FieldLabel label={t('studio.broadcast.durationField')} />
@@ -72,6 +78,11 @@ const useStyles = makeStyles(({ colors, radii }) => ({
     },
     field: {
         gap: 8,
+    },
+    scheduleHint: {
+        color: colors.orangeText,
+        fontSize: 13,
+        fontWeight: '700',
     },
     replayRow: {
         flexDirection: 'row',
