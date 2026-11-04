@@ -13,8 +13,9 @@ type Props = {
     imageUri: string;
     title: string;
     tags: readonly string[];
-    date: string;
-    time: string;
+    /** Absent for a live that starts right away: only a planned slot has a date and a time to show. */
+    date?: string;
+    time?: string;
 };
 
 /** "YYYY-MM-DD" -> localized date, or the raw value when it is not a real date (web `formatPreviewDate`). */
@@ -34,7 +35,7 @@ export default function StudioPreviewCard({ imageUri, title, tags, date, time }:
     const { colors } = useTheme();
     const styles = useStyles();
     const today = toDateString(new Date());
-    const dateLabel = date === today ? t('common.today') : formatPreviewDate(date, t('common.today'), locale);
+    const dateLabel = !date || date === today ? t('common.today') : formatPreviewDate(date, t('common.today'), locale);
 
     return (
         <Card style={styles.card} testID="studio-preview">
@@ -63,7 +64,7 @@ export default function StudioPreviewCard({ imageUri, title, tags, date, time }:
                     <Text style={styles.title} numberOfLines={3} testID="preview-title">
                         {title}
                     </Text>
-                    <Text style={styles.meta}>{`${t('studio.preview.byYou')} • ${dateLabel}, ${time}`}</Text>
+                    <Text style={styles.meta}>{`${t('studio.preview.byYou')} • ${dateLabel}${date && time ? `, ${time}` : ''}`}</Text>
                 </View>
             </View>
         </Card>

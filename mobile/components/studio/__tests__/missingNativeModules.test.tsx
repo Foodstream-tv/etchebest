@@ -49,7 +49,7 @@ describe('Studio without the native pickers in the app build', () => {
 
     it('hides the photo button and keeps the image url field', () => {
         const { queryByTestId, getByTestId } = renderWithProviders(
-            <StepMedia form={form} onChange={jest.fn()} onDuration={jest.fn()} scheduleInvalid={false} busy={false} />
+            <StepMedia form={form} onChange={jest.fn()} onDuration={jest.fn()} scheduleInvalid={false} showSchedule={false} busy={false} />
         );
         expect(queryByTestId('thumbnail-choose')).toBeNull();
         expect(getByTestId('thumbnail-unavailable')).toBeTruthy();
