@@ -529,6 +529,8 @@ export const fr = {
   "broadcast.streamWaiting": "En attente caméra",
   "broadcast.liveEndedBadge": "LIVE TERMINÉ",
   "broadcast.cameraInactive": "Caméra non active",
+  "broadcast.endingLive": "Fin du live…",
+  "broadcast.endingLiveDesc": "Nous finalisons ton live, un instant.",
   "broadcast.liveEndedDesc": "Le live est maintenant hors ligne.",
   "broadcast.coStreamersTitle": "Co-streamers",
   "broadcast.coStreamersDesc": "Participants vidéo connectés",
