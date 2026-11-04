@@ -68,6 +68,14 @@ func TestHelperProcess(t *testing.T) {
 	case mode == "stubborn":
 		signal.Ignore(syscall.SIGTERM)
 		select {} // ignores 'q' and SIGTERM: only a kill ends it
+	case mode == "second-signal":
+		// Like FFmpeg stuck in a blocking read: ignores 'q', and only leaves on the SECOND SIGTERM.
+		sigs := make(chan os.Signal, 4)
+		signal.Notify(sigs, syscall.SIGTERM)
+		<-sigs
+		<-sigs
+		_ = os.WriteFile(filepath.Join(dir, "left-cleanly"), nil, 0644)
+		os.Exit(0)
 	}
 
 	// healthy: run until told to quit
@@ -97,12 +105,13 @@ func fakeFFmpeg(t *testing.T, mode string) (stateDir string) {
 func fastTimings(t *testing.T) {
 	t.Helper()
 	b, m, h, g, s := bindTimeout, maxBackoff, restartBackoffBase, gracefulStopWait, termStopWait
-	hl := healthyAfter
+	hl, sw := healthyAfter, secondSignalWait
 	t.Cleanup(func() {
 		bindTimeout, maxBackoff, restartBackoffBase, gracefulStopWait, termStopWait, healthyAfter = b, m, h, g, s, hl
+		secondSignalWait = sw
 	})
 	bindTimeout, maxBackoff, restartBackoffBase = 3*time.Second, 20*time.Millisecond, 5*time.Millisecond
-	gracefulStopWait, termStopWait = 300*time.Millisecond, 300*time.Millisecond
+	gracefulStopWait, secondSignalWait, termStopWait = 300*time.Millisecond, 100*time.Millisecond, 300*time.Millisecond
 	t.Setenv("HLS_RTP_PORT_MIN", "41000")
 	t.Setenv("HLS_RTP_PORT_MAX", "41099")
 	t.Chdir(t.TempDir()) // Start writes into ./hls
@@ -224,6 +233,25 @@ func TestAStubbornFFmpegIsKilled(t *testing.T) {
 	pid := readPID(t, dir, 1)
 	stop()
 	waitFor(t, "the stubborn process to be killed", func() bool { return !alive(pid) })
+}
+
+// FFmpeg waiting on a dead publisher only leaves on a second signal: it must be asked twice, not killed
+// (a kill loses the segment being written).
+func TestFFmpegBlockedOnItsInputLeavesOnTheSecondSignal(t *testing.T) {
+	fastTimings(t)
+	dir := fakeFFmpeg(t, "second-signal")
+	audio, video := testCodecs()
+
+	_, stop, err := Start("room-second-signal", audio, video, SourceSize{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid := readPID(t, dir, 1)
+	stop()
+	waitFor(t, "the process to be gone", func() bool { return !alive(pid) })
+	if _, err := os.Stat(filepath.Join(dir, "left-cleanly")); err != nil {
+		t.Fatal("the process was killed instead of leaving on the second SIGTERM")
+	}
 }
 
 func TestRTPPortsComeFromTheDedicatedRangeAndAreExclusive(t *testing.T) {

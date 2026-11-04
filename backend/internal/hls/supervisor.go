@@ -36,8 +36,9 @@ var (
 	healthyAfter       = 30 * time.Second // a process that lived this long resets the failure count
 	restartBackoffBase = time.Second
 	maxBackoff         = 15 * time.Second
-	gracefulStopWait   = 5 * time.Second // after "q"
-	termStopWait       = 3 * time.Second // after SIGTERM, then kill
+	gracefulStopWait   = 2 * time.Second // after "q"
+	secondSignalWait   = time.Second     // after the first SIGTERM, before the second
+	termStopWait       = 3 * time.Second // after the second SIGTERM, then kill
 )
 
 // ffmpegCommand builds the FFmpeg process; replaced in tests by a stand-in.
@@ -240,7 +241,12 @@ func (s *supervisor) run(p *proc) {
 	}
 }
 
-// stopProc asks FFmpeg to finish its segments ('q'), then insists (SIGTERM, then kill).
+// stopProc asks FFmpeg to finish its segments ('q'), then insists (SIGTERM twice, then kill).
+//
+// Two signals on purpose: once the publisher is gone FFmpeg sits in a blocking read of its RTP input,
+// and neither "q" nor a first SIGTERM wakes it (its interrupt callback only fires from the second
+// signal on). With a single SIGTERM it was killed after 8 s, which also cut the segment being written;
+// the second one makes it leave cleanly, trailer and last segment included, in about three seconds.
 func stopProc(roomID string, p *proc) {
 	if p == nil {
 		return
@@ -260,6 +266,12 @@ func stopProc(roomID string, p *proc) {
 	case <-time.After(gracefulStopWait):
 	}
 	log.Printf("[HLS] ffmpeg did not stop on 'q', sending SIGTERM (room %s)", roomID)
+	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	select {
+	case <-p.done:
+		return
+	case <-time.After(secondSignalWait):
+	}
 	_ = p.cmd.Process.Signal(syscall.SIGTERM)
 	select {
 	case <-p.done:
