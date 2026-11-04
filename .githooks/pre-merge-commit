@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Same audit before a merge commit made locally (git merge, git pull without fast-forward): the merge can
+# build fine on each side and still be broken together. Merges done on GitHub are covered by the CI.
+# Skip once with: SKIP_AUDIT=1 git merge ...
+set -uo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$ROOT/.githooks/audit.sh"

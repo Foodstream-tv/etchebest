@@ -10,6 +10,12 @@ if [[ "$first_line" =~ ^(Merge |Revert \"|fixup! |squash! |amend! ) ]]; then
   exit 0
 fi
 
+# No tool attribution in commit messages (see the conventions in CLAUDE.md).
+if grep -qiE 'Generated with \[?Claude Code|Co-Authored-By: Claude' "$1"; then
+  echo "commit-msg: retirez l'attribution « Generated with Claude Code » / « Co-Authored-By: Claude » du message." >&2
+  exit 1
+fi
+
 types='feat|fix|refactor|perf|style|docs|test|chore|build|ci|revert'
 if [[ "$first_line" =~ ^($types)(\([a-z0-9._/-]+\))?!?:\ .+ ]]; then
   exit 0

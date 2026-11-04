@@ -15,7 +15,7 @@ help: ## Show this help
 setup: hooks ## Create .env (JWT secret, DEV_MODE), set WEBRTC_IP to the LAN address, check the API port
 	@./scripts/dev-setup.sh
 
-hooks: ## Use the repository's Git hooks (.githooks: commit message, gofmt, ESLint on staged files)
+hooks: ## Use the repository's Git hooks (.githooks: commit message, gofmt, ESLint, bug audit on staged files)
 	@git config core.hooksPath .githooks
 
 up: setup ## Start Postgres + backend and wait until they are healthy

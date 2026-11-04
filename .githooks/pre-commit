@@ -45,6 +45,9 @@ for dir in front-web analytics mobile; do
   lint_project "$dir" || status=1
 done
 
+# Audit of potential bugs (leftovers, build/vet/tests of the Go packages touched, tsc and related Jest tests).
+"$ROOT/.githooks/audit.sh" || status=1
+
 if [[ $status -ne 0 ]]; then
   echo "pre-commit: commit refusé. Corrigez, ou passez exceptionnellement avec git commit --no-verify." >&2
 fi
