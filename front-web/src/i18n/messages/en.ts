@@ -531,6 +531,8 @@ export const en: Record<keyof typeof fr, string> = {
   "broadcast.streamWaiting": "Waiting for camera",
   "broadcast.liveEndedBadge": "LIVE ENDED",
   "broadcast.cameraInactive": "Camera inactive",
+  "broadcast.endingLive": "Ending live…",
+  "broadcast.endingLiveDesc": "We are wrapping up your live, one moment.",
   "broadcast.liveEndedDesc": "The live is now offline.",
   "broadcast.coStreamersTitle": "Co-streamers",
   "broadcast.coStreamersDesc": "Connected video participants",
