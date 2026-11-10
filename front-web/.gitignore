@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Written by `next dev` (Next.js 16) for coding agents, recreated on every start
+/AGENTS.md
