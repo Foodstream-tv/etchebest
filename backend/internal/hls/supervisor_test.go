@@ -200,7 +200,7 @@ func TestACrashedFFmpegIsRestartedAndAppendsToThePlaylists(t *testing.T) {
 	if strings.Contains(string(first), "discont_start") {
 		t.Error("the first run must not announce a discontinuity")
 	}
-	if !strings.Contains(string(second), "append_list+independent_segments+discont_start") {
+	if !strings.Contains(string(second), "append_list+independent_segments+temp_file+discont_start") {
 		t.Errorf("the restart must append to the playlists with a discontinuity: %s", second)
 	}
 	if got := StatusOf("room-crash"); got != StatusRunning {
@@ -343,5 +343,38 @@ func TestTailBufferKeepsTheLastWords(t *testing.T) {
 	tb.Write([]byte("the end"))
 	if got := tb.String(); !strings.HasSuffix(got, "the end") || len(got) > stderrTailBytes {
 		t.Errorf("tail = %d bytes ending %q", len(got), got[max(0, len(got)-10):])
+	}
+}
+
+func TestTheSDPLivesOutsideTheServedTreeAndGoesWithThePipeline(t *testing.T) {
+	fastTimings(t)
+	fakeFFmpeg(t, "healthy")
+	audio, video := testCodecs()
+
+	_, stop, err := Start("room-sdp", audio, video, SourceSize{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists(filepath.Join(liveDir, "room-sdp", "stream.sdp")) {
+		t.Error("the SDP must not be in the served live tree (it described the RTP input, and was copied into every replay)")
+	}
+	if !exists(filepath.Join(workDir, "room-sdp", "stream.sdp")) {
+		t.Error("FFmpeg needs its SDP in the work directory")
+	}
+	stop()
+	if exists(filepath.Join(workDir, "room-sdp")) {
+		t.Error("the work directory must be removed with the pipeline")
+	}
+}
+
+func TestAFailedStartLeavesNoWorkDirectory(t *testing.T) {
+	fastTimings(t)
+	fakeFFmpeg(t, "exit-at-once")
+	audio, video := testCodecs()
+	if _, _, err := Start("room-sdp-fail", audio, video, SourceSize{}); err == nil {
+		t.Fatal("Start must fail")
+	}
+	if exists(filepath.Join(workDir, "room-sdp-fail")) {
+		t.Error("a failed start must clean its work directory")
 	}
 }
