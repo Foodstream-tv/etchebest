@@ -338,9 +338,6 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	// The load picks the ladder, the source trims it: no rendition larger than what is published.
-	ladder = ladder.ForSource(src.Width, src.Height)
-
 	if err := os.MkdirAll(hlsDir, 0755); err != nil {
 		releaseSlot()
 		return nil, nil, err
@@ -361,7 +358,7 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 		releaseSlot()
 		_ = os.RemoveAll(workRoom) // the SDP: not needed once FFmpeg is gone
 	}
-	log.Printf("[HLS] room %s gets the %q ladder, %d rendition(s), source %dx%d (%d live(s) with HLS)",
+	log.Printf("[HLS] room %s gets the %q ladder, %d rendition(s), first picture %dx%d (%d live(s) with HLS)",
 		roomID, ladder.Name, len(ladder.Rungs), src.Width, src.Height, ActiveLives())
 
 	log.Printf("[HLS] audio UDP port=%d video UDP port=%d audio_codec=%v video_codec=%v",

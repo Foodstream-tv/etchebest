@@ -141,34 +141,3 @@ func TestParseSPSSizeRefusesGarbageWithoutPanicking(t *testing.T) {
 		_, _, _ = ParseSPSSize(sps[:i])
 	}
 }
-
-func TestForSourceDropsRenditionsTheSourceCannotFill(t *testing.T) {
-	names := func(l Ladder) string {
-		var n []string
-		for _, r := range l.Rungs {
-			n = append(n, r.Name)
-		}
-		return strings.Join(n, ",")
-	}
-	cases := []struct {
-		w, h  int
-		full  string
-		light string
-	}{
-		{1920, 1080, "1080p,720p,480p,360p", "480p,360p"},
-		{1280, 720, "720p,480p,360p", "480p,360p"},
-		{720, 1280, "720p,480p,360p", "480p,360p"}, // portrait: the short side counts
-		{854, 480, "480p,360p", "480p,360p"},
-		{640, 360, "360p", "360p"},
-		{320, 240, "360p", "360p"},                  // tiny: encoded once, never enlarged (the scale filter caps it)
-		{0, 0, "1080p,720p,480p,360p", "480p,360p"}, // unknown source: nothing dropped
-	}
-	for _, c := range cases {
-		if got := names(FullLadder.ForSource(c.w, c.h)); got != c.full {
-			t.Errorf("%dx%d full ladder: %s, want %s", c.w, c.h, got, c.full)
-		}
-		if got := names(LightLadder.ForSource(c.w, c.h)); got != c.light {
-			t.Errorf("%dx%d light ladder: %s, want %s", c.w, c.h, got, c.light)
-		}
-	}
-}

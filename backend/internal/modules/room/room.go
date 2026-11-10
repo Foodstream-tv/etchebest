@@ -1454,8 +1454,9 @@ type hlsState struct {
 	video      *hls.CodecInfo
 	trackCount int
 	retrying   bool // a background retry of the HLS start is pending (guarded by mu)
-	// src is the publisher's picture size, read from its first SPS (0x0 until then): the ladder is chosen
-	// from it, so HLS waits for it (hlsSourceWait at most).
+	// src is the size of the publisher's first picture, read from its first SPS (0x0 until then). HLS
+	// starts on that SPS, not on the tracks: it comes with the first keyframe, which a browser does not
+	// send again for seconds, so FFmpeg has to be ready for it (hlsSourceWait at most).
 	src      hls.SourceSize
 	waitOnce sync.Once
 	// start launches the HLS pipeline (hls.Start unless a test replaces it).
@@ -1482,15 +1483,15 @@ func (h *hlsState) tryStartHLS(room *Room, roomID string) {
 		return
 	}
 	if h.src.Width == 0 {
-		// The size of the picture is not known yet: the first SPS will call us again. If it never
-		// comes (an odd publisher), start with the full ladder rather than not at all.
+		// No SPS yet: it will call us again. If it never comes (an odd publisher), start anyway rather
+		// than not at all.
 		wait := hlsSourceWait
 		h.waitOnce.Do(func() {
 			time.AfterFunc(wait, func() {
 				mu.Lock()
 				defer mu.Unlock()
 				if h.src.Width == 0 {
-					log.Printf("[HLS] no SPS from the publisher of room %s after %v: starting with the full ladder", roomID, wait)
+					log.Printf("[HLS] no SPS from the publisher of room %s after %v: starting anyway", roomID, wait)
 					h.src = hls.SourceSize{Width: -1, Height: -1} // known to be unknown: stop waiting
 					h.tryStartHLS(room, roomID)
 				}

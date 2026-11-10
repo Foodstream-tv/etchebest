@@ -38,7 +38,8 @@ func (w *HLSWriter) Status() Status {
 	return w.sup.status()
 }
 
-// SourceSize is the picture size the publisher sends, when known (0x0 otherwise).
+// SourceSize is the size of the first picture the publisher sends, when known (0x0 otherwise). It does
+// not choose the renditions (the load does): a publisher usually grows its picture after the start.
 type SourceSize struct {
 	Width, Height int
 }
