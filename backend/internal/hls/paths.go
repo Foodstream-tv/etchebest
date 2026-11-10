@@ -12,6 +12,9 @@ import (
 const (
 	liveDir    = "./hls"
 	replaysDir = "./storage/replays"
+	// workDir holds what FFmpeg needs but nobody may fetch or keep (the SDP describing the RTP input):
+	// it is not under the served live tree and never ends up in a replay.
+	workDir = "./hls-work"
 )
 
 // ErrInvalidRoomID is returned for a room id that could not name a directory of its own.

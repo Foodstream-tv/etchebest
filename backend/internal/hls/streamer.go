@@ -90,7 +90,9 @@ func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) 
 // into the adaptive HLS ladder in hlsDir. After a restart (restart=true) the playlists are appended
 // to and a discontinuity is announced, so players resume instead of stalling on a timestamp jump.
 func buildFFmpegArgs(sdpPath, hlsDir string, restart bool, ladder Ladder) []string {
-	hlsFlags := "append_list+independent_segments"
+	// temp_file: playlists and segments are written under a temporary name then renamed, so a viewer (or the
+	// window computation) never reads a half-written one.
+	hlsFlags := "append_list+independent_segments+temp_file"
 	if restart {
 		hlsFlags += "+discont_start"
 	}

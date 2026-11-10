@@ -20,6 +20,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/Foodstream-io/etchebest/internal/auth"
+	"github.com/Foodstream-io/etchebest/internal/hls"
 	"github.com/Foodstream-io/etchebest/internal/middleware"
 	"gorm.io/gorm"
 
@@ -143,7 +144,9 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// HLS - public access (video players can't send Authorization headers)
 	hlsGroup := r.Group("/api/hls", middleware.MediaHeaders(true))
-	hlsGroup.Static("/", "./hls") // watch the stream -> video.src = `/api/hls/${roomId}/master.m3u8`;
+	// watch the stream -> video.src = `/api/hls/${roomId}/master.m3u8`; media playlists are a sliding window
+	hlsGroup.GET("/*filepath", hls.ServeLive())
+	hlsGroup.HEAD("/*filepath", hls.ServeLive())
 
 	// Discover (public)
 	r.GET("/api/discover", discover.GetDiscover(db))

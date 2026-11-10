@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // FFmpeg shares the machine with the API and the media server: a live costs one decode and several
@@ -17,6 +18,30 @@ const (
 )
 
 // ErrTooManyLives means the HLS pipeline is full: the live goes on over WebRTC, without HLS or replay.
+// liveWindow is how many segments of a live playlist viewers see (HLS_LIVE_WINDOW).
+func liveWindow() (int, error) {
+	n, err := envCount("HLS_LIVE_WINDOW", defaultLiveWindow)
+	if err != nil {
+		return defaultLiveWindow, err
+	}
+	if n < minLiveWindow {
+		return defaultLiveWindow, fmt.Errorf("HLS_LIVE_WINDOW=%d is below %d segments (players need that much margin)", n, minLiveWindow)
+	}
+	return n, nil
+}
+
+// orphanTTL is how long a tree no pipeline owns is kept before the janitor deletes it (HLS_ORPHAN_TTL_HOURS).
+func orphanTTL() (time.Duration, error) {
+	h, err := envCount("HLS_ORPHAN_TTL_HOURS", defaultOrphanTTLHours)
+	if err != nil {
+		return 0, err
+	}
+	if h < 1 {
+		return 0, fmt.Errorf("HLS_ORPHAN_TTL_HOURS must be at least 1")
+	}
+	return time.Duration(h) * time.Hour, nil
+}
+
 var ErrTooManyLives = errors.New("too many simultaneous HLS lives")
 
 type capacityPolicy struct {

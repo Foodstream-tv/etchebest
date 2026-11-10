@@ -56,7 +56,13 @@ func ValidateConfig() error {
 	if _, err := loadPortRange(); err != nil {
 		return err
 	}
-	_, err := loadCapacityPolicy()
+	if _, err := loadCapacityPolicy(); err != nil {
+		return err
+	}
+	if _, err := liveWindow(); err != nil {
+		return err
+	}
+	_, err := orphanTTL()
 	return err
 }
 
