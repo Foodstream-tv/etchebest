@@ -72,7 +72,23 @@ func renderedSizes(t *testing.T, l Ladder, w, h int) []image.Point {
 	return sizes
 }
 
-func TestRenditionsKeepTheShapeOfTheSourceAndNeverEnlarge(t *testing.T) {
+// The size of a rendition is its rung's, not "at most the source's": a browser starts at 318x180 and grows
+// its picture, and FFmpeg's encoders keep the size of the first one (a 240p replay of a live that soon
+// sent 360p). Needs no ffmpeg: the filter itself is checked.
+func TestTheScaleOfARenditionDoesNotDependOnTheSource(t *testing.T) {
+	for _, r := range allRungs {
+		f := scaleFilter(r.Short)
+		if strings.Contains(f, "min(") || strings.Contains(f, "iw)") {
+			t.Errorf("%s: the size must not follow the source: %s", r.Name, f)
+		}
+		want := fmt.Sprintf("scale=w='if(gt(iw,ih),-2,%[1]d)':h='if(gt(iw,ih),%[1]d,-2)'", r.Short)
+		if f != want {
+			t.Errorf("%s: %s, want %s", r.Name, f, want)
+		}
+	}
+}
+
+func TestEveryRenditionHasTheSizeOfItsRungWhateverTheSource(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not installed")
 	}
@@ -80,12 +96,17 @@ func TestRenditionsKeepTheShapeOfTheSourceAndNeverEnlarge(t *testing.T) {
 		name string
 		w, h int
 	}{
-		{"1080p landscape", 1920, 1080},
-		{"720p landscape", 1280, 720},
-		{"480p landscape", 854, 480},
+		// what a browser sends while its bandwidth estimate rises, then what it settles on
+		{"browser start", 318, 180},
+		{"browser ramp-up", 427, 240},
+		{"360p", 640, 360},
+		{"480p", 854, 480},
+		{"720p", 1280, 720},
+		{"1080p", 1920, 1080},
+		{"4:3", 640, 480},
+		{"phone portrait start", 180, 320},
 		{"phone portrait 720p", 720, 1280},
 		{"phone portrait 1080p", 1080, 1920},
-		{"small portrait", 360, 640},
 		{"square", 800, 800},
 		{"odd sizes", 721, 1281},
 	}
@@ -93,24 +114,35 @@ func TestRenditionsKeepTheShapeOfTheSourceAndNeverEnlarge(t *testing.T) {
 		for _, l := range []Ladder{FullLadder, LightLadder} {
 			sizes := renderedSizes(t, l, src.w, src.h)
 			srcRatio := float64(src.w) / float64(src.h)
+			landscape := src.w > src.h
 			for i, got := range sizes {
-				name := fmt.Sprintf("%s / %s %s", src.name, l.Name, l.Rungs[i].Name)
+				rung := l.Rungs[i]
+				name := fmt.Sprintf("%s (%dx%d) / %s %s", src.name, src.w, src.h, l.Name, rung.Name)
 				if got.X%2 != 0 || got.Y%2 != 0 {
 					t.Errorf("%s: %dx%d is not even (x264 refuses it)", name, got.X, got.Y)
 				}
-				if got.X > src.w+1 || got.Y > src.h+1 {
-					t.Errorf("%s: %dx%d enlarges the %dx%d source", name, got.X, got.Y, src.w, src.h)
+				// the short side is the rung's: landscape by height, portrait and square by width
+				if short := map[bool]int{true: got.Y, false: got.X}[landscape]; short != rung.Short {
+					t.Errorf("%s: %dx%d, the short side must be %d", name, got.X, got.Y, rung.Short)
 				}
 				if ratio := float64(got.X) / float64(got.Y); ratio < srcRatio*0.98 || ratio > srcRatio*1.02 {
 					t.Errorf("%s: aspect %.3f, source %.3f (padded or stretched)", name, ratio, srcRatio)
 				}
-				if (src.w > src.h) != (got.X > got.Y) && src.w != src.h && abs(src.w-src.h) > 2 {
+				if landscape != (got.X > got.Y) && abs(src.w-src.h) > 2 {
 					t.Errorf("%s: %dx%d changed orientation", name, got.X, got.Y)
 				}
-				short := min(got.X, got.Y)
-				if short > l.Rungs[i].Short {
-					t.Errorf("%s: short side %d above the rendition's %d", name, short, l.Rungs[i].Short)
-				}
+			}
+		}
+	}
+
+	// the ramp-up itself: a 16:9 picture at any of its sizes gives the same renditions. The width may
+	// differ by under 1% (318x180 is not exactly 16:9): FFmpeg then rescales the later, larger pictures
+	// to the size of the first one, which nobody can see.
+	want := renderedSizes(t, FullLadder, 1280, 720)
+	for _, src := range []image.Point{{318, 180}, {427, 240}, {640, 360}} {
+		for i, got := range renderedSizes(t, FullLadder, src.X, src.Y) {
+			if abs(got.X-want[i].X)*100 > want[i].X || got.Y != want[i].Y {
+				t.Errorf("%dx%d: %s is %dx%d, a 720p source gives %dx%d", src.X, src.Y, FullLadder.Rungs[i].Name, got.X, got.Y, want[i].X, want[i].Y)
 			}
 		}
 	}

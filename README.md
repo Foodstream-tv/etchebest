@@ -40,7 +40,7 @@ Chaque live peut être conservé en **replay**.
 │  - API REST + WebSocket, Swagger : /api/swagger/index.html   │
 │  - SFU WebRTC (Pion) : un hôte, jusqu'à 5 co-streamers       │
 │  - FFmpeg : WebRTC → HLS (.m3u8 / segments) et replays       │
-│    échelle de qualité selon la source, plafond HLS_MAX_LIVES │
+│    4 qualités (1080p à 360p), plafond HLS_MAX_LIVES          │
 │  - Fichiers (replays, uploads) : volume Docker backend_data  │
 └──────────────────────────────┬───────────────────────────────┘
                                ▼
@@ -162,7 +162,7 @@ ignoré par Git ; partez de `.env.example`. Les variables les plus utiles :
 | `DEV_MODE` | `true` en local : l'API renvoie les codes de vérification (inscription, renvoi de code) et les écrit dans les logs si aucun SMTP n'est configuré. `make setup` l'ajoute à un `.env` qui ne l'a pas, sans écraser une valeur existante. |
 | `WEBRTC_IP` | Adresse que les clients WebRTC utilisent pour joindre le backend. `127.0.0.1` suffit pour un navigateur sur la même machine ; mettez l'IP LAN (`make setup`) pour un téléphone ou une autre machine. |
 | `WEBRTC_PORT_MIN` / `WEBRTC_PORT_MAX` | Plage UDP du média WebRTC (50000-50100 par défaut ; 40000-40050 si Hyper-V ou Teams occupent la plage sous Windows). |
-| `HLS_MAX_LIVES` / `HLS_FULL_LADDER_LIVES` | Nombre de lives encodés en HLS en même temps, et seuil à partir duquel un nouveau live n'a plus que 480p et 360p. |
+| `HLS_MAX_LIVES` / `HLS_FULL_LADDER_LIVES` | Nombre de lives encodés en HLS en même temps, et seuil à partir duquel un nouveau live n'a plus que 480p et 360p. Un live aux 4 qualités occupe environ 4 à 5 cœurs (mesuré, x264 `veryfast`) : dimensionnez `HLS_FULL_LADDER_LIVES` d'après les cœurs disponibles. Les qualités ne dépendent pas de la source (un navigateur démarre petit puis grandit) : une source plus petite qu'une qualité est agrandie. |
 | `SMTP_*` | Envoi réel des e-mails. Sans SMTP, le contenu est simulé dans les logs (en `DEV_MODE`). |
 | `APP_URL` | URL du front web (liens des e-mails, retour de la connexion Google). |
 | `ALLOWED_REDIRECT_ORIGINS` | Autres origines autorisées pour le retour Google (ex. `http://localhost:3002`). |
