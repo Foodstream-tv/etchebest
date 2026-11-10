@@ -76,6 +76,21 @@ func TestGenerateReplayWithoutMasterIsNoContent(t *testing.T) {
 	}
 }
 
+// An empty master playlist is what a live stopped too early (or a FFmpeg cut short) leaves behind: it
+// must not become a published replay that cannot be played.
+func TestGenerateReplayWithAnEmptyMasterIsNoContent(t *testing.T) {
+	root := chdirTemp(t)
+	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), "")
+
+	_, err := GenerateReplay("room-1")
+	if !errors.Is(err, ErrNoReplayContent) {
+		t.Fatalf("expected ErrNoReplayContent, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "storage", "replays", "room-1")); !os.IsNotExist(statErr) {
+		t.Fatalf("nothing must be published, stat err = %v", statErr)
+	}
+}
+
 func TestStopStreamKeepsTheRecordingWhenTheReplayFails(t *testing.T) {
 	root := chdirTemp(t)
 	// A live that has a master playlist but whose replay destination cannot be created:

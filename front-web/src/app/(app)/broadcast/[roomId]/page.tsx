@@ -50,6 +50,7 @@ import {
   SendHorizonal,
   Square,
   LogOut,
+  Loader2,
   Video,
   VideoOff,
   X,
@@ -314,6 +315,9 @@ export default function BroadcastRoomPage() {
   } = useWebRTC(token ?? undefined);
 
   const [hasStarted, setHasStarted] = useState(false);
+  // Set from the click on "Stop" until the page leaves: the server takes a few seconds to end the live
+  // (and to build the replay), and the screen must not look like a live that never started meanwhile.
+  const [ending, setEnding] = useState(false);
   const [consentNeeded, setConsentNeeded] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
@@ -396,10 +400,9 @@ export default function BroadcastRoomPage() {
     });
   };
 
-  const { label: statusLabel, dotClassName } = getBroadcastStatusMeta(
-    state as BroadcastState,
-    t
-  );
+  const baseStatus = getBroadcastStatusMeta(state as BroadcastState, t);
+  const statusLabel = ending ? t("broadcast.endingLive") : baseStatus.label;
+  const dotClassName = ending ? "bg-amber-500" : baseStatus.dotClassName;
 
   const emptyStateMessage = getBroadcastEmptyStateMessage(
     ready,
@@ -413,6 +416,7 @@ export default function BroadcastRoomPage() {
   const isDisconnected = state === "disconnected";
 
   const handleBack = async () => {
+    if (isHost && isStreaming) setEnding(true);
     await stopLive();
     router.back();
   };
@@ -425,6 +429,7 @@ export default function BroadcastRoomPage() {
   };
 
   const handleStopLive = async () => {
+    setEnding(true);
     await stopLive();
     router.replace("/home");
   };
@@ -580,8 +585,12 @@ export default function BroadcastRoomPage() {
     kickRef.current = handleKickParticipant;
   });
 
-  const placeholderTitle = isDisconnected ? t("broadcast.status.offline") : t("broadcast.cameraInactive");
-  const placeholderMessage = isDisconnected ? t("broadcast.liveEndedDesc") : emptyStateMessage;
+  const placeholderTitle = ending
+    ? t("broadcast.endingLive")
+    : isDisconnected ? t("broadcast.status.offline") : t("broadcast.cameraInactive");
+  const placeholderMessage = ending
+    ? t("broadcast.endingLiveDesc")
+    : isDisconnected ? t("broadcast.liveEndedDesc") : emptyStateMessage;
   const youLabel = t("liveRoom.you");
 
   // Stable while nothing about the cameras changes, so polling (chat/room) never re-renders the video tiles.
@@ -693,7 +702,19 @@ export default function BroadcastRoomPage() {
             </button>
           ) : null}
 
-          {isStreaming && isHost ? (
+          {ending ? (
+            <button
+              disabled
+              aria-busy="true"
+              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-bold text-white cursor-wait"
+              type="button"
+            >
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              {t("broadcast.endingLive")}
+            </button>
+          ) : null}
+
+          {isStreaming && isHost && !ending ? (
             <button
               onClick={handleStopLive}
               className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(239,68,68,0.25)] transition hover:bg-red-400"

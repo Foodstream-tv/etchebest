@@ -2183,6 +2183,11 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 				if w, h, err := hls.ParseSPSSize(sps); err == nil {
 					onSourceSize(w, h)
 					onSourceSize = nil
+					// This call may have just started HLS (and waited for FFmpeg to open its ports). Pick
+					// the writer up now: waiting for the periodic refresh above dropped the rest of this
+					// very keyframe, and a browser sends no other one for seconds (it answers a PLI late),
+					// so the replay and the live opened on a frozen picture.
+					cachedPeers, cachedWriter = refreshPeerSnapshot(ti, room, pkt.PayloadType)
 				}
 			}
 		}
