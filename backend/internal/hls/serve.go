@@ -38,11 +38,34 @@ func liveFile(requestPath string) (file string, isMediaPlaylist bool) {
 	return "", false
 }
 
+// containedIn returns file as a clean absolute path when it lies strictly inside base, and "" otherwise.
+// liveFile only builds paths from parts that matched strict patterns; this is the check that does not
+// depend on those patterns staying strict, and the one a path-injection analysis can see. The separator
+// after base matters: "hls-evil/x" is not inside "hls".
+func containedIn(base, file string) string {
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return ""
+	}
+	absFile, err := filepath.Abs(file)
+	if err != nil {
+		return ""
+	}
+	absFile = filepath.Clean(absFile)
+	if !strings.HasPrefix(absFile, absBase+string(filepath.Separator)) {
+		return ""
+	}
+	return absFile
+}
+
 // ServeLive serves the in-progress HLS tree under /api/hls/*filepath. Media playlists are cut to a sliding
 // window (WindowPlaylist); the master playlist and the segments are served as they are.
 func ServeLive() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		file, isMediaPlaylist := liveFile(c.Param("filepath"))
+		if file != "" {
+			file = containedIn(liveDir, file)
+		}
 		if file == "" {
 			c.Status(http.StatusNotFound)
 			return
