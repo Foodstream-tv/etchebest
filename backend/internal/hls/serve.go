@@ -19,6 +19,12 @@ var (
 // to a file of the live tree, or "" for anything else. Only what a player fetches is served: the directory
 // listing, the SDP FFmpeg reads and any other file are not.
 func liveFile(requestPath string) (file string, isMediaPlaylist bool) {
+	// No served file has ".." in its path (room ids have no dot, nor do renditions; segments have one).
+	// Rejecting it up front is also the check CodeQL's path-injection analysis recognizes: the patterns
+	// below and containedIn in ServeLive are not seen by it.
+	if strings.Contains(requestPath, "..") {
+		return "", false
+	}
 	parts := strings.Split(strings.Trim(requestPath, "/"), "/")
 	if len(parts) < 2 || len(parts) > 3 {
 		return "", false
