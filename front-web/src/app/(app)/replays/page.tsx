@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { PlayCircle, RefreshCw, Search, Video } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, PlayCircle, RefreshCw, Search, Video } from "lucide-react";
 
 import HomeFiltersSelect from "@/components/home/HomeFiltersSelect";
 import HomeFooter from "@/components/home/HomeFooter";
@@ -12,6 +12,10 @@ import { useAuth } from "@/lib/useAuth";
 import ReplayCarouselSection from "@/components/watch/ReplayCarouselSection";
 import { TAG_GROUPS } from "@/lib/tagGroups";
 import { useI18n } from "@/i18n/LanguageContext";
+
+// Replays asked per page, and how many the "recently added" row shows.
+const PAGE_SIZE = 48;
+const RECENT_COUNT = 12;
 
 export default function ReplaysPage() {
   const { t } = useI18n();
@@ -24,6 +28,13 @@ export default function ReplaysPage() {
   const [replays, setReplays] = useState<LiveDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Paging: `total` is what the server has for this search, `page` the last page loaded.
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState(false);
+  // Bumped by every new search: an answer for an older one (next page, slow response) is dropped.
+  const searchRef = useRef(0);
 
   const handleDeleteReplay = async (replay: LiveDTO) => {
     if (!token) return;
@@ -32,6 +43,7 @@ export default function ReplaysPage() {
       setReplays((prev) =>
         prev.filter((r) => r.id !== replay.id && r.room_id !== replay.room_id)
       );
+      setTotal((count) => Math.max(0, count - 1));
     } catch (err) {
       console.error("Failed to delete replay:", err);
       alert((err instanceof Error && err.message) || "Erreur lors de la suppression de la rediffusion");
@@ -44,6 +56,7 @@ export default function ReplaysPage() {
   useEffect(() => {
     // An answer that arrives after the search changed is dropped.
     let ignore = false;
+    searchRef.current += 1;
 
     async function loadReplays() {
       try {
@@ -52,18 +65,25 @@ export default function ReplaysPage() {
           tags: tagsKey ? tagsKey.split("\n") : [],
           status: "ended",
           page: 1,
-          limit: 48,
+          limit: PAGE_SIZE,
         });
         if (ignore) return;
 
         setReplays(res.lives ?? []);
+        setTotal(res.total ?? res.lives?.length ?? 0);
+        setPage(1);
+        setMoreError(false);
         setError(null);
       } catch (e) {
         if (ignore) return;
         setError((e instanceof Error && e.message) || t("replays.errorTitle"));
         setReplays([]);
+        setTotal(0);
       } finally {
-        if (!ignore) setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     }
 
@@ -77,6 +97,38 @@ export default function ReplaysPage() {
   const refresh = () => {
     setLoading(true);
     setReloadKey((key) => key + 1);
+  };
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    const search = searchRef.current;
+    setLoadingMore(true);
+    setMoreError(false);
+    try {
+      const res = await getLives({
+        q,
+        tags: tagsKey ? tagsKey.split("\n") : [],
+        status: "ended",
+        page: page + 1,
+        limit: PAGE_SIZE,
+      });
+      if (search !== searchRef.current) return;
+
+      const next = res.lives ?? [];
+      // A replay added or removed since the first page shifts the pages: never show one twice.
+      setReplays((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...next.filter((r) => !seen.has(r.id))];
+      });
+      setPage(page + 1);
+      // An empty page although the total says more (rows deleted meanwhile): stop offering more.
+      setTotal(next.length === 0 ? replays.length : (res.total ?? total));
+    } catch (e) {
+      console.error("Failed to load more replays:", e);
+      if (search === searchRef.current) setMoreError(true);
+    } finally {
+      if (search === searchRef.current) setLoadingMore(false);
+    }
   };
 
   const replaysByTag = useMemo(() => {
@@ -118,8 +170,8 @@ export default function ReplaysPage() {
                   {t("replays.heroDesc")}{" "}
                   <span className="font-semibold text-gray-900 dark:text-gray-100">
                     {t("replays.count", {
-                      count: replays.length,
-                      plural: replays.length > 1 ? "s" : "",
+                      count: total,
+                      plural: total > 1 ? "s" : "",
                     })}
                     .
                   </span>
@@ -245,6 +297,17 @@ export default function ReplaysPage() {
             </section>
           ) : (
             <div className="space-y-10">
+              {/* The latest first, whatever their tag. Not worth a row of its own when it would only
+                  repeat the single section below it. */}
+              {replays.length > 0 && !(replaysByTag.length === 1 && replays.length <= RECENT_COUNT) ? (
+                <ReplayCarouselSection
+                  key="recent"
+                  title={t("replays.recentTitle")}
+                  replays={replays.slice(0, RECENT_COUNT)}
+                  onDeleteReplay={handleDeleteReplay}
+                />
+              ) : null}
+
               {replaysByTag.map((section) => (
                 <ReplayCarouselSection
                   key={section.tagName}
@@ -253,6 +316,31 @@ export default function ReplaysPage() {
                   onDeleteReplay={handleDeleteReplay}
                 />
               ))}
+
+              {replays.length < total ? (
+                <div className="flex flex-col items-center gap-3 pb-2">
+                  <p aria-live="polite" className="text-sm text-gray-600 dark:text-gray-400">
+                    {t("replays.shownCount", { shown: replays.length, total })}
+                  </p>
+
+                  {moreError ? (
+                    <p role="alert" className="text-sm font-semibold text-red-600 dark:text-red-300">
+                      {t("replays.loadMoreError")}
+                    </p>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    aria-busy={loadingMore}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white shadow-sm px-5 py-3 text-sm font-semibold text-gray-900 transition hover:bg-[#fffaf2] disabled:cursor-wait disabled:opacity-70 dark:border-[#f5ede0]/25 dark:bg-[#f5ede0]/[0.10] dark:text-[#f5ede0] dark:shadow-none dark:hover:bg-[#f5ede0]/[0.18]"
+                  >
+                    {loadingMore ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
+                    {loadingMore ? t("replays.loadingMore") : t("replays.loadMore")}
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

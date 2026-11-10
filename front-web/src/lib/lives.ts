@@ -23,6 +23,8 @@ export type LiveDTO = {
 
   scheduled_at?: string;
   created_at: string;
+  /** When the live ended (a replay is "added" then). Absent on rows from before it was recorded. */
+  ended_at?: string;
 
   thumbnail_url?: string;
   preview_gif?: string;

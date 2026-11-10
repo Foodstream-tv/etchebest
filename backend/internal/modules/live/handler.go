@@ -31,7 +31,7 @@ func GetLives(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		lives, err := fetchLives(query, limit, offset)
+		lives, err := fetchLives(query, c.Query("status"), limit, offset)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch lives"})
 			return
@@ -95,9 +95,20 @@ func getTagFilters(c *gin.Context) []string {
 	return tagNames
 }
 
-func fetchLives(query *gorm.DB, limit, offset int) ([]Live, error) {
+// livesOrder is the order of a list. Ended lives (the replays) come newest first, by the moment they
+// ended: that is what a viewer looks for, and a page of them would otherwise be the oldest ones.
+// Everything else (scheduled, live) keeps the soonest first. The id breaks ties, so that two pages never
+// overlap or skip a row when several lives share a date.
+func livesOrder(status string) string {
+	if status == "ended" {
+		return "COALESCE(ended_at, created_at) DESC, id DESC"
+	}
+	return "COALESCE(scheduled_at, created_at) ASC, id ASC"
+}
+
+func fetchLives(query *gorm.DB, status string, limit, offset int) ([]Live, error) {
 	var lives []Live
-	err := query.Order("COALESCE(scheduled_at, created_at) ASC").Limit(limit).Offset(offset).Find(&lives).Error
+	err := query.Order(livesOrder(status)).Limit(limit).Offset(offset).Find(&lives).Error
 	return lives, err
 }
 
