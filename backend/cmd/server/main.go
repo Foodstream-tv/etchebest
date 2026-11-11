@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/Foodstream-io/etchebest/internal/db"
 	"github.com/Foodstream-io/etchebest/internal/hls"
@@ -18,12 +19,16 @@ import (
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/Foodstream-io/etchebest/docs"
 	"github.com/Foodstream-io/etchebest/internal/routes"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // @title           Etchebest API
@@ -133,7 +138,27 @@ func main() {
 
 	routes.Routes(r, db, jwtKey, stunServerURL, webrtcIP)
 
-	if err := r.Run(":" + port); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{Addr: ":" + port, Handler: r, ReadHeaderTimeout: 10 * time.Second}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+	}()
+	<-ctx.Done()
+	stop() // a second signal kills the process at once
+	shutdown(srv, db)
+}
+
+// shutdown stops taking requests, then ends the running lives with their replays, so that a restart or a
+// deployment does not cut them. Docker kills the process after stop_grace_period (docker-compose).
+func shutdown(srv *http.Server, db *gorm.DB) {
+	log.Println("stopping: no new request, ending the running lives")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("HTTP shutdown: %v", err)
 	}
+	log.Printf("stopped: %d live(s) ended", room.EndRunningLives(db))
 }

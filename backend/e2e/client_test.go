@@ -262,6 +262,11 @@ func waitHealthy(t *testing.T) {
 	t.Fatal("the backend did not come back within 60 s")
 }
 
+func backendLogsSince(since time.Time) string {
+	out, _ := exec.Command("docker", "logs", "--since", since.Format(time.RFC3339Nano), container).CombinedOutput()
+	return string(out)
+}
+
 // reportBackendLogs prints the suspicious lines the backend logged during the run.
 func reportBackendLogs() {
 	out, err := exec.Command("docker", "logs", "--since", startedAt.Format(time.RFC3339Nano), container).CombinedOutput()
