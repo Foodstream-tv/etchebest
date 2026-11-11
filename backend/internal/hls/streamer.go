@@ -38,7 +38,8 @@ func (w *HLSWriter) Status() Status {
 	return w.sup.status()
 }
 
-// SourceSize is the picture size the publisher sends, when known (0x0 otherwise).
+// SourceSize is the size of the first picture the publisher sends, when known (0x0 otherwise). It does
+// not choose the renditions (the load does): a publisher usually grows its picture after the start.
 type SourceSize struct {
 	Width, Height int
 }
@@ -90,7 +91,9 @@ func buildSDP(audioPort int, audio *CodecInfo, videoPort int, video *CodecInfo) 
 // into the adaptive HLS ladder in hlsDir. After a restart (restart=true) the playlists are appended
 // to and a discontinuity is announced, so players resume instead of stalling on a timestamp jump.
 func buildFFmpegArgs(sdpPath, hlsDir string, restart bool, ladder Ladder) []string {
-	hlsFlags := "append_list+independent_segments"
+	// temp_file: playlists and segments are written under a temporary name then renamed, so a viewer (or the
+	// window computation) never reads a half-written one.
+	hlsFlags := "append_list+independent_segments+temp_file"
 	if restart {
 		hlsFlags += "+discont_start"
 	}

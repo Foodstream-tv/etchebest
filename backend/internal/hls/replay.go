@@ -84,8 +84,14 @@ func GenerateReplay(roomID string) (string, error) {
 	}
 
 	masterPath := filepath.Join(sourceDir, "master.m3u8")
-	if _, err := os.Stat(masterPath); err != nil {
+	info, err := os.Stat(masterPath)
+	if err != nil {
 		return "", fmt.Errorf("master playlist not found for room %s: %w: %w", roomID, ErrNoReplayContent, err)
+	}
+	// FFmpeg creates the master at once but fills it only when the first segments exist (or when it
+	// closes its files): an empty one is a live that produced nothing, not a replay to publish.
+	if info.Size() == 0 {
+		return "", fmt.Errorf("master playlist of room %s is empty: %w", roomID, ErrNoReplayContent)
 	}
 
 	if err := os.RemoveAll(replayDir); err != nil {

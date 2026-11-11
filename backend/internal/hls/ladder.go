@@ -47,15 +47,19 @@ func qualityNames() []string {
 	return names
 }
 
-// scaleFilter scales to the rung without padding and without enlarging: the short side becomes
-// min(rung, source short side), the other side follows the aspect ratio (even, as x264 requires). A
-// portrait phone stream stays portrait in every rendition instead of being letterboxed into 16:9.
+// scaleFilter scales to the rung without padding: the short side is the rung's, whatever the source,
+// and the other side follows the aspect ratio (even, as x264 requires). A portrait phone stream stays
+// portrait in every rendition instead of being letterboxed into 16:9.
+//
+// The size is the rung's and not "at most the source's" on purpose. A browser starts a live small
+// (318x180) and grows it over a few seconds as its bandwidth estimate rises, while FFmpeg's encoders
+// take the size of the first picture for good: a size that follows the source froze every rendition at
+// the ramp-up size (a 240p replay of a live that soon sent 360p). A source smaller than a rung is
+// enlarged; its renditions are not sharper but they are the size they are named after, and they
+// become sharp as soon as the source does.
 func scaleFilter(short int) string {
-	// Landscape (iw > ih): height = min(short, ih), width follows. Portrait or square: width =
-	// min(short, iw), height follows. trunc(x/2)*2 keeps a capped side even.
-	return fmt.Sprintf(
-		"scale=w='if(gt(iw,ih),-2,trunc(min(%[1]d,iw)/2)*2)':h='if(gt(iw,ih),trunc(min(%[1]d,ih)/2)*2,-2)'",
-		short)
+	// Landscape (iw > ih): height = short, width follows. Portrait or square: width = short, height follows.
+	return fmt.Sprintf("scale=w='if(gt(iw,ih),-2,%[1]d)':h='if(gt(iw,ih),%[1]d,-2)'", short)
 }
 
 // filterGraph is the -filter_complex of the ladder: one decode, one fps conversion, N scalings.
@@ -102,24 +106,4 @@ func (l Ladder) outputArgs() []string {
 		)
 	}
 	return args
-}
-
-// ForSource keeps only the renditions the source can fill: a rung whose short side is above the
-// source's would be the same picture encoded again at a higher bitrate. At least the smallest rung is
-// kept (a tiny source is encoded once). An unknown source (0x0) keeps the whole ladder.
-func (l Ladder) ForSource(width, height int) Ladder {
-	if width <= 0 || height <= 0 {
-		return l
-	}
-	short := min(width, height)
-	var kept []Rung
-	for _, r := range l.Rungs {
-		if r.Short <= short {
-			kept = append(kept, r)
-		}
-	}
-	if len(kept) == 0 {
-		kept = []Rung{l.Rungs[len(l.Rungs)-1]}
-	}
-	return Ladder{Name: l.Name, Rungs: kept}
 }

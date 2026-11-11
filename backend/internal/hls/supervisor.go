@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/pion/rtcp"
 )
 
 // Status is the health of a room's HLS pipeline.
@@ -36,7 +38,7 @@ var (
 	healthyAfter       = 30 * time.Second // a process that lived this long resets the failure count
 	restartBackoffBase = time.Second
 	maxBackoff         = 15 * time.Second
-	gracefulStopWait   = 5 * time.Second // after "q"
+	gracefulStopWait   = 8 * time.Second // after the goodbye and "q": FFmpeg needs about 4 s to close its files
 	termStopWait       = 3 * time.Second // after SIGTERM, then kill
 )
 
@@ -73,6 +75,9 @@ type proc struct {
 	started time.Time
 	done    chan struct{} // closed once Wait returned
 	err     error         // Wait's result, valid after done
+	// rtcpPorts are the RTCP ports next to its two RTP input ports (RTP port + 1): where the end of
+	// the input is announced when the live stops.
+	rtcpPorts []int
 }
 
 // supervisor keeps an FFmpeg process alive for a room: it notices a crash, restarts it on the same
@@ -127,7 +132,8 @@ func (s *supervisor) launch(restart bool) (*proc, error) {
 	if err := startCommand(cmd); err != nil {
 		return nil, fmt.Errorf("start ffmpeg: %w", err)
 	}
-	p := &proc{cmd: cmd, stdin: stdin, stderr: tail, started: time.Now(), done: make(chan struct{})}
+	p := &proc{cmd: cmd, stdin: stdin, stderr: tail, started: time.Now(), done: make(chan struct{}),
+		rtcpPorts: []int{s.audioPort + 1, s.videoPort + 1}}
 	go func() {
 		p.err = cmd.Wait()
 		close(p.done)
@@ -240,7 +246,12 @@ func (s *supervisor) run(p *proc) {
 	}
 }
 
-// stopProc asks FFmpeg to finish its segments ('q'), then insists (SIGTERM, then kill).
+// stopProc asks FFmpeg to finish its segments, then insists (SIGTERM, then kill).
+//
+// Once the publisher is gone FFmpeg waits in a blocking read of its RTP input and only gives up about
+// ten seconds after the last packet, whatever "q" says. A RTCP goodbye on each input ends it at once:
+// it closes the playlists and the last segment itself, in about four seconds. Signalling it twice is not
+// an option: the second signal also aborts its writes, and leaves an empty master playlist.
 func stopProc(roomID string, p *proc) {
 	if p == nil {
 		return
@@ -250,6 +261,7 @@ func stopProc(roomID string, p *proc) {
 		return
 	default:
 	}
+	sendGoodbye(p.rtcpPorts)
 	_, _ = p.stdin.Write([]byte("q\n"))
 	_ = p.stdin.Close()
 
@@ -273,6 +285,32 @@ func stopProc(roomID string, p *proc) {
 	<-p.done
 }
 
+// goodbye is a RTCP receiver report followed by a goodbye: FFmpeg ends an input once every stream got one
+// (it rejects a bare goodbye, which is shorter than a RTP header).
+var goodbye = func() []byte {
+	data, err := rtcp.Marshal([]rtcp.Packet{
+		&rtcp.ReceiverReport{SSRC: 1},
+		&rtcp.Goodbye{Sources: []uint32{1}},
+	})
+	if err != nil {
+		panic(err) // two fixed packets: cannot fail
+	}
+	return data
+}()
+
+// sendGoodbye tells FFmpeg, on each RTCP port, that its input is over. Best effort: if it does not
+// listen, stopProc falls back on "q", SIGTERM and kill.
+func sendGoodbye(ports []int) {
+	for _, port := range ports {
+		conn, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
+		if err != nil {
+			continue
+		}
+		_, _ = conn.Write(goodbye)
+		_ = conn.Close()
+	}
+}
+
 // stop ends supervision and the current process. Safe to call several times.
 func (s *supervisor) stop() {
 	s.stopOnce.Do(func() {
@@ -292,13 +330,14 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	workRoom, err := roomDir(workDir, roomID)
+	if err != nil {
+		return nil, nil, err
+	}
 	ladder, releaseSlot, err := reserveSlot(roomID)
 	if err != nil {
 		return nil, nil, err
 	}
-	// The load picks the ladder, the source trims it: no rendition larger than what is published.
-	ladder = ladder.ForSource(src.Width, src.Height)
-
 	if err := os.MkdirAll(hlsDir, 0755); err != nil {
 		releaseSlot()
 		return nil, nil, err
@@ -317,14 +356,20 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	release := func() {
 		releasePorts(audioPort, videoPort)
 		releaseSlot()
+		_ = os.RemoveAll(workRoom) // the SDP: not needed once FFmpeg is gone
 	}
-	log.Printf("[HLS] room %s gets the %q ladder, %d rendition(s), source %dx%d (%d live(s) with HLS)",
+	log.Printf("[HLS] room %s gets the %q ladder, %d rendition(s), first picture %dx%d (%d live(s) with HLS)",
 		roomID, ladder.Name, len(ladder.Rungs), src.Width, src.Height, ActiveLives())
 
 	log.Printf("[HLS] audio UDP port=%d video UDP port=%d audio_codec=%v video_codec=%v",
 		audioPort, videoPort, codecSummary(audio), codecSummary(video))
 
-	sdpPath := filepath.Join(hlsDir, "stream.sdp")
+	// The SDP lives outside the served live tree (and so never reaches a replay or a viewer).
+	if err := os.MkdirAll(workRoom, 0755); err != nil {
+		release()
+		return nil, nil, fmt.Errorf("create work dir: %w", err)
+	}
+	sdpPath := filepath.Join(workRoom, "stream.sdp")
 	if err := os.WriteFile(sdpPath, []byte(buildSDP(audioPort, audio, videoPort, video)), 0644); err != nil {
 		release()
 		return nil, nil, fmt.Errorf("write sdp: %w", err)

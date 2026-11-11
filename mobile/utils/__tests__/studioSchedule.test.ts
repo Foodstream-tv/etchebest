@@ -9,7 +9,23 @@ describe('studioSchedule', () => {
 
     it('defaults to the next full hour', () => {
         expect(defaultSchedule(new Date(2026, 9, 15, 14, 20))).toEqual({ date: '2026-10-15', time: '15:00' });
-        expect(defaultSchedule(new Date(2026, 9, 15, 23, 59))).toEqual({ date: '2026-10-16', time: '00:00' });
+        expect(defaultSchedule(new Date(2026, 9, 15, 14, 55))).toEqual({ date: '2026-10-15', time: '15:00' }); // 5 min ahead
+    });
+
+    it('skips to the hour after when the next one is less than 5 minutes away', () => {
+        expect(defaultSchedule(new Date(2026, 9, 15, 14, 56))).toEqual({ date: '2026-10-15', time: '16:00' });
+        expect(defaultSchedule(new Date(2026, 9, 15, 14, 59, 30))).toEqual({ date: '2026-10-15', time: '16:00' });
+        expect(defaultSchedule(new Date(2026, 9, 15, 23, 59))).toEqual({ date: '2026-10-16', time: '01:00' });
+    });
+
+    it('always proposes a slot that is accepted, whatever the minute of the day', () => {
+        for (let minute = 0; minute < 24 * 60; minute++) {
+            for (const second of [0, 59]) {
+                const now = new Date(2026, 9, 15, 0, minute, second);
+                const { date, time } = defaultSchedule(now);
+                expect(isFutureSchedule(date, time, now)).toBe(true);
+            }
+        }
     });
 
     it('rejects values that are not a real date', () => {
