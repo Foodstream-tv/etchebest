@@ -87,3 +87,28 @@ func TestCheckReservable(t *testing.T) {
 		t.Errorf("the consent is asked only once: %+v", err)
 	}
 }
+
+func TestARenegotiationDuringAJoinWaitsForItsAnswer(t *testing.T) {
+	const guest = "guest"
+	pc := newTestPC(t)
+	if _, err := pc.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo); err != nil {
+		t.Fatal(err)
+	}
+	room := &Room{ID: "join-race", Host: "host"}
+	mu.Lock()
+	registerPeer(pc, room, guest)
+	mu.Unlock()
+
+	requestRenegotiationOffer(room, guest, pc) // a track of the host arrives during the join
+	if pc.LocalDescription() != nil {
+		t.Fatal("an offer was made before the answer to the join: the join would never get its answer")
+	}
+
+	endInitialNegotiation(room, guest, pc)
+	waitUntil(t, "the held renegotiation is sent", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		_, sent := room.PendingOfferByUser[guest]
+		return sent
+	})
+}

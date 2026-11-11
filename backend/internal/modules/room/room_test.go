@@ -244,8 +244,11 @@ func TestRegisterPeerReplacesTheHostsStalePeer(t *testing.T) {
 	if _, ok := room.PendingOfferByUser["host"]; ok {
 		t.Fatal("an offer built for the old peer cannot be applied to the new one")
 	}
-	if room.RenegotiatingByUser["host"] || room.NeedsRenegotiationByUser["host"] {
-		t.Fatal("renegotiation flags of the replaced peer must be cleared")
+	if room.NeedsRenegotiationByUser["host"] {
+		t.Fatal("a renegotiation asked for the replaced peer must be dropped")
+	}
+	if !room.RenegotiatingByUser["host"] {
+		t.Fatal("the new peer is negotiating its join: renegotiations must wait for its answer")
 	}
 	if _, ok := room.PendingOfferByUser["guest"]; !ok || !room.RenegotiatingByUser["guest"] {
 		t.Fatal("other users' renegotiation state must be untouched")
