@@ -37,12 +37,17 @@ import HomeFooter from "@/components/home/HomeFooter";
 import { ORANGE_GRADIENT_CSS } from "@/lib/ui/colors";
 import CookingAssistant from "@/components/watch/CookingAssistant";
 import RecordingConsentDialog from "@/components/watch/RecordingConsentDialog";
+import LiveKitchenPanel from "@/components/watch/LiveKitchenPanel";
 import { getLiveByRoomId, type LiveDTO } from "@/lib/lives";
 import { useI18n } from "@/i18n/LanguageContext";
 import { usePolling } from "@/lib/usePolling";
 import { mergeChatMessages } from "@/lib/chatMessages";
 
 type PlayerMode = "native" | "hlsjs" | "unsupported";
+
+// A running live is joined (cook with the chef), not watched: the live player stays in the code behind
+// this switch, off by default. NEXT_PUBLIC_LIVE_VIEWER=true (at build time) brings it back.
+const LIVE_VIEWER_ENABLED = process.env.NEXT_PUBLIC_LIVE_VIEWER === "true";
 
 const MAX_MSG = 500;
 
@@ -105,6 +110,8 @@ export default function WatchRoomPage() {
   }, [user?.id, liveInfo?.user?.id]);
 
   const isScheduled = liveInfo?.status === "scheduled";
+  const isLive = liveInfo?.status === "live";
+  const showLivePlayer = LIVE_VIEWER_ENABLED && isLive && !isHost;
 
   const hlsUrl = useMemo(() => {
     return roomId ? getHLSUrl(roomId) : "";
@@ -122,7 +129,8 @@ export default function WatchRoomPage() {
   const maxParticipants = room?.maxParticipants ?? null;
 
   const [parsedRecipe, liveDescription] = useMemo(() => {
-    const rawDesc = liveInfo?.description || "Cette archive est accessible en replay pour revisualiser la recette et les échanges.";
+    const archiveText = "Cette archive est accessible en replay pour revisualiser la recette et les échanges.";
+    const rawDesc = liveInfo?.description || (liveInfo?.status === "ended" ? archiveText : "");
     const marker = "---FOODSTREAM_RECIPE---";
     if (rawDesc.includes(marker)) {
       const parts = rawDesc.split(marker);
@@ -136,7 +144,7 @@ export default function WatchRoomPage() {
       }
     }
     return [null, rawDesc];
-  }, [liveInfo?.description]);
+  }, [liveInfo?.description, liveInfo?.status]);
 
   const fetchRoom = useCallback(async () => {
     if (!roomId || !token) return;
@@ -285,16 +293,18 @@ export default function WatchRoomPage() {
   // Reset while rendering, not in the player effect.
   const playerSource = `${hlsUrl}|${reloadKey}|${isScheduled}`;
   const [errorSource, setErrorSource] = useState(playerSource);
+  const [playing, setPlaying] = useState(false);
   if (playerSource !== errorSource) {
     setErrorSource(playerSource);
     setError(null);
+    setPlaying(false);
   }
   const playerError =
-    !isScheduled && playerMode === "unsupported" ? "Navigateur non supporté." : error;
+    showLivePlayer && playerMode === "unsupported" ? "Navigateur non supporté." : error;
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!roomId || !hlsUrl || !video) return;
+    if (!showLivePlayer || !roomId || !hlsUrl || !video) return;
 
     // Nothing to play before the live starts: the effect runs again when it does.
     if (isScheduled) return;
@@ -423,7 +433,7 @@ export default function WatchRoomPage() {
     }
 
     // Unsupported browser: playerError says so.
-  }, [roomId, hlsUrl, reloadKey, isScheduled, playerMode, handleManifestParsed]);
+  }, [showLivePlayer, roomId, hlsUrl, reloadKey, isScheduled, playerMode, handleManifestParsed]);
 
   const fetchChat = useCallback(async () => {
     if (!roomId || !token) return;
@@ -494,6 +504,53 @@ export default function WatchRoomPage() {
     } catch {}
   };
 
+  let statusLabel = t("watch.room.archiveLabel");
+  if (isScheduled) {
+    statusLabel = t("watch.room.scheduledFor", {
+      date: formatScheduledDate(liveInfo?.scheduled_at, locale, t("watch.upcomingDate")),
+    });
+  } else if (isLive) {
+    statusLabel = t("watch.room.liveLabel");
+  }
+
+  const kitchenPanel = (variant: "overlay" | "bar") => (
+    <LiveKitchenPanel
+      roomId={roomId || ""}
+      isHost={isHost}
+      chef={liveInfo?.user?.username}
+      cooks={room ? registeredCount : null}
+      maxCooks={room ? maxPlaces : null}
+      full={isFull && !isReserved}
+      variant={variant}
+    />
+  );
+
+  const liveFrame = showLivePlayer ? (
+    <>
+      <video
+        key={`${roomId ?? "no-room"}-${reloadKey}`}
+        ref={videoRef}
+        controls
+        muted
+        autoPlay
+        playsInline
+        onPlaying={() => setPlaying(true)}
+        className="h-full w-full bg-black object-contain"
+      >
+        <track kind="captions" />
+      </video>
+      {playing ? null : (
+        <div role="status" aria-live="polite" className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40">
+          <div className="rounded-2xl bg-black/50 px-4 py-3 text-sm font-semibold text-white backdrop-blur">
+            {t("watch.room.liveStarting")}
+          </div>
+        </div>
+      )}
+    </>
+  ) : (
+    kitchenPanel("overlay")
+  );
+
   return (
     <main id="main-content" className="min-h-screen">
       {consentOpen ? (
@@ -557,7 +614,8 @@ export default function WatchRoomPage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="space-y-6">
             <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white/72 shadow-[0_16px_40px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-[#1f1712]/60 dark:shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-              <div className="relative aspect-video bg-black">
+              {/* On a phone a 16:9 frame is ~200 px high: the panels shown over it need more. */}
+              <div className={`relative bg-black ${showLivePlayer ? "aspect-video" : "min-h-[26rem] sm:aspect-video sm:min-h-0"}`}>
                 {isScheduled ? (
                   isHost ? (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-orange-950 via-neutral-900 to-black text-white">
@@ -690,39 +748,16 @@ export default function WatchRoomPage() {
                       </p>
                     </div>
                   )
-                ) : liveInfo?.status === "live" ? (
-                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-red-950 via-neutral-900 to-black text-white">
-                    <div className="mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]">
-                      <Radio className="h-8 w-8 animate-pulse" />
-                    </div>
-                    <h2 className="text-xl font-bold">{t("watch.room.liveNowTitle")}</h2>
-                    <p className="mt-2 max-w-md text-sm text-gray-300">
-                      {t("watch.room.liveNowDesc")}
-                    </p>
-                    {isHost ? (
-                      <Link
-                        href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=host`}
-                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-[#1a0f05] shadow-lg transition hover:bg-orange-400 hover:scale-105 active:scale-95"
-                      >
-                        <Radio className="h-4 w-4" />
-                        {t("watch.room.accessHostStudio")}
-                      </Link>
-                    ) : (
-                      <Link
-                        href={`/broadcast/${encodeURIComponent(roomId || "")}?mode=join`}
-                        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-red-500 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(239,68,68,0.35)] transition hover:bg-red-400 hover:scale-105 active:scale-95"
-                      >
-                        <Radio className="h-4 w-4" />
-                        {t("watch.room.joinLiveStream")}
-                      </Link>
-                    )}
-                  </div>
+                ) : isLive ? (
+                  liveFrame
                 ) : (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-neutral-900 text-white">
                     <p className="text-base font-semibold text-gray-300">{t("watch.room.offlineOrEnded")}</p>
                   </div>
                 )}
               </div>
+
+              {showLivePlayer ? kitchenPanel("bar") : null}
 
               <div className="space-y-5 p-5 sm:p-6">
                 {isHost && isScheduled && (
@@ -753,11 +788,7 @@ export default function WatchRoomPage() {
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      {isScheduled
-                        ? t("watch.room.scheduledFor", {
-                            date: formatScheduledDate(liveInfo?.scheduled_at, locale, t("watch.upcomingDate")),
-                          })
-                        : t("watch.room.archiveLabel")}
+                      {statusLabel}
                     </p>
                   </div>
 
@@ -789,22 +820,25 @@ export default function WatchRoomPage() {
                   </div>
                 </div>
 
-                <p className="text-sm leading-7 text-gray-600 dark:text-gray-300">
-                  {liveDescription}
-                </p>
+                {liveDescription ? (
+                  <p className="text-sm leading-7 text-gray-600 dark:text-gray-300">{liveDescription}</p>
+                ) : null}
 
                 <div className="flex flex-wrap gap-2">
-                  <InfoPill icon={<Eye className="h-4 w-4" />}>
-                    {t("watch.room.streamerArchive")}
-                  </InfoPill>
+                  {isLive || isScheduled ? null : (
+                    <InfoPill icon={<Eye className="h-4 w-4" />}>{t("watch.room.streamerArchive")}</InfoPill>
+                  )}
 
-                  <InfoPill icon={<Radio className="h-4 w-4" />}>
-                    {t("watch.room.playbackMode", { mode: playerMode })}
-                  </InfoPill>
-
-                  <InfoPill icon={<Radio className="h-4 w-4" />}>
-                    {t("watch.room.quality", { quality: t("watch.room.auto") })}
-                  </InfoPill>
+                  {showLivePlayer ? (
+                    <>
+                      <InfoPill icon={<Radio className="h-4 w-4" />}>
+                        {t("watch.room.playbackMode", { mode: playerMode })}
+                      </InfoPill>
+                      <InfoPill icon={<Radio className="h-4 w-4" />}>
+                        {t("watch.room.quality", { quality: t("watch.room.auto") })}
+                      </InfoPill>
+                    </>
+                  ) : null}
 
                   {participants !== null && maxParticipants !== null && (
                     <InfoPill icon={<Users className="h-4 w-4" />}>
