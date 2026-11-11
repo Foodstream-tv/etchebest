@@ -98,8 +98,9 @@ func TestHLSStartsWithTheFullLadderWhenNoSPSEverComes(t *testing.T) {
 	// The timer callback holds mu for the whole of tryStartHLS: once we get it, nothing of it is still
 	// running (and the timings restored by the cleanup are no longer read).
 	mu.Lock()
-	mu.Unlock() //nolint:staticcheck // empty critical section on purpose: a barrier
-	if got := r.seen()[0]; got != (hls.SourceSize{}) {
+	got := r.seen()[0]
+	mu.Unlock()
+	if got != (hls.SourceSize{}) {
 		t.Fatalf("an unknown size must be passed as 0x0 (full ladder), got %+v", got)
 	}
 }
