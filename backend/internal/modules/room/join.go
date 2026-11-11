@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
@@ -47,15 +48,7 @@ func isRegistered(room *Room, userID string) bool {
 	if userID == "" {
 		return false
 	}
-	if userID == room.Host {
-		return true
-	}
-	for _, p := range room.Participants {
-		if p == userID {
-			return true
-		}
-	}
-	return false
+	return userID == room.Host || slices.Contains(room.Participants, userID)
 }
 
 // joinableStatus reports whether a live in this status can still be joined.
