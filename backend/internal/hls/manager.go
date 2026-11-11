@@ -2,6 +2,7 @@ package hls
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -175,6 +176,25 @@ func StopStream(roomID string) (string, error) {
 	time.Sleep(2 * time.Second)
 	stream.Stop()
 
+	return finishRecording(roomID)
+}
+
+// RecoverRecording builds the replay of a live whose pipeline is gone without having been stopped (the
+// server stopped in the middle of the live) from what FFmpeg left on disk. It returns ErrNoReplayContent
+// when nothing usable was recorded, and leaves a room whose pipeline is running alone.
+func RecoverRecording(roomID string) (string, error) {
+	if IsRunning(roomID) {
+		return "", fmt.Errorf("room %s still has a running pipeline", roomID)
+	}
+	if dir, err := roomDir(workDir, roomID); err == nil {
+		_ = os.RemoveAll(dir) // the SDP of the dead pipeline: useless now
+	}
+	return finishRecording(roomID)
+}
+
+// finishRecording closes the playlists of a stopped pipeline, turns the recording into the room's replay
+// and deletes the live tree once the replay is safe (or when there was nothing to keep).
+func finishRecording(roomID string) (string, error) {
 	if err := finalizePlaylist(roomID); err != nil {
 		log.Printf("[HLS] failed to finalize playlists for room %s: %v", roomID, err)
 	}

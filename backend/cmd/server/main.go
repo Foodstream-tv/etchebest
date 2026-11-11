@@ -122,6 +122,10 @@ func main() {
 	} else if n > 0 {
 		log.Printf("[PURGE] discarded %d verification code(s) / reset token(s) stored in clear", n)
 	}
+	// Lives that were running when the server stopped are ended (replay rebuilt) before anything else
+	// runs: the janitor below would otherwise see their recordings as orphans.
+	room.ReconcileOnBoot(db)
+	room.StartScheduledLivesJanitor(context.Background(), db, 10*time.Minute)
 	audit.StartPurgeLoop(context.Background(), db, 24*time.Hour)
 	hls.StartJanitor(context.Background())
 	account.StartPurgeLoop(context.Background(), db, time.Hour)

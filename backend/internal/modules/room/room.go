@@ -1047,29 +1047,7 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Snapshot connections so we can close them outside the lock
-		conns := make([]PeerConnection, len(room.Connections))
-		copy(conns, room.Connections)
-
-		// Tear down room state
-		replayURL, replayErr := endHLS(db, roomId)
-		log.Printf("[DISCONNECT] room=%s replayURL=%q replayErr=%v", roomId, replayURL, replayErr)
-		if replayErr != nil {
-			log.Printf("failed to generate replay for room %s: %v", roomId, replayErr)
-		}
-		room.Connections = nil
-		room.Tracks = nil
-		room.HostPeerCon = nil
-		room.HLSWriter = nil
-		removeLiveRoom(roomId)
-
-		markLiveAsEndedByRoomID(db, roomId, replayURL)
-
-		if err := DeleteRoomById(db, roomId); err != nil {
-			log.Printf("HandleDisconnect: failed to delete room %s: %v", roomId, err)
-		} else {
-			log.Printf("HandleDisconnect: room %s deleted", roomId)
-		}
+		conns := endRoom(db, room, roomId, "the host left")
 		mu.Unlock()
 
 		// Close peer connections outside the lock
@@ -1349,6 +1327,7 @@ func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) (pending
 	if room.HostPeerCon == nil && userID == room.Host {
 		room.HostPeerCon = pc
 		room.HostConnectedAt = time.Now()
+		stopHostAbsentTimer(room) // the host is back in time: the live goes on
 	}
 	room.Connections = append(room.Connections, PeerConnection{UserID: userID, PeerCon: pc})
 	delete(room.PendingSince, userID) // connected: not a ghost candidate any more
@@ -2272,21 +2251,30 @@ func removeTracksFromPeer(room *Room, pc *webrtc.PeerConnection) []*TrackInfo {
 	return updated
 }
 
-// teardownEmptyRoom stops HLS, marks the live as ended, and removes the DB record.
-// Must be called with mu held.
-func teardownEmptyRoom(db *gorm.DB, room *Room, roomID string) {
+// endRoom ends the live of the room: stops HLS (making the replay), marks the live as ended, forgets the
+// room in memory and deletes its DB record. It returns the peer connections that were still in the room,
+// for the caller to close outside the lock. Must be called with mu held.
+func endRoom(db *gorm.DB, room *Room, roomID, reason string) []PeerConnection {
+	stopHostAbsentTimer(room)
+	conns := make([]PeerConnection, len(room.Connections))
+	copy(conns, room.Connections)
+
 	replayURL, replayErr := endHLS(db, roomID)
 	if replayErr != nil {
 		log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
 	}
+	room.Connections = nil
 	room.Tracks = nil
+	room.HostPeerCon = nil
+	room.HLSWriter = nil
 	removeLiveRoom(roomID)
 	markLiveAsEndedByRoomID(db, roomID, replayURL)
 	if err := DeleteRoomById(db, roomID); err != nil {
 		log.Printf("failed to delete room %s: %v", roomID, err)
 	} else {
-		log.Printf("room %s deleted (last peer left)", roomID)
+		log.Printf("room %s ended and deleted (%s)", roomID, reason)
 	}
+	return conns
 }
 
 // closeDisconnectedPC removes all senders and closes pc outside the lock.
@@ -2333,6 +2321,11 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	if room.HostPeerCon == pc {
 		room.HostPeerCon = nil
 	}
+	// The host is gone but co-streamers are still there: give the host a moment to come back (network
+	// switch, app restarted) before ending the live, instead of leaving it running without its host.
+	if disconnectedUserID == room.Host && room.HostPeerCon == nil && len(room.Connections) > 0 {
+		armHostAbsentTimer(db, room, roomID)
+	}
 
 	room.Tracks = removeTracksFromPeer(room, pc)
 	log.Printf("After cleanup: room has %d tracks", len(room.Tracks))
@@ -2349,7 +2342,7 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	}
 
 	if len(room.Connections) == 0 {
-		teardownEmptyRoom(db, room, roomID)
+		endRoom(db, room, roomID, "last peer left")
 	}
 	mu.Unlock()
 
