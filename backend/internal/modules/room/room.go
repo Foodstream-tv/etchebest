@@ -1278,6 +1278,17 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// endInitialNegotiation lets renegotiations reach the user once the answer to their join is sent, and runs
+// the one asked for meanwhile. Must be called without mu.
+func endInitialNegotiation(room *Room, userID string, pc *webrtc.PeerConnection) {
+	mu.Lock()
+	again := completeRenegotiation(room, userID)
+	mu.Unlock()
+	if again {
+		go requestRenegotiationOffer(room, userID, pc)
+	}
+}
+
 // completeRenegotiation clears the user's renegotiation once their answer is applied, and reports whether
 // another one was asked for meanwhile. Must be called with mu held.
 func completeRenegotiation(room *Room, userID string) bool {
@@ -1406,6 +1417,11 @@ func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) (pending
 	}
 	room.Connections = append(room.Connections, PeerConnection{UserID: userID, PeerCon: pc})
 	delete(room.PendingSince, userID) // connected: not a ghost candidate any more
+	// Until the answer to this join is sent, a renegotiation of pc (a track arriving meanwhile) is only
+	// noted: both would wait for ICE gathering, and Pion wakes up only the last waiter, so the join
+	// request would hang forever.
+	initRenegotiationMaps(room)
+	room.RenegotiatingByUser[userID] = true
 
 	if room.PendingICEByUser == nil {
 		return nil, replaced
@@ -2699,8 +2715,12 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		mu.Unlock()
 
 		// 9. Build and send the SDP answer (includes the newly added tracks).
-		if !finalizeAnswer(c, peerConnection) {
+		answered := finalizeAnswer(c, peerConnection)
+		if !answered {
 			discardPeer(room, peerConnection)
+		}
+		endInitialNegotiation(room, userID, peerConnection)
+		if !answered {
 			return
 		}
 
