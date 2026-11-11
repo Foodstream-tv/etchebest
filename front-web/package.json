@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "node e2e/lives.e2e.mjs"
   },
   "dependencies": {
     "hls.js": "^1.7.4",
@@ -22,6 +23,7 @@
     "@types/react-dom": "^19",
     "eslint": "^10.14.0",
     "eslint-config-next": "^16.4.5",
+    "playwright-core": "1.56.1",
     "tailwindcss": "^4.2.2",
     "typescript": "^5"
   }
