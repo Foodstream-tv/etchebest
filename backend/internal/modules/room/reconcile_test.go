@@ -195,34 +195,47 @@ func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
 
 	ReconcileOnBoot(db)
 
-	rec := liveStatusOf(t, db, recordedRoom)
-	if rec.Status != statusEnded || !rec.HasReplay || rec.ReplayURL != "/replays-storage/boot-recorded/master.m3u8" {
-		t.Errorf("recorded live = %s, replay %v %q: want ended with its replay", rec.Status, rec.HasReplay, rec.ReplayURL)
-	}
-	media, err := os.ReadFile("storage/replays/boot-recorded/720p/index.m3u8")
-	if err != nil {
-		t.Fatalf("the replay must be built from the recording: %v", err)
-	}
-	if !strings.Contains(string(media), "#EXT-X-ENDLIST") {
-		t.Error("the replay playlist must be closed (#EXT-X-ENDLIST), or players keep waiting for more")
-	}
-	for _, gone := range []string{"hls/boot-recorded", "hls-work/boot-recorded", "hls/boot-no-replay"} {
-		if _, err := os.Stat(gone); !os.IsNotExist(err) {
-			t.Errorf("%s must be deleted (err %v)", gone, err)
-		}
-	}
-	if nr := liveStatusOf(t, db, noReplayRoom); nr.Status != statusEnded || nr.HasReplay {
-		t.Errorf("live without replay = %s, replay %v: want ended without replay", nr.Status, nr.HasReplay)
-	}
-	if empty := liveStatusOf(t, db, emptyRoom); empty.Status != statusEnded || empty.HasReplay {
-		t.Errorf("empty live = %s, replay %v: want ended without replay", empty.Status, empty.HasReplay)
-	}
+	assertReplayRebuilt(t, db, recordedRoom)
+	assertPathsGone(t, "hls/boot-recorded", "hls-work/boot-recorded", "hls/boot-no-replay")
+	assertEndedWithoutReplay(t, db, noReplayRoom)
+	assertEndedWithoutReplay(t, db, emptyRoom)
 	if liveStatusOf(t, db, scheduledRoom).Status != statusScheduled || !roomRowExists(t, db, scheduledRoom) {
 		t.Error("a scheduled live and its room must be left alone")
 	}
 	for _, id := range []string{recordedRoom, noReplayRoom, emptyRoom, orphanRoom} {
 		if roomRowExists(t, db, id) {
 			t.Errorf("room %s must be deleted: no live will ever use it", id)
+		}
+	}
+}
+
+func assertReplayRebuilt(t *testing.T, db *gorm.DB, roomID string) {
+	t.Helper()
+	l := liveStatusOf(t, db, roomID)
+	if l.Status != statusEnded || !l.HasReplay || l.ReplayURL != "/replays-storage/"+roomID+"/master.m3u8" {
+		t.Errorf("live %s = %s, replay %v %q: want ended with its replay", roomID, l.Status, l.HasReplay, l.ReplayURL)
+	}
+	media, err := os.ReadFile(filepath.Join("storage/replays", roomID, "720p/index.m3u8"))
+	if err != nil {
+		t.Fatalf("the replay must be built from the recording: %v", err)
+	}
+	if !strings.Contains(string(media), "#EXT-X-ENDLIST") {
+		t.Error("the replay playlist must be closed (#EXT-X-ENDLIST), or players keep waiting for more")
+	}
+}
+
+func assertEndedWithoutReplay(t *testing.T, db *gorm.DB, roomID string) {
+	t.Helper()
+	if l := liveStatusOf(t, db, roomID); l.Status != statusEnded || l.HasReplay {
+		t.Errorf("live %s = %s, replay %v: want ended without replay", roomID, l.Status, l.HasReplay)
+	}
+}
+
+func assertPathsGone(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s must be deleted (err %v)", p, err)
 		}
 	}
 }
