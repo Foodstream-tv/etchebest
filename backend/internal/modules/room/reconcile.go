@@ -31,11 +31,9 @@ func armHostAbsentTimer(db *gorm.DB, room *Room, roomID string) {
 			return
 		}
 		room.hostAbsentTimer = nil
-		conns := endRoom(db, room, roomID, "the host did not come back")
+		conns := detachRoom(room, roomID)
 		mu.Unlock()
-		for _, pc := range conns {
-			closePeerConnection(pc)
-		}
+		finishRoom(db, roomID, "the host did not come back", conns)
 	})
 	room.hostAbsentTimer = timer
 	log.Printf("room %s: host gone, the live ends in %s unless the host reconnects", roomID, hostAbsentGrace)
@@ -101,23 +99,13 @@ func EndStaleScheduledLives(db *gorm.DB, now time.Time) []string {
 	for _, l := range stale {
 		mu.Lock()
 		room := peekLiveRoom(l.RoomID)
-		if room != nil && len(room.Connections) > 0 {
+		if isClosing(l.RoomID) || (room != nil && len(room.Connections) > 0) {
 			mu.Unlock()
 			continue
 		}
-		var conns []PeerConnection
-		if room != nil {
-			conns = endRoom(db, room, l.RoomID, "scheduled live never started")
-		} else {
-			markLiveAsEndedByRoomID(db, l.RoomID, "")
-			if err := DeleteRoomById(db, l.RoomID); err != nil {
-				log.Printf("[RECONCILE] failed to delete room %s: %v", l.RoomID, err)
-			}
-		}
+		detachRoom(room, l.RoomID)
 		mu.Unlock()
-		for _, pc := range conns {
-			closePeerConnection(pc)
-		}
+		finishRoom(db, l.RoomID, "scheduled live never started", nil)
 		ended = append(ended, l.RoomID)
 		log.Printf("[RECONCILE] scheduled live %d (room %s) never started: ended", l.ID, l.RoomID)
 	}
