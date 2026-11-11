@@ -223,6 +223,24 @@ const scenarios = {
     return `live HLS: ${masterText.split("#EXT-X-STREAM-INF").length - 1} renditions, ${segments} segments in ${variant} after 15 s`;
   },
 
+  // During a live, /watch invites to cook with the chef (the live player is off by default).
+  async watchInvitesToCook({ host, viewer }) {
+    const { roomId } = await createLive(host, "e2e watch");
+    const h = await hostGoesLive(host, roomId);
+    const v = await signedIn(viewer);
+    await v.page.goto(`${WEB}/watch/${roomId}`);
+    const join = v.page.getByRole("link", { name: "Rejoindre la cuisine" });
+    await join.waitFor({ timeout: 20000 });
+    const text = (await v.page.locator("body").innerText()).replace(/\s+/g, " ");
+    await v.ctx.close();
+    await h.ctx.close();
+    const wrong = ["Archive", "Lecture :", "Streamer-only"].filter((s) => text.includes(s));
+    if (!text.includes("cuisine en direct") || !/\d+ \/ \d+ places prises/.test(text) || wrong.length) {
+      throw new Error(`/watch during a live: missing invitation or shows ${JSON.stringify(wrong)}`);
+    }
+    return "the live invites to join the kitchen, with its places, and shows no archive or player text";
+  },
+
   // Two lives: ending one does not stall the other (a co-streamer of B watches B's host through the server).
   async endingOneLiveDoesNotStallAnother({ host, guest, viewer }) {
     const a = await createLive(host, "e2e live A");
