@@ -12,6 +12,9 @@ COPY . .
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+# "true" shows the live player on /watch (off: a running live is joined, not watched).
+ARG NEXT_PUBLIC_LIVE_VIEWER=false
+ENV NEXT_PUBLIC_LIVE_VIEWER=$NEXT_PUBLIC_LIVE_VIEWER
 
 RUN npm run build && mkdir -p /app/public
 
