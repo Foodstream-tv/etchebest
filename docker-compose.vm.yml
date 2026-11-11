@@ -36,6 +36,8 @@ services:
       postgres:
         condition: service_healthy
     build: ./backend
+    # On SIGTERM the backend ends the running lives (FFmpeg stopped, replay written) before exiting.
+    stop_grace_period: 30s
     env_file: ./.env
     network_mode: "host"
     environment:
