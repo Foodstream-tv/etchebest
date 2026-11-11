@@ -49,4 +49,6 @@ type Room struct {
 	// HostConnectedAt: when the host's peer connection was registered (the live is running from then on).
 	HostConnectedAt time.Time `json:"-" gorm:"-"`
 	hostAbsentTimer *time.Timer
+	// closed: the live ended. Code still holding this pointer must not add anything to it.
+	closed bool
 }

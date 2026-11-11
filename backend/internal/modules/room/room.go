@@ -1,6 +1,7 @@
 package room
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -51,6 +52,7 @@ type AddParticipantReq struct {
 
 const errRoomIDRequired = "room ID is required"
 const errRoomNotFound = "room not found"
+const errLiveOver = "this live is over"
 
 var (
 	// mu guards the *contents* of rooms (connections, participants, peer state).
@@ -60,7 +62,12 @@ var (
 	// taking mu or doing I/O, so it is safe to use whether or not the caller already holds mu.
 	liveRoomsMu sync.Mutex
 	liveRooms   = make(map[string]*Room)
+	// closingRooms: detached rooms whose live is still being finished. They must not be loaded again
+	// from their DB record, which is only deleted at the end.
+	closingRooms = make(map[string]bool)
 )
+
+var errRoomClosing = errors.New("the live of this room is ending")
 
 func normalizeFmtp(fmtp string) string {
 	fmtp = strings.TrimSpace(strings.ToLower(fmtp))
@@ -132,6 +139,9 @@ func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
 	if r := peekLiveRoom(id); r != nil {
 		return r, nil
 	}
+	if isClosing(id) {
+		return nil, errRoomClosing
+	}
 	// Load outside the map lock (DB I/O), then keep the first registered pointer if another
 	// goroutine loaded the same room meanwhile: every caller must share one *Room.
 	loaded, err := GetRoomById(db, id)
@@ -143,8 +153,17 @@ func getLiveRoom(db *gorm.DB, id string) (*Room, error) {
 	if existing, ok := liveRooms[id]; ok {
 		return existing, nil
 	}
+	if closingRooms[id] {
+		return nil, errRoomClosing
+	}
 	liveRooms[id] = loaded
 	return loaded, nil
+}
+
+func isClosing(id string) bool {
+	liveRoomsMu.Lock()
+	defer liveRoomsMu.Unlock()
+	return closingRooms[id]
 }
 
 // peekLiveRoom returns the tracked room, or nil when it is not in memory.
@@ -1047,13 +1066,9 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		conns := endRoom(db, room, roomId, "the host left")
+		conns := detachRoom(room, roomId)
 		mu.Unlock()
-
-		// Close peer connections outside the lock
-		for _, pc := range conns {
-			closePeerConnection(pc)
-		}
+		finishRoom(db, roomId, "the host left", conns)
 
 		c.JSON(http.StatusOK, gin.H{"message": "disconnected successfully"})
 	}
@@ -1451,7 +1466,7 @@ var hlsStartRetryDelays = []time.Duration{2 * time.Second, 5 * time.Second, 10 *
 // tryStartHLS starts the HLS pipeline once both audio and video tracks have
 // been received. Must be called with mu held.
 func (h *hlsState) tryStartHLS(room *Room, roomID string) {
-	if h.trackCount < 2 || room.HLSWriter != nil || hls.IsRunning(roomID) {
+	if room.closed || h.trackCount < 2 || room.HLSWriter != nil || hls.IsRunning(roomID) {
 		return
 	}
 	if h.video == nil {
@@ -2251,29 +2266,45 @@ func removeTracksFromPeer(room *Room, pc *webrtc.PeerConnection) []*TrackInfo {
 	return updated
 }
 
-// endRoom returns the peer connections still in the room, to be closed outside the lock.
-// Must be called with mu held.
-func endRoom(db *gorm.DB, room *Room, roomID, reason string) []PeerConnection {
-	stopHostAbsentTimer(room)
-	conns := make([]PeerConnection, len(room.Connections))
-	copy(conns, room.Connections)
-
-	replayURL, replayErr := endHLS(db, roomID)
-	if replayErr != nil {
-		log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
+// detachRoom is the part of ending a live done under mu, kept instant: stopping FFmpeg and writing the
+// replay take seconds and would freeze every other live. room may be nil (not in memory). It returns the
+// peer connections still in the room; finishRoom must follow, without mu.
+func detachRoom(room *Room, roomID string) []PeerConnection {
+	liveRoomsMu.Lock()
+	closingRooms[roomID] = true
+	delete(liveRooms, roomID)
+	liveRoomsMu.Unlock()
+	if room == nil {
+		return nil
 	}
+	stopHostAbsentTimer(room)
+	conns := room.Connections
+	room.closed = true
 	room.Connections = nil
 	room.Tracks = nil
 	room.HostPeerCon = nil
 	room.HLSWriter = nil
-	removeLiveRoom(roomID)
+	return conns
+}
+
+// finishRoom ends the live of a room detached by detachRoom. Must be called without mu.
+func finishRoom(db *gorm.DB, roomID, reason string, conns []PeerConnection) {
+	for _, pc := range conns {
+		closePeerConnection(pc)
+	}
+	replayURL, replayErr := endHLS(db, roomID)
+	if replayErr != nil {
+		log.Printf("failed to generate replay for room %s: %v", roomID, replayErr)
+	}
 	markLiveAsEndedByRoomID(db, roomID, replayURL)
 	if err := DeleteRoomById(db, roomID); err != nil {
 		log.Printf("failed to delete room %s: %v", roomID, err)
 	} else {
 		log.Printf("room %s ended and deleted (%s)", roomID, reason)
 	}
-	return conns
+	liveRoomsMu.Lock()
+	delete(closingRooms, roomID)
+	liveRoomsMu.Unlock()
 }
 
 // closeDisconnectedPC removes all senders and closes pc outside the lock.
@@ -2338,10 +2369,14 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 		}
 	}
 
-	if len(room.Connections) == 0 {
-		endRoom(db, room, roomID, "last peer left")
+	empty := len(room.Connections) == 0
+	if empty {
+		detachRoom(room, roomID)
 	}
 	mu.Unlock()
+	if empty {
+		finishRoom(db, roomID, "last peer left", nil)
+	}
 
 	// Trigger renegotiation for remaining peers outside the lock
 	for _, target := range renegotiationTargets {
@@ -2576,6 +2611,12 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		// 7. Register peer and flush buffered ICE candidates. From here on a failure must give the
 		// PC back (discardPeer).
 		mu.Lock()
+		if room.closed {
+			mu.Unlock()
+			_ = peerConnection.Close()
+			c.JSON(http.StatusGone, gin.H{"error": errLiveOver})
+			return
+		}
 		pending, replaced := registerPeer(pc, room, userID)
 		mu.Unlock()
 		if replaced != nil {
