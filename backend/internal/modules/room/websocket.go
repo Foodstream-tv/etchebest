@@ -65,7 +65,7 @@ var upgrader = websocket.Upgrader{
 		}
 		// Allow explicitly configured origins
 		if allowed := os.Getenv("CORS_ALLOWED_ORIGINS"); allowed != "" {
-			for _, o := range strings.Split(allowed, ",") {
+			for o := range strings.SplitSeq(allowed, ",") {
 				o = strings.TrimSpace(o)
 				if o == "*" || o == origin || o == hostname {
 					return true
