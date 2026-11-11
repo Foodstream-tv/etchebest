@@ -19,11 +19,7 @@ func init() {
 
 func TestRoomCapacityLimit(t *testing.T) {
 	room := &Room{
-		ID:              "test-room-id",
-		Name:            "Test Live Cooking Room",
-		Host:            "host-user-id",
 		Participants:    pq.StringArray{"host-user-id"},
-		Viewers:         0,
 		MaxParticipants: 5,
 	}
 

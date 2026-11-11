@@ -116,7 +116,7 @@ func WindowPlaylist(full []byte, keep int) []byte {
 		if s.discontinuity {
 			b.WriteString("#EXT-X-DISCONTINUITY\n")
 		}
-		b.WriteString(s.extinf + "\n" + s.uri + "\n")
+		fmt.Fprintf(&b, "%s\n%s\n", s.extinf, s.uri)
 	}
 	return b.Bytes()
 }

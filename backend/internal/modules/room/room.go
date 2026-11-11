@@ -54,6 +54,10 @@ const errRoomIDRequired = "room ID is required"
 const errRoomNotFound = "room not found"
 const errLiveOver = "this live is over"
 
+func roomNotFound(roomID string) string {
+	return fmt.Sprintf("room %s not found", roomID)
+}
+
 var (
 	// mu guards the *contents* of rooms (connections, participants, peer state).
 	mu sync.Mutex
@@ -90,7 +94,7 @@ func h264IsCompatible(src, dst string) bool {
 	}
 
 	getParam := func(fmtp, key string) string {
-		for _, part := range strings.Split(fmtp, ";") {
+		for part := range strings.SplitSeq(fmtp, ";") {
 			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
 			if len(kv) != 2 {
 				continue
@@ -120,13 +124,13 @@ func findCodec(
 			if !match(codec) {
 				continue
 			}
-			cap := webrtc.RTPCodecCapability{
+			codecCap := webrtc.RTPCodecCapability{
 				MimeType:    codec.MimeType,
 				ClockRate:   codec.ClockRate,
 				Channels:    codec.Channels,
 				SDPFmtpLine: codec.SDPFmtpLine,
 			}
-			return cap, uint8(codec.PayloadType), true
+			return codecCap, uint8(codec.PayloadType), true
 		}
 	}
 
@@ -373,24 +377,24 @@ func closePeerConnection(pc PeerConnection) {
 func resolveCodec(pc *webrtc.PeerConnection, mimeType string, fallback webrtc.RTPCodecCapability) (webrtc.RTPCodecCapability, uint8) {
 	fallbackFmtp := normalizeFmtp(fallback.SDPFmtpLine)
 
-	if cap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
+	if codecCap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
 		return strings.EqualFold(codec.MimeType, mimeType) && normalizeFmtp(codec.SDPFmtpLine) == fallbackFmtp
 	}); ok {
-		return cap, pt
+		return codecCap, pt
 	}
 
 	if strings.EqualFold(mimeType, webrtc.MimeTypeH264) {
-		if cap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
+		if codecCap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
 			return strings.EqualFold(codec.MimeType, mimeType) && h264IsCompatible(fallback.SDPFmtpLine, codec.SDPFmtpLine)
 		}); ok {
-			return cap, pt
+			return codecCap, pt
 		}
 	}
 
-	if cap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
+	if codecCap, pt, ok := findCodec(pc, func(codec webrtc.RTPCodecParameters) bool {
 		return strings.EqualFold(codec.MimeType, mimeType)
 	}); ok {
-		return cap, pt
+		return codecCap, pt
 	}
 
 	return webrtc.RTPCodecCapability{MimeType: mimeType}, 0
@@ -575,19 +579,7 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		setLiveRoom(room.ID, &room)
 		mu.Unlock()
 
-		if newLive.Status == "scheduled" && newLive.ScheduledAt != nil && currentUser.Email != "" {
-			appURL := os.Getenv("APP_URL")
-			if appURL == "" {
-				appURL = "http://localhost:3000"
-			}
-			liveURL := fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), room.ID)
-			notifier := notify.NewNotifier()
-			go func() {
-				if err := notifier.SendLiveScheduledEmail(currentUser.Email, currentUser.Username, newLive.Title, *newLive.ScheduledAt, liveURL); err != nil {
-					log.Printf("[NOTIFY ERROR] Failed to send live scheduled email to %s: %v", notify.MaskEmail(currentUser.Email), err)
-				}
-			}()
-		}
+		sendLiveScheduledEmail(currentUser, newLive)
 
 		c.JSON(http.StatusOK, gin.H{
 			"roomId":  room.ID,
@@ -610,6 +602,95 @@ func triggerRenegotiationForRoom(db *gorm.DB, logPrefix, roomID, newUserID strin
 			go requestRenegotiationOffer(liveRoom, conn.UserID, conn.PeerCon)
 		}
 	}
+}
+
+// apiError is an HTTP error answer, for helpers that check a request before its handler goes on.
+type apiError struct {
+	status int
+	body   gin.H
+}
+
+func (e *apiError) write(c *gin.Context) {
+	c.JSON(e.status, e.body)
+}
+
+func newAPIError(status int, message string) *apiError {
+	return &apiError{status: status, body: gin.H{"error": message}}
+}
+
+// checkReservable tells whether userID may take a place in room. A recorded live may be replayed with the
+// co-streamer in it: the person has to agree first. The agreement is kept (date included) as proof, and
+// asked only once per live. Must be called with mu held.
+func checkReservable(db *gorm.DB, room *Room, userID string, consents bool) *apiError {
+	if room.Host == userID {
+		return newAPIError(http.StatusBadRequest, "vous êtes l'hôte de ce live")
+	}
+	var live liveModule.Live
+	if err := db.Select("status", "replay_disabled").Where("room_id = ?", room.ID).First(&live).Error; err == nil {
+		if !joinableStatus(live.Status) {
+			return newAPIError(http.StatusForbidden, "ce live est terminé")
+		}
+		if live.ReplayDisabled {
+			return nil
+		}
+	}
+	agreed, err := liveModule.HasConsented(db, room.ID, userID)
+	if err != nil {
+		return newAPIError(http.StatusInternalServerError, "failed to check consent")
+	}
+	if agreed {
+		return nil
+	}
+	if !consents {
+		return &apiError{status: http.StatusBadRequest, body: gin.H{
+			"error": "ce live est enregistré et peut être rediffusé : acceptez l'enregistrement pour vous inscrire",
+			"code":  codeRecordingConsentRequired,
+		}}
+	}
+	if err := liveModule.RecordConsent(db, room.ID, userID, time.Now()); err != nil {
+		return newAPIError(http.StatusInternalServerError, "failed to record consent")
+	}
+	return nil
+}
+
+// watchURL is the public page of a live, for the emails.
+func watchURL(roomID string) string {
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "http://localhost:3000"
+	}
+	return fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), roomID)
+}
+
+// sendLiveScheduledEmail tells the host their live is scheduled, in the background.
+func sendLiveScheduledEmail(host *userModule.User, live liveModule.Live) {
+	if live.Status != "scheduled" || live.ScheduledAt == nil || host.Email == "" {
+		return
+	}
+	liveURL := watchURL(live.RoomID)
+	notifier := notify.NewNotifier()
+	go func() {
+		if err := notifier.SendLiveScheduledEmail(host.Email, host.Username, live.Title, *live.ScheduledAt, liveURL); err != nil {
+			log.Printf("[NOTIFY ERROR] Failed to send live scheduled email to %s: %v", notify.MaskEmail(host.Email), err)
+		}
+	}()
+}
+
+// sendReservationEmail confirms a reservation for a scheduled live, in the background.
+func sendReservationEmail(db *gorm.DB, roomID, userID string) {
+	currentUser, errUser := userModule.GetUserByID(db, userID)
+	var live liveModule.Live
+	db.Where("room_id = ?", roomID).First(&live)
+	if errUser != nil || currentUser.Email == "" || live.ScheduledAt == nil {
+		return
+	}
+	liveURL := watchURL(roomID)
+	notifier := notify.NewNotifier()
+	go func() {
+		if err := notifier.SendReservationConfirmationEmail(currentUser.Email, currentUser.Username, live.Title, *live.ScheduledAt, liveURL); err != nil {
+			log.Printf("[NOTIFY ERROR] Failed to send reservation email: %v", err)
+		}
+	}()
 }
 
 // ReserveRoom godoc
@@ -655,55 +736,18 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		room, err := GetRoomById(db, roomId)
 		if err != nil {
 			mu.Unlock()
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": roomNotFound(roomId)})
 			return
 		}
 
-		if room.Host == currentUserId {
-			mu.Unlock()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "vous êtes l'hôte de ce live"})
-			return
-		}
-
-		var reservedLive liveModule.Live
-		recorded := true
-		if err := db.Select("status", "replay_disabled").Where("room_id = ?", roomId).First(&reservedLive).Error; err == nil {
-			if !joinableStatus(reservedLive.Status) {
-				mu.Unlock()
-				c.JSON(http.StatusForbidden, gin.H{"error": "ce live est terminé"})
-				return
-			}
-			recorded = !reservedLive.ReplayDisabled
-		}
-
-		// A recorded live may be replayed, with the co-streamer in it: the person has to agree first.
-		// The agreement is kept (date included) as proof, and asked only once per live.
 		var body struct {
 			ConsentToRecording bool `json:"consentToRecording"`
 		}
 		_ = c.ShouldBindJSON(&body) // the body is optional
-		if recorded {
-			agreed, err := liveModule.HasConsented(db, roomId, currentUserId)
-			if err != nil {
-				mu.Unlock()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check consent"})
-				return
-			}
-			if !agreed && !body.ConsentToRecording {
-				mu.Unlock()
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error": "ce live est enregistré et peut être rediffusé : acceptez l'enregistrement pour vous inscrire",
-					"code":  codeRecordingConsentRequired,
-				})
-				return
-			}
-			if !agreed {
-				if err := liveModule.RecordConsent(db, roomId, currentUserId, time.Now()); err != nil {
-					mu.Unlock()
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record consent"})
-					return
-				}
-			}
+		if apiErr := checkReservable(db, room, currentUserId, body.ConsentToRecording); apiErr != nil {
+			mu.Unlock()
+			apiErr.write(c)
+			return
 		}
 
 		registeredCount := coStreamerCount(room)
@@ -740,23 +784,7 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		}
 		mu.Unlock()
 
-		// Send confirmation email to the user
-		currentUser, errUser := userModule.GetUserByID(db, currentUserId)
-		var live liveModule.Live
-		db.Where("room_id = ?", roomId).First(&live)
-		if errUser == nil && currentUser.Email != "" && live.ScheduledAt != nil {
-			appURL := os.Getenv("APP_URL")
-			if appURL == "" {
-				appURL = "http://localhost:3000"
-			}
-			liveURL := fmt.Sprintf("%s/watch/%s", strings.TrimRight(appURL, "/"), roomId)
-			notifier := notify.NewNotifier()
-			go func() {
-				if err := notifier.SendReservationConfirmationEmail(currentUser.Email, currentUser.Username, live.Title, *live.ScheduledAt, liveURL); err != nil {
-					log.Printf("[NOTIFY ERROR] Failed to send reservation email: %v", err)
-				}
-			}()
-		}
+		sendReservationEmail(db, roomId, currentUserId)
 
 		c.JSON(http.StatusOK, gin.H{
 			"message":         "reserved successfully",
@@ -765,6 +793,21 @@ func ReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			"maxParticipants": limit,
 		})
 	}
+}
+
+// withoutCoStreamer is the room's participants without userID, and whether userID was one of them (the
+// host never is: the host cannot cancel).
+func withoutCoStreamer(room *Room, userID string) (pq.StringArray, bool) {
+	kept := make(pq.StringArray, 0, len(room.Participants))
+	found := false
+	for _, p := range room.Participants {
+		if p == userID && p != room.Host {
+			found = true
+			continue
+		}
+		kept = append(kept, p)
+	}
+	return kept, found
 }
 
 // CancelReserveRoom godoc
@@ -785,7 +828,7 @@ func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 		roomId := c.Param("roomId")
 		room, err := GetRoomById(db, roomId)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": roomNotFound(roomId)})
 			return
 		}
 
@@ -795,16 +838,7 @@ func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		newParticipants := make(pq.StringArray, 0, len(room.Participants))
-		found := false
-		for _, p := range room.Participants {
-			if p == currentUserId && p != room.Host {
-				found = true
-				continue
-			}
-			newParticipants = append(newParticipants, p)
-		}
-
+		newParticipants, found := withoutCoStreamer(room, currentUserId)
 		if !found {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "you have not reserved this room"})
 			return
@@ -834,6 +868,66 @@ func CancelReserveRoom(db *gorm.DB) gin.HandlerFunc {
 type KickParticipantRequest struct {
 	UserID   string `json:"userId"`
 	StreamID string `json:"streamId"`
+}
+
+// findKickTarget resolves who the host wants to kick: the publisher of streamID when given (the web
+// player only knows the stream), otherwise userID. It returns the user and their peer connection, either
+// of which may be unknown. Must be called with mu held.
+func findKickTarget(room *Room, streamID, userID string) (string, *webrtc.PeerConnection) {
+	if pc := publisherOfStream(room, streamID); pc != nil {
+		for _, conn := range room.Connections {
+			if conn.PeerCon == pc {
+				return conn.UserID, pc
+			}
+		}
+		return userID, pc
+	}
+	if userID == "" {
+		return "", nil
+	}
+	return userID, getPeerConnectionByUser(room, userID)
+}
+
+func publisherOfStream(room *Room, streamID string) *webrtc.PeerConnection {
+	if streamID == "" {
+		return nil
+	}
+	for _, ti := range room.Tracks {
+		if ti.Track == nil || ti.SourcePC == nil {
+			continue
+		}
+		id := ti.Track.StreamID()
+		if id != "" && (id == streamID || strings.Contains(streamID, id) || strings.Contains(id, streamID)) {
+			return ti.SourcePC
+		}
+	}
+	return nil
+}
+
+// kickUser disconnects the user (or frees their place when they are not connected) and keeps them out.
+// Must be called without mu.
+func kickUser(db *gorm.DB, room *Room, roomID, userID string, pc *webrtc.PeerConnection) {
+	if pc != nil {
+		onPeerDisconnected(db, room, roomID, pc)
+	} else if userID != "" {
+		mu.Lock()
+		removeParticipantState(db, room, userID)
+		mu.Unlock()
+	}
+	if userID != "" {
+		banFromRoom(room, roomID, userID)
+	}
+}
+
+// banFromRoom keeps a kicked user out of the room and tells their client.
+func banFromRoom(room *Room, roomID, userID string) {
+	mu.Lock()
+	if room.KickedUsers == nil {
+		room.KickedUsers = make(map[string]bool)
+	}
+	room.KickedUsers[userID] = true
+	mu.Unlock()
+	NotifyUserKicked(roomID, userID)
 }
 
 // KickParticipant godoc
@@ -879,35 +973,7 @@ func KickParticipant(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// If streamId was provided, look up in room.Tracks to match the participant
-		var userPC *webrtc.PeerConnection
-		if req.StreamID != "" {
-			for _, ti := range room.Tracks {
-				if ti.Track != nil && ti.SourcePC != nil {
-					streamID := ti.Track.StreamID()
-					if streamID != "" && (streamID == req.StreamID || strings.Contains(req.StreamID, streamID) || strings.Contains(streamID, req.StreamID)) {
-						userPC = ti.SourcePC
-						for _, conn := range room.Connections {
-							if conn.PeerCon == userPC {
-								targetUserId = conn.UserID
-								break
-							}
-						}
-						break
-					}
-				}
-			}
-		}
-
-		// If we have targetUserId, ensure we find their userPC if not already found
-		if targetUserId != "" && userPC == nil {
-			for _, conn := range room.Connections {
-				if conn.UserID == targetUserId {
-					userPC = conn.PeerCon
-					break
-				}
-			}
-		}
+		targetUserId, userPC := findKickTarget(room, req.StreamID, targetUserId)
 
 		// Prevent kicking the host
 		if targetUserId != "" && targetUserId == room.Host {
@@ -918,23 +984,7 @@ func KickParticipant(db *gorm.DB) gin.HandlerFunc {
 
 		mu.Unlock()
 
-		if userPC != nil {
-			onPeerDisconnected(db, room, roomId, userPC)
-		} else if targetUserId != "" {
-			mu.Lock()
-			removeParticipantState(db, room, targetUserId)
-			mu.Unlock()
-		}
-
-		if targetUserId != "" {
-			mu.Lock()
-			if room.KickedUsers == nil {
-				room.KickedUsers = make(map[string]bool)
-			}
-			room.KickedUsers[targetUserId] = true
-			mu.Unlock()
-			NotifyUserKicked(roomId, targetUserId)
-		}
+		kickUser(db, room, roomId, targetUserId, userPC)
 
 		c.JSON(http.StatusOK, gin.H{
 			"message":       "participant exclu avec succès",
@@ -958,7 +1008,7 @@ func GetRoom(db *gorm.DB) gin.HandlerFunc {
 		roomId := c.Param("roomId")
 		room, err := GetRoomById(db, roomId)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "room " + roomId + " not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": roomNotFound(roomId)})
 			return
 		}
 
@@ -1216,25 +1266,8 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		mu.Lock()
-		if room.PendingOfferByUser != nil {
-			delete(room.PendingOfferByUser, userID)
-		}
-		if room.RenegotiatingByUser != nil {
-			room.RenegotiatingByUser[userID] = false
-		}
-		needsAnotherOffer := room.NeedsRenegotiationByUser != nil && room.NeedsRenegotiationByUser[userID]
-		if needsAnotherOffer {
-			room.NeedsRenegotiationByUser[userID] = false
-		}
-
-		// Request keyframes for any video tracks forwarded to this peer so its decoder starts immediately
-		for _, ti := range room.Tracks {
-			if ti.Track != nil && ti.Track.Kind() == webrtc.RTPCodecTypeVideo && ti.SourcePC != nil && ti.SourcePC != pc {
-				if _, ok := ti.LocalTracks[pc]; ok {
-					requestKeyframeBurst(ti.SourcePC, uint32(ti.Track.SSRC()))
-				}
-			}
-		}
+		needsAnotherOffer := completeRenegotiation(room, userID)
+		requestForwardedKeyframes(room, pc)
 		mu.Unlock()
 
 		if needsAnotherOffer {
@@ -1242,6 +1275,33 @@ func HandleRenegotiationAnswer(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"status": "answer applied"})
+	}
+}
+
+// completeRenegotiation clears the user's renegotiation once their answer is applied, and reports whether
+// another one was asked for meanwhile. Must be called with mu held.
+func completeRenegotiation(room *Room, userID string) bool {
+	delete(room.PendingOfferByUser, userID)
+	if room.RenegotiatingByUser != nil {
+		room.RenegotiatingByUser[userID] = false
+	}
+	if !room.NeedsRenegotiationByUser[userID] {
+		return false
+	}
+	room.NeedsRenegotiationByUser[userID] = false
+	return true
+}
+
+// requestForwardedKeyframes asks the publishers of the video forwarded to pc for a keyframe, so that its
+// decoder starts at once. Must be called with mu held.
+func requestForwardedKeyframes(room *Room, pc *webrtc.PeerConnection) {
+	for _, ti := range room.Tracks {
+		if ti.Track == nil || ti.Track.Kind() != webrtc.RTPCodecTypeVideo || ti.SourcePC == nil || ti.SourcePC == pc {
+			continue
+		}
+		if _, ok := ti.LocalTracks[pc]; ok {
+			requestKeyframeBurst(ti.SourcePC, uint32(ti.Track.SSRC()))
+		}
 	}
 }
 
@@ -1384,8 +1444,8 @@ func attachExistingTracks(pc *webrtc.PeerConnection, room *Room) {
 		if ti.SendersByPeer == nil {
 			ti.SendersByPeer = make(map[*webrtc.PeerConnection]*webrtc.RTPSender)
 		}
-		cap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
-		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
+		codecCap, pt := resolveCodec(pc, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
+		lt, err := webrtc.NewTrackLocalStaticRTP(codecCap, ti.Track.ID()+"-"+uuid.New().String(), ti.Track.StreamID())
 		if err != nil {
 			log.Printf("attachExistingTracks: create local track: %v", err)
 			continue
@@ -1424,22 +1484,25 @@ func startRTCPRelay(sender *webrtc.RTPSender, sourcePC *webrtc.PeerConnection, s
 			if sourcePC == nil || ssrc == 0 {
 				continue
 			}
-			pkts, err := rtcp.Unmarshal(rtcpBuf[:n])
-			if err != nil {
-				continue
-			}
-			for _, pkt := range pkts {
-				switch p := pkt.(type) {
-				case *rtcp.PictureLossIndication:
-					p.MediaSSRC = ssrc
-					_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
-				case *rtcp.FullIntraRequest:
-					p.MediaSSRC = ssrc
-					_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
-				}
+			if pkts, err := rtcp.Unmarshal(rtcpBuf[:n]); err == nil {
+				forwardKeyframeRequests(pkts, sourcePC, ssrc)
 			}
 		}
 	}()
+}
+
+// forwardKeyframeRequests passes a receiver's PLI and FIR on to the publisher of the track (ssrc).
+func forwardKeyframeRequests(pkts []rtcp.Packet, sourcePC *webrtc.PeerConnection, ssrc uint32) {
+	for _, pkt := range pkts {
+		switch p := pkt.(type) {
+		case *rtcp.PictureLossIndication:
+			p.MediaSSRC = ssrc
+			_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
+		case *rtcp.FullIntraRequest:
+			p.MediaSSRC = ssrc
+			_ = sourcePC.WriteRTCP([]rtcp.Packet{p})
+		}
+	}
 }
 
 // hlsState holds per-handler state for lazy HLS initialisation inside OnTrack.
@@ -1594,9 +1657,9 @@ func broadcastTrackToPeers(ti *TrackInfo, room *Room, sourcePc *webrtc.PeerConne
 			continue
 		}
 
-		cap, pt := resolveCodec(other.PeerCon, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
+		codecCap, pt := resolveCodec(other.PeerCon, ti.Track.Codec().MimeType, ti.Track.Codec().RTPCodecCapability)
 
-		lt, err := webrtc.NewTrackLocalStaticRTP(cap, ti.Track.ID()+"-"+uuid.NewString(), ti.Track.StreamID())
+		lt, err := webrtc.NewTrackLocalStaticRTP(codecCap, ti.Track.ID()+"-"+uuid.NewString(), ti.Track.StreamID())
 		if err != nil {
 			log.Printf("broadcastTrackToPeers: create track: %v", err)
 			continue
@@ -1635,7 +1698,7 @@ func requestKeyframeBurst(pc *webrtc.PeerConnection, ssrc uint32) {
 	go func() {
 		// Request keyframes aggressively: 10 attempts, short delays
 		// to maximize chances of receiving H.264 SPS/PPS at FFmpeg
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			_ = pc.WriteRTCP([]rtcp.Packet{
 				&rtcp.PictureLossIndication{MediaSSRC: ssrc},
 				&rtcp.FullIntraRequest{MediaSSRC: ssrc},
@@ -1880,10 +1943,6 @@ func isH264SliceData(payload []byte) bool {
 	return nalType == 1 || nalType == 5 // NAL type 1=non-IDR, 5=IDR
 }
 
-// startTrackRelay reads RTP packets from the source track and fans them out to
-// every subscribed peer (rewriting the PT) and, when isHLSSource is true,
-// to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
-// all other goroutines must leave it false so they never touch the shared HLSWriter.
 // hlsVideoState tracks mutable per-goroutine HLS gate state for a video relay.
 type hlsVideoState struct {
 	gotKeyframe    bool
@@ -1915,7 +1974,7 @@ func (s *hlsVideoState) shouldSendGatePLI(now time.Time) bool {
 
 // sendPLIBurst sends n PLI packets to request SPS/PPS from the sender.
 func (s *hlsVideoState) sendPLIBurst(pc *webrtc.PeerConnection, ssrc uint32, n int) {
-	for i := 0; i < n; i++ {
+	for range n {
 		if err := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: ssrc}}); err != nil {
 			log.Printf("[HLS] failed to send PLI: %v", err)
 		}
@@ -2132,6 +2191,20 @@ func (r *hlsVideoRelay) relayVideo(
 	sendHLSVideoPacket(writer, pkt, mimeType, &r.state)
 }
 
+// reportSourceSize calls onSourceSize with the picture size when payload carries an SPS, and says so.
+func reportSourceSize(payload []byte, onSourceSize func(w, h int)) bool {
+	sps := hls.ExtractSPS(payload)
+	if sps == nil {
+		return false
+	}
+	w, h, err := hls.ParseSPSSize(sps)
+	if err != nil {
+		return false
+	}
+	onSourceSize(w, h)
+	return true
+}
+
 // startTrackRelay reads RTP packets from the source track and fans them out to
 // every subscribed peer (rewriting the PT) and, when isHLSSource is true,
 // to FFmpeg for HLS. Only the host's relay goroutine should set isHLSSource;
@@ -2173,18 +2246,13 @@ func startTrackRelay(track *webrtc.TrackRemote, ti *TrackInfo, room *Room, pc *w
 		fanoutToPeers(pkt, cachedPeers)
 
 		// Until HLS exists, the publisher's SPS is what tells us how big its picture is.
-		if onSourceSize != nil && cachedWriter == nil {
-			if sps := hls.ExtractSPS(pkt.Payload); sps != nil {
-				if w, h, err := hls.ParseSPSSize(sps); err == nil {
-					onSourceSize(w, h)
-					onSourceSize = nil
-					// This call may have just started HLS (and waited for FFmpeg to open its ports). Pick
-					// the writer up now: waiting for the periodic refresh above dropped the rest of this
-					// very keyframe, and a browser sends no other one for seconds (it answers a PLI late),
-					// so the replay and the live opened on a frozen picture.
-					cachedPeers, cachedWriter = refreshPeerSnapshot(ti, room, pkt.PayloadType)
-				}
-			}
+		if onSourceSize != nil && cachedWriter == nil && reportSourceSize(pkt.Payload, onSourceSize) {
+			onSourceSize = nil
+			// This call may have just started HLS (and waited for FFmpeg to open its ports). Pick
+			// the writer up now: waiting for the periodic refresh above dropped the rest of this
+			// very keyframe, and a browser sends no other one for seconds (it answers a PLI late),
+			// so the replay and the live opened on a frozen picture.
+			cachedPeers, cachedWriter = refreshPeerSnapshot(ti, room, pkt.PayloadType)
 		}
 
 		if hlsRelay.shouldRelay(isHLSSource, cachedWriter) {
