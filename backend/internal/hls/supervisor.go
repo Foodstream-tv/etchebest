@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -420,16 +421,31 @@ func Start(roomID string, audio *CodecInfo, video *CodecInfo, src SourceSize) (*
 	}
 	RegisterToStream(roomID, stop, s.status)
 
-	// Wait a moment for FFmpeg to create initial playlists, then log status
-	go func() {
-		time.Sleep(3 * time.Second)
-		masterPath := filepath.Join(hlsDir, "master.m3u8")
-		if data, err := os.ReadFile(masterPath); err == nil {
-			log.Printf("[HLS] master.m3u8 created for room %s:\n%s", roomID, string(data))
-		} else {
-			log.Printf("[HLS] ERROR: master.m3u8 not found for room %s: %v", roomID, err)
-		}
-	}()
+	go watchMasterPlaylist(roomID, filepath.Join(hlsDir, "master.m3u8"))
 
 	return &HLSWriter{AudioConn: audioConn, VideoConn: videoConn, sup: s}, stop, nil
+}
+
+var (
+	masterPollInterval = time.Second
+	// FFmpeg lists the renditions in the master playlist once it encoded its first segments: a few seconds,
+	// more for a browser that starts with a small picture and few keyframes.
+	masterWarnAfter = 30 * time.Second
+)
+
+// watchMasterPlaylist logs the master playlist once it lists its renditions, and warns only if it still
+// does not while the pipeline has been running for masterWarnAfter.
+func watchMasterPlaylist(roomID, masterPath string) {
+	deadline := time.Now().Add(masterWarnAfter)
+	for time.Now().Before(deadline) {
+		time.Sleep(masterPollInterval)
+		if !IsRunning(roomID) {
+			return
+		}
+		if data, err := os.ReadFile(masterPath); err == nil && strings.Contains(string(data), "#EXT-X-STREAM-INF") {
+			log.Printf("[HLS] master playlist ready for room %s:\n%s", roomID, data)
+			return
+		}
+	}
+	log.Printf("[HLS] WARNING: room %s has no master playlist after %s: FFmpeg has encoded nothing yet", roomID, masterWarnAfter)
 }
