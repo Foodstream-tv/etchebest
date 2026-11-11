@@ -23,6 +23,9 @@ func chdirTemp(t *testing.T) string {
 	return dir
 }
 
+// masterWithRendition is a master playlist as FFmpeg writes it once it encoded something.
+const masterWithRendition = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=840400,RESOLUTION=640x360\n360p/index.m3u8\n"
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -35,7 +38,7 @@ func writeFile(t *testing.T, path, content string) {
 
 func TestGenerateReplayMovesTheRecording(t *testing.T) {
 	root := chdirTemp(t)
-	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), "#EXTM3U\n")
+	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), masterWithRendition)
 	writeFile(t, filepath.Join(root, "hls", "room-1", "720p", "index0.ts"), "segment")
 
 	url, err := GenerateReplay("room-1")
@@ -55,7 +58,7 @@ func TestGenerateReplayMovesTheRecording(t *testing.T) {
 
 func TestGenerateReplayReplacesAStaleReplay(t *testing.T) {
 	root := chdirTemp(t)
-	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), "#EXTM3U\n")
+	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), masterWithRendition)
 	writeFile(t, filepath.Join(root, "storage", "replays", "room-1", "old.ts"), "old")
 
 	if _, err := GenerateReplay("room-1"); err != nil {
@@ -91,11 +94,27 @@ func TestGenerateReplayWithAnEmptyMasterIsNoContent(t *testing.T) {
 	}
 }
 
+// What a live stopped after two seconds leaves: FFmpeg wrote the header of the master and closed it
+// before listing any rendition.
+func TestGenerateReplayWithAMasterWithoutRenditionIsNoContent(t *testing.T) {
+	root := chdirTemp(t)
+	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), "#EXTM3U\n#EXT-X-VERSION:6\n")
+	writeFile(t, filepath.Join(root, "hls", "room-1", "360p", "index.m3u8"), "#EXTM3U\n#EXTINF:0.000000,\nsegment_000.ts\n")
+
+	_, err := GenerateReplay("room-1")
+	if !errors.Is(err, ErrNoReplayContent) {
+		t.Fatalf("expected ErrNoReplayContent, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "storage", "replays", "room-1")); !os.IsNotExist(statErr) {
+		t.Fatalf("nothing must be published, stat err = %v", statErr)
+	}
+}
+
 func TestStopStreamKeepsTheRecordingWhenTheReplayFails(t *testing.T) {
 	root := chdirTemp(t)
 	// A live that has a master playlist but whose replay destination cannot be created:
 	// storage/replays is a *file*, so neither rename nor copy can succeed.
-	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), "#EXTM3U\n")
+	writeFile(t, filepath.Join(root, "hls", "room-1", "master.m3u8"), masterWithRendition)
 	writeFile(t, filepath.Join(root, "storage", "replays"), "i am a file, not a directory")
 
 	mu.Lock()
