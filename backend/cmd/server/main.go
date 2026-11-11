@@ -122,6 +122,9 @@ func main() {
 	} else if n > 0 {
 		log.Printf("[PURGE] discarded %d verification code(s) / reset token(s) stored in clear", n)
 	}
+	// Before the HLS janitor: it would delete the recordings of interrupted lives as orphans.
+	room.ReconcileOnBoot(db)
+	room.StartScheduledLivesJanitor(context.Background(), db, 10*time.Minute)
 	audit.StartPurgeLoop(context.Background(), db, 24*time.Hour)
 	hls.StartJanitor(context.Background())
 	account.StartPurgeLoop(context.Background(), db, time.Hour)
