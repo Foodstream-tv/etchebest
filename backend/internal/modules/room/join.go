@@ -93,7 +93,7 @@ func authorizeJoin(c *gin.Context, db *gorm.DB, room *Room, userID string) bool 
 	recorded := true // no live row: assume the live is recorded, the safe side for the people in it
 	if err := db.Select("status", "replay_disabled").Where("room_id = ?", roomID).First(&live).Error; err == nil {
 		if !joinableStatus(live.Status) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "this live is over"})
+			c.JSON(http.StatusForbidden, gin.H{"error": errLiveOver})
 			return false
 		}
 		recorded = !live.ReplayDisabled
