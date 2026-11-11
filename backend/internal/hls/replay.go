@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ErrNoReplayContent means the live produced nothing worth keeping (no master playlist yet, e.g. it
@@ -83,15 +84,14 @@ func GenerateReplay(roomID string) (string, error) {
 		return "", err
 	}
 
-	masterPath := filepath.Join(sourceDir, "master.m3u8")
-	info, err := os.Stat(masterPath)
+	master, err := os.ReadFile(filepath.Join(sourceDir, "master.m3u8"))
 	if err != nil {
 		return "", fmt.Errorf("master playlist not found for room %s: %w: %w", roomID, ErrNoReplayContent, err)
 	}
-	// FFmpeg creates the master at once but fills it only when the first segments exist (or when it
-	// closes its files): an empty one is a live that produced nothing, not a replay to publish.
-	if info.Size() == 0 {
-		return "", fmt.Errorf("master playlist of room %s is empty: %w", roomID, ErrNoReplayContent)
+	// FFmpeg creates the master at once but lists the renditions only once it encoded something: a live
+	// stopped before that (a few seconds) leaves a master without any, which no player can open.
+	if !strings.Contains(string(master), "#EXT-X-STREAM-INF") {
+		return "", fmt.Errorf("master playlist of room %s lists no rendition: %w", roomID, ErrNoReplayContent)
 	}
 
 	if err := os.RemoveAll(replayDir); err != nil {
