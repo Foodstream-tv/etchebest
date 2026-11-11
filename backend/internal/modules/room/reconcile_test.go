@@ -39,7 +39,7 @@ func createRoomRow(t *testing.T, db *gorm.DB, roomID string) {
 func liveStatusOf(t *testing.T, db *gorm.DB, roomID string) liveModule.Live {
 	t.Helper()
 	var l liveModule.Live
-	if err := db.Where("room_id = ?", roomID).First(&l).Error; err != nil {
+	if err := db.Where(roomIDColumn+" = ?", roomID).First(&l).Error; err != nil {
 		t.Fatal(err)
 	}
 	return l
@@ -56,7 +56,7 @@ func roomRowExists(t *testing.T, db *gorm.DB, roomID string) bool {
 
 func runningRoom(t *testing.T, db *gorm.DB, roomID string) (room *Room, hostPC, guestPC *webrtc.PeerConnection) {
 	t.Helper()
-	createLive(t, db, roomID, "live", nil)
+	createLive(t, db, roomID, statusLive, nil)
 	createRoomRow(t, db, roomID)
 	hostPC, guestPC = newTestPC(t), newTestPC(t)
 	room = &Room{
@@ -88,21 +88,22 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 }
 
 func TestALiveWhoseHostDoesNotComeBackIsEndedAfterTheGrace(t *testing.T) {
+	const hostGoneRoom = "room-host-gone"
 	db := testDB(t)
 	t.Chdir(t.TempDir())
 	shortGrace(t, 100*time.Millisecond)
-	room, hostPC, guestPC := runningRoom(t, db, "room-host-gone")
+	room, hostPC, guestPC := runningRoom(t, db, hostGoneRoom)
 
-	onPeerDisconnected(db, room, "room-host-gone", hostPC)
+	onPeerDisconnected(db, room, hostGoneRoom, hostPC)
 
-	if peekLiveRoom("room-host-gone") != room || liveStatusOf(t, db, "room-host-gone").Status != "live" {
+	if peekLiveRoom(hostGoneRoom) != room || liveStatusOf(t, db, hostGoneRoom).Status != statusLive {
 		t.Fatal("the live must go on during the grace: the host may come back")
 	}
-	waitUntil(t, "the live is ended", func() bool { return peekLiveRoom("room-host-gone") == nil })
-	if got := liveStatusOf(t, db, "room-host-gone"); got.Status != "ended" || got.EndedAt == nil {
+	waitUntil(t, "the live is ended", func() bool { return peekLiveRoom(hostGoneRoom) == nil })
+	if got := liveStatusOf(t, db, hostGoneRoom); got.Status != statusEnded || got.EndedAt == nil {
 		t.Errorf("live = %s (ended_at %v), want ended with an end time", got.Status, got.EndedAt)
 	}
-	if roomRowExists(t, db, "room-host-gone") {
+	if roomRowExists(t, db, hostGoneRoom) {
 		t.Error("the room record must be deleted once the live is over")
 	}
 	waitUntil(t, "the co-streamer's peer is closed", func() bool {
@@ -111,18 +112,19 @@ func TestALiveWhoseHostDoesNotComeBackIsEndedAfterTheGrace(t *testing.T) {
 }
 
 func TestAHostBackInTimeKeepsTheLiveGoing(t *testing.T) {
+	const hostBackRoom = "room-host-back"
 	db := testDB(t)
 	t.Chdir(t.TempDir())
 	shortGrace(t, 100*time.Millisecond)
-	room, hostPC, _ := runningRoom(t, db, "room-host-back")
+	room, hostPC, _ := runningRoom(t, db, hostBackRoom)
 
-	onPeerDisconnected(db, room, "room-host-back", hostPC)
+	onPeerDisconnected(db, room, hostBackRoom, hostPC)
 	mu.Lock()
 	registerPeer(newTestPC(t), room, "host")
 	mu.Unlock()
 
 	time.Sleep(300 * time.Millisecond)
-	if peekLiveRoom("room-host-back") != room || liveStatusOf(t, db, "room-host-back").Status != "live" {
+	if peekLiveRoom(hostBackRoom) != room || liveStatusOf(t, db, hostBackRoom).Status != statusLive {
 		t.Fatal("a host who reconnects within the grace must keep the live")
 	}
 	mu.Lock()
@@ -134,15 +136,16 @@ func TestAHostBackInTimeKeepsTheLiveGoing(t *testing.T) {
 }
 
 func TestACoStreamerLeavingDoesNotEndTheLive(t *testing.T) {
+	const guestGoneRoom = "room-guest-gone"
 	db := testDB(t)
 	t.Chdir(t.TempDir())
 	shortGrace(t, 50*time.Millisecond)
-	room, _, guestPC := runningRoom(t, db, "room-guest-gone")
+	room, _, guestPC := runningRoom(t, db, guestGoneRoom)
 
-	onPeerDisconnected(db, room, "room-guest-gone", guestPC)
+	onPeerDisconnected(db, room, guestGoneRoom, guestPC)
 
 	time.Sleep(200 * time.Millisecond)
-	if peekLiveRoom("room-guest-gone") != room || liveStatusOf(t, db, "room-guest-gone").Status != "live" {
+	if peekLiveRoom(guestGoneRoom) != room || liveStatusOf(t, db, guestGoneRoom).Status != statusLive {
 		t.Fatal("a co-streamer leaving must not end the host's live")
 	}
 }
@@ -158,35 +161,42 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
+	const (
+		emptyRoom     = "boot-empty"
+		noReplayRoom  = "boot-no-replay"
+		orphanRoom    = "boot-orphan"
+		recordedRoom  = "boot-recorded"
+		scheduledRoom = "boot-scheduled"
+	)
 	db := testDB(t)
 	t.Chdir(t.TempDir())
 
-	createLive(t, db, "boot-recorded", "live", nil)
-	createRoomRow(t, db, "boot-recorded")
+	createLive(t, db, recordedRoom, statusLive, nil)
+	createRoomRow(t, db, recordedRoom)
 	writeFile(t, "hls/boot-recorded/master.m3u8", "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n720p/index.m3u8\n")
 	writeFile(t, "hls/boot-recorded/720p/index.m3u8", "#EXTM3U\n#EXTINF:2.0,\nsegment_000.ts\n")
 	writeFile(t, "hls/boot-recorded/720p/segment_000.ts", "x")
 	writeFile(t, "hls-work/boot-recorded/input.sdp", "v=0")
 
-	createLive(t, db, "boot-no-replay", "live", nil)
-	createRoomRow(t, db, "boot-no-replay")
-	if err := db.Model(&liveModule.Live{}).Where("room_id = ?", "boot-no-replay").Update("replay_disabled", true).Error; err != nil {
+	createLive(t, db, noReplayRoom, statusLive, nil)
+	createRoomRow(t, db, noReplayRoom)
+	if err := db.Model(&liveModule.Live{}).Where(roomIDColumn+" = ?", noReplayRoom).Update("replay_disabled", true).Error; err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, "hls/boot-no-replay/master.m3u8", "#EXTM3U\n")
 
-	createLive(t, db, "boot-empty", "live", nil)
-	createRoomRow(t, db, "boot-empty")
+	createLive(t, db, emptyRoom, statusLive, nil)
+	createRoomRow(t, db, emptyRoom)
 
 	soon := time.Now().Add(time.Hour)
-	createLive(t, db, "boot-scheduled", "scheduled", &soon)
-	createRoomRow(t, db, "boot-scheduled")
-	createRoomRow(t, db, "boot-orphan")
+	createLive(t, db, scheduledRoom, statusScheduled, &soon)
+	createRoomRow(t, db, scheduledRoom)
+	createRoomRow(t, db, orphanRoom)
 
 	ReconcileOnBoot(db)
 
-	rec := liveStatusOf(t, db, "boot-recorded")
-	if rec.Status != "ended" || !rec.HasReplay || rec.ReplayURL != "/replays-storage/boot-recorded/master.m3u8" {
+	rec := liveStatusOf(t, db, recordedRoom)
+	if rec.Status != statusEnded || !rec.HasReplay || rec.ReplayURL != "/replays-storage/boot-recorded/master.m3u8" {
 		t.Errorf("recorded live = %s, replay %v %q: want ended with its replay", rec.Status, rec.HasReplay, rec.ReplayURL)
 	}
 	media, err := os.ReadFile("storage/replays/boot-recorded/720p/index.m3u8")
@@ -201,16 +211,16 @@ func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
 			t.Errorf("%s must be deleted (err %v)", gone, err)
 		}
 	}
-	if nr := liveStatusOf(t, db, "boot-no-replay"); nr.Status != "ended" || nr.HasReplay {
+	if nr := liveStatusOf(t, db, noReplayRoom); nr.Status != statusEnded || nr.HasReplay {
 		t.Errorf("live without replay = %s, replay %v: want ended without replay", nr.Status, nr.HasReplay)
 	}
-	if empty := liveStatusOf(t, db, "boot-empty"); empty.Status != "ended" || empty.HasReplay {
+	if empty := liveStatusOf(t, db, emptyRoom); empty.Status != statusEnded || empty.HasReplay {
 		t.Errorf("empty live = %s, replay %v: want ended without replay", empty.Status, empty.HasReplay)
 	}
-	if liveStatusOf(t, db, "boot-scheduled").Status != "scheduled" || !roomRowExists(t, db, "boot-scheduled") {
+	if liveStatusOf(t, db, scheduledRoom).Status != statusScheduled || !roomRowExists(t, db, scheduledRoom) {
 		t.Error("a scheduled live and its room must be left alone")
 	}
-	for _, id := range []string{"boot-recorded", "boot-no-replay", "boot-empty", "boot-orphan"} {
+	for _, id := range []string{recordedRoom, noReplayRoom, emptyRoom, orphanRoom} {
 		if roomRowExists(t, db, id) {
 			t.Errorf("room %s must be deleted: no live will ever use it", id)
 		}
@@ -218,35 +228,43 @@ func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
 }
 
 func TestStaleScheduledLivesAreEndedSoTheirHostCanScheduleAgain(t *testing.T) {
+	const (
+		connectedRoom = "sched-connected"
+		futureRoom    = "sched-future"
+		inMemoryRoom  = "sched-in-memory"
+		lateRoom      = "sched-late"
+		noTimeRoom    = "sched-no-time"
+		staleRoom     = "sched-stale"
+	)
 	db := testDB(t)
 	now := time.Now()
 	long := now.Add(-staleScheduledAfter - time.Hour)
 	recent := now.Add(-time.Hour)
 	future := now.Add(24 * time.Hour)
 
-	createLive(t, db, "sched-stale", "scheduled", &long)
-	createRoomRow(t, db, "sched-stale")
-	createLive(t, db, "sched-late", "scheduled", &recent)
-	createLive(t, db, "sched-future", "scheduled", &future)
-	createLive(t, db, "sched-no-time", "scheduled", nil)
-	if err := db.Model(&liveModule.Live{}).Where("room_id = ?", "sched-no-time").Update("created_at", long).Error; err != nil {
+	createLive(t, db, staleRoom, statusScheduled, &long)
+	createRoomRow(t, db, staleRoom)
+	createLive(t, db, lateRoom, statusScheduled, &recent)
+	createLive(t, db, futureRoom, statusScheduled, &future)
+	createLive(t, db, noTimeRoom, statusScheduled, nil)
+	if err := db.Model(&liveModule.Live{}).Where(roomIDColumn+" = ?", noTimeRoom).Update("created_at", long).Error; err != nil {
 		t.Fatal(err)
 	}
 
-	createLive(t, db, "sched-connected", "scheduled", &long)
-	connected := &Room{ID: "sched-connected", Host: "host", Connections: []PeerConnection{{UserID: "host", PeerCon: newTestPC(t)}}}
-	setLiveRoom("sched-connected", connected)
-	t.Cleanup(func() { removeLiveRoom("sched-connected") })
+	createLive(t, db, connectedRoom, statusScheduled, &long)
+	connected := &Room{ID: connectedRoom, Host: "host", Connections: []PeerConnection{{UserID: "host", PeerCon: newTestPC(t)}}}
+	setLiveRoom(connectedRoom, connected)
+	t.Cleanup(func() { removeLiveRoom(connectedRoom) })
 
-	createLive(t, db, "sched-in-memory", "scheduled", &long)
-	setLiveRoom("sched-in-memory", &Room{ID: "sched-in-memory", Host: "host"})
-	t.Cleanup(func() { removeLiveRoom("sched-in-memory") })
+	createLive(t, db, inMemoryRoom, statusScheduled, &long)
+	setLiveRoom(inMemoryRoom, &Room{ID: inMemoryRoom, Host: "host"})
+	t.Cleanup(func() { removeLiveRoom(inMemoryRoom) })
 
 	ended := EndStaleScheduledLives(db, now)
 
 	want := map[string]string{
-		"sched-stale": "ended", "sched-no-time": "ended", "sched-in-memory": "ended",
-		"sched-late": "scheduled", "sched-future": "scheduled", "sched-connected": "scheduled",
+		staleRoom: statusEnded, noTimeRoom: statusEnded, inMemoryRoom: statusEnded,
+		lateRoom: statusScheduled, futureRoom: statusScheduled, connectedRoom: statusScheduled,
 	}
 	for id, status := range want {
 		if got := liveStatusOf(t, db, id).Status; got != status {
@@ -256,10 +274,16 @@ func TestStaleScheduledLivesAreEndedSoTheirHostCanScheduleAgain(t *testing.T) {
 	if len(ended) != 3 {
 		t.Errorf("ended %v, want the 3 abandoned lives", ended)
 	}
-	if roomRowExists(t, db, "sched-stale") {
+	if roomRowExists(t, db, staleRoom) {
 		t.Error("the room of an abandoned live must be deleted")
 	}
-	if peekLiveRoom("sched-in-memory") != nil {
+	if peekLiveRoom(inMemoryRoom) != nil {
 		t.Error("an abandoned live must be forgotten in memory too")
 	}
 }
+
+const (
+	statusLive      = "live"
+	statusScheduled = "scheduled"
+	statusEnded     = "ended"
+)

@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const roomIDColumn = "room_id"
+
 var (
 	// Long enough for the host to survive a network switch or an app restart.
 	hostAbsentGrace = 60 * time.Second
@@ -51,7 +53,7 @@ func stopHostAbsentTimer(room *Room) {
 // owns. Must run before the server accepts requests.
 func ReconcileOnBoot(db *gorm.DB) {
 	var stale []liveModule.Live
-	if err := db.Select("id", "room_id").Where("status = ?", "live").Find(&stale).Error; err != nil {
+	if err := db.Select("id", roomIDColumn).Where("status = ?", "live").Find(&stale).Error; err != nil {
 		log.Printf("[RECONCILE] could not list the running lives: %v", err)
 	}
 	for _, l := range stale {
@@ -60,7 +62,7 @@ func ReconcileOnBoot(db *gorm.DB) {
 		log.Printf("[RECONCILE] live %d (room %s) was running when the server stopped: ended, replay %q", l.ID, l.RoomID, replayURL)
 	}
 
-	upcoming := db.Model(&liveModule.Live{}).Select("room_id").
+	upcoming := db.Model(&liveModule.Live{}).Select(roomIDColumn).
 		Where("status = ? AND room_id IS NOT NULL", "scheduled")
 	res := db.Where("id NOT IN (?)", upcoming).Delete(&Room{})
 	if res.Error != nil {
@@ -89,7 +91,7 @@ func recoverRecording(db *gorm.DB, roomID string) string {
 // creation when they have none) that nobody is connected to.
 func EndStaleScheduledLives(db *gorm.DB, now time.Time) []string {
 	var stale []liveModule.Live
-	if err := db.Select("id", "room_id").
+	if err := db.Select("id", roomIDColumn).
 		Where("status = ? AND COALESCE(scheduled_at, created_at) < ?", "scheduled", now.Add(-staleScheduledAfter)).
 		Find(&stale).Error; err != nil {
 		log.Printf("[RECONCILE] could not list the stale scheduled lives: %v", err)
