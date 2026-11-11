@@ -48,6 +48,5 @@ type Room struct {
 	PendingSince map[string]time.Time `json:"-" gorm:"-"`
 	// HostConnectedAt: when the host's peer connection was registered (the live is running from then on).
 	HostConnectedAt time.Time `json:"-" gorm:"-"`
-	// hostAbsentTimer ends the live if the host, gone while co-streamers stay, does not come back in time.
 	hostAbsentTimer *time.Timer
 }

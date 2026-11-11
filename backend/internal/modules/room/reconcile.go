@@ -11,27 +11,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// Live state lives in memory (peer connections, FFmpeg pipelines) and in the database (rooms, lives). The
-// two drift apart when the server stops in the middle of a live, when the host leaves while co-streamers
-// stay, or when a scheduled live never starts. This file brings them back together.
-
 var (
-	// hostAbsentGrace is how long a live keeps going without its host (co-streamers still connected)
-	// before it is ended: long enough for a network switch or an app restart.
+	// Long enough for the host to survive a network switch or an app restart.
 	hostAbsentGrace = 60 * time.Second
-	// staleScheduledAfter is how late a scheduled live can be before it is considered abandoned. It
-	// blocks its host (one active or scheduled live per person) until then.
+	// A scheduled live blocks its host (one active or scheduled live per person) until then.
 	staleScheduledAfter = 12 * time.Hour
 )
 
-// armHostAbsentTimer (re)starts the countdown that ends the live if the host does not come back.
 // Must be called with mu held.
 func armHostAbsentTimer(db *gorm.DB, room *Room, roomID string) {
 	stopHostAbsentTimer(room)
 	var timer *time.Timer
 	timer = time.AfterFunc(hostAbsentGrace, func() {
 		mu.Lock()
-		// Another timer replaced this one, the host is back, or the live already ended.
 		if room.hostAbsentTimer != timer || room.HostPeerCon != nil || peekLiveRoom(roomID) != room {
 			mu.Unlock()
 			return
@@ -47,7 +39,7 @@ func armHostAbsentTimer(db *gorm.DB, room *Room, roomID string) {
 	log.Printf("room %s: host gone, the live ends in %s unless the host reconnects", roomID, hostAbsentGrace)
 }
 
-// stopHostAbsentTimer cancels the countdown, if any. Must be called with mu held.
+// Must be called with mu held.
 func stopHostAbsentTimer(room *Room) {
 	if room.hostAbsentTimer != nil {
 		room.hostAbsentTimer.Stop()
@@ -55,12 +47,8 @@ func stopHostAbsentTimer(room *Room) {
 	}
 }
 
-// ReconcileOnBoot repairs what a stop of the server in the middle of lives left behind. Nothing runs
-// right after a start, so:
-//   - every live still "live" is ended, with the replay rebuilt from what FFmpeg wrote when possible;
-//   - every room that no scheduled live owns is deleted (its host could not create a new live).
-//
-// Must run before the server accepts requests.
+// ReconcileOnBoot ends the lives interrupted by a server stop and deletes the rooms no scheduled live
+// owns. Must run before the server accepts requests.
 func ReconcileOnBoot(db *gorm.DB) {
 	var stale []liveModule.Live
 	if err := db.Select("id", "room_id").Where("status = ?", "live").Find(&stale).Error; err != nil {
@@ -82,8 +70,6 @@ func ReconcileOnBoot(db *gorm.DB) {
 	}
 }
 
-// recoverRecording turns what a dead pipeline left on disk into the replay, or deletes it when the host
-// chose not to keep one. It returns the replay URL, or "" when there is none.
 func recoverRecording(db *gorm.DB, roomID string) string {
 	if !liveModule.IsRecorded(db, roomID) {
 		hls.DiscardStream(roomID)
@@ -99,9 +85,8 @@ func recoverRecording(db *gorm.DB, roomID string) string {
 	return replayURL
 }
 
-// EndStaleScheduledLives ends the scheduled lives whose time (or creation, without a time) is more than
-// staleScheduledAfter in the past and whose host is not connected: their host can schedule again. It
-// returns the room ids it ended.
+// EndStaleScheduledLives ends the scheduled lives more than staleScheduledAfter past their time (their
+// creation when they have none) that nobody is connected to.
 func EndStaleScheduledLives(db *gorm.DB, now time.Time) []string {
 	var stale []liveModule.Live
 	if err := db.Select("id", "room_id").
@@ -116,7 +101,7 @@ func EndStaleScheduledLives(db *gorm.DB, now time.Time) []string {
 		room := peekLiveRoom(l.RoomID)
 		if room != nil && len(room.Connections) > 0 {
 			mu.Unlock()
-			continue // somebody is connected: not abandoned
+			continue
 		}
 		var conns []PeerConnection
 		if room != nil {
@@ -137,7 +122,6 @@ func EndStaleScheduledLives(db *gorm.DB, now time.Time) []string {
 	return ended
 }
 
-// StartScheduledLivesJanitor runs EndStaleScheduledLives now, then every interval until ctx is cancelled.
 func StartScheduledLivesJanitor(ctx context.Context, db *gorm.DB, interval time.Duration) {
 	go func() {
 		EndStaleScheduledLives(db, time.Now())

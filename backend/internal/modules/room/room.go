@@ -1327,7 +1327,7 @@ func registerPeer(pc *webrtc.PeerConnection, room *Room, userID string) (pending
 	if room.HostPeerCon == nil && userID == room.Host {
 		room.HostPeerCon = pc
 		room.HostConnectedAt = time.Now()
-		stopHostAbsentTimer(room) // the host is back in time: the live goes on
+		stopHostAbsentTimer(room)
 	}
 	room.Connections = append(room.Connections, PeerConnection{UserID: userID, PeerCon: pc})
 	delete(room.PendingSince, userID) // connected: not a ghost candidate any more
@@ -2251,9 +2251,8 @@ func removeTracksFromPeer(room *Room, pc *webrtc.PeerConnection) []*TrackInfo {
 	return updated
 }
 
-// endRoom ends the live of the room: stops HLS (making the replay), marks the live as ended, forgets the
-// room in memory and deletes its DB record. It returns the peer connections that were still in the room,
-// for the caller to close outside the lock. Must be called with mu held.
+// endRoom returns the peer connections still in the room, to be closed outside the lock.
+// Must be called with mu held.
 func endRoom(db *gorm.DB, room *Room, roomID, reason string) []PeerConnection {
 	stopHostAbsentTimer(room)
 	conns := make([]PeerConnection, len(room.Connections))
@@ -2321,8 +2320,6 @@ func onPeerDisconnected(db *gorm.DB, room *Room, roomID string, pc *webrtc.PeerC
 	if room.HostPeerCon == pc {
 		room.HostPeerCon = nil
 	}
-	// The host is gone but co-streamers are still there: give the host a moment to come back (network
-	// switch, app restarted) before ending the live, instead of leaving it running without its host.
 	if disconnectedUserID == room.Host && room.HostPeerCon == nil && len(room.Connections) > 0 {
 		armHostAbsentTimer(db, room, roomID)
 	}

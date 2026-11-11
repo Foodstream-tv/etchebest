@@ -54,7 +54,6 @@ func roomRowExists(t *testing.T, db *gorm.DB, roomID string) bool {
 	return n > 0
 }
 
-// runningRoom is a live in progress: the host and one co-streamer connected.
 func runningRoom(t *testing.T, db *gorm.DB, roomID string) (room *Room, hostPC, guestPC *webrtc.PeerConnection) {
 	t.Helper()
 	createLive(t, db, roomID, "live", nil)
@@ -162,7 +161,6 @@ func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
 	db := testDB(t)
 	t.Chdir(t.TempDir())
 
-	// Recorded live cut by the restart: FFmpeg left a master and an unfinished media playlist.
 	createLive(t, db, "boot-recorded", "live", nil)
 	createRoomRow(t, db, "boot-recorded")
 	writeFile(t, "hls/boot-recorded/master.m3u8", "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n720p/index.m3u8\n")
@@ -170,7 +168,6 @@ func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
 	writeFile(t, "hls/boot-recorded/720p/segment_000.ts", "x")
 	writeFile(t, "hls-work/boot-recorded/input.sdp", "v=0")
 
-	// Live whose host refused the replay: what was recorded goes.
 	createLive(t, db, "boot-no-replay", "live", nil)
 	createRoomRow(t, db, "boot-no-replay")
 	if err := db.Model(&liveModule.Live{}).Where("room_id = ?", "boot-no-replay").Update("replay_disabled", true).Error; err != nil {
@@ -178,11 +175,9 @@ func TestBootEndsTheLivesThatWereRunningAndDeletesOrphanRooms(t *testing.T) {
 	}
 	writeFile(t, "hls/boot-no-replay/master.m3u8", "#EXTM3U\n")
 
-	// Live that never produced a picture.
 	createLive(t, db, "boot-empty", "live", nil)
 	createRoomRow(t, db, "boot-empty")
 
-	// Scheduled live: its room is kept. A room with no live at all is an orphan.
 	soon := time.Now().Add(time.Hour)
 	createLive(t, db, "boot-scheduled", "scheduled", &soon)
 	createRoomRow(t, db, "boot-scheduled")
@@ -231,20 +226,18 @@ func TestStaleScheduledLivesAreEndedSoTheirHostCanScheduleAgain(t *testing.T) {
 
 	createLive(t, db, "sched-stale", "scheduled", &long)
 	createRoomRow(t, db, "sched-stale")
-	createLive(t, db, "sched-late", "scheduled", &recent) // late, but the host may still start it
+	createLive(t, db, "sched-late", "scheduled", &recent)
 	createLive(t, db, "sched-future", "scheduled", &future)
-	createLive(t, db, "sched-no-time", "scheduled", nil) // no time: its creation counts
+	createLive(t, db, "sched-no-time", "scheduled", nil)
 	if err := db.Model(&liveModule.Live{}).Where("room_id = ?", "sched-no-time").Update("created_at", long).Error; err != nil {
 		t.Fatal(err)
 	}
 
-	// A stale one whose host is connected right now is not abandoned.
 	createLive(t, db, "sched-connected", "scheduled", &long)
 	connected := &Room{ID: "sched-connected", Host: "host", Connections: []PeerConnection{{UserID: "host", PeerCon: newTestPC(t)}}}
 	setLiveRoom("sched-connected", connected)
 	t.Cleanup(func() { removeLiveRoom("sched-connected") })
 
-	// A stale one still in memory (created since the last start) is forgotten there too.
 	createLive(t, db, "sched-in-memory", "scheduled", &long)
 	setLiveRoom("sched-in-memory", &Room{ID: "sched-in-memory", Host: "host"})
 	t.Cleanup(func() { removeLiveRoom("sched-in-memory") })
