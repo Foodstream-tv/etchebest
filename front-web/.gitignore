@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Written by `next dev` (Next.js 16) for coding agents, recreated on every start
 /AGENTS.md
+
+# Screenshots of the end-to-end runs
+/e2e/artifacts/
