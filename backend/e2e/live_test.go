@@ -5,6 +5,7 @@ package e2e
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,8 +22,13 @@ func TestRestartMidLiveEndsItWithItsReplay(t *testing.T) {
 	mustPublish(t, host, roomID)
 	time.Sleep(segmentsWait)
 
-	exitCode := restartBackend(t)
-	t.Logf("backend stopped with exit code %q", exitCode)
+	since := time.Now()
+	if exitCode := restartBackend(t); exitCode != "0" {
+		t.Errorf("the backend stopped with exit code %q, want 0 (a clean shutdown)", exitCode)
+	}
+	if logs := backendLogsSince(since); !strings.Contains(logs, "stopped: 1 live(s) ended") {
+		t.Errorf("the live must be ended by the stopping server, not left to the next start")
+	}
 
 	l := getLive(t, roomID)
 	if l.Status != statusEnded || !l.HasReplay {
@@ -31,7 +37,7 @@ func TestRestartMidLiveEndsItWithItsReplay(t *testing.T) {
 	if n := replaySegments(t, l.ReplayURL); n == 0 {
 		t.Errorf("the rebuilt replay has no segment")
 	} else {
-		t.Logf("rebuilt replay: %d segments", n)
+		t.Logf("replay: %d segments", n)
 	}
 	if code, data := call(t, http.MethodPost, "/api/rooms", host.token, map[string]any{"name": "e2e again", "status": "scheduled"}); code != http.StatusOK {
 		t.Errorf("the host cannot create a live right after the restart: %d %s", code, data)
