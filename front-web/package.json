@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "hls.js": "^1.7.4",
-    "lucide-react": "^1.70.0",
-    "next": "^16.4.5",
+    "lucide-react": "^1.72.0",
+    "next": "^16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
@@ -22,8 +22,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10.14.0",
-    "eslint-config-next": "^16.4.5",
-    "playwright-core": "1.56.1",
+    "eslint-config-next": "^16.4.6",
+    "playwright-core": "1.65.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^5"
   }
