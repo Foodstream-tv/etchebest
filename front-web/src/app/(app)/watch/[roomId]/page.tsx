@@ -249,7 +249,7 @@ export default function WatchRoomPage() {
   };
 
   const calendarOptions = useMemo(() => {
-    const liveUrl = typeof window !== "undefined" ? window.location.href : `https://foodstream.tv/watch/${roomId}`;
+    const liveUrl = typeof window !== "undefined" ? window.location.href : `https://foodstream.live/watch/${roomId}`;
     return {
       title: liveTitle,
       description: liveDescription,

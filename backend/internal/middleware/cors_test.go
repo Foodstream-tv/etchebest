@@ -24,10 +24,10 @@ func corsHeaders(t *testing.T, origin string) http.Header {
 }
 
 func TestCorsCredentialsOnlyForAllowedOrigins(t *testing.T) {
-	t.Setenv("ALLOWED_REDIRECT_ORIGINS", "https://foodstream.tv")
-	t.Setenv("CORS_ALLOWED_ORIGINS", "https://analytics.foodstream.tv, *")
+	t.Setenv("ALLOWED_REDIRECT_ORIGINS", "https://foodstream.live")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://analytics.foodstream.live, *")
 
-	for _, origin := range []string{"https://foodstream.tv", "https://analytics.foodstream.tv"} {
+	for _, origin := range []string{"https://foodstream.live", "https://analytics.foodstream.live"} {
 		h := corsHeaders(t, origin)
 		if h.Get("Access-Control-Allow-Origin") != origin || h.Get("Access-Control-Allow-Credentials") != "true" {
 			t.Errorf("%s: origin %q credentials %q", origin, h.Get("Access-Control-Allow-Origin"), h.Get("Access-Control-Allow-Credentials"))
@@ -37,7 +37,7 @@ func TestCorsCredentialsOnlyForAllowedOrigins(t *testing.T) {
 		}
 	}
 
-	for _, origin := range []string{"https://evil.test", "https://foodstream.tv.evil.test", ""} {
+	for _, origin := range []string{"https://evil.test", "https://foodstream.live.evil.test", ""} {
 		h := corsHeaders(t, origin)
 		if h.Get("Access-Control-Allow-Origin") != "*" {
 			t.Errorf("%q: allow-origin %q, want *", origin, h.Get("Access-Control-Allow-Origin"))
@@ -49,7 +49,7 @@ func TestCorsCredentialsOnlyForAllowedOrigins(t *testing.T) {
 }
 
 func TestCorsAllowsAnyLocalPortOnlyInDevMode(t *testing.T) {
-	t.Setenv("ALLOWED_REDIRECT_ORIGINS", "https://foodstream.tv")
+	t.Setenv("ALLOWED_REDIRECT_ORIGINS", "https://foodstream.live")
 	t.Setenv("DEV_MODE", "true")
 	gin.SetMode(gin.TestMode) // not release mode
 	if h := corsHeaders(t, "http://localhost:3002"); h.Get("Access-Control-Allow-Credentials") != "true" {

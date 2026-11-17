@@ -9,7 +9,7 @@ describe('config/apiUrl', () => {
             'treats %s as local',
             (host) => expect(isLocalNetworkHost(host)).toBe(true)
         );
-        it.each(['api.foodstream.tv', '8.8.8.8', '172.32.0.1', '172.15.0.1', '192.169.1.1', 'example.com'])('treats %s as remote', (host) =>
+        it.each(['api.foodstream.live', '8.8.8.8', '172.32.0.1', '172.15.0.1', '192.169.1.1', 'example.com'])('treats %s as remote', (host) =>
             expect(isLocalNetworkHost(host)).toBe(false)
         );
     });
@@ -38,7 +38,7 @@ describe('config/apiUrl', () => {
         });
 
         it('keeps a remote API untouched', () => {
-            expect(dev({ configured: 'https://api.foodstream.tv/api' })).toBe('https://api.foodstream.tv/api');
+            expect(dev({ configured: 'https://api.foodstream.live/api' })).toBe('https://api.foodstream.live/api');
         });
 
         it('reaches the dev machine at 10.0.2.2 from the Android emulator when Metro says localhost', () => {
@@ -61,7 +61,7 @@ describe('config/apiUrl', () => {
         const release = (configured?: string) => resolveApiBaseUrl({ isDev: false, platform: 'android', hostUri: '192.168.1.40:8082', configured });
 
         it('uses the configured url and ignores Metro', () => {
-            expect(release('https://api.foodstream.tv/api')).toBe('https://api.foodstream.tv/api');
+            expect(release('https://api.foodstream.live/api')).toBe('https://api.foodstream.live/api');
             expect(release('http://192.168.1.99:8081/api')).toBe('http://192.168.1.99:8081/api');
         });
 

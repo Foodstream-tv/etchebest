@@ -21,15 +21,15 @@ describe('calendar helpers', () => {
                 description: 'Une tarte',
                 scheduledAt: '2030-05-01T18:00:00Z',
                 durationMinutes: 90,
-                liveUrl: 'https://foodstream.tv/watch/r1',
-                joinText: 'Rejoindre : https://foodstream.tv/watch/r1',
+                liveUrl: 'https://foodstream.live/watch/r1',
+                joinText: 'Rejoindre : https://foodstream.live/watch/r1',
             })!
         );
         expect(url.searchParams.get('action')).toBe('TEMPLATE');
         expect(url.searchParams.get('text')).toBe('FoodStream : Tarte');
         expect(url.searchParams.get('dates')).toBe('20300501T180000Z/20300501T193000Z');
-        expect(url.searchParams.get('details')).toBe('Une tarte\n\nRejoindre : https://foodstream.tv/watch/r1');
-        expect(url.searchParams.get('location')).toBe('https://foodstream.tv/watch/r1');
+        expect(url.searchParams.get('details')).toBe('Une tarte\n\nRejoindre : https://foodstream.live/watch/r1');
+        expect(url.searchParams.get('location')).toBe('https://foodstream.live/watch/r1');
     });
 
     it('falls back to the live url as details and returns null for invalid dates', () => {
@@ -40,7 +40,7 @@ describe('calendar helpers', () => {
     });
 
     it('encodes the room id in the public live url', () => {
-        expect(getLiveWebUrl('a b/c')).toBe('https://foodstream.tv/watch/a%20b%2Fc');
+        expect(getLiveWebUrl('a b/c')).toBe('https://foodstream.live/watch/a%20b%2Fc');
     });
 });
 

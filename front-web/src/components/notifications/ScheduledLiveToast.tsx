@@ -137,7 +137,7 @@ export default function ScheduledLiveToast() {
         ? "var(--color-red-600, #dc2626)"
         : "#0a0a0a";
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://foodstream.tv";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://foodstream.live";
   const calendarOptions = {
     title: scheduledLive.title,
     description: `Mon live Foodstream: ${origin}/broadcast/${encodeURIComponent(scheduledLive.room_id)}?mode=host`,

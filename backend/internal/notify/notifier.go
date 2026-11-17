@@ -207,7 +207,7 @@ func sendEmail(toEmail, subject, body, desc string) error {
 	cleanSubject := strings.ReplaceAll(strings.ReplaceAll(subject, "\r", ""), "\n", " ")
 	encodedSubject := mime.QEncoding.Encode("UTF-8", cleanSubject)
 
-	domain := "foodstream.tv"
+	domain := "foodstream.live"
 	if parts := strings.Split(cleanFrom, "@"); len(parts) == 2 {
 		domain = parts[1]
 	}
