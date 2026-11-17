@@ -32,9 +32,6 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
-
 # typescript
 *.tsbuildinfo
 
@@ -45,7 +42,6 @@ app-example
 
 #test
 coverage/
-.env
 .idea
 commands.txt
 etchebest
@@ -68,6 +64,7 @@ AUDIT_*.md
 RGPD_RECAP.md
 /backlog/
 
-# every local env file (the committed example stays tracked)
+# every local env file (.env, .env.local, .env-vm...); the committed templates stay tracked
 .env*
 !.env.example
+!.env.*.example

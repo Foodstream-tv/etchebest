@@ -371,13 +371,14 @@ docs/…                      documentation
 ### Commits
 
 Format [Conventional Commits](https://www.conventionalcommits.org/fr/), message
-**en français**, à l'impératif ou au présent :
+**en anglais** (tout ce qui est publié sur GitHub l'est), à l'impératif ou au
+présent :
 
 ```text
-type(périmètre): ce que fait le commit
+type(scope): what the commit does
 
-Pourquoi ce changement, ce qui change pour l'utilisateur ou le dev,
-ce qui a été vérifié. Une ligne vide entre le titre et le corps.
+Why this change, what changes for the user or the developer,
+what was verified. One blank line between the title and the body.
 ```
 
 - **Types** : `feat`, `fix`, `refactor`, `perf`, `style` (formatage seul),
@@ -385,8 +386,8 @@ ce qui a été vérifié. Une ligne vide entre le titre et le corps.
 - **Périmètres courants** : `web`, `mobile`, `live`, `backend`, `rgpd`,
   `security`, `dev`, `deps`.
 - Exemples tirés de l'historique :
-  - `fix(live): FFmpeg est supervisé, relancé après un crash et arrêté proprement`
-  - `feat(rgpd): codes de vérification et tokens de reset stockés hachés`
+  - `fix(hls): check that a served live file is inside the live tree`
+  - `feat(replays): newest first, dates on cards, a recently added row and load more`
 - Un commit = un changement cohérent. Ne mélangez pas une correction et un
   reformatage massif.
 - Ne commitez jamais `.env`, une clé, un mot de passe ni un fichier généré
@@ -419,8 +420,8 @@ Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
    - **Changes** : ce qui change, fichier ou comportement ;
    - **Verified** : ce qui a été testé (commandes, navigateur, appareil
      Android/iOS) et ce qui **ne l'a pas** été ;
-   - **Not done / good to know** : migration, variable d'environnement à ajouter, action à
-     faire après le merge (ex. `npx expo prebuild --clean`).
+   - **Not done / good to know** : migration, variable d'environnement à
+     ajouter, action à faire après le merge (ex. `npx expo prebuild --clean`).
 4. **CI verte obligatoire** avant le merge. Faites relire par au moins une autre
    personne quand la PR touche le live, l'authentification, les données
    personnelles ou les dépendances natives.
@@ -436,7 +437,8 @@ Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
   colonnes Backlog, In progress, In review et Done.
 - **Une issue par tâche**, avec des critères d'acceptation. Quand vous la
   prenez, assignez-vous et passez-la en _In progress_. La PR la fait passer en
-  _In review_, et le merge (avec `Closes #…`) en _Done_.
+  _In review_, et le merge (avec `Closes Foodstream-tv/etchebest-backlog#…`) en
+  _Done_.
 - La feuille de route technique est rangée par milestones (Phase 2 à 5, Qualité
   & tests).
 
