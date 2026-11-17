@@ -107,7 +107,12 @@ function VerifyContent() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.body?.error || t("auth.verify.errorInvalidCode"));
+        const message = String(err.body?.error ?? "");
+        setError(
+          message.includes("already verified")
+            ? t("auth.verify.alreadyVerified")
+            : message || t("auth.verify.errorInvalidCode"),
+        );
       } else {
         setError(t("auth.verify.errorGeneric"));
       }

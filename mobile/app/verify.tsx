@@ -103,6 +103,7 @@ export default function VerifyScreen() {
                 if (err.status === 404) return t('auth.verify.missingAccount');
                 if (err.status === 400) {
                     const message = (bodyString(err, 'error') ?? '').toLowerCase();
+                    if (message.includes('already verified')) return t('auth.verify.alreadyVerified');
                     return message.includes('required') ? t('auth.verify.missingAccount') : t('auth.verify.errorInvalidCode');
                 }
             }

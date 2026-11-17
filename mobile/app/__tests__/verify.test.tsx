@@ -223,7 +223,7 @@ describe('VerifyScreen', () => {
         expect(queryByText('Code de vérification incorrect ou expiré.')).toBeNull();
     });
 
-    it('does not keep a half-session when the profile cannot be loaded and lets the user retry', async () => {
+    it('does not keep a half-session when the profile cannot be loaded, and tells the user to sign in on a retry', async () => {
         mockedApi.verifyAccount.mockResolvedValueOnce({ message: 'ok', token: 'tok' });
         mockedApi.getProfile.mockRejectedValueOnce(new Error('offline'));
 
@@ -236,13 +236,13 @@ describe('VerifyScreen', () => {
         expect(mockedSaveAuth).not.toHaveBeenCalled();
         expect(mockRouter.replace).not.toHaveBeenCalled();
 
-        // second attempt works (the backend answers "already verified" with a fresh token)
-        mockedApi.verifyAccount.mockResolvedValueOnce({ message: 'ok', token: 'tok2' });
-        mockedApi.getProfile.mockResolvedValueOnce(PROFILE);
+        // the account is verified by now: the code cannot be replayed to sign in, the user is told to sign in
+        mockedApi.verifyAccount.mockRejectedValueOnce(new ApiError('x', 400, { error: 'account is already verified' }));
         fireEvent.press(getByTestId('verify-submit'));
         await flush();
         await flush();
-        expect(mockedSaveAuth).toHaveBeenCalledWith('tok2', expect.objectContaining({ id: 'u1' }));
+        expect(getByText('Ce compte est déjà vérifié. Vous pouvez vous connecter.')).toBeTruthy();
+        expect(mockedSaveAuth).not.toHaveBeenCalled();
     });
 
     it('only submits once while a request is pending', async () => {
