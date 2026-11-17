@@ -476,8 +476,6 @@ Avant une mise en production, vérifiez au minimum :
   l'analytics) pointant sur les vrais domaines ;
 - `WEBRTC_IP` sur l'IP publique, et les ports UDP ouverts.
 
-Les points encore ouverts sont suivis dans les issues #121, #227 et #287.
-
 ### Versions et builds mobiles
 
 - **Releases** (`release-please.yml`) : à chaque merge sur `main`, une PR
