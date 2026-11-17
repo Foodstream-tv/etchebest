@@ -67,3 +67,7 @@ backend/hls-work/
 AUDIT_*.md
 RGPD_RECAP.md
 /backlog/
+
+# every local env file (the committed example stays tracked)
+.env*
+!.env.example
