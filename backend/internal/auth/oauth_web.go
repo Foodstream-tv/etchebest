@@ -28,6 +28,8 @@ type GoogleUserInfo struct {
 	FirstName string `json:"given_name"`
 	LastName  string `json:"family_name"`
 	Picture   string `json:"picture"`
+	// VerifiedEmail is Google's own statement that the account owner proved the address.
+	VerifiedEmail bool `json:"verified_email"`
 }
 
 // GoogleStartAuth initiates Google OAuth flow
@@ -184,7 +186,7 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 		}
 
 		// Get user info
-		userInfo, err := getGoogleUserInfo(tokenResp.AccessToken)
+		userInfo, err := getGoogleUserInfo(c.Request.Context(), tokenResp.AccessToken)
 		if err != nil {
 			if callbackRedirect != "" {
 				c.Redirect(http.StatusTemporaryRedirect, callbackRedirect+"?error=failed_to_get_user_info")
@@ -296,22 +298,6 @@ func GoogleCallback(db *gorm.DB, jwtKey []byte, googleClientID string, googleCli
 }
 
 // Helper functions
-func getGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
-	url := fmt.Sprintf("https://www.googleapis.com/oauth2/v2/userinfo?access_token=%s", accessToken)
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var userInfo GoogleUserInfo
-	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		return nil, err
-	}
-
-	return &userInfo, nil
-}
-
 func convertMapToURLValues(data map[string]string) map[string][]string {
 	result := make(map[string][]string)
 	for key, value := range data {

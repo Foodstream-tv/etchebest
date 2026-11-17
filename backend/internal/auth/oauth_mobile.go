@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -39,9 +41,18 @@ func GoogleMobileCallback(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 		}
 
 		// Fetch user info using the access token
-		userInfo, err := getGoogleUserInfo(req.AccessToken)
+		userInfo, err := verifyGoogleMobileToken(c.Request.Context(), req.AccessToken)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired access token"})
+			// The error text carries a status or a reason, never the token or the profile.
+			log.Printf("google mobile sign-in refused: %v", err)
+			switch {
+			case errors.Is(err, errGoogleNoClient):
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "google sign-in is not configured"})
+			case errors.Is(err, errGoogleUnavailable):
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "google sign-in is temporarily unavailable"})
+			default:
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired access token"})
+			}
 			return
 		}
 

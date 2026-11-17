@@ -169,6 +169,7 @@ ignoré par Git ; partez de `.env.example`. Les variables les plus utiles :
 | `ALLOWED_REDIRECT_ORIGINS` | Autres origines autorisées pour le retour Google (ex. `http://localhost:3002`). |
 | `CORS_ALLOWED_ORIGINS` | Autres applications autorisées à appeler l'API avec le cookie de session (ex. l'analytics en production). En `DEV_MODE`, tout `localhost` est accepté. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Connexion Google (facultatif). |
+| `GOOGLE_MOBILE_CLIENT_IDS` | Identifiants OAuth de l'application mobile (web, Android, iOS), séparés par des virgules. La connexion Google mobile n'accepte que les jetons émis pour `GOOGLE_CLIENT_ID` ou l'un d'eux. |
 | `PRIVACY_CONTACT_EMAIL` | Contact affiché dans la politique de confidentialité. |
 
 Le front web n'a pas besoin de `.env` en local : il appelle `/api`, que Next
