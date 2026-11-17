@@ -114,3 +114,19 @@ func TestEmailAndUsernameNormalization(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateJWTCarriesItsIssueTime(t *testing.T) {
+	u := &userModule.User{ID: "u1", Role: userModule.USER}
+	before := time.Now().Add(-time.Second)
+	token, err := GenerateJWT(u, []byte("k"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := &Claims{}
+	if _, err := jwt.ParseWithClaims(token, claims, func(*jwt.Token) (interface{}, error) { return []byte("k"), nil }); err != nil {
+		t.Fatal(err)
+	}
+	if claims.IssuedAt == nil || claims.IssuedAt.Before(before) || claims.IssuedAt.After(time.Now().Add(time.Second)) {
+		t.Fatalf("iat = %v, want about now", claims.IssuedAt)
+	}
+}

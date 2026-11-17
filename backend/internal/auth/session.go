@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,4 +34,18 @@ func ClearSessionCookie(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(SessionCookieName, "", -1, "/", "", isSecureRequest(c), true)
 	c.SetCookie("auth_token", "", -1, "/", "", isSecureRequest(c), true)
+}
+
+// NewSessionIssuer starts a new session for a user whose earlier sessions were just ended (a password
+// change): a token for API clients and, for browsers, a browser-session cookie (whether the user had
+// asked to be remembered is not known here, and a shorter session is the safer default).
+func NewSessionIssuer(jwtKey []byte) userModule.SessionIssuer {
+	return func(c *gin.Context, u *userModule.User) (string, error) {
+		token, err := GenerateJWT(u, jwtKey)
+		if err != nil {
+			return "", err
+		}
+		SetSessionCookie(c, token, false)
+		return token, nil
+	}
 }

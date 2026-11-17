@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Foodstream-io/etchebest/internal/auth"
 	"github.com/Foodstream-io/etchebest/internal/modules/user"
@@ -51,6 +52,12 @@ func AuthMiddleware(jwtKey []byte, db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		if sessionPredatesPassword(claims, currentUser.PasswordUpdatedAt) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+
 		if currentUser.IsCurrentlyBanned() {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error":       "your account is banned",
@@ -80,4 +87,20 @@ func RequireRole(required string) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// sessionPredatesPassword reports whether a session was issued before the last change of the password, so a
+// stolen session does not survive the owner changing or resetting it. Milliseconds are compared (tokens keep
+// them, see auth.init): the token handed back by the change itself is issued after it and stays valid. A token
+// with no issue time cannot be dated, so it counts as older.
+func sessionPredatesPassword(claims *auth.Claims, passwordUpdatedAt *time.Time) bool {
+	if passwordUpdatedAt == nil {
+		return false // accounts that never recorded a password date keep their sessions
+	}
+	if claims.IssuedAt == nil {
+		return true
+	}
+	// A token is read back from a floating-point number of seconds, which can lose a millisecond: one
+	// millisecond of tolerance keeps the token a change hands back from being refused by rounding.
+	return claims.IssuedAt.Time.Add(time.Millisecond).Before(passwordUpdatedAt.Truncate(time.Millisecond))
 }
