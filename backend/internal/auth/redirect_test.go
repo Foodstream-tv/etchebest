@@ -3,12 +3,12 @@ package auth
 import "testing"
 
 func TestSafeRedirect(t *testing.T) {
-	t.Setenv("ALLOWED_REDIRECT_ORIGINS", "https://foodstream.tv, http://localhost:3002")
+	t.Setenv("ALLOWED_REDIRECT_ORIGINS", "https://foodstream.live, http://localhost:3002")
 
 	allowed := []string{
-		"https://foodstream.tv/auth/callback",
+		"https://foodstream.live/auth/callback",
 		"http://localhost:3002/auth/callback",
-		"HTTPS://FOODSTREAM.TV/auth/callback",
+		"HTTPS://FOODSTREAM.LIVE/auth/callback",
 	}
 	for _, raw := range allowed {
 		if got := safeRedirect(raw); got != raw {
@@ -19,15 +19,15 @@ func TestSafeRedirect(t *testing.T) {
 	refused := []string{
 		"",
 		"https://evil.test/",
-		"https://foodstream.tv.evil.test/auth/callback",
-		"https://foodstream.tv@evil.test/auth/callback",
-		"https://evil.test/https://foodstream.tv/",
+		"https://foodstream.live.evil.test/auth/callback",
+		"https://foodstream.live@evil.test/auth/callback",
+		"https://evil.test/https://foodstream.live/",
 		"//evil.test/",
 		"/auth/callback",
 		"javascript:alert(1)",
-		"http://foodstream.tv/auth/callback",
-		"https://foodstream.tv:444/auth/callback",
-		"https://foodstream.tv\\@evil.test/",
+		"http://foodstream.live/auth/callback",
+		"https://foodstream.live:444/auth/callback",
+		"https://foodstream.live\\@evil.test/",
 	}
 	for _, raw := range refused {
 		if got := safeRedirect(raw); got != "" {

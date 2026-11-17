@@ -84,8 +84,8 @@ describe('RegisterScreen', () => {
         fireEvent.press(getByTestId('register-terms-link'));
         fireEvent.press(getByTestId('register-privacy-link'));
 
-        expect(open).toHaveBeenCalledWith('https://foodstream.tv/cgu');
-        expect(open).toHaveBeenCalledWith('https://foodstream.tv/confidentialite');
+        expect(open).toHaveBeenCalledWith('https://foodstream.live/cgu');
+        expect(open).toHaveBeenCalledWith('https://foodstream.live/confidentialite');
     });
 
     it('sets autofill / keyboard hints on the fields', () => {

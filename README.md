@@ -465,7 +465,7 @@ Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
 
 ## Déploiement
 
-Sur une machine virtuelle avec nom de domaine (`foodstream.tv`), certificats
+Sur une machine virtuelle avec nom de domaine (`foodstream.live`), certificats
 Let's Encrypt et reverse-proxy Nginx :
 
 1. `./scripts/setup-ssl.sh` (une seule fois, sur la VM) génère les certificats ;

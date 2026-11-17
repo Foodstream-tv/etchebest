@@ -81,7 +81,7 @@ export function downloadIcsFile({
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:${start.getTime()}@foodstream.tv`,
+    `UID:${start.getTime()}@foodstream.live`,
     `DTSTAMP:${nowFormatted}`,
     `DTSTART:${startFormatted}`,
     `DTEND:${endFormatted}`,

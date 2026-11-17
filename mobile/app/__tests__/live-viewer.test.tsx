@@ -369,7 +369,7 @@ describe('LiveViewerScreen - scheduled', () => {
         expect(url.origin + url.pathname).toBe('https://calendar.google.com/calendar/render');
         expect(url.searchParams.get('text')).toBe('FoodStream : Salle Tarte');
         expect(url.searchParams.get('dates')).toBe('20300501T180000Z/20300501T190000Z');
-        expect(url.searchParams.get('location')).toBe('https://foodstream.tv/watch/room-1');
+        expect(url.searchParams.get('location')).toBe('https://foodstream.live/watch/room-1');
         open.mockRestore();
     });
 
@@ -464,7 +464,7 @@ describe('LiveViewerScreen - live', () => {
             fireEvent.press(screen.getByTestId('live-share'));
         });
         expect(share).toHaveBeenCalledTimes(1);
-        expect(JSON.stringify(share.mock.calls[0][0])).toContain('https://foodstream.tv/watch/room-1');
+        expect(JSON.stringify(share.mock.calls[0][0])).toContain('https://foodstream.live/watch/room-1');
         share.mockRestore();
     });
 

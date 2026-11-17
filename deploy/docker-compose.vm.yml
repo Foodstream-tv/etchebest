@@ -40,7 +40,11 @@ services:
     build: ./backend
     # On SIGTERM the backend ends the running lives (FFmpeg stopped, replay written) before exiting.
     stop_grace_period: 30s
+    restart: unless-stopped
     env_file: ./.env
+    volumes:
+      # live HLS, replays and uploads (see backend/Dockerfile)
+      - backend_data:/foodstream/data
     network_mode: "host"
     environment:
       GIN_MODE: release
@@ -55,6 +59,13 @@ services:
       WEBRTC_IP: ${WEBRTC_IP:-127.0.0.1}
       WEBRTC_PORT_MIN: ${WEBRTC_PORT_MIN:-50000}
       WEBRTC_PORT_MAX: ${WEBRTC_PORT_MAX:-50100}
+      WEBRTC_UDP_MUX_PORT: ${WEBRTC_UDP_MUX_PORT:-}
+      HLS_RTP_PORT_MIN: ${HLS_RTP_PORT_MIN:-40000}
+      HLS_RTP_PORT_MAX: ${HLS_RTP_PORT_MAX:-40999}
+      HLS_MAX_LIVES: ${HLS_MAX_LIVES:-4}
+      HLS_FULL_LADDER_LIVES: ${HLS_FULL_LADDER_LIVES:-1}
+      HLS_LIVE_WINDOW: ${HLS_LIVE_WINDOW:-10}
+      HLS_ORPHAN_TTL_HOURS: ${HLS_ORPHAN_TTL_HOURS:-72}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_MOBILE_CLIENT_IDS: ${GOOGLE_MOBILE_CLIENT_IDS:-}
@@ -65,7 +76,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      APP_URL: ${APP_URL:-https://foodstream.tv}
+      APP_URL: ${APP_URL:-https://foodstream.live}
+      ALLOWED_REDIRECT_ORIGINS: ${ALLOWED_REDIRECT_ORIGINS:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
 
 
   frontend:
@@ -97,6 +110,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  backend_data:
     driver: local
 
 networks:

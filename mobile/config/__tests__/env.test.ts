@@ -28,7 +28,7 @@ describe('config/env apiBaseUrl', () => {
     afterEach(() => consoleError.mockRestore());
 
     it('uses the configured url', () => {
-        expect(loadConfig({ dev: false, apiUrl: ' https://api.foodstream.tv/api ' }).apiBaseUrl).toBe('https://api.foodstream.tv/api');
+        expect(loadConfig({ dev: false, apiUrl: ' https://api.foodstream.live/api ' }).apiBaseUrl).toBe('https://api.foodstream.live/api');
     });
 
     it('falls back to localhost in development only', () => {

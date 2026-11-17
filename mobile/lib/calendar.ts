@@ -4,7 +4,7 @@
  */
 
 /** Public web origin, used for the calendar event location and for sharing. */
-export const WEB_BASE_URL = 'https://foodstream.tv';
+export const WEB_BASE_URL = 'https://foodstream.live';
 
 /** Public web URL of a live (`/watch/[roomId]`). */
 export function getLiveWebUrl(roomId: string): string {

@@ -27,7 +27,7 @@ import (
 func TestUploadFilename(t *testing.T) {
 	cases := map[string]string{
 		"/api/uploads/abc.png":                        "abc.png",
-		"https://foodstream.tv/api/uploads/abc.png":   "abc.png",
+		"https://foodstream.live/api/uploads/abc.png":   "abc.png",
 		"http://localhost:8081/api/uploads/a.jpg?x=1": "a.jpg",
 		"https://lh3.googleusercontent.com/a/photo":   "",
 		"":                              "",

@@ -13,7 +13,7 @@ func TestGenerateAndParseJWT(t *testing.T) {
 	jwtKey := []byte("test-secret-key-12345")
 	testUser := &userModule.User{
 		ID:    "user-uuid-123",
-		Email: "chef@foodstream.tv",
+		Email: "chef@foodstream.live",
 		Role:  userModule.USER,
 	}
 
@@ -98,7 +98,7 @@ func TestEmailAndUsernameNormalization(t *testing.T) {
 		expectedUsername string
 	}{
 		{"Test@Example.COM", "test@example.com", "  ChefJohn  ", "ChefJohn"},
-		{"  user@foodstream.tv  ", "user@foodstream.tv", "foodie123", "foodie123"},
+		{"  user@foodstream.live  ", "user@foodstream.live", "foodie123", "foodie123"},
 		{"Chef.Gordon@Domain.FR", "chef.gordon@domain.fr", "  Gordon_R  ", "Gordon_R"},
 	}
 

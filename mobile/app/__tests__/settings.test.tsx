@@ -324,8 +324,8 @@ describe('SettingsScreen', () => {
             fireEvent.press(getByTestId('settings-privacy-policy'));
             fireEvent.press(getByTestId('settings-terms'));
 
-            expect(open).toHaveBeenCalledWith('https://foodstream.tv/confidentialite');
-            expect(open).toHaveBeenCalledWith('https://foodstream.tv/cgu');
+            expect(open).toHaveBeenCalledWith('https://foodstream.live/confidentialite');
+            expect(open).toHaveBeenCalledWith('https://foodstream.live/cgu');
         });
     });
 
