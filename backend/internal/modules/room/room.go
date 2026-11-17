@@ -16,6 +16,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/Foodstream-io/etchebest/internal/hls"
+	"github.com/Foodstream-io/etchebest/internal/middleware"
 	liveModule "github.com/Foodstream-io/etchebest/internal/modules/live"
 	tagModule "github.com/Foodstream-io/etchebest/internal/modules/tag"
 	userModule "github.com/Foodstream-io/etchebest/internal/modules/user"
@@ -1124,6 +1125,11 @@ func HandleDisconnect(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// Trickle ICE sends a handful of candidates before the peer connection exists; this cap is far above
+// that and only stops abuse. It is per user on purpose: a cap on the whole room could be filled by
+// accounts that never join, and would then turn away the people who really do.
+const maxPendingICEPerUser = 64
+
 // HandleICECandidate godoc
 // @Summary      Handle ICE candidates
 // @Description  Add ICE candidates for WebRTC connection establishment
@@ -1148,6 +1154,10 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 
 		var candidate webrtc.ICECandidateInit
 		if err := c.ShouldBindJSON(&candidate); err != nil {
+			if middleware.IsBodyTooLarge(err) {
+				c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "request body too large"})
+				return
+			}
 			log.Printf("failed to bind ICE candidate: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ICE candidate format"})
 			return
@@ -1183,6 +1193,12 @@ func HandleICECandidate(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Candidates wait here only until the peer exists: bounded per user, so that a client cannot
+		// make the room hold memory for as long as it lasts.
+		if len(room.PendingICEByUser[userID]) >= maxPendingICEPerUser {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many pending ICE candidates"})
+			return
+		}
 		room.PendingICEByUser[userID] = append(room.PendingICEByUser[userID], candidate)
 		log.Printf("no peer connection yet for user %s, buffered candidate (pending: %d)", userID, len(room.PendingICEByUser[userID]))
 		c.JSON(http.StatusOK, gin.H{"status": "candidate buffered"})

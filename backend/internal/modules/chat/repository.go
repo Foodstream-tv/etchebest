@@ -14,6 +14,15 @@ func CreateChat(db *gorm.DB, chat *Chat) error {
 	return nil
 }
 
+// RoomExists tells whether a live (and so a room) with this room ID exists.
+func RoomExists(db *gorm.DB, roomID string) (bool, error) {
+	var count int64
+	if err := db.Table("lives").Where("room_id = ?", roomID).Limit(1).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func GetAllChatsByRoomID(db *gorm.DB, roomID string) ([]GetChat, error) {
 	var chats []GetChat
 	err := db.Raw(`
