@@ -111,7 +111,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	admin.PATCH("/users/:userId/status", user.UpdateUserStatusById(db))
 	api.GET(usersMePath, user.GetMe(db))
 	api.PATCH(usersMePath, user.UpdateCurrentUser(db))
-	api.PATCH(usersMePath+"/password", user.UpdateCurrentPassword(db))
+	api.PATCH(usersMePath+"/password", user.UpdateCurrentPassword(db, auth.NewSessionIssuer(bJwtToken)))
 	api.DELETE(usersMePath, account.DeleteCurrentUser(db))
 	api.GET(usersMePath+"/export", account.ExportMe(db))
 	api.POST("/users/follow/:userId", user.FollowUser(db))

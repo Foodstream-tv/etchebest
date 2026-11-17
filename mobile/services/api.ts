@@ -78,6 +78,8 @@ export interface PasswordUpdateRequest {
 export interface PasswordUpdateResponse {
   message: string;
   passwordUpdatedAt: string;
+  /** A new session for this device: the server refuses every session issued before the change. */
+  token?: string;
 }
 
 export interface UpdateProfileRequest {

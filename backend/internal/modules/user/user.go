@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"slices"
 	"time"
@@ -133,6 +134,10 @@ func updateUser(db *gorm.DB, c *gin.Context, userId string) {
 	c.JSON(http.StatusOK, existingUser)
 }
 
+// SessionIssuer starts a new session for a user and returns its token. It lives in the auth package, which
+// this one cannot import, so the routes pass it in.
+type SessionIssuer func(c *gin.Context, u *User) (string, error)
+
 // UpdateCurrentPassword godoc
 // @Summary      Update current user password
 // @Description  Update the authenticated user's password and password update timestamp
@@ -147,7 +152,7 @@ func updateUser(db *gorm.DB, c *gin.Context, userId string) {
 // @Failure      404  {object}  map[string]string "error: User not found"
 // @Failure      500  {object}  map[string]string "error: Failed to update password"
 // @Router       /api/users/me/password [patch]
-func UpdateCurrentPassword(db *gorm.DB) gin.HandlerFunc {
+func UpdateCurrentPassword(db *gorm.DB, issueSession SessionIssuer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		currentUserID := utils.GetContextString(c, "userId")
 
@@ -188,10 +193,18 @@ func UpdateCurrentPassword(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
+		// Every session older than this change is now refused, this device's included: hand it a new one so
+		// changing the password does not sign its owner out.
+		response := gin.H{
 			"message":           "password updated successfully",
 			"passwordUpdatedAt": passwordUpdatedAt,
-		})
+		}
+		if token, err := issueSession(c, existingUser); err != nil {
+			log.Printf("password changed, but no new session could be issued: %v", err)
+		} else {
+			response["token"] = token
+		}
+		c.JSON(http.StatusOK, response)
 	}
 }
 

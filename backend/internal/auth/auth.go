@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -231,6 +232,8 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, response)
 	}
 }
+
+var errResetTokenUsed = errors.New("reset token already used")
 
 // maxVerificationAttempts is how many guesses one verification code allows.
 const maxVerificationAttempts = 5
@@ -526,6 +529,12 @@ func Login(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 }
 
 // GenerateJWT creates a JWT token for authentication
+func init() {
+	// Token times keep their milliseconds, so a session issued just before a password change can be told
+	// from one issued just after it (the library truncates to the second by default).
+	jwt.TimePrecision = time.Millisecond
+}
+
 func GenerateJWT(user *userModule.User, jwtKey []byte) (string, error) {
 	expiration := time.Now().Add(SessionTTL)
 	claims := &Claims{
@@ -533,6 +542,8 @@ func GenerateJWT(user *userModule.User, jwtKey []byte) (string, error) {
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiration),
+			// The moment of issue: a session older than the last password change is refused.
+			IssuedAt: jwt.NewNumericDate(time.Now()),
 		},
 	}
 
@@ -671,17 +682,30 @@ func ResetPassword(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Mark token as used
-		db.Model(&resetToken).Update("used", true)
-
-		// Update user password
+		// Burn the token and change the password together: the token is claimed in one atomic statement,
+		// so two requests with the same link cannot both reset, and a failure leaves the link usable.
 		now := time.Now()
-		updates := map[string]interface{}{
-			"password":            string(hashedPassword),
-			"password_updated_at": &now,
+		err = db.Transaction(func(tx *gorm.DB) error {
+			claimed := tx.Model(&resetToken).Where("used = ?", false).Update("used", true)
+			if claimed.Error != nil {
+				return claimed.Error
+			}
+			if claimed.RowsAffected == 0 {
+				return errResetTokenUsed
+			}
+			return tx.Model(&userModule.User{}).Where("id = ?", resetToken.UserID).Updates(map[string]interface{}{
+				"password":            string(hashedPassword),
+				"password_updated_at": &now, // ends every session issued before this moment
+			}).Error
+		})
+		if errors.Is(err, errResetTokenUsed) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid or expired reset token",
+				"code":  "INVALID_OR_EXPIRED_TOKEN",
+			})
+			return
 		}
-
-		if err := db.Model(&userModule.User{}).Where("id = ?", resetToken.UserID).Updates(updates).Error; err != nil {
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
 			return
 		}

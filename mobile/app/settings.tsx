@@ -240,6 +240,14 @@ export default function SettingsScreen(): React.JSX.Element {
 				throw new ApiError('No session', 401, null);
 			}
 			const response = await apiService.updatePassword(token, { currentPassword, newPassword });
+			// The old token is refused from now on: keep the new one, or the next request signs the user out.
+			if (response?.token) {
+				try {
+					await authService.saveAuth(response.token);
+				} catch {
+					// The password is changed: a storage failure must not read as a failed change (a retry would be refused).
+				}
+			}
 			if (!mounted.current) return;
 			setPasswordUpdatedAt(response?.passwordUpdatedAt || new Date().toISOString());
 			setPasswordOpen(false);

@@ -35,7 +35,7 @@ func verifyTestDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	t.Setenv("JWT_SECRET", "test-jwt-secret") // the key hashSecret uses for the stored code hashes
-	models := []any{&userModule.User{}, &userModule.VerificationCode{}}
+	models := []any{&userModule.User{}, &userModule.VerificationCode{}, &userModule.PasswordResetToken{}}
 	if err := db.Migrator().DropTable(models...); err != nil {
 		t.Fatal(err)
 	}
@@ -275,5 +275,96 @@ func TestOneCodeGivesOneSession(t *testing.T) {
 	}
 	if ok != 1 {
 		t.Fatalf("%d requests got a session from a single code, want exactly 1 (%v)", ok, statuses)
+	}
+}
+
+// Resetting the password stamps the date the middleware compares sessions with, so every session issued
+// before the reset (a stolen one, typically) stops working.
+func TestResetPasswordRecordsTheDateThatEndsOldSessions(t *testing.T) {
+	db := verifyTestDB(t)
+	u := newAccount(t, db, "resetter", true)
+	old := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := db.Model(&userModule.User{}).Where("id = ?", u.ID).UpdateColumn("password_updated_at", old).Error; err != nil {
+		t.Fatal(err)
+	}
+	token := userModule.PasswordResetToken{
+		ID: "rt-1", UserID: u.ID, Email: u.Email, TokenHash: hashSecret(purposeResetToken, "secret-token"),
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+	}
+	if err := db.Create(&token).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/api/reset-password", ResetPassword(db))
+	raw, _ := json.Marshal(map[string]string{"token": "secret-token", "password": "new-password-9"})
+	req := httptest.NewRequest(http.MethodPost, "/api/reset-password", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", w.Code, w.Body.String())
+	}
+
+	var got userModule.User
+	db.First(&got, "id = ?", u.ID)
+	if got.PasswordUpdatedAt == nil || !got.PasswordUpdatedAt.After(old.Add(30*time.Minute)) {
+		t.Fatalf("password_updated_at = %v, want about now (was %v)", got.PasswordUpdatedAt, old)
+	}
+}
+
+// Two requests with the same reset link must not both reset: the token is claimed atomically. A barrier makes both
+// read it as unused before either claims it.
+func TestOneResetLinkResetsOnce(t *testing.T) {
+	db := verifyTestDB(t)
+	u := newAccount(t, db, "twice", true)
+	token := userModule.PasswordResetToken{
+		ID: "rt-twice", UserID: u.ID, Email: u.Email, TokenHash: hashSecret(purposeResetToken, "secret-token"),
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+	}
+	if err := db.Create(&token).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var arrived atomic.Int32
+	var barrier sync.WaitGroup
+	barrier.Add(2)
+	if err := db.Callback().Query().After("gorm:query").Register("test:reset-barrier", func(tx *gorm.DB) {
+		if tx.Statement.Table == "password_reset_tokens" && arrived.Add(1) <= 2 {
+			barrier.Done()
+			barrier.Wait()
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/api/reset-password", ResetPassword(db))
+	statuses := make([]int, 2)
+	var wg sync.WaitGroup
+	for i := range statuses {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			raw, _ := json.Marshal(map[string]string{"token": "secret-token", "password": "new-password-9"})
+			req := httptest.NewRequest(http.MethodPost, "/api/reset-password", bytes.NewReader(raw))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			statuses[i] = w.Code
+		}(i)
+	}
+	wg.Wait()
+
+	ok := 0
+	for _, s := range statuses {
+		if s == http.StatusOK {
+			ok++
+		}
+	}
+	if ok != 1 {
+		t.Fatalf("%d requests reset the password with one link, want exactly 1 (%v)", ok, statuses)
 	}
 }
