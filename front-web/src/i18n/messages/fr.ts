@@ -616,6 +616,7 @@ export const fr = {
   "auth.verify.resendWait": "Renvoyer dans {seconds}s",
   "auth.verify.resendSuccess": "Un nouveau code a été envoyé !",
   "auth.verify.errorInvalidCode": "Code de vérification incorrect ou expiré.",
+  "auth.verify.alreadyVerified": "Ce compte est déjà vérifié. Vous pouvez vous connecter.",
   "auth.verify.errorGeneric": "Une erreur est survenue lors de la vérification.",
   "auth.verify.backToSignin": "Retour à la connexion",
   "auth.verify.devNotice": "Code de test (mode dev) : {code}",
