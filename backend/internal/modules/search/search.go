@@ -29,17 +29,15 @@ func GlobalSearch(db *gorm.DB) gin.HandlerFunc {
 		var users []user.User
 		var lives []live.Live
 
+		like := live.LikePattern(query) // the visitor's % and _ are text, not wildcards
 		db.
-			Where("LOWER(username) LIKE LOWER(?)", "%"+query+"%").
+			Where("LOWER(username) LIKE LOWER(?)", like).
 			Limit(5).
 			Find(&users)
 
-		db.
-			Where(
-				"LOWER(title) LIKE LOWER(?) OR LOWER(dish_name) LIKE LOWER(?)",
-				"%"+query+"%",
-				"%"+query+"%",
-			).
+		// Public lives only: no drafts, no withdrawn replays.
+		live.PublicScope(db).
+			Where("LOWER(title) LIKE LOWER(?) OR LOWER(dish_name) LIKE LOWER(?)", like, like).
 			Limit(5).
 			Find(&lives)
 

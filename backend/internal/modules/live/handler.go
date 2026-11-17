@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,10 @@ type GetLivesResponse struct {
 
 func GetLives(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !isPublicStatus(c.Query("status")) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+			return
+		}
 		page, limit := getLivesPagination(c)
 		offset := (page - 1) * limit
 		query := livesQuery(db, c)
@@ -62,8 +67,36 @@ func getLivesPagination(c *gin.Context) (int, int) {
 	return page, limit
 }
 
+// isPublicStatus tells whether a status may be asked of the public list. Drafts, and any status added later, are
+// not: they belong to their host and never come out of an unauthenticated route.
+func isPublicStatus(status string) bool {
+	switch status {
+	case "", "all", "scheduled", "live", "ended":
+		return true
+	}
+	return false
+}
+
+// PublicScope restricts a query on lives to what may be shown to anybody: not the drafts of their hosts, and not
+// a live whose replay somebody had withdrawn. Every public list (lives, search, discover) goes through it.
+func PublicScope(db *gorm.DB) *gorm.DB {
+	return db.Where("status IN ?", []string{"scheduled", "live", "ended"}).Where("replay_removed_at IS NULL")
+}
+
+// maxSearchLength caps the search text: it becomes a LIKE pattern run over several columns.
+const maxSearchLength = 100
+
+// LikePattern turns a search text into a LIKE pattern that matches it literally, so a visitor's % and _ are
+// text and not wildcards.
+func LikePattern(q string) string {
+	if r := []rune(q); len(r) > maxSearchLength {
+		q = string(r[:maxSearchLength])
+	}
+	return "%" + strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q) + "%"
+}
+
 func livesQuery(db *gorm.DB, c *gin.Context) *gorm.DB {
-	query := db.Model(&Live{}).
+	query := PublicScope(db.Model(&Live{})).
 		Preload("User").Preload("Dish").Preload("Country").Preload("Tags")
 	status := c.Query("status")
 	if status != "" && status != "all" {
@@ -72,7 +105,7 @@ func livesQuery(db *gorm.DB, c *gin.Context) *gorm.DB {
 		query = query.Where("status IN ?", []string{"scheduled", "live"})
 	}
 	if q := c.Query("q"); q != "" {
-		like := "%" + q + "%"
+		like := LikePattern(q)
 		query = query.Where("title ILIKE ? OR description ILIKE ? OR dish_name ILIKE ?", like, like, like)
 	}
 	// Accepts repeated params (?tag=A&tag=B): a live matches if it has any of the tags.
