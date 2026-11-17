@@ -16,7 +16,7 @@ jest.mock('@/services/api', () => ({
 }));
 jest.mock('@/services/auth', () => ({
     __esModule: true,
-    default: { getToken: jest.fn(), getUser: jest.fn(), logout: jest.fn() },
+    default: { getToken: jest.fn(), getUser: jest.fn(), logout: jest.fn(), saveAuth: jest.fn() },
 }));
 jest.mock('@/services/preferences', () => ({
     __esModule: true,
@@ -45,7 +45,7 @@ const { __mockRouter: router } = jest.requireMock('expo-router');
 const storage = jest.requireMock('@/services/storage').default;
 const mockedApi = apiService as unknown as { getProfile: jest.Mock; updatePassword: jest.Mock; deleteCurrentUser: jest.Mock; exportMyData: jest.Mock };
 const mockedShare = jest.requireMock('@/utils/exportData').shareMyData as jest.Mock;
-const mockedAuth = authService as unknown as { getToken: jest.Mock; getUser: jest.Mock; logout: jest.Mock };
+const mockedAuth = authService as unknown as { getToken: jest.Mock; getUser: jest.Mock; logout: jest.Mock; saveAuth: jest.Mock };
 const mockedPrefs = preferencesService as unknown as { getPreferences: jest.Mock; setPreferences: jest.Mock };
 
 const profile = {
@@ -194,6 +194,36 @@ describe('SettingsScreen', () => {
 
             expect(await utils.findByText(message)).toBeTruthy();
             expect(mockedApi.updatePassword).not.toHaveBeenCalled();
+        });
+
+        it('keeps the new session the server hands back, because the old token is refused after the change', async () => {
+            mockedApi.updatePassword.mockResolvedValue({ message: 'ok', passwordUpdatedAt: '2026-10-14T08:00:00Z', token: 'fresh-token' });
+            const utils = await open();
+            fill(utils, 'OldPassw0rd', 'NewPassw0rd', 'NewPassw0rd');
+
+            await waitFor(() => expect(mockedAuth.saveAuth).toHaveBeenCalledWith('fresh-token'));
+            await waitFor(() => expect(utils.queryByTestId('password-sheet')).toBeNull());
+        });
+
+        it('still reports the change as done when the new session cannot be stored', async () => {
+            mockedApi.updatePassword.mockResolvedValue({ message: 'ok', passwordUpdatedAt: '2026-10-14T08:00:00Z', token: 'fresh-token' });
+            mockedAuth.saveAuth.mockRejectedValueOnce(new Error('secure storage unavailable'));
+            const utils = await open();
+            fill(utils, 'OldPassw0rd', 'NewPassw0rd', 'NewPassw0rd');
+
+            await waitFor(() => expect(mockedApi.updatePassword).toHaveBeenCalled());
+            await waitFor(() => expect(utils.queryByTestId('password-sheet')).toBeNull());
+            expect(toast.success).toHaveBeenCalledWith('Mot de passe mis à jour.');
+        });
+
+        it('keeps the stored token when the server hands none back', async () => {
+            mockedAuth.saveAuth.mockClear(); // the previous test called it
+            const utils = await open();
+            fill(utils, 'OldPassw0rd', 'NewPassw0rd', 'NewPassw0rd');
+
+            await waitFor(() => expect(mockedApi.updatePassword).toHaveBeenCalled());
+            await waitFor(() => expect(utils.queryByTestId('password-sheet')).toBeNull());
+            expect(mockedAuth.saveAuth).not.toHaveBeenCalled();
         });
 
         it('updates the password, closes the sheet and shows the new date', async () => {
