@@ -53,7 +53,9 @@ Chaque live peut être conservé en **replay**.
 | `front-web/` | Application web : accueil, lives, Studio, diffusion, replays, profil, boutique | Next.js 16, React 19, TypeScript, Tailwind, hls.js |
 | `mobile/` | Application mobile : les mêmes parcours, WebRTC natif | Expo SDK 57, React Native 0.86, expo-router, react-native-webrtc |
 | `analytics/` | Tableau de bord d'administration : utilisateurs, modération, statistiques | Next.js 16, React 19 |
-| `scripts/` | Mise en place du dev, comptes de démo, test de capacité d'une room | Bash |
+| `scripts/` | Mise en place du dev, comptes de démo, test de capacité d'une room, certificats SSL | Bash |
+| `deploy/` | Stack de la VM (compose de production) et configuration Nginx | Docker Compose, Nginx |
+| `docs/` | Architecture du live, parcours utilisateur, plan de test de la bêta | Markdown |
 
 Organisation du backend (`backend/internal/`) :
 
@@ -68,7 +70,7 @@ Organisation du backend (`backend/internal/`) :
   plomberie.
 
 Le détail du live (signalisation, SFU, HLS, replays) est dans
-[`TECHNICAL.md`](TECHNICAL.md).
+[`docs/TECHNICAL.md`](docs/TECHNICAL.md).
 
 ---
 
@@ -460,9 +462,10 @@ Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
 Sur une machine virtuelle avec nom de domaine (`foodstream.tv`), certificats
 Let's Encrypt et reverse-proxy Nginx :
 
-1. `./setup-ssl.sh` (une seule fois, sur la VM) génère les certificats ;
-2. `docker compose -f docker-compose.vm.yml up -d --build` démarre la stack
-   derrière Nginx (`nginx.conf`).
+1. `./scripts/setup-ssl.sh` (une seule fois, sur la VM) génère les certificats ;
+2. `docker compose --project-directory . -f deploy/docker-compose.vm.yml up -d --build`
+   (depuis la racine du dépôt) démarre la stack derrière Nginx
+   (`deploy/nginx.conf`).
 
 Avant une mise en production, vérifiez au minimum :
 
@@ -502,7 +505,7 @@ Les points encore ouverts sont suivis dans les issues #121, #227 et #287.
 
 | Document | Contenu |
 | :--- | :--- |
-| [`TECHNICAL.md`](TECHNICAL.md) | Architecture détaillée du live : WebRTC, SFU, HLS, replays |
-| [`USER_JOURNEY.md`](USER_JOURNEY.md) | Parcours utilisateur : spectateur, hôte, co-streamer |
-| [`BETA_TEST_PLAN.md`](BETA_TEST_PLAN.md) | Plan de test de la bêta et fonctionnalités démontrées |
+| [`docs/TECHNICAL.md`](docs/TECHNICAL.md) | Architecture détaillée du live : WebRTC, SFU, HLS, replays |
+| [`docs/USER_JOURNEY.md`](docs/USER_JOURNEY.md) | Parcours utilisateur : spectateur, hôte, co-streamer |
+| [`docs/BETA_TEST_PLAN.md`](docs/BETA_TEST_PLAN.md) | Plan de test de la bêta et fonctionnalités démontrées |
 | Swagger | <http://localhost:8081/api/swagger/index.html> (API lancée) |

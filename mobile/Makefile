@@ -25,7 +25,7 @@ help:
 
 # Refresh WEBRTC_IP in the root .env (and restart the backend if it changed and is running)
 sync-ip:
-	@bash ../set-ip.sh
+	@bash ../scripts/dev-setup.sh --ip-only
 
 # Start the development server
 run:
