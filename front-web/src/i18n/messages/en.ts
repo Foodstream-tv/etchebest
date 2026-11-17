@@ -618,6 +618,7 @@ export const en: Record<keyof typeof fr, string> = {
   "auth.verify.resendWait": "Resend in {seconds}s",
   "auth.verify.resendSuccess": "A new code has been sent!",
   "auth.verify.errorInvalidCode": "Invalid or expired verification code.",
+  "auth.verify.alreadyVerified": "This account is already verified. You can sign in.",
   "auth.verify.errorGeneric": "An error occurred during verification.",
   "auth.verify.backToSignin": "Back to sign in",
   "auth.verify.devNotice": "Test code (dev mode): {code}",

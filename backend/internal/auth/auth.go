@@ -232,6 +232,9 @@ func Register(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// maxVerificationAttempts is how many guesses one verification code allows.
+const maxVerificationAttempts = 5
+
 // VerifyCode godoc
 // @Summary      Verify registration code
 // @Description  Verify the 6-digit OTP code sent via email and activate the account
@@ -268,30 +271,12 @@ func VerifyCode(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
-		// If user is already verified, return JWT directly
+		// This endpoint proves ownership of an address with a code; it never signs anybody in without
+		// one. An account that is already verified has nothing to prove here: the owner logs in.
 		if user.IsAccountVerified {
-			tokenString, err := GenerateJWT(&user, jwtKey)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
-				return
-			}
-			SetSessionCookie(c, tokenString, true)
-			c.JSON(http.StatusOK, gin.H{
-				"message": "account already verified",
-				"token":   tokenString,
-				"user": gin.H{
-					"id":                user.ID,
-					"email":             user.Email,
-					"username":          user.Username,
-					"firstName":         user.FirstName,
-					"lastName":          user.LastName,
-					"role":              user.Role,
-					"isAccountVerified": true,
-				},
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "account is already verified"})
 			return
 		}
-
 		var vc userModule.VerificationCode
 		if err := db.Where("user_id = ? AND used = ?", user.ID, false).
 			Order("created_at desc").
@@ -305,21 +290,45 @@ func VerifyCode(db *gorm.DB, jwtKey []byte) gin.HandlerFunc {
 			return
 		}
 
-		if vc.Attempts >= 5 {
-			db.Model(&vc).Update("used", true)
+		// Take an attempt before comparing, in one atomic statement: counting afterwards let parallel
+		// requests, all reading the same counter, make far more guesses than the 5 allowed.
+		taken := db.Model(&vc).Where("attempts < ? AND used = ?", maxVerificationAttempts, false).
+			Update("attempts", gorm.Expr("attempts + 1"))
+		if taken.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check the code"})
+			return
+		}
+		if taken.RowsAffected == 0 {
+			// Either the attempts are spent (close the code, 429) or another request just used it (400).
+			closed := db.Model(&vc).Where("used = ?", false).Update("used", true)
+			if closed.Error != nil {
+				log.Printf("[VERIFY ERROR] closing a spent verification code: %v", closed.Error)
+			}
+			if closed.Error == nil && closed.RowsAffected == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "no active verification code found"})
+				return
+			}
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many invalid attempts, please request a new code"})
 			return
 		}
 
 		cleanInputCode := strings.TrimSpace(req.Code)
 		if !secretMatches(purposeVerificationCode, cleanInputCode, vc.CodeHash) {
-			db.Model(&vc).Update("attempts", vc.Attempts+1)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid verification code"})
 			return
 		}
 
-		// Mark code as used
-		db.Model(&vc).Update("used", true)
+		// Claim the code in one atomic statement: two parallel requests with the right code must not
+		// both succeed and each get a session out of one code.
+		claimed := db.Model(&vc).Where("used = ?", false).Update("used", true)
+		if claimed.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check the code"})
+			return
+		}
+		if claimed.RowsAffected == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "no active verification code found"})
+			return
+		}
 
 		// Activate user
 		updates := map[string]interface{}{
