@@ -269,11 +269,11 @@ func GetCategoryLives(db *gorm.DB) gin.HandlerFunc {
 
 		// Count
 		var total int64
-		db.Model(&live.Live{}).Where("country_id = ?", countryID).Count(&total)
+		live.PublicScope(db.Model(&live.Live{})).Where("country_id = ?", countryID).Count(&total)
 
 		// Fetch
 		var lives []live.Live
-		if err := db.
+		if err := live.PublicScope(db).
 			Preload("User").
 			Preload("Dish").
 			Preload("Country").

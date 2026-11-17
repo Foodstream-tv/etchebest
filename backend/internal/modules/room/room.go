@@ -6,7 +6,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -500,6 +502,10 @@ func CreateNewRoom(db *gorm.DB) gin.HandlerFunc {
 		var req Request
 		if err := c.BindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "room name is required"})
+			return
+		}
+		if !validThumbnailURL(req.ThumbnailURL) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid thumbnail URL"})
 			return
 		}
 
@@ -2743,4 +2749,28 @@ func HandleWebRTC(db *gorm.DB, STUNServerURL string, webrtcIP string) gin.Handle
 		// 10. The negotiation worked: only now does the host's live start.
 		maybeTransitionToLive(db, room, userID, roomID)
 	}
+}
+
+// maxThumbnailURLLength is the size of the thumbnail column.
+const maxThumbnailURLLength = 500
+
+// uploadedImagePath is what the image upload answers with: one file name made of a UUID and an image extension,
+// no sub-directory, no encoded dots or slashes.
+var uploadedImagePath = regexp.MustCompile(`^/api/uploads/[A-Za-z0-9-]+\.(jpg|jpeg|png|gif|webp)$`)
+
+// validThumbnailURL accepts what the clients really send: nothing, the path an image upload answers with, or an
+// http(s) image address. Other schemes (data, javascript, file...) and credentials in the address are refused.
+// An address the host owns stays an address every viewer's browser loads: that is the feature.
+func validThumbnailURL(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	if len(raw) > maxThumbnailURLLength {
+		return false
+	}
+	if strings.HasPrefix(raw, "/") {
+		return uploadedImagePath.MatchString(raw)
+	}
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" && u.User == nil
 }
