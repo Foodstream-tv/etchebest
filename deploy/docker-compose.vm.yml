@@ -1,10 +1,12 @@
+# Production / VM stack. Run it from the repository root so that .env and the build contexts resolve:
+#   docker compose --project-directory . -f deploy/docker-compose.vm.yml up -d --build
 services:
   nginx:
     image: nginx:alpine
     container_name: nginx-https
     restart: unless-stopped
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./ssl:/etc/nginx/ssl:ro
     network_mode: "host"

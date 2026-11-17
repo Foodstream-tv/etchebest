@@ -21,7 +21,7 @@ area:infra:
           - ".github/**"
           - ".githooks/**"
           - "docker-compose*.yml"
-          - "nginx.conf"
+          - "deploy/**"
           - "Makefile"
           - "scripts/**"
           - "*.sh"
