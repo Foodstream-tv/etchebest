@@ -14,8 +14,8 @@ import { useI18n } from "@/i18n";
 // plating a vibrant dish), drop it in public/images, point FALLBACK.src to it and
 // set fit to "cover": nothing else needs to change.
 const FALLBACK = {
-  src: "/images/auth-signin.png",
-  signupSrc: "/images/auth-signup.png",
+  src: "/images/auth-signin.webp",
+  signupSrc: "/images/auth-signup.webp",
   fit: "contain" as "contain" | "cover",
 };
 

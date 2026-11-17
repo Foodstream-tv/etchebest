@@ -126,7 +126,7 @@ export default function HomeHero({ onSearch }: HomeHeroProps) {
         className="relative z-10 h-[300px] w-full sm:h-[400px] lg:-ml-24 lg:h-[clamp(420px,36vw,620px)] lg:w-[calc(100%+6rem)]"
       >
         <Image
-          src="/images/home-hero.png"
+          src="/images/home-hero.webp"
           alt=""
           fill
           priority
