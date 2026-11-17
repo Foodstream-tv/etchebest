@@ -410,13 +410,16 @@ Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
    touché) passe en local, la branche est à jour avec `main`.
 2. **Titre** : au format d'un commit (`fix(web): …`). Il devient le message du
    commit sur `main`.
-3. **Description**, en français :
-   - **Pourquoi** : le problème ou le besoin, avec l'issue (`Refs #123`, ou
-     `Closes #123` si la PR la termine) ;
-   - **Changements** : ce qui change, fichier ou comportement ;
-   - **Vérifié** : ce qui a été testé (commandes, navigateur, appareil
+3. **Description**, en anglais (tout ce qui est publié sur GitHub l'est) :
+   - **Why** : le problème ou le besoin, avec l'issue du dépôt privé
+     (`Refs Foodstream-tv/etchebest-backlog#123`, ou
+     `Closes Foodstream-tv/etchebest-backlog#123` si la PR la termine). Un lien
+     suffit : ne décrivez jamais ici une faiblesse encore ouverte, le dépôt est
+     public ;
+   - **Changes** : ce qui change, fichier ou comportement ;
+   - **Verified** : ce qui a été testé (commandes, navigateur, appareil
      Android/iOS) et ce qui **ne l'a pas** été ;
-   - **À savoir** : migration, variable d'environnement à ajouter, action à
+   - **Not done / good to know** : migration, variable d'environnement à ajouter, action à
      faire après le merge (ex. `npx expo prebuild --clean`).
 4. **CI verte obligatoire** avant le merge. Faites relire par au moins une autre
    personne quand la PR touche le live, l'authentification, les données
