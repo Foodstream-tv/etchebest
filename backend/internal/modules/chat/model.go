@@ -10,8 +10,11 @@ type Chat struct {
 	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime;index"`
 }
 
+// MaxMessageLength is the size of the message column (characters).
+const MaxMessageLength = 500
+
 type PostChat struct {
-	Message *string `json:"message"`
+	Message *string `json:"message" binding:"required,max=500"`
 }
 
 type GetChat struct {
