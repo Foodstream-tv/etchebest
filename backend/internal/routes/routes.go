@@ -31,6 +31,15 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	r.Use(middleware.CorsHandler())
 	bJwtToken := []byte(jwtToken)
 	const usersMePath = "/users/me"
+	const (
+		defaultBodyLimit = 1 << 20 // JSON bodies are a few KB; this is a ceiling, not a target
+		uploadBodyLimit  = 6 << 20 // 5 MB image plus the multipart framing
+		chatBodyLimit    = 8 << 10 // 500 characters, each at worst a 12-byte \uXXXX\uXXXX escape
+		iceBodyLimit     = 2 << 10 // one ICE candidate is a few hundred bytes
+	)
+	const uploadImageRoute = "/uploads/image" // registered below on the /api group; the default limit exempts the same path
+	// Every body is capped; routes that need a different limit say so below (uploads are exempt here).
+	r.Use(middleware.LimitBody(defaultBodyLimit, "/api"+uploadImageRoute))
 
 	// Get OAuth configuration from environment
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
@@ -125,7 +134,7 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 
 	// Chat
 	api.GET("/rooms/:roomId/chat", chat.GetAllChatsByRoom(db))
-	api.POST("/rooms/:roomId/chat", chat.CreateNewChat(db))
+	api.POST("/rooms/:roomId/chat", middleware.LimitBody(chatBodyLimit), chat.CreateNewChat(db))
 	admin.DELETE("/rooms/:roomId/chats/:chatId", chat.DeleteChat(db))
 
 	// WebRTC - the WebSocket handshake cannot carry the session: the client asks for a one-time
@@ -136,10 +145,10 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	api.POST("/webrtc", room.HandleWebRTC(db, stunServerURL, webrtcIP))
 	api.GET("/webrtc/offers/next", room.PollRenegotiationOffer(db))
 	api.POST("/webrtc/answer", room.HandleRenegotiationAnswer(db))
-	api.POST("/ice", room.HandleICECandidate(db))
+	api.POST("/ice", middleware.LimitBody(iceBodyLimit), room.HandleICECandidate(db))
 
 	// Image Uploads
-	api.POST("/uploads/image", upload.UploadImage())
+	api.POST(uploadImageRoute, middleware.LimitBody(uploadBodyLimit), upload.UploadImage())
 	r.Static("/api/uploads", "./storage/uploads")
 
 	// HLS - public access (video players can't send Authorization headers)
