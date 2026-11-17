@@ -49,7 +49,7 @@ if [ $? -eq 0 ]; then
     echo "📍 Certificate path: /etc/letsencrypt/live/$DOMAIN/"
     echo ""
     echo "📝 Next steps:"
-    echo "1. Verify nginx.conf has the correct certificate paths"
+    echo "1. Verify deploy/nginx.conf has the correct certificate paths"
     echo "2. Reload nginx: sudo systemctl reload nginx"
     echo "3. Setup auto-renewal: sudo systemctl enable certbot.timer"
 else
