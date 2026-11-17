@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log"
 	"net/http"
 	"os"
 
@@ -36,6 +37,9 @@ func Routes(r *gin.Engine, db *gorm.DB, jwtToken string, stunServerURL string, w
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 	googleRedirectURI := os.Getenv("GOOGLE_REDIRECT_URI")
+	if len(auth.MobileGoogleClientIDs()) == 0 {
+		log.Print("warning: neither GOOGLE_CLIENT_ID nor GOOGLE_MOBILE_CLIENT_IDS is set: the mobile Google sign-in is refused")
+	}
 
 	// facebookAppID := os.Getenv("FACEBOOK_APP_ID")
 	// facebookAppSecret := os.Getenv("FACEBOOK_APP_SECRET")
