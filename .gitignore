@@ -62,3 +62,8 @@ backup-storage/
 
 # FFmpeg work files of a running live (the SDP): never committed
 backend/hls-work/
+
+# Internal audits and the backlog generated from them: kept out of the public repository
+AUDIT_*.md
+RGPD_RECAP.md
+/backlog/
