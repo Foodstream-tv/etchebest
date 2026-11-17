@@ -54,7 +54,6 @@ Chaque live peut être conservé en **replay**.
 | `mobile/` | Application mobile : les mêmes parcours, WebRTC natif | Expo SDK 57, React Native 0.86, expo-router, react-native-webrtc |
 | `analytics/` | Tableau de bord d'administration : utilisateurs, modération, statistiques | Next.js 16, React 19 |
 | `scripts/` | Mise en place du dev, comptes de démo, test de capacité d'une room | Bash |
-| `backlog/` | Génération des issues GitHub à partir des audits | Python |
 
 Organisation du backend (`backend/internal/`) :
 
@@ -434,7 +433,7 @@ Ils attrapent en quelques secondes ce que la CI refuserait. Exceptionnellement,
   prenez, assignez-vous et passez-la en _In progress_. La PR la fait passer en
   _In review_, et le merge (avec `Closes #…`) en _Done_.
 - La feuille de route technique est rangée par milestones (Phase 2 à 5, Qualité
-  & tests), issues de `AUDIT_LIVE_WEBRTC.md` (voir `backlog/README.md`).
+  & tests).
 
 ---
 
@@ -506,7 +505,4 @@ Les points encore ouverts sont suivis dans les issues #121, #227 et #287.
 | [`TECHNICAL.md`](TECHNICAL.md) | Architecture détaillée du live : WebRTC, SFU, HLS, replays |
 | [`USER_JOURNEY.md`](USER_JOURNEY.md) | Parcours utilisateur : spectateur, hôte, co-streamer |
 | [`BETA_TEST_PLAN.md`](BETA_TEST_PLAN.md) | Plan de test de la bêta et fonctionnalités démontrées |
-| [`AUDIT_LIVE_WEBRTC.md`](AUDIT_LIVE_WEBRTC.md) | Audit du live, source des milestones Phase 2 à 5 |
-| [`AUDIT_RGPD.md`](AUDIT_RGPD.md) / [`RGPD_RECAP.md`](RGPD_RECAP.md) | Audit RGPD et état d'avancement |
-| [`backlog/README.md`](backlog/README.md) | Génération des issues à partir des audits |
 | Swagger | <http://localhost:8081/api/swagger/index.html> (API lancée) |
