@@ -122,6 +122,21 @@ export async function sendRenegotiationAnswer(roomId: string, sdp: string): Prom
   });
   if (!res.ok) throw new Error(`Renegotiation answer failed (${res.status})`);
 }
+
+export async function fetchRenegotiationOffer(
+  roomId: string
+): Promise<{ type: string; sdp: string } | null> {
+  const rid = encodeURIComponent(roomId);
+
+  const res = await fetch(`${API_BASE_URL}/webrtc/offers/next?roomId=${rid}`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 204 || res.status === 404) return null;
+  if (!res.ok) throw new Error(`Renegotiation poll failed (${res.status})`);
+  return res.json();
+}
 export async function sendICECandidate(roomId: string, candidate: RTCIceCandidateInit): Promise<void> {
   const rid = encodeURIComponent(roomId);
 
