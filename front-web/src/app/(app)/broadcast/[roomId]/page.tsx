@@ -422,7 +422,7 @@ export default function BroadcastRoomPage() {
   };
 
   const handleLaunchLive = async () => {
-    if (!ready || !token || !roomIdFromUrl || hasStarted) return;
+    if (!ready || !token || !roomIdFromUrl || (hasStarted && state !== "error")) return;
 
     setHasStarted(true);
     await hostExistingRoom(roomIdFromUrl);
@@ -690,7 +690,7 @@ export default function BroadcastRoomPage() {
             <MessageCircle aria-hidden="true" className="h-5 w-5" />
           </ToolbarButton>
 
-          {!hasStarted && isHost ? (
+          {(!hasStarted || state === "error") && isHost ? (
             <button
               disabled={!canLaunch}
               onClick={handleLaunchLive}
